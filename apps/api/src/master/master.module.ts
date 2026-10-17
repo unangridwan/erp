@@ -14,6 +14,7 @@ import {
 import { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
 import { TenantDb } from "../common/database.js";
+import { installChart } from "../accounting/chart-template.js";
 import { createCrudController } from "../common/crud.js";
 import { FxController, FxService } from "./fx.controller.js";
 import { RegionsController } from "./regions.controller.js";
@@ -56,7 +57,10 @@ const CompaniesController = createCrudController({
   companyColumn: schema.companies.id,
   refs: { parentId: schema.companies },
   beforeSave: assertNoCompanyCycle,
-  afterCreate: createIntercompanyPartner,
+  afterCreate: async (tx, company) => {
+    await createIntercompanyPartner(tx, company);
+    await installChart(tx, company.id);
+  },
 });
 
 const OwnershipController = createCrudController({

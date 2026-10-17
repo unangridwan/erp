@@ -58,6 +58,11 @@ export interface CrudOptions<T extends Table> {
   /** Kolom company_id opsional: baris null = milik bersama grup; selain itu dibatasi perusahaan yang boleh diakses. */
   companyColumn?: PgColumn;
   /**
+   * Data milik satu perusahaan (mis. bagan akun): list hanya menampilkan perusahaan aktif, dan
+   * `companyId` diisi otomatis dengan perusahaan aktif saat membuat data.
+   */
+  perCompany?: boolean;
+  /**
    * Field yang merujuk tabel lain. Pemeriksaan FK Postgres mengabaikan RLS, jadi setiap id rujukan
    * dicek terlihat oleh tenant pemanggil sebelum disimpan.
    */
@@ -102,6 +107,7 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
 
   const companyFilter = (): SQL | undefined => {
     const ctx = currentContext();
+    if (opts.companyColumn && opts.perCompany) return eq(opts.companyColumn, ctx.companyId);
     if (!opts.companyColumn || ctx.permissions.includes(ALL_PERMISSIONS)) return undefined;
     return or(isNull(opts.companyColumn), inArray(opts.companyColumn, ctx.companyIds));
   };
@@ -201,11 +207,13 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
         let updated = 0;
         for (const [i, { id, values }] of parsed.entries()) {
           try {
+            if (opts.perCompany && !id) values.companyId ??= currentContext().companyId;
             assertCompanyAllowed(values);
             await assertRefsVisible(tx, opts.refs ?? {}, values);
             if (id) {
-              await this.find(tx, id);
-              await opts.beforeSave?.(tx, values, id);
+              const before = await this.find(tx, id);
+              if (opts.perCompany) delete values.companyId;
+              await opts.beforeSave?.(tx, { companyId: before.companyId, ...values }, id);
               await tx
                 .update(table)
                 .set({ ...values, ...(hasUpdatedAt ? { updatedAt: sql`now()` } : {}) })
@@ -264,6 +272,7 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
     @RequirePermission(opts.write)
     create(@Body() body: unknown) {
       const values = parse(opts.schema, body);
+      if (opts.perCompany) values.companyId ??= currentContext().companyId;
       assertCompanyAllowed(values);
       return this.tenantDb.run(async (tx) => {
         await assertRefsVisible(tx, opts.refs ?? {}, values);
@@ -281,14 +290,18 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
     update(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
       const values = parse(opts.schema.partial().strip(), body);
       // Field yang tidak dikirim tidak diubah (default zod tidak boleh menimpa nilai lama).
+      // Data per-perusahaan tidak boleh dipindah ke perusahaan lain.
       const sent = Object.fromEntries(
-        Object.entries(values).filter(([k]) => body !== null && typeof body === "object" && k in body),
+        Object.entries(values).filter(
+          ([k]) =>
+            body !== null && typeof body === "object" && k in body && !(opts.perCompany && k === "companyId"),
+        ),
       );
       assertCompanyAllowed(sent);
       return this.tenantDb.run(async (tx) => {
         const before = await this.find(tx, id);
         await assertRefsVisible(tx, opts.refs ?? {}, sent);
-        await opts.beforeSave?.(tx, sent, id);
+        await opts.beforeSave?.(tx, { companyId: before.companyId, ...sent }, id);
         if (Object.keys(sent).length === 0) return before;
         const [row] = await tx
           .update(table)

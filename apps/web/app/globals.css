@@ -320,3 +320,101 @@ code {
   border-radius: 4px;
   word-break: break-all;
 }
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+input.num {
+  width: 120px;
+}
+input.short {
+  width: 70px;
+}
+.stack-wide {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+table.lines td {
+  vertical-align: top;
+}
+table.lines select,
+table.lines input:not([type="checkbox"]) {
+  width: 100%;
+  min-width: 90px;
+}
+table.lines input.num {
+  width: 110px;
+}
+table.lines input.short {
+  width: 70px;
+}
+.tax-picks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.totals {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: end;
+  gap: 4px 24px;
+  margin: 16px 0 0;
+}
+.totals dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.totals .contents {
+  display: contents;
+}
+.state-draft {
+  background: var(--hover);
+}
+.state-posted,
+.pay-paid {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.pay-partial,
+.pay-not_paid {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.tabs button.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: flex-end;
+}
+.report table {
+  max-width: 900px;
+}
+.report tr.section th,
+.report tr.section td {
+  padding-top: 16px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.report tr.subtotal td {
+  font-weight: 500;
+  border-top: 1px solid var(--border);
+}
+.report tr.grand td {
+  font-weight: 700;
+  border-top: 2px solid var(--fg);
+}

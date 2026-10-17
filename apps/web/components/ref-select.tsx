@@ -13,6 +13,7 @@ export function RefSelect(props: {
   valueKey?: string;
   value: string;
   required?: boolean;
+  disabled?: boolean;
   onChange: (value: string) => void;
 }) {
   const [options, setOptions] = useState<Row[]>([]);
@@ -29,6 +30,7 @@ export function RefSelect(props: {
       name={props.name}
       value={props.value}
       required={props.required}
+      disabled={props.disabled}
       onChange={(e) => props.onChange(e.target.value)}
     >
       <option value="">—</option>

@@ -92,6 +92,8 @@ interface I18n {
   setLocale: (l: Locale) => void;
   t: (key: MessageKey, vars?: Record<string, string | number>) => string;
   tx: (text: Text) => string;
+  /** Teks dua bahasa langsung di tempat (untuk halaman modul). */
+  l: (id: string, en: string) => string;
 }
 
 const I18nContext = createContext<I18n | null>(null);
@@ -129,7 +131,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     [locale],
   );
 
-  return <I18nContext.Provider value={{ locale, setLocale, t, tx }}>{children}</I18nContext.Provider>;
+  const l = useCallback((id: string, en: string) => (locale === "id" ? id : en), [locale]);
+
+  return <I18nContext.Provider value={{ locale, setLocale, t, tx, l }}>{children}</I18nContext.Provider>;
 }
 
 export function useI18n(): I18n {

@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useMe } from "../../components/me-context";
-import { L, useI18n } from "../../lib/i18n";
+import { L, useI18n, type Text } from "../../lib/i18n";
 
-const MODULES = [
+const MODULES: { name: Text; desc: Text; phase: string; href?: string }[] = [
   { name: L("CRM", "CRM"), desc: L("Lead & pipeline penjualan", "Leads & sales pipeline"), phase: "2" },
   {
     name: L("Penjualan", "Sales"),
@@ -60,9 +60,17 @@ export default function Dashboard() {
       <ul className="grid">
         {MODULES.map((m) => (
           <li key={m.name.id} className="card">
-            <strong>{tx(m.name)}</strong>
+            <strong>{m.href ? <Link href={m.href}>{tx(m.name)}</Link> : tx(m.name)}</strong>
             <span>{tx(m.desc)}</span>
-            <small className="badge">{locale === "id" ? `Fase ${m.phase}` : `Phase ${m.phase}`}</small>
+            <small className="badge">
+              {"href" in m
+                ? locale === "id"
+                  ? "Tersedia"
+                  : "Available"
+                : locale === "id"
+                  ? `Fase ${m.phase}`
+                  : `Phase ${m.phase}`}
+            </small>
           </li>
         ))}
       </ul>

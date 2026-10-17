@@ -27,11 +27,13 @@ export interface Resource {
   group: Text;
   /** Tampilkan tombol impor/ekspor CSV. */
   csv?: boolean;
+  /** Permission untuk menulis bila berbeda dari `<permission>.write`. */
+  writePermission?: string;
 }
 
 const MASTER = L("Master Data", "Master Data");
 const GROUP = L("Struktur Grup", "Group Structure");
-const ACCOUNTING = L("Keuangan", "Finance");
+export const ACCOUNTING = L("Akuntansi", "Accounting");
 
 const name = (required = true): Field => ({ name: "name", label: L("Nama", "Name"), type: "text", required });
 const code: Field = { name: "code", label: L("Kode", "Code"), type: "text", required: true };
@@ -355,4 +357,220 @@ export const findResource = (path: string) => RESOURCES.find((r) => r.path === p
 export const can = (permissions: string[], perm: string) =>
   permissions.includes("*") || permissions.includes(perm);
 export const canWrite = (permissions: string[], resource: Resource) =>
-  can(permissions, `${resource.permission}.write`);
+  can(permissions, resource.writePermission ?? `${resource.permission}.write`);
+
+const ACCOUNT_TYPES: [string, Text][] = [
+  ["asset_receivable", L("Piutang", "Receivable")],
+  ["asset_cash", L("Kas & bank", "Bank & cash")],
+  ["asset_current", L("Aset lancar", "Current assets")],
+  ["asset_non_current", L("Aset tidak lancar", "Non-current assets")],
+  ["asset_fixed", L("Aset tetap", "Fixed assets")],
+  ["liability_payable", L("Utang usaha", "Payable")],
+  ["liability_current", L("Liabilitas jangka pendek", "Current liabilities")],
+  ["liability_non_current", L("Liabilitas jangka panjang", "Non-current liabilities")],
+  ["equity", L("Ekuitas", "Equity")],
+  ["equity_unaffected", L("Laba tahun berjalan", "Current year earnings")],
+  ["income", L("Pendapatan", "Income")],
+  ["income_other", L("Pendapatan lain-lain", "Other income")],
+  ["expense", L("Beban", "Expenses")],
+  ["expense_direct_cost", L("Harga pokok penjualan", "Cost of revenue")],
+  ["expense_depreciation", L("Penyusutan", "Depreciation")],
+  ["expense_other", L("Beban lain-lain", "Other expenses")],
+];
+
+RESOURCES.push(
+  {
+    path: "accounts",
+    model: "account",
+    title: L("Bagan Akun", "Chart of Accounts"),
+    singular: L("Akun", "Account"),
+    permission: "accounting",
+    writePermission: "accounting.manage",
+    group: ACCOUNTING,
+    csv: true,
+    columns: [
+      { name: "code", label: L("Kode", "Code") },
+      { name: "name", label: L("Nama", "Name") },
+      { name: "accountType", label: L("Jenis", "Type") },
+    ],
+    fields: [
+      code,
+      name(),
+      {
+        name: "accountType",
+        label: L("Jenis akun", "Account type"),
+        type: "select",
+        options: ACCOUNT_TYPES,
+        required: true,
+      },
+      {
+        name: "reconcile",
+        label: L("Dapat direkonsiliasi (piutang/utang)", "Allow reconciliation"),
+        type: "boolean",
+      },
+    ],
+  },
+  {
+    path: "journals",
+    model: "journal",
+    title: L("Jurnal", "Journals"),
+    singular: L("Jurnal", "Journal"),
+    permission: "accounting",
+    writePermission: "accounting.manage",
+    group: ACCOUNTING,
+    columns: [
+      { name: "code", label: L("Kode", "Code") },
+      { name: "name", label: L("Nama", "Name") },
+      { name: "journalType", label: L("Tipe", "Type") },
+    ],
+    fields: [
+      code,
+      name(),
+      {
+        name: "journalType",
+        label: L("Tipe", "Type"),
+        type: "select",
+        required: true,
+        options: [
+          ["sale", L("Penjualan", "Sales")],
+          ["purchase", L("Pembelian", "Purchase")],
+          ["bank", L("Bank", "Bank")],
+          ["cash", L("Kas", "Cash")],
+          ["general", L("Umum", "Miscellaneous")],
+        ],
+      },
+      {
+        name: "defaultAccountId",
+        label: L("Akun bawaan", "Default account"),
+        type: "ref",
+        resource: "accounts",
+        display: "name",
+      },
+    ],
+  },
+  {
+    path: "taxes",
+    model: "tax",
+    title: L("Pajak", "Taxes"),
+    singular: L("Pajak", "Tax"),
+    permission: "accounting",
+    writePermission: "accounting.manage",
+    group: ACCOUNTING,
+    columns: [
+      { name: "name", label: L("Nama", "Name") },
+      { name: "typeTaxUse", label: L("Penggunaan", "Usage") },
+      { name: "amount", label: L("Tarif %", "Rate %") },
+      { name: "baseRatio", label: L("Rasio DPP", "Base ratio") },
+    ],
+    fields: [
+      name(),
+      {
+        name: "typeTaxUse",
+        label: L("Penggunaan", "Usage"),
+        type: "select",
+        required: true,
+        options: [
+          ["sale", L("Penjualan", "Sales")],
+          ["purchase", L("Pembelian", "Purchase")],
+        ],
+      },
+      {
+        name: "amount",
+        label: L("Tarif % (negatif = dipotong)", "Rate % (negative = withheld)"),
+        type: "number",
+        required: true,
+      },
+      {
+        name: "baseRatio",
+        label: L("Rasio DPP (mis. 0.9166666667 = 11/12)", "Tax base ratio (e.g. 11/12)"),
+        type: "number",
+      },
+      {
+        name: "accountId",
+        label: L("Akun pajak", "Tax account"),
+        type: "ref",
+        resource: "accounts",
+        display: "name",
+        required: true,
+      },
+    ],
+  },
+);
+
+/** Halaman modul khusus (bukan CRUD generik) yang tampil di menu samping. */
+export interface Page {
+  href: string;
+  label: Text;
+  group: Text;
+  permission: string;
+}
+
+export const PAGES: Page[] = [
+  {
+    href: "/accounting/invoices",
+    label: L("Faktur Penjualan", "Customer Invoices"),
+    group: ACCOUNTING,
+    permission: "accounting.read",
+  },
+  {
+    href: "/accounting/bills",
+    label: L("Tagihan Pembelian", "Vendor Bills"),
+    group: ACCOUNTING,
+    permission: "accounting.read",
+  },
+  {
+    href: "/accounting/entries",
+    label: L("Jurnal Umum", "Journal Entries"),
+    group: ACCOUNTING,
+    permission: "accounting.read",
+  },
+  {
+    href: "/accounting/payments",
+    label: L("Pembayaran", "Payments"),
+    group: ACCOUNTING,
+    permission: "accounting.read",
+  },
+  {
+    href: "/accounting/reports",
+    label: L("Laporan Keuangan", "Financial Reports"),
+    group: ACCOUNTING,
+    permission: "accounting.read",
+  },
+  {
+    href: "/accounting/settings",
+    label: L("Pengaturan Akuntansi", "Accounting Settings"),
+    group: ACCOUNTING,
+    permission: "accounting.manage",
+  },
+];
+
+/** Jenis dokumen per halaman daftar. */
+export const MOVE_KINDS = {
+  invoices: {
+    types: ["out_invoice", "out_refund"],
+    newType: "out_invoice",
+    title: L("Faktur Penjualan", "Customer Invoices"),
+  },
+  bills: {
+    types: ["in_invoice", "in_refund"],
+    newType: "in_invoice",
+    title: L("Tagihan Pembelian", "Vendor Bills"),
+  },
+  entries: { types: ["entry"], newType: "entry", title: L("Jurnal Umum", "Journal Entries") },
+} as const;
+export type MoveKind = keyof typeof MOVE_KINDS;
+
+export const MOVE_TYPE_LABEL: Record<string, Text> = {
+  entry: L("Jurnal", "Entry"),
+  out_invoice: L("Faktur", "Invoice"),
+  out_refund: L("Nota kredit", "Credit note"),
+  in_invoice: L("Tagihan", "Bill"),
+  in_refund: L("Nota debit", "Refund"),
+};
+
+export const PAYMENT_STATE_LABEL: Record<string, Text> = {
+  not_paid: L("Belum dibayar", "Not paid"),
+  partial: L("Dibayar sebagian", "Partially paid"),
+  paid: L("Lunas", "Paid"),
+  reversed: L("Dibalik", "Reversed"),
+};

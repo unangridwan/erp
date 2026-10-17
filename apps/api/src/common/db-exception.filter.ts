@@ -31,7 +31,9 @@ const PG_STATUS: Record<string, { status: number; message: string }> = {
 };
 
 /** Drizzle membungkus error driver; cari error Postgres asli di rantai `cause`. */
-function findPgError(error: unknown): { code: string; detail?: string } | undefined {
+function findPgError(
+  error: unknown,
+): { code: string; detail?: string; message?: string; fromTrigger: boolean } | undefined {
   let current: unknown = error;
   for (let i = 0; i < 5 && current; i++) {
     if (
@@ -41,7 +43,11 @@ function findPgError(error: unknown): { code: string; detail?: string } | undefi
       typeof current.code === "string"
     ) {
       const detail = "detail" in current && typeof current.detail === "string" ? current.detail : undefined;
-      return { code: current.code, detail };
+      const message =
+        "message" in current && typeof current.message === "string" ? current.message : undefined;
+      // Error dari RAISE di fungsi plpgsql memiliki `where` berisi "PL/pgSQL function".
+      const where = "where" in current && typeof current.where === "string" ? current.where : "";
+      return { code: current.code, detail, message, fromTrigger: where.includes("PL/pgSQL") };
     }
     current = (current as { cause?: unknown }).cause;
   }

@@ -51,6 +51,17 @@ Header opsional `X-Company-Id` memilih perusahaan aktif (harus termasuk perusaha
 | `GET /activity/:model/:id`                                                               | Riwayat perubahan (chatter)                                |
 | `GET /sequences`                                                                         | Penomoran dokumen perusahaan aktif                         |
 
+### Akuntansi (Fase 1)
+
+| Endpoint                                                                                   | Keterangan                                                                       |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `/accounts`, `/journals`, `/taxes`                                                         | Bagan akun, jurnal, pajak (per perusahaan aktif; dipasang otomatis)              |
+| `POST /accounting/setup`, `GET/PATCH /accounting/settings`                                 | Pasang COA standar, lock date                                                    |
+| `GET/POST /moves`, `GET/PATCH/DELETE /moves/:id`                                           | Draft jurnal umum atau faktur/tagihan (`moveType`)                               |
+| `POST /moves/:id/post`, `POST /moves/:id/reverse`                                          | Posting (nomor `INV/2026/0001`), jurnal balik / nota kredit                      |
+| `GET/POST /payments`, `POST /reconcile`                                                    | Pembayaran (melunasi faktur), rekonsiliasi manual                                |
+| `GET /reports/trial-balance`, `/general-ledger`, `/balance-sheet`, `/profit-loss`, `/aged` | Laporan; filter `dateFrom`, `dateTo`, `companyIds`, `branchId`, `businessUnitId` |
+
 Resource master mendukung `GET /x?q=&limit=&offset=&active=all|false`, `GET/PATCH/DELETE /x/:id`, `POST /x`,
 `GET /x/export` (CSV) dan `POST /x/import` (`{ "csv": "..." }`; baris ber-`id` diperbarui, tanpa `id` dibuat; satu baris
 gagal membatalkan seluruh impor).

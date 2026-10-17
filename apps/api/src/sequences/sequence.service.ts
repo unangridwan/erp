@@ -25,11 +25,11 @@ export class SequenceService {
    * Ambil nomor berikutnya untuk `code` di perusahaan `companyId`.
    * Wajib dipanggil di dalam transaksi dokumen agar nomor ikut rollback (tanpa celah) — baris dikunci FOR UPDATE.
    */
-  async next(tx: Db, code: string, companyId: string, date = new Date()): Promise<string> {
+  async next(tx: Db, code: string, companyId: string, date = new Date(), prefix?: string): Promise<string> {
     const year = date.getFullYear();
     await tx
       .insert(schema.sequences)
-      .values({ companyId, code, prefix: DEFAULT_PREFIX[code] ?? code.toUpperCase() })
+      .values({ companyId, code, prefix: prefix ?? DEFAULT_PREFIX[code] ?? code.toUpperCase() })
       .onConflictDoNothing();
 
     const [seq] = await tx

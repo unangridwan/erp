@@ -241,6 +241,12 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] Fase 0 (lanjutan): refresh token berotasi, 2FA TOTP (secret terenkripsi AES-GCM), rate limit login,
   undangan user via email, impor/ekspor CSV, UI dua bahasa (ID/EN), kurs harian + konversi, FK komposit
   `(tenant_id, id)`, data wilayah Indonesia (Kepmendagri 2025)
+- [x] Fase 1 (Akuntansi inti): bagan akun standar Indonesia otomatis per perusahaan, jurnal, pajak (PPN 12% DPP 11/12,
+  PPN barang mewah, PPh 23 dipotong), faktur & tagihan multi mata uang, jurnal umum, posting bernomor per jurnal,
+  jurnal balik / nota kredit, pembayaran & rekonsiliasi parsial, lock date, akun piutang/utang antar perusahaan,
+  dimensi cabang & unit bisnis, laporan (neraca saldo, buku besar, neraca, laba rugi, umur piutang/utang)
+- [ ] Fase 1 ditunda: rekonsiliasi bank (impor mutasi), aset tetap & penyusutan, anggaran, selisih kurs saat pelunasan,
+  tutup buku akhir tahun otomatis, ekspor PDF/Excel laporan
 - [ ] Ditunda: rate limiter berbasis Redis (multi-instance), SSO, impor Excel (.xlsx), sumber kurs otomatis
   (KMK kurs pajak / BI), pesan error API dua bahasa
 

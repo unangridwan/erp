@@ -1,5 +1,6 @@
 import { Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
+import { AccountingModule } from "./accounting/accounting.module.js";
 import { ActivityController, ActivityService } from "./activity/activity.service.js";
 import { AuthController } from "./auth/auth.controller.js";
 import { AuthGuard } from "./auth/auth.guard.js";
@@ -16,7 +17,7 @@ import { UsersController } from "./users/users.controller.js";
 import { UsersService } from "./users/users.service.js";
 
 @Module({
-  imports: [DatabaseModule, MasterModule],
+  imports: [DatabaseModule, MasterModule, AccountingModule],
   controllers: [HealthController, AuthController, ActivityController, SequenceController, UsersController],
   providers: [
     AuthService,

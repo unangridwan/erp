@@ -153,3 +153,133 @@ export const userCreateSchema = z.object({
   roleIds: z.array(z.string().uuid()).default([]),
   companyIds: z.array(z.string().uuid()).min(1, "Pilih minimal satu perusahaan"),
 });
+
+// ---- Akuntansi ----
+
+const decimalString = (scale: number) =>
+  z
+    .union([z.number(), z.string().trim()])
+    .transform(String)
+    .refine(
+      (v) => new RegExp(`^-?\\d+(\\.\\d{1,${scale}})?$`).test(v),
+      `Angka tidak valid (maks. ${scale} desimal)`,
+    );
+const nonNegative = (scale: number) =>
+  decimalString(scale).refine((v) => !v.startsWith("-"), "Tidak boleh negatif");
+const dimensions = {
+  partnerId: z.string().uuid().nullish(),
+  businessUnitId: z.string().uuid().nullish(),
+  branchId: z.string().uuid().nullish(),
+};
+
+export const ACCOUNT_TYPE_VALUES = [
+  "asset_receivable",
+  "asset_cash",
+  "asset_current",
+  "asset_non_current",
+  "asset_fixed",
+  "liability_payable",
+  "liability_current",
+  "liability_non_current",
+  "equity",
+  "equity_unaffected",
+  "income",
+  "income_other",
+  "expense",
+  "expense_direct_cost",
+  "expense_depreciation",
+  "expense_other",
+] as const;
+
+export const accountSchema = z.object({
+  companyId: z.string().uuid().optional(),
+  code: z.string().trim().min(1).max(20),
+  name: z.string().trim().min(1).max(200),
+  accountType: z.enum(ACCOUNT_TYPE_VALUES),
+  reconcile: z.boolean().default(false),
+  currencyCode: z.string().length(3).toUpperCase().nullish(),
+  active: z.boolean().default(true),
+});
+
+export const journalSchema = z.object({
+  companyId: z.string().uuid().optional(),
+  code: z.string().trim().min(1).max(10).toUpperCase(),
+  name: z.string().trim().min(1).max(100),
+  journalType: z.enum(["sale", "purchase", "bank", "cash", "general"]),
+  defaultAccountId: z.string().uuid().nullish(),
+  active: z.boolean().default(true),
+});
+
+export const taxSchema = z.object({
+  companyId: z.string().uuid().optional(),
+  name: z.string().trim().min(1).max(100),
+  typeTaxUse: z.enum(["sale", "purchase"]),
+  amount: decimalString(4),
+  baseRatio: decimalString(10).default("1"),
+  accountId: z.string().uuid(),
+  active: z.boolean().default(true),
+});
+
+export const accountingSettingsSchema = z.object({
+  lockDate: z.string().date().nullish(),
+});
+
+export const journalEntrySchema = z.object({
+  journalId: z.string().uuid().optional(),
+  date: z.string().date(),
+  ref: z.string().trim().max(200).nullish(),
+  narration: z.string().max(2000).nullish(),
+  lines: z
+    .array(
+      z.object({
+        accountId: z.string().uuid(),
+        name: z.string().trim().max(500).nullish(),
+        debit: nonNegative(2).default("0"),
+        credit: nonNegative(2).default("0"),
+        ...dimensions,
+      }),
+    )
+    .min(2, "Minimal dua baris"),
+});
+
+export const INVOICE_TYPES = ["out_invoice", "out_refund", "in_invoice", "in_refund"] as const;
+
+export const invoiceSchema = z.object({
+  moveType: z.enum(INVOICE_TYPES),
+  journalId: z.string().uuid().optional(),
+  partnerId: z.string().uuid(),
+  date: z.string().date(),
+  dueDate: z.string().date().nullish(),
+  ref: z.string().trim().max(200).nullish(),
+  narration: z.string().max(2000).nullish(),
+  currencyCode: z.string().length(3).toUpperCase().optional(),
+  lines: z
+    .array(
+      z.object({
+        productId: z.string().uuid().nullish(),
+        accountId: z.string().uuid().nullish(),
+        name: z.string().trim().min(1).max(500),
+        quantity: decimalString(4).default("1"),
+        priceUnit: decimalString(4),
+        discount: nonNegative(4).default("0"),
+        taxIds: z.array(z.string().uuid()).default([]),
+        businessUnitId: z.string().uuid().nullish(),
+        branchId: z.string().uuid().nullish(),
+      }),
+    )
+    .min(1, "Minimal satu baris"),
+});
+
+export const paymentSchema = z.object({
+  paymentType: z.enum(["inbound", "outbound"]),
+  partnerId: z.string().uuid(),
+  journalId: z.string().uuid(),
+  amount: nonNegative(2).refine((v) => Number(v) > 0, "Jumlah harus lebih dari 0"),
+  date: z.string().date(),
+  currencyCode: z.string().length(3).toUpperCase().optional(),
+  memo: z.string().trim().max(500).nullish(),
+  /** Faktur/tagihan yang dilunasi, berurutan. */
+  moveIds: z.array(z.string().uuid()).default([]),
+});
+
+export const reconcileSchema = z.object({ lineIds: z.array(z.string().uuid()).min(2) });

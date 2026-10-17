@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { MeContext } from "../../components/me-context";
 import { api, session, type Me } from "../../lib/api";
 import { LocaleSwitch, useI18n } from "../../lib/i18n";
-import { can, RESOURCES } from "../../lib/resources";
+import { can, PAGES, RESOURCES } from "../../lib/resources";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -32,7 +32,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   if (!me) return <main className="shell muted">{t("app.loading")}</main>;
 
-  const groups = [...new Map(RESOURCES.map((r) => [r.group.id, r.group])).values()];
+  const groups = [...new Map([...RESOURCES, ...PAGES].map((r) => [r.group.id, r.group])).values()];
   const link = (href: string, label: string) => (
     <Link key={href} href={href} className={pathname.startsWith(href) ? "active" : ""}>
       {label}
@@ -63,13 +63,15 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             </select>
           </label>
           {groups.map((group) => {
+            const pages = PAGES.filter((p) => p.group.id === group.id && can(me.permissions, p.permission));
             const items = RESOURCES.filter(
               (r) => r.group.id === group.id && can(me.permissions, `${r.permission}.read`),
             );
-            if (!items.length) return null;
+            if (!items.length && !pages.length) return null;
             return (
               <nav key={group.id}>
                 <h2>{tx(group)}</h2>
+                {pages.map((p) => link(p.href, tx(p.label)))}
                 {items.map((r) => link(`/${r.path}`, tx(r.title)))}
               </nav>
             );
