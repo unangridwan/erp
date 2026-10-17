@@ -114,6 +114,23 @@ Header opsional `X-Company-Id` memilih perusahaan aktif (harus termasuk perusaha
 | `GET /sale-orders/report?from=&to=&groupBy=product\|partner\|salesperson\|month`              | Analisis penjualan pesanan terkonfirmasi                                       |
 | `GET /users/options`                                                                          | Pilihan user aktif perusahaan aktif (penanggung jawab, penjual)                |
 
+### Pembelian & Persediaan (Fase 3)
+
+| Endpoint                                                                                            | Keterangan                                                                                            |
+| --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `/warehouses`, `/stock-locations`, `/reorder-rules`, `/product-suppliers`                           | Gudang (otomatis membuat lokasi stok), lokasi, aturan min/max, harga pemasok bertingkat               |
+| `GET/POST /pickings`, `GET/PUT/DELETE /pickings/:id`                                                | Transfer (`pickingType` incoming/outgoing/internal); filter `state`, `saleOrderId`, `purchaseOrderId` |
+| `POST /pickings/:id/{confirm,validate,cancel,return}`                                               | Validasi (kuantitas & lot/serial per baris, `createBackorder`), batal, retur                          |
+| `GET /stock/{overview,quants,card,valuation,lots}`, `POST /stock/adjustments`                       | Stok, quant per lokasi/lot, kartu stok, valuasi per tanggal, lot; stock opname                        |
+| `GET /replenishment`, `POST /replenishment/run`                                                     | Saran pengadaan dari aturan min/max; buat RFQ ke pemasok utama                                        |
+| `GET/POST /purchase-orders`, `GET/PUT/DELETE /purchase-orders/:id`, `POST /purchase-orders/compute` | RFQ/PO; `compute` = pratinjau harga pemasok, pajak, total                                             |
+| `POST /purchase-orders/:id/{send,confirm,approve,cancel,draft,bill}`, `GET …/pdf`                   | Kirim RFQ, konfirmasi (dengan persetujuan), tagihan dari barang diterima, PDF                         |
+| `GET /purchase-orders/matching`, `GET /purchase-orders/report?from=&to=&groupBy=`                   | Pencocokan 3 arah, analisis pembelian                                                                 |
+
+Konfirmasi SO membuat pengiriman; barang ditagih sesuai kuantitas terkirim (jasa sesuai kuantitas dipesan). Validasi
+transfer barang stok membuat jurnal di jurnal **STJ**: penerimaan Dr Persediaan / Cr Barang Diterima Belum Ditagih,
+pengiriman Dr HPP / Cr Persediaan, opname ke Selisih Persediaan. Tagihan dari PO mendebit Barang Diterima Belum Ditagih.
+
 Resource master mendukung `GET /x?q=&limit=&offset=&active=all|false`, `GET/PATCH/DELETE /x/:id`, `POST /x`,
 `GET /x/export` (CSV) dan `POST /x/import` (`{ "csv": "..." }`; baris ber-`id` diperbarui, tanpa `id` dibuat; satu baris
 gagal membatalkan seluruh impor).

@@ -101,7 +101,7 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
               {saving ? t("form.saving") : t("form.save")}
             </button>
           )}
-          {editable && !isNew && (
+          {editable && !isNew && !resource.noDelete && (
             <button type="button" className="danger" onClick={onDelete}>
               {t("form.delete")}
             </button>

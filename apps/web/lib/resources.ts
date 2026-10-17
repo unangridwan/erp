@@ -29,6 +29,8 @@ export interface Resource {
   csv?: boolean;
   /** Permission untuk menulis bila berbeda dari `<permission>.write`. */
   writePermission?: string;
+  /** Data tidak bisa dihapus (cukup dinonaktifkan). */
+  noDelete?: boolean;
 }
 
 const MASTER = L("Master Data", "Master Data");
@@ -36,6 +38,8 @@ const GROUP = L("Struktur Grup", "Group Structure");
 export const ACCOUNTING = L("Akuntansi", "Accounting");
 export const CRM = L("CRM", "CRM");
 export const SALES = L("Penjualan", "Sales");
+export const INVENTORY = L("Persediaan", "Inventory");
+export const PURCHASE = L("Pembelian", "Purchase");
 
 const name = (required = true): Field => ({ name: "name", label: L("Nama", "Name"), type: "text", required });
 const code: Field = { name: "code", label: L("Kode", "Code"), type: "text", required: true };
@@ -166,6 +170,25 @@ export const RESOURCES: Resource[] = [
       { name: "salePrice", label: L("Harga jual", "Sales price"), type: "number" },
       { name: "cost", label: L("Biaya", "Cost"), type: "number" },
       { name: "barcode", label: L("Barcode", "Barcode"), type: "text" },
+      {
+        name: "tracking",
+        label: L("Pelacakan", "Tracking"),
+        type: "select",
+        options: [
+          ["none", L("Tanpa lot/serial", "No tracking")],
+          ["lot", L("Per lot", "By lot")],
+          ["serial", L("Per nomor serial", "By serial number")],
+        ],
+      },
+      {
+        name: "costMethod",
+        label: L("Metode biaya", "Costing method"),
+        type: "select",
+        options: [
+          ["average", L("Rata-rata tertimbang", "Average cost")],
+          ["fifo", L("FIFO", "FIFO")],
+        ],
+      },
       companyScope,
     ],
   },
@@ -595,6 +618,161 @@ RESOURCES.push(
   },
 );
 
+RESOURCES.push(
+  {
+    path: "warehouses",
+    model: "warehouse",
+    title: L("Gudang", "Warehouses"),
+    singular: L("Gudang", "Warehouse"),
+    permission: "inventory",
+    writePermission: "inventory.manage",
+    group: INVENTORY,
+    noDelete: true,
+    columns: [
+      { name: "code", label: L("Kode", "Code") },
+      { name: "name", label: L("Nama", "Name") },
+      { name: "stockLocationName", label: L("Lokasi stok", "Stock location") },
+    ],
+    fields: [
+      {
+        name: "code",
+        label: L("Kode (tidak bisa diubah)", "Code (cannot be changed)"),
+        type: "text",
+        required: true,
+      },
+      name(),
+      { name: "branchId", label: L("Cabang", "Branch"), type: "ref", resource: "branches", display: "name" },
+      { name: "active", label: L("Aktif", "Active"), type: "boolean" },
+    ],
+  },
+  {
+    path: "stock-locations",
+    model: "stock_location",
+    title: L("Lokasi", "Locations"),
+    singular: L("Lokasi", "Location"),
+    permission: "inventory",
+    writePermission: "inventory.manage",
+    group: INVENTORY,
+    noDelete: true,
+    columns: [
+      { name: "completeName", label: L("Lokasi", "Location") },
+      { name: "usage", label: L("Jenis", "Type") },
+    ],
+    fields: [
+      {
+        name: "parentId",
+        label: L("Lokasi induk", "Parent location"),
+        type: "ref",
+        resource: "stock-locations?usage=view",
+        display: "completeName",
+        required: true,
+      },
+      name(),
+      {
+        name: "usage",
+        label: L("Jenis", "Type"),
+        type: "select",
+        options: [
+          ["internal", L("Internal (menyimpan stok)", "Internal (holds stock)")],
+          ["view", L("Induk (view)", "View")],
+        ],
+      },
+      { name: "active", label: L("Aktif", "Active"), type: "boolean" },
+    ],
+  },
+  {
+    path: "reorder-rules",
+    model: "stock_reorder_rule",
+    title: L("Aturan Pemesanan Ulang", "Reordering Rules"),
+    singular: L("Aturan pemesanan ulang", "Reordering rule"),
+    permission: "inventory",
+    writePermission: "inventory.manage",
+    group: INVENTORY,
+    columns: [
+      { name: "productId", label: L("Produk", "Product") },
+      { name: "warehouseId", label: L("Gudang", "Warehouse") },
+      { name: "minQty", label: L("Minimum", "Min") },
+      { name: "maxQty", label: L("Maksimum", "Max") },
+      { name: "qtyMultiple", label: L("Kelipatan", "Multiple") },
+    ],
+    fields: [
+      {
+        name: "warehouseId",
+        label: L("Gudang", "Warehouse"),
+        type: "ref",
+        resource: "warehouses",
+        display: "name",
+        required: true,
+      },
+      {
+        name: "productId",
+        label: L("Produk", "Product"),
+        type: "ref",
+        resource: "products",
+        display: "name",
+        required: true,
+      },
+      { name: "minQty", label: L("Stok minimum", "Min quantity"), type: "number" },
+      { name: "maxQty", label: L("Stok maksimum", "Max quantity"), type: "number" },
+      { name: "qtyMultiple", label: L("Kelipatan pesanan", "Order multiple"), type: "number" },
+      { name: "active", label: L("Aktif", "Active"), type: "boolean" },
+    ],
+  },
+  {
+    path: "product-suppliers",
+    model: "product_supplier",
+    title: L("Harga Pemasok", "Vendor Pricelists"),
+    singular: L("Harga pemasok", "Vendor price"),
+    permission: "purchase",
+    writePermission: "purchase.manage",
+    group: PURCHASE,
+    columns: [
+      { name: "productId", label: L("Produk", "Product") },
+      { name: "partnerId", label: L("Pemasok", "Vendor") },
+      { name: "price", label: L("Harga", "Price") },
+      { name: "currencyCode", label: L("Mata uang", "Currency") },
+      { name: "minQty", label: L("Min. qty", "Min. qty") },
+      { name: "delayDays", label: L("Lead time (hari)", "Lead time (days)") },
+    ],
+    fields: [
+      {
+        name: "partnerId",
+        label: L("Pemasok", "Vendor"),
+        type: "ref",
+        resource: "partners",
+        display: "name",
+        required: true,
+      },
+      {
+        name: "productId",
+        label: L("Produk", "Product"),
+        type: "ref",
+        resource: "products",
+        display: "name",
+        required: true,
+      },
+      { name: "productCode", label: L("Kode produk di pemasok", "Vendor product code"), type: "text" },
+      { name: "price", label: L("Harga", "Price"), type: "number", required: true },
+      {
+        name: "currencyCode",
+        label: L("Mata uang", "Currency"),
+        type: "ref",
+        resource: "currencies",
+        display: "code",
+        valueKey: "code",
+      },
+      { name: "minQty", label: L("Minimum kuantitas", "Minimum quantity"), type: "number" },
+      { name: "delayDays", label: L("Lead time (hari)", "Lead time (days)"), type: "number" },
+      {
+        name: "sequence",
+        label: L("Prioritas (kecil = utama)", "Priority (lower = preferred)"),
+        type: "number",
+      },
+      companyScope,
+    ],
+  },
+);
+
 /** Halaman modul khusus (bukan CRUD generik) yang tampil di menu samping. */
 export interface Page {
   href: string;
@@ -604,6 +782,85 @@ export interface Page {
 }
 
 export const PAGES: Page[] = [
+  { href: "/inventory/overview", label: L("Stok", "Stock"), group: INVENTORY, permission: "inventory.read" },
+  {
+    href: "/inventory/receipts",
+    label: L("Penerimaan", "Receipts"),
+    group: INVENTORY,
+    permission: "inventory.read",
+  },
+  {
+    href: "/inventory/deliveries",
+    label: L("Pengiriman", "Deliveries"),
+    group: INVENTORY,
+    permission: "inventory.read",
+  },
+  {
+    href: "/inventory/internal",
+    label: L("Transfer Internal", "Internal Transfers"),
+    group: INVENTORY,
+    permission: "inventory.read",
+  },
+  {
+    href: "/inventory/adjustments",
+    label: L("Stock Opname", "Physical Inventory"),
+    group: INVENTORY,
+    permission: "inventory.manage",
+  },
+  {
+    href: "/inventory/card",
+    label: L("Kartu Stok", "Stock Card"),
+    group: INVENTORY,
+    permission: "inventory.read",
+  },
+  {
+    href: "/inventory/valuation",
+    label: L("Valuasi Persediaan", "Inventory Valuation"),
+    group: INVENTORY,
+    permission: "inventory.read",
+  },
+  {
+    href: "/inventory/lots",
+    label: L("Lot / Serial", "Lots / Serials"),
+    group: INVENTORY,
+    permission: "inventory.read",
+  },
+  {
+    href: "/inventory/replenishment",
+    label: L("Pengadaan Ulang", "Replenishment"),
+    group: INVENTORY,
+    permission: "inventory.read",
+  },
+  {
+    href: "/purchase/rfq",
+    label: L("Permintaan Penawaran", "Requests for Quotation"),
+    group: PURCHASE,
+    permission: "purchase.read",
+  },
+  {
+    href: "/purchase/orders",
+    label: L("Pesanan Pembelian", "Purchase Orders"),
+    group: PURCHASE,
+    permission: "purchase.read",
+  },
+  {
+    href: "/purchase/to-bill",
+    label: L("Perlu Ditagihkan", "To Bill"),
+    group: PURCHASE,
+    permission: "purchase.read",
+  },
+  {
+    href: "/purchase/matching",
+    label: L("Pencocokan 3 Arah", "3-Way Matching"),
+    group: PURCHASE,
+    permission: "purchase.read",
+  },
+  {
+    href: "/purchase/reports",
+    label: L("Analisis Pembelian", "Purchase Analysis"),
+    group: PURCHASE,
+    permission: "purchase.read",
+  },
   { href: "/crm/pipeline", label: L("Pipeline", "Pipeline"), group: CRM, permission: "crm.read" },
   { href: "/crm/leads", label: L("Lead", "Leads"), group: CRM, permission: "crm.read" },
   {
@@ -778,3 +1035,58 @@ export const ACTIVITY_TYPES: [string, Text][] = [
   ["email", L("Email", "Email")],
   ["todo", L("To-do", "To-do")],
 ];
+
+/** Halaman daftar transfer stok. */
+export const PICKING_KINDS = {
+  receipts: { type: "incoming", title: L("Penerimaan", "Receipts") },
+  deliveries: { type: "outgoing", title: L("Pengiriman", "Deliveries") },
+  internal: { type: "internal", title: L("Transfer Internal", "Internal Transfers") },
+} as const;
+export type PickingKind = keyof typeof PICKING_KINDS;
+
+export const PICKING_STATE_LABEL: Record<string, Text> = {
+  draft: L("Draft", "Draft"),
+  ready: L("Siap", "Ready"),
+  done: L("Selesai", "Done"),
+  cancel: L("Batal", "Cancelled"),
+};
+
+export const PICKING_TYPE_LABEL: Record<string, Text> = {
+  incoming: L("Penerimaan", "Receipt"),
+  outgoing: L("Pengiriman", "Delivery"),
+  internal: L("Transfer internal", "Internal transfer"),
+};
+
+/** Halaman daftar dokumen pembelian. */
+export const PURCHASE_KINDS = {
+  rfq: {
+    state: "draft,sent,to_approve",
+    billStatus: "",
+    title: L("Permintaan Penawaran", "Requests for Quotation"),
+  },
+  orders: { state: "purchase", billStatus: "", title: L("Pesanan Pembelian", "Purchase Orders") },
+  "to-bill": { state: "purchase", billStatus: "to_invoice", title: L("Perlu Ditagihkan", "To Bill") },
+} as const;
+export type PurchaseKind = keyof typeof PURCHASE_KINDS;
+
+export const PURCHASE_STATE_LABEL: Record<string, Text> = {
+  draft: L("RFQ", "RFQ"),
+  sent: L("RFQ terkirim", "RFQ sent"),
+  to_approve: L("Menunggu persetujuan", "To approve"),
+  purchase: L("Pesanan pembelian", "Purchase order"),
+  cancel: L("Batal", "Cancelled"),
+};
+
+export const RECEIPT_STATUS_LABEL: Record<string, Text> = {
+  no: L("—", "—"),
+  pending: L("Belum diterima", "Not received"),
+  partial: L("Diterima sebagian", "Partially received"),
+  full: L("Diterima penuh", "Fully received"),
+};
+
+export const DELIVERY_STATUS_LABEL: Record<string, Text> = {
+  no: L("—", "—"),
+  pending: L("Belum dikirim", "Not delivered"),
+  partial: L("Dikirim sebagian", "Partially delivered"),
+  full: L("Terkirim penuh", "Fully delivered"),
+};

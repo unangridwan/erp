@@ -133,6 +133,12 @@ export const products = pgTable("products", {
   salePrice: numeric("sale_price", { precision: 18, scale: 2 }).notNull().default("0"),
   cost: numeric("cost", { precision: 18, scale: 2 }).notNull().default("0"),
   barcode: text("barcode"),
+  tracking: text("tracking", { enum: ["none", "lot", "serial"] })
+    .notNull()
+    .default("none"),
+  costMethod: text("cost_method", { enum: ["average", "fifo"] })
+    .notNull()
+    .default("average"),
   active: boolean("active").notNull().default(true),
   ...audit,
 });

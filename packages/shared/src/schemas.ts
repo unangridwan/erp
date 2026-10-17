@@ -146,6 +146,8 @@ export const productSchema = z.object({
   salePrice: money.default("0"),
   cost: money.default("0"),
   barcode: optionalText,
+  tracking: z.enum(["none", "lot", "serial"]).default("none"),
+  costMethod: z.enum(["average", "fifo"]).default("average"),
   active: z.boolean().default(true),
 });
 
@@ -225,6 +227,10 @@ export const taxSchema = z.object({
 
 export const accountingSettingsSchema = z.object({
   lockDate: z.string().date().nullish(),
+  purchaseApprovalAmount: z
+    .union([z.number(), z.string().regex(/^\d+(\.\d{1,2})?$/)])
+    .transform(String)
+    .nullish(),
 });
 
 export const journalEntrySchema = z.object({
@@ -477,6 +483,7 @@ export const saleOrderSchema = z.object({
   userId: z.string().uuid().nullish(),
   teamId: z.string().uuid().nullish(),
   leadId: z.string().uuid().nullish(),
+  warehouseId: z.string().uuid().nullish(),
   clientOrderRef: z.string().trim().max(100).nullish(),
   note: z.string().max(5000).nullish(),
   branchId: z.string().uuid().nullish(),
@@ -511,3 +518,154 @@ export const createInvoiceFromOrderSchema = z.discriminatedUnion("method", [
     ...invoiceDate,
   }),
 ]);
+
+// ---- Persediaan ----
+
+export const warehouseSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .min(1)
+    .max(10)
+    .regex(/^[A-Z0-9-]+$/, "Huruf besar, angka, atau -"),
+  name: z.string().trim().min(1).max(100),
+  branchId: optionalUuid,
+  active: z.boolean().default(true),
+});
+
+export const locationSchema = z.object({
+  parentId: z.string().uuid(),
+  name: z.string().trim().min(1).max(100),
+  usage: z.enum(["view", "internal"]).default("internal"),
+  active: z.boolean().default(true),
+});
+
+const qty = nonNegative(4);
+const lotInput = z
+  .object({
+    lotId: z.string().uuid().optional(),
+    /** Nama lot/serial baru (penerimaan). */
+    lotName: z.string().trim().min(1).max(100).optional(),
+    expirationDate: z.string().date().nullish(),
+    quantity: qty.refine((v) => Number(v) > 0, "Harus lebih dari 0"),
+  })
+  .refine((l) => l.lotId || l.lotName, "Pilih atau isi nomor lot/serial");
+
+export const pickingSchema = z.object({
+  pickingType: z.enum(["incoming", "outgoing", "internal"]),
+  warehouseId: z.string().uuid().optional(),
+  partnerId: optionalUuid,
+  locationId: z.string().uuid().optional(),
+  locationDestId: z.string().uuid().optional(),
+  scheduledDate: z.string().date(),
+  origin: z.string().trim().max(200).nullish(),
+  note: z.string().max(5000).nullish(),
+  moves: z
+    .array(
+      z.object({
+        productId: z.string().uuid(),
+        name: z.string().trim().max(500).optional(),
+        quantity: qty.refine((v) => Number(v) > 0, "Harus lebih dari 0"),
+        /** Biaya per unit untuk penerimaan manual (kosong = biaya produk saat ini). */
+        priceUnit: nonNegative(4).nullish(),
+      }),
+    )
+    .min(1, "Minimal satu produk"),
+});
+
+export const validatePickingSchema = z.object({
+  moves: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        quantityDone: qty,
+        lots: z.array(lotInput).optional(),
+      }),
+    )
+    .optional(),
+  /** Sisa kuantitas yang belum dipindahkan dibuat sebagai transfer lanjutan (backorder). */
+  createBackorder: z.boolean().default(true),
+});
+
+export const returnPickingSchema = z.object({
+  lines: z
+    .array(
+      z.object({
+        moveId: z.string().uuid(),
+        quantity: qty.refine((v) => Number(v) > 0, "Harus lebih dari 0"),
+      }),
+    )
+    .min(1),
+});
+
+export const stockAdjustmentSchema = z.object({
+  locationId: z.string().uuid(),
+  date: z.string().date().optional(),
+  reason: z.string().trim().max(200).nullish(),
+  lines: z
+    .array(
+      z.object({
+        productId: z.string().uuid(),
+        lotId: z.string().uuid().optional(),
+        lotName: z.string().trim().min(1).max(100).optional(),
+        countedQty: qty,
+        /** Biaya per unit untuk kelebihan stok (kosong = biaya rata-rata/terakhir). */
+        unitCost: nonNegative(4).nullish(),
+      }),
+    )
+    .min(1),
+});
+
+export const reorderRuleSchema = z.object({
+  warehouseId: z.string().uuid(),
+  productId: z.string().uuid(),
+  minQty: qty.default("0"),
+  maxQty: qty.default("0"),
+  qtyMultiple: qty.refine((v) => Number(v) > 0, "Harus lebih dari 0").default("1"),
+  active: z.boolean().default(true),
+});
+
+// ---- Pembelian ----
+
+export const productSupplierSchema = z.object({
+  companyId: optionalUuid,
+  partnerId: z.string().uuid(),
+  productId: z.string().uuid(),
+  productCode: optionalText,
+  price: nonNegative(4),
+  currencyCode: z.string().length(3).toUpperCase().default("IDR"),
+  minQty: qty.default("0"),
+  delayDays: z.coerce.number().int().min(0).max(365).default(0),
+  sequence: z.coerce.number().int().default(10),
+});
+
+export const purchaseOrderSchema = z.object({
+  partnerId: z.string().uuid(),
+  partnerRef: z.string().trim().max(100).nullish(),
+  dateOrder: z.string().date(),
+  datePlanned: z.string().date().nullish(),
+  paymentTermId: z.string().uuid().nullish(),
+  currencyCode: z.string().length(3).toUpperCase().optional(),
+  userId: z.string().uuid().nullish(),
+  warehouseId: z.string().uuid().nullish(),
+  note: z.string().max(5000).nullish(),
+  branchId: z.string().uuid().nullish(),
+  businessUnitId: z.string().uuid().nullish(),
+  lines: z
+    .array(
+      z.object({
+        productId: z.string().uuid().nullish(),
+        name: z.string().trim().max(500).optional(),
+        quantity: qty.default("1"),
+        /** Kosong = harga pemasok / biaya produk. */
+        priceUnit: decimalString(4).nullish(),
+        discount: nonNegative(4).default("0"),
+        taxIds: z.array(z.string().uuid()).optional(),
+        datePlanned: z.string().date().nullish(),
+      }),
+    )
+    .min(1, "Minimal satu baris"),
+});
+
+export const billFromOrderSchema = z.object({ date: z.string().date().optional() });

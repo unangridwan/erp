@@ -90,6 +90,12 @@ export const accountingSettings = pgTable("accounting_settings", {
   defaultSaleTaxId: uuid("default_sale_tax_id"),
   defaultPurchaseTaxId: uuid("default_purchase_tax_id"),
   downPaymentAccountId: uuid("down_payment_account_id"),
+  stockValuationAccountId: uuid("stock_valuation_account_id"),
+  stockInputAccountId: uuid("stock_input_account_id"),
+  cogsAccountId: uuid("cogs_account_id"),
+  stockAdjustmentAccountId: uuid("stock_adjustment_account_id"),
+  stockJournalId: uuid("stock_journal_id"),
+  purchaseApprovalAmount: numeric("purchase_approval_amount", { precision: 20, scale: 2 }),
   updatedAt: audit.updatedAt,
 });
 
@@ -154,6 +160,7 @@ export const accountMoveLines = pgTable("account_move_lines", {
   branchId: uuid("branch_id"),
   icCompanyId: uuid("ic_company_id"),
   saleLineId: uuid("sale_line_id"),
+  purchaseLineId: uuid("purchase_line_id"),
   amountResidual: numeric("amount_residual", { precision: 20, scale: 2 }).notNull().default("0"),
   amountResidualCurrency: numeric("amount_residual_currency", { precision: 20, scale: 2 })
     .notNull()

@@ -8,10 +8,12 @@ import { formatDate, money, today } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
 import {
   can,
+  DELIVERY_STATUS_LABEL,
   INVOICE_STATUS_LABEL,
   MOVE_TYPE_LABEL,
   ORDER_STATE_LABEL,
   PAYMENT_STATE_LABEL,
+  PICKING_STATE_LABEL,
 } from "../../lib/resources";
 import { download } from "../accounting/download";
 import { useOptions, type ProductOption, type TaxOption } from "../accounting/use-options";
@@ -31,6 +33,8 @@ interface OrderLine {
   priceSubtotal: string;
   isDownpayment: boolean;
   qtyInvoiced: string;
+  qtyDelivered: string;
+  productType: string | null;
 }
 interface Order {
   id: string;
@@ -54,6 +58,9 @@ interface Order {
   amountTax: string;
   amountTotal: string;
   invoiceStatus: string;
+  deliveryStatus: string;
+  warehouseId: string | null;
+  pickings: { id: string; name: string; state: string; pickingType: string; scheduledDate: string }[];
   lines: OrderLine[];
   taxes: { taxId: string; name: string; amount: string }[];
   invoices: {
@@ -118,6 +125,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
     clientOrderRef: "",
     note: "",
     branchId: "",
+    warehouseId: "",
   });
   // Field yang belum diubah user pada penawaran baru mengikuti bawaan pelanggan.
   const [touched, setTouched] = useState<Set<Defaultable>>(new Set());
@@ -137,6 +145,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
   const users = useOptions<{ id: string; name: string }>("/users/options");
   const teams = useOptions<{ id: string; name: string }>("/sales-teams");
   const branches = useOptions<{ id: string; name: string }>("/branches");
+  const warehouses = useOptions<{ id: string; code: string; name: string }>("/warehouses");
   const saleTaxes = taxes.filter((t) => t.typeTaxUse === "sale");
 
   useEffect(() => {
@@ -155,6 +164,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
           clientOrderRef: o.clientOrderRef ?? "",
           note: o.note ?? "",
           branchId: o.branchId ?? "",
+          warehouseId: o.warehouseId ?? "",
         });
         setLines(
           o.lines
@@ -189,6 +199,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
       clientOrderRef: orNull(header.clientOrderRef),
       note: orNull(header.note),
       branchId: orNull(header.branchId),
+      warehouseId: header.warehouseId || undefined,
       lines: lines
         .filter((x) => x.productId || x.name)
         .map((x) => ({
@@ -323,6 +334,9 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
             <h1>{title}</h1>
             {order && (
               <span className={`badge state-${order.state}`}>{tx(ORDER_STATE_LABEL[order.state]!)}</span>
+            )}
+            {confirmed && order && order.deliveryStatus !== "no" && (
+              <span className="badge">{tx(DELIVERY_STATUS_LABEL[order.deliveryStatus]!)}</span>
             )}
             {confirmed && order && (
               <span className={`badge state-${order.invoiceStatus}`}>
@@ -565,6 +579,20 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
               </select>
               {err("branchId")}
             </label>
+            <label className="field">
+              <span>{l("Dikirim dari gudang", "Ship from warehouse")}</span>
+              <select
+                value={header.warehouseId}
+                onChange={(e) => setHeader((h) => ({ ...h, warehouseId: e.target.value }))}
+              >
+                <option value="">{l("Gudang utama", "Main warehouse")}</option>
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.code} — {w.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             {(order?.leadId ?? props.leadId) && (
               <p className="field">
                 <span>{l("Peluang", "Opportunity")}</span>
@@ -583,6 +611,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                   <th>{l("Produk", "Product")}</th>
                   <th>{l("Deskripsi", "Description")}</th>
                   <th className="num">{l("Qty", "Qty")}</th>
+                  {confirmed && <th className="num">{l("Terkirim", "Delivered")}</th>}
                   {confirmed && <th className="num">{l("Tertagih", "Invoiced")}</th>}
                   <th className="num">{l("Harga", "Price")}</th>
                   <th className="num">{l("Disk %", "Disc %")}</th>
@@ -602,6 +631,13 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                         <td>{products.find((pr) => pr.id === x.productId)?.sku ?? ""}</td>
                         <td>{x.name}</td>
                         <td className="num">{money(x.quantity, locale, 4)}</td>
+                        {confirmed && (
+                          <td className="num">
+                            {saved && saved.productType !== "service" && saved.productId
+                              ? money(saved.qtyDelivered, locale, 4)
+                              : "—"}
+                          </td>
+                        )}
                         {confirmed && (
                           <td className="num">{saved ? money(saved.qtyInvoiced, locale, 4) : ""}</td>
                         )}
@@ -722,6 +758,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                     <td />
                     <td>{x.name}</td>
                     <td className="num">—</td>
+                    {confirmed && <td className="num">—</td>}
                     {confirmed && <td className="num">{num(x.qtyInvoiced)}</td>}
                     <td className="num">{money(x.priceUnit, locale)}</td>
                     <td />
@@ -780,6 +817,31 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
             />
           </label>
 
+          {order && order.pickings.length > 0 && (
+            <>
+              <h2>{l("Pengiriman", "Deliveries")}</h2>
+              <table>
+                <tbody>
+                  {order.pickings.map((p) => (
+                    <tr key={p.id}>
+                      <td>
+                        <Link href={`/inventory/pickings/${p.id}`}>{p.name}</Link>
+                        {p.pickingType === "incoming" && (
+                          <small className="muted"> · {l("retur", "return")}</small>
+                        )}
+                      </td>
+                      <td>{formatDate(p.scheduledDate, locale)}</td>
+                      <td>
+                        <span className={`badge state-${p.state === "done" ? "posted" : p.state}`}>
+                          {tx(PICKING_STATE_LABEL[p.state]!)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
           {order && order.invoices.length > 0 && (
             <>
               <h2>{l("Faktur", "Invoices")}</h2>

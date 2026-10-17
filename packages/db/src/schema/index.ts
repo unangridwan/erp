@@ -3,3 +3,5 @@ export * from "./master.js";
 export * from "./security.js";
 export * from "./accounting.js";
 export * from "./sales.js";
+export * from "./inventory.js";
+export * from "./purchase.js";

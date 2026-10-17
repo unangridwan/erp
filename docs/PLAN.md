@@ -255,8 +255,15 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   valas), termin pembayaran, pajak bawaan PPN, PDF penawaran & kirim email berlampiran, konfirmasi menandai peluang
   menang, faktur dari pesanan (sisa kuantitas, uang muka persentase/tetap ke akun Uang Muka Pelanggan, potongan DP di
   faktur akhir), status penagihan dihitung dari faktur/nota kredit, analisis penjualan
-- [ ] Fase 2 ditunda (menunggu Fase 3 Inventory): faktur berdasarkan kuantitas terkirim, retur penjualan dari pengiriman,
-  aturan intercompany SO↔PO; juga komisi penjual, portal pelanggan & tanda tangan online, varian produk
+- [x] Fase 3 (Pembelian + Persediaan): gudang & lokasi hierarkis (lokasi virtual pemasok/pelanggan/penyesuaian),
+  transfer penerimaan/pengiriman/internal dengan backorder & retur, lot/serial (+ kedaluwarsa), quant per lokasi,
+  valuasi perpetual FIFO & rata-rata tertimbang dengan jurnal otomatis (Persediaan ↔ Barang Diterima Belum Ditagih / HPP /
+  Selisih Persediaan), stock opname, kartu stok, valuasi per tanggal, aturan pemesanan ulang min/max → RFQ otomatis;
+  harga pemasok bertingkat, RFQ → PO dengan batas persetujuan, penerimaan otomatis dari PO, tagihan dari PO sebatas barang
+  diterima (3-way matching), analisis pembelian; SO kini membuat pengiriman dan ditagih sesuai kuantitas terkirim
+- [ ] Fase 2–3 ditunda: aturan intercompany SO↔PO & transfer stok antar perusahaan, nota kredit otomatis dari retur,
+  selisih harga pembelian (bill vs PO) ke akun tersendiri, konversi satuan beli/jual, dropship, reservasi stok, varian
+  produk, komisi penjual, portal pelanggan
 - [ ] Fase 1 ditunda: pelepasan/penjualan aset, revaluasi selisih kurs akhir bulan (unrealized), koneksi API bank langsung
 - [ ] Ditunda: rate limiter berbasis Redis (multi-instance), SSO, impor Excel (.xlsx), sumber kurs otomatis
   (KMK kurs pajak / BI), pesan error API dua bahasa

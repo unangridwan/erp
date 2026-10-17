@@ -61,6 +61,8 @@ describe.skipIf(!hasDb)("Fase 2: CRM & penjualan", () => {
       await a
         .post("/products", {
           sku: "LPT-01",
+          // Jasa: ditagih sebanyak yang dipesan (alur pengiriman diuji di inventory.test.ts).
+          productType: "service",
           name: "Laptop 14",
           categoryId: computers,
           uomId: uom,
@@ -72,6 +74,7 @@ describe.skipIf(!hasDb)("Fase 2: CRM & penjualan", () => {
       await a
         .post("/products", {
           sku: "MS-01",
+          productType: "service",
           name: "Mouse",
           categoryId: electronics,
           uomId: uom,

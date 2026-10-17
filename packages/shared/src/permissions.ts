@@ -21,6 +21,15 @@ export const PERMISSIONS = [
   "sales.write",
   "sales.manage",
   "sales.all",
+  "inventory.read",
+  "inventory.write",
+  /** Gudang, lokasi, aturan pemesanan ulang, penyesuaian stok. */
+  "inventory.manage",
+  "purchase.read",
+  "purchase.write",
+  "purchase.manage",
+  /** Menyetujui PO di atas batas persetujuan. */
+  "purchase.approve",
   "currency.read",
   "currency.write",
   "user.read",

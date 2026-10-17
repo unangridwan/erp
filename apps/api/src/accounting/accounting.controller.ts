@@ -73,10 +73,18 @@ export class AccountingController {
   @RequirePermission("accounting.manage")
   updateSettings(@Body() body: unknown) {
     const input = parse(accountingSettingsSchema, body);
+    // Hanya field yang dikirim yang diubah; null mengosongkan.
+    const sent = (key: string) => body !== null && typeof body === "object" && key in body;
     return this.tenantDb.run(async (tx) => {
       const [row] = await tx
         .update(schema.accountingSettings)
-        .set({ lockDate: input.lockDate ?? null, updatedAt: sql`now()` })
+        .set({
+          ...(sent("lockDate") ? { lockDate: input.lockDate ?? null } : {}),
+          ...(sent("purchaseApprovalAmount")
+            ? { purchaseApprovalAmount: input.purchaseApprovalAmount ?? null }
+            : {}),
+          updatedAt: sql`now()`,
+        })
         .where(eq(schema.accountingSettings.companyId, currentContext().companyId))
         .returning();
       if (!row) throw new NotFoundException("Akuntansi belum disiapkan untuk perusahaan ini");

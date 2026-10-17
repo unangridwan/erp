@@ -96,14 +96,18 @@ export class MoveService {
   }
 
   /**
-   * Buat draft faktur/tagihan. `opts` (internal) dipakai modul penjualan: dokumen asal dan
+   * Buat draft faktur/tagihan. `opts` (internal) dipakai modul penjualan & pembelian: dokumen asal dan
    * tautan baris barang ke baris pesanan (indeks sama dengan `input.lines`).
    */
   async createInvoice(
     tx: Db,
     input: InvoiceInput,
     companyId = currentContext().companyId,
-    opts: { invoiceOrigin?: string; saleLineIds?: (string | null)[] } = {},
+    opts: {
+      invoiceOrigin?: string;
+      saleLineIds?: (string | null)[];
+      purchaseLineIds?: (string | null)[];
+    } = {},
   ) {
     const books = await loadBooks(tx, companyId);
     const { header, lines } = await this.invoiceDraft(tx, books, input);
@@ -121,6 +125,8 @@ export class MoveService {
         ...l,
         moveId: move!.id,
         saleLineId: l.displayType === "product" ? (opts.saleLineIds?.[l.sequence ?? -1] ?? null) : null,
+        purchaseLineId:
+          l.displayType === "product" ? (opts.purchaseLineIds?.[l.sequence ?? -1] ?? null) : null,
       })),
     );
     await this.activity.log(tx, { resModel: "account_move", resId: move!.id, action: "create" });
@@ -131,12 +137,13 @@ export class MoveService {
   async updateDraft(tx: Db, id: string, input: JournalEntryInput | InvoiceInput) {
     const move = await this.lockDraft(tx, id);
     const books = await loadBooks(tx, move.companyId);
-    // Tautan ke baris pesanan penjualan dipertahankan bila baris di posisi yang sama masih produk yang sama.
+    // Tautan ke baris pesanan penjualan/pembelian dipertahankan bila baris di posisi yang sama masih produk yang sama.
     const oldLines = await tx
       .select({
         sequence: schema.accountMoveLines.sequence,
         productId: schema.accountMoveLines.productId,
         saleLineId: schema.accountMoveLines.saleLineId,
+        purchaseLineId: schema.accountMoveLines.purchaseLineId,
       })
       .from(schema.accountMoveLines)
       .where(and(eq(schema.accountMoveLines.moveId, id), eq(schema.accountMoveLines.displayType, "product")));
@@ -152,7 +159,12 @@ export class MoveService {
         lines.map((l) => {
           const old = l.displayType === "product" && oldLines.find((o) => o.sequence === l.sequence);
           const keep = old && old.productId === (l.productId ?? null);
-          return { ...l, moveId: id, saleLineId: keep ? old.saleLineId : null };
+          return {
+            ...l,
+            moveId: id,
+            saleLineId: keep ? old.saleLineId : null,
+            purchaseLineId: keep ? old.purchaseLineId : null,
+          };
         }),
       );
     } else {

@@ -8,6 +8,7 @@ import {
   ilike,
   inArray,
   isNull,
+  ne,
   or,
   schema,
   sql,
@@ -42,6 +43,7 @@ import {
   ownedScope,
 } from "../crm/checks.js";
 import { LeadService } from "../crm/lead.service.js";
+import { StockService } from "../inventory/stock.service.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { renderOrderPdf } from "./order-pdf.js";
 import { PricelistService } from "./pricelist.service.js";
@@ -65,19 +67,41 @@ const qtyInvoiced = (lineId: PgColumn | SQL) => sql<string>`coalesce((
   from ${schema.accountMoveLines} aml join ${schema.accountMoves} m on m.id = aml.move_id
   where aml.sale_line_id = ${lineId} and aml.display_type = 'product'), 0)`;
 
+/** Kuantitas terkirim per baris pesanan: pengiriman menambah, retur pelanggan mengurangi. */
+const qtyDelivered = (lineId: PgColumn | SQL) => sql<string>`coalesce((
+  select sum(case when sm.origin_return_move_id is null then sm.quantity_done else -sm.quantity_done end)
+  from ${schema.stockMoves} sm where sm.sale_line_id = ${lineId} and sm.state = 'done'), 0)`;
+
+/** Barang (stok/habis pakai) ditagih sebanyak yang terkirim; jasa sebanyak yang dipesan. */
+const isGoods = sql.raw(
+  `exists (select 1 from products p where p.id = l.product_id and p.product_type <> 'service')`,
+);
+
 /**
- * Status penagihan dihitung dari kuantitas tertagih (selalu mutakhir walau faktur diubah di modul akuntansi).
- * Kolom ditulis lengkap dengan nama tabel: Drizzle tidak menyertakan nama tabel pada query tanpa join,
- * sehingga "id" di dalam subquery akan merujuk baris pesanan.
+ * Status penagihan dihitung dari kuantitas terkirim/tertagih (selalu mutakhir walau faktur diubah di modul
+ * akuntansi). Kolom ditulis lengkap dengan nama tabel: Drizzle tidak menyertakan nama tabel pada query tanpa
+ * join, sehingga "id" di dalam subquery akan merujuk baris pesanan.
  */
 const invoiceStatus = sql<Order["invoiceStatus"]>`case
   when sale_orders.state <> 'sale' then 'no'
   when exists (
-    select 1 from ${OL} l where l.order_id = sale_orders.id and case
-      when l.is_downpayment then ${qtyInvoiced(sql`l.id`)} > 0
-      else l.quantity - ${qtyInvoiced(sql`l.id`)} > 0 end
+    select 1 from ${OL} l where l.order_id = sale_orders.id and not l.is_downpayment
+      and (case when ${isGoods} then ${qtyDelivered(sql`l.id`)} else l.quantity end) - ${qtyInvoiced(sql`l.id`)} > 0
   ) then 'to_invoice'
-  else 'invoiced' end`;
+  when not exists (
+    select 1 from ${OL} l where l.order_id = sale_orders.id and not l.is_downpayment
+      and ${qtyInvoiced(sql`l.id`)} < l.quantity
+  ) then 'invoiced'
+  else 'no' end`;
+
+/** Status pengiriman barang pesanan. */
+const deliveryStatus = sql<"no" | "pending" | "partial" | "full">`case
+  when sale_orders.state <> 'sale' or not exists (select 1 from ${OL} l where l.order_id = sale_orders.id
+    and not l.is_downpayment and ${isGoods}) then 'no'
+  when not exists (select 1 from ${OL} l where l.order_id = sale_orders.id and not l.is_downpayment and ${isGoods}
+    and ${qtyDelivered(sql`l.id`)} < l.quantity) then 'full'
+  when exists (select 1 from ${OL} l where l.order_id = sale_orders.id and ${qtyDelivered(sql`l.id`)} > 0) then 'partial'
+  else 'pending' end`;
 
 export interface OrderQuery {
   q?: string;
@@ -99,6 +123,7 @@ export class SaleOrderService {
     @Inject(LeadService) private readonly leads: LeadService,
     @Inject(PricelistService) private readonly pricelists: PricelistService,
     @Inject(Mailer) private readonly mailer: Mailer,
+    @Inject(StockService) private readonly stock: StockService,
   ) {}
 
   // ---- Baca ----
@@ -129,6 +154,7 @@ export class SaleOrderService {
         partnerName: schema.partners.name,
         userName: schema.users.name,
         invoiceStatus,
+        deliveryStatus,
       })
       .from(O)
       .innerJoin(schema.partners, eq(schema.partners.id, O.partnerId))
@@ -148,6 +174,7 @@ export class SaleOrderService {
         partnerName: r.partnerName,
         userName: r.userName,
         invoiceStatus: r.invoiceStatus,
+        deliveryStatus: r.deliveryStatus,
       })),
       total,
       limit,
@@ -167,6 +194,8 @@ export class SaleOrderService {
         paymentTermName: schema.paymentTerms.name,
         pricelistName: schema.pricelists.name,
         leadName: schema.crmLeads.name,
+        warehouseName: schema.warehouses.name,
+        deliveryStatus,
       })
       .from(O)
       .innerJoin(schema.partners, eq(schema.partners.id, O.partnerId))
@@ -174,7 +203,19 @@ export class SaleOrderService {
       .leftJoin(schema.paymentTerms, eq(schema.paymentTerms.id, O.paymentTermId))
       .leftJoin(schema.pricelists, eq(schema.pricelists.id, O.pricelistId))
       .leftJoin(schema.crmLeads, eq(schema.crmLeads.id, O.leadId))
+      .leftJoin(schema.warehouses, eq(schema.warehouses.id, O.warehouseId))
       .where(eq(O.id, id));
+    const pickings = await tx
+      .select({
+        id: schema.stockPickings.id,
+        name: schema.stockPickings.name,
+        state: schema.stockPickings.state,
+        pickingType: schema.stockPickings.pickingType,
+        scheduledDate: schema.stockPickings.scheduledDate,
+      })
+      .from(schema.stockPickings)
+      .where(eq(schema.stockPickings.saleOrderId, id))
+      .orderBy(asc(schema.stockPickings.createdAt));
     const invoices = await tx
       .selectDistinct({
         id: schema.accountMoves.id,
@@ -191,7 +232,7 @@ export class SaleOrderService {
       .where(eq(OL.orderId, id))
       .orderBy(asc(schema.accountMoves.date));
     const status = await this.refreshInvoiceStatus(tx, order);
-    return { ...order, ...names, invoiceStatus: status, lines, taxes, invoices };
+    return { ...order, ...names, invoiceStatus: status, lines, taxes, invoices, pickings };
   }
 
   /** Pratinjau harga & total (onchange form) tanpa menyimpan. */
@@ -252,6 +293,13 @@ export class SaleOrderService {
       throw new BadRequestException("Hanya penawaran draft atau pesanan batal yang bisa dihapus");
     if (await this.hasInvoiceLines(tx, id))
       throw new BadRequestException("Pesanan sudah punya faktur dan tidak bisa dihapus");
+    const [picking] = await tx
+      .select({ id: schema.stockPickings.id })
+      .from(schema.stockPickings)
+      .where(and(eq(schema.stockPickings.saleOrderId, id), ne(schema.stockPickings.state, "cancel")))
+      .limit(1);
+    if (picking) throw new BadRequestException("Pesanan sudah punya pengiriman");
+    await tx.delete(schema.stockPickings).where(eq(schema.stockPickings.saleOrderId, id));
     await tx.delete(O).where(eq(O.id, id));
     await tx
       .delete(schema.scheduledActivities)
@@ -294,7 +342,10 @@ export class SaleOrderService {
     return this.get(tx, id);
   }
 
-  /** Konfirmasi penawaran menjadi pesanan; peluang CRM terkait otomatis ditandai menang. */
+  /**
+   * Konfirmasi penawaran menjadi pesanan: pengiriman barang dibuat otomatis dan peluang CRM terkait
+   * ditandai menang.
+   */
   async confirm(tx: Db, id: string) {
     const order = await this.find(tx, id, true);
     if (order.state !== "draft" && order.state !== "sent")
@@ -306,6 +357,26 @@ export class SaleOrderService {
       .update(O)
       .set({ state: "sale", confirmedAt: new Date(), invoiceStatus: "to_invoice", updatedAt: sql`now()` })
       .where(eq(O.id, id));
+    const goods = lines.filter(
+      (l) => !l.isDownpayment && l.productId && l.productType !== "service" && dec(l.quantity).gt(0),
+    );
+    if (goods.length) {
+      await this.stock.createPicking(tx, {
+        companyId: order.companyId,
+        pickingType: "outgoing",
+        warehouseId: order.warehouseId ?? (await this.stock.defaultWarehouse(tx, order.companyId)).id,
+        partnerId: order.partnerId,
+        scheduledDate: order.dateOrder,
+        origin: order.name,
+        saleOrderId: order.id,
+        moves: goods.map((l) => ({
+          productId: l.productId!,
+          name: l.name,
+          quantity: l.quantity,
+          saleLineId: l.id,
+        })),
+      });
+    }
     if (order.leadId) await this.leads.winFromOrder(tx, order.leadId, order.name);
     await this.activity.log(tx, {
       resModel: "sale_order",
@@ -331,6 +402,18 @@ export class SaleOrderService {
     const lines = await this.lines(tx, id);
     if (lines.some((l) => !dec(l.qtyInvoiced).isZero()))
       throw new BadRequestException("Pesanan sudah ditagih; buat nota kredit sebelum membatalkan");
+    if (lines.some((l) => !dec(l.qtyDelivered).isZero()))
+      throw new BadRequestException("Barang sudah dikirim; buat retur sebelum membatalkan");
+    const open = await tx
+      .select({ id: schema.stockPickings.id })
+      .from(schema.stockPickings)
+      .where(
+        and(
+          eq(schema.stockPickings.saleOrderId, id),
+          inArray(schema.stockPickings.state, ["draft", "ready"]),
+        ),
+      );
+    for (const p of open) await this.stock.cancel(tx, p.id);
     await tx
       .update(O)
       .set({ state: "cancel", invoiceStatus: "no", updatedAt: sql`now()` })
@@ -395,7 +478,9 @@ export class SaleOrderService {
 
     if (input.method === "regular") {
       for (const l of lines.filter((x) => !x.isDownpayment)) {
-        const remaining = dec(l.quantity).minus(l.qtyInvoiced);
+        // Barang: sebanyak yang sudah terkirim; jasa: sebanyak yang dipesan.
+        const basis = l.productId && l.productType !== "service" ? l.qtyDelivered : l.quantity;
+        const remaining = dec(basis).minus(l.qtyInvoiced);
         if (remaining.lte(0)) continue;
         invLines.push({
           saleLineId: l.id,
@@ -637,7 +722,9 @@ export class SaleOrderService {
       .select({
         line: OL,
         productName: schema.products.name,
+        productType: schema.products.productType,
         qtyInvoiced: qtyInvoiced(sql`sale_order_lines.id`),
+        qtyDelivered: qtyDelivered(sql`sale_order_lines.id`),
       })
       .from(OL)
       .leftJoin(schema.products, eq(schema.products.id, OL.productId))
@@ -646,7 +733,9 @@ export class SaleOrderService {
     return rows.map((r) => ({
       ...r.line,
       productName: r.productName,
+      productType: r.productType,
       qtyInvoiced: dec(r.qtyInvoiced).toFixed(4),
+      qtyDelivered: dec(r.qtyDelivered).toFixed(4),
     }));
   }
 
@@ -739,6 +828,8 @@ export class SaleOrderService {
     await assertDimensions(tx, companyId, [
       { businessUnitId: input.businessUnitId, branchId: input.branchId },
     ]);
+    const warehouseId = input.warehouseId ?? (await this.stock.defaultWarehouse(tx, companyId)).id;
+    await this.stock.warehouse(tx, warehouseId, companyId);
     if (input.validityDate && input.validityDate < input.dateOrder)
       throw fieldError("validityDate", "Tanggal berlaku sebelum tanggal penawaran");
 
@@ -816,6 +907,7 @@ export class SaleOrderService {
         userId,
         teamId: input.teamId ?? null,
         leadId: input.leadId ?? null,
+        warehouseId,
         clientOrderRef: input.clientOrderRef ?? null,
         note: input.note ?? null,
         branchId: input.branchId ?? null,

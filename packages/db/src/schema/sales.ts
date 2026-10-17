@@ -147,6 +147,7 @@ export const saleOrders = pgTable("sale_orders", {
   userId: uuid("user_id"),
   teamId: uuid("team_id"),
   leadId: uuid("lead_id"),
+  warehouseId: uuid("warehouse_id"),
   clientOrderRef: text("client_order_ref"),
   note: text("note"),
   branchId: uuid("branch_id"),

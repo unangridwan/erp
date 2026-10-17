@@ -33,6 +33,7 @@ import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { CrmModule } from "../crm/crm.module.js";
+import { InventoryModule } from "../inventory/inventory.module.js";
 import { MasterModule } from "../master/master.module.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { PricelistService } from "./pricelist.service.js";
@@ -214,7 +215,7 @@ class SaleOrdersController {
 }
 
 @Module({
-  imports: [MasterModule, AccountingModule, CrmModule],
+  imports: [MasterModule, AccountingModule, CrmModule, InventoryModule],
   controllers: [PaymentTermsController, PricelistsController, SaleOrdersController],
   providers: [ActivityService, SequenceService, PricelistService, SaleOrderService],
 })

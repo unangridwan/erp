@@ -6,12 +6,14 @@ import { useI18n } from "../../../../lib/i18n";
 
 interface Settings {
   lockDate: string | null;
+  purchaseApprovalAmount: string | null;
 }
 
 export default function AccountingSettingsPage() {
   const { l } = useI18n();
   const [settings, setSettings] = useState<Settings | null | undefined>(undefined);
   const [lockDate, setLockDate] = useState("");
+  const [approval, setApproval] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,6 +21,7 @@ export default function AccountingSettingsPage() {
     api<Settings | null>("/accounting/settings").then((s) => {
       setSettings(s);
       setLockDate(s?.lockDate ?? "");
+      setApproval(s?.purchaseApprovalAmount ? String(Number(s.purchaseApprovalAmount)) : "");
     });
 
   useEffect(() => {
@@ -30,7 +33,10 @@ export default function AccountingSettingsPage() {
     setError(null);
     setNotice(null);
     try {
-      await api("/accounting/settings", { method: "PATCH", body: { lockDate: lockDate || null } });
+      await api("/accounting/settings", {
+        method: "PATCH",
+        body: { lockDate: lockDate || null, purchaseApprovalAmount: approval || null },
+      });
       setNotice(l("Pengaturan disimpan.", "Settings saved."));
       await load();
     } catch (err) {
@@ -106,6 +112,21 @@ export default function AccountingSettingsPage() {
             {l(
               "Entri bertanggal pada atau sebelum tanggal ini tidak bisa diposting (tutup buku).",
               "Entries dated on or before this date cannot be posted (period close).",
+            )}
+          </p>
+          <label className="field">
+            <span>{l("Batas persetujuan PO", "Purchase approval limit")}</span>
+            <input
+              className="num"
+              inputMode="decimal"
+              value={approval}
+              onChange={(e) => setApproval(e.target.value)}
+            />
+          </label>
+          <p className="muted">
+            {l(
+              "PO dengan total di atas nilai ini (mata uang perusahaan) harus disetujui user ber-hak purchase.approve. Kosong = tanpa persetujuan.",
+              "Purchase orders above this total (company currency) need approval by a user with purchase.approve. Empty = no approval.",
             )}
           </p>
           <button className="primary">{l("Simpan", "Save")}</button>

@@ -17,7 +17,7 @@ const ACCOUNTS: { key?: string; code: string; name: string; type: AccountType; r
     type: "asset_receivable",
     reconcile: true,
   },
-  { code: "1-1400", name: "Persediaan Barang Dagang", type: "asset_current" },
+  { key: "stock", code: "1-1400", name: "Persediaan Barang Dagang", type: "asset_current" },
   { key: "vatIn", code: "1-1500", name: "PPN Masukan", type: "asset_current" },
   { key: "pph23Prepaid", code: "1-1510", name: "PPh 23 Dibayar Dimuka", type: "asset_current" },
   { code: "1-1600", name: "Uang Muka Pembelian", type: "asset_current" },
@@ -47,6 +47,7 @@ const ACCOUNTS: { key?: string; code: string; name: string; type: AccountType; r
   { code: "2-1500", name: "Utang Gaji", type: "liability_current" },
   { key: "customerDown", code: "2-1600", name: "Uang Muka Pelanggan", type: "liability_current" },
   { code: "2-1700", name: "Biaya Masih Harus Dibayar", type: "liability_current" },
+  { key: "stockInput", code: "2-1800", name: "Barang Diterima Belum Ditagih", type: "liability_current" },
   { code: "2-2100", name: "Utang Bank Jangka Panjang", type: "liability_non_current" },
   { code: "2-2200", name: "Liabilitas Imbalan Kerja", type: "liability_non_current" },
   { code: "3-1000", name: "Modal Disetor", type: "equity" },
@@ -60,7 +61,8 @@ const ACCOUNTS: { key?: string; code: string; name: string; type: AccountType; r
   { code: "4-9000", name: "Pendapatan Lain-lain", type: "income_other" },
   { key: "fxGain", code: "4-9100", name: "Laba Selisih Kurs", type: "income_other" },
   { code: "4-9200", name: "Pendapatan Bunga", type: "income_other" },
-  { code: "5-1000", name: "Harga Pokok Penjualan", type: "expense_direct_cost" },
+  { key: "cogs", code: "5-1000", name: "Harga Pokok Penjualan", type: "expense_direct_cost" },
+  { key: "stockAdjustment", code: "5-1200", name: "Selisih Persediaan", type: "expense_direct_cost" },
   { code: "6-1000", name: "Beban Gaji dan Tunjangan", type: "expense" },
   { code: "6-1100", name: "Beban BPJS", type: "expense" },
   { code: "6-2000", name: "Beban Sewa", type: "expense" },
@@ -87,6 +89,7 @@ const JOURNALS: {
   { key: "bank", code: "BNK1", name: "Bank", type: "bank", account: "bank" },
   { key: "cash", code: "CSH1", name: "Kas", type: "cash", account: "cash" },
   { key: "general", code: "MISC", name: "Jurnal Umum", type: "general" },
+  { key: "stock", code: "STJ", name: "Valuasi Persediaan", type: "general" },
 ];
 
 // PMK 131/2024: PPN 12%; untuk barang/jasa non-mewah DPP = 11/12 harga jual (efektif 11%).
@@ -195,6 +198,11 @@ export async function installChart(tx: Db, companyId: string): Promise<boolean> 
     defaultSaleTaxId: tax("PPN Keluaran 12% (DPP 11/12)"),
     defaultPurchaseTaxId: tax("PPN Masukan 12% (DPP 11/12)"),
     downPaymentAccountId: account("customerDown"),
+    stockValuationAccountId: account("stock"),
+    stockInputAccountId: account("stockInput"),
+    cogsAccountId: account("cogs"),
+    stockAdjustmentAccountId: account("stockAdjustment"),
+    stockJournalId: journal("stock"),
   });
   return true;
 }

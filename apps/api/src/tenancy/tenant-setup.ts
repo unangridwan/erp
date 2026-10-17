@@ -1,6 +1,7 @@
 import { schema, type Db } from "@erp/db";
 import { ALL_PERMISSIONS, PERMISSIONS } from "@erp/shared";
 import { installChart } from "../accounting/chart-template.js";
+import { installInventory } from "../inventory/setup.js";
 
 /** Satuan bawaan per kategori: [nama, faktor terhadap satuan referensi]. Referensi = entri pertama. */
 const DEFAULT_UOMS: Record<string, [string, number][]> = {
@@ -102,6 +103,7 @@ export async function seedTenant(tx: Db, companyName: string): Promise<SeedResul
   }
 
   await installChart(tx, company!.id);
+  await installInventory(tx, company!.id);
 
   await tx.insert(schema.crmStages).values(
     DEFAULT_STAGES.map(([name, probability, isWon], i) => ({

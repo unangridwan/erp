@@ -10,6 +10,27 @@ import { useMe } from "./me-context";
 type Row = Record<string, unknown> & { id: string };
 const PAGE = 50;
 
+/** Nama tampilan untuk kolom relasi (field `ref`) — dimuat sekali per resource rujukan. */
+function useRefLabels(resource: Resource) {
+  const [labels, setLabels] = useState<Record<string, Map<string, string>>>({});
+  useEffect(() => {
+    const refs = resource.fields.filter(
+      (f): f is Extract<Resource["fields"][number], { type: "ref" }> =>
+        f.type === "ref" && resource.columns.some((c) => c.name === f.name),
+    );
+    for (const f of refs) {
+      api<{ items: Row[] } | Row[]>(`/${f.resource}${f.resource.includes("?") ? "&" : "?"}limit=200`)
+        .then((d) => {
+          const rows = Array.isArray(d) ? d : d.items;
+          const map = new Map(rows.map((r) => [String(r[f.valueKey ?? "id"]), String(r[f.display] ?? "")]));
+          setLabels((prev) => ({ ...prev, [f.name]: map }));
+        })
+        .catch(() => undefined);
+    }
+  }, [resource]);
+  return labels;
+}
+
 export function ListView({ resource }: { resource: Resource }) {
   const me = useMe();
   const { t, tx } = useI18n();
@@ -22,6 +43,7 @@ export function ListView({ resource }: { resource: Resource }) {
   const [notice, setNotice] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const writable = canWrite(me.permissions, resource);
+  const refLabels = useRefLabels(resource);
 
   useEffect(() => {
     const params = new URLSearchParams({ limit: String(PAGE), offset: String(offset) });
@@ -36,6 +58,12 @@ export function ListView({ resource }: { resource: Resource }) {
     }, 200);
     return () => clearTimeout(timer);
   }, [resource.path, q, offset, reload]);
+
+  const cell = (row: Row, name: string) => {
+    const v = row[name];
+    if (v === null || v === undefined) return "";
+    return refLabels[name]?.get(String(v)) ?? String(v);
+  };
 
   async function exportCsv() {
     const res = await apiRaw(`/${resource.path}/export${q ? `?q=${encodeURIComponent(q)}` : ""}`);
@@ -130,9 +158,9 @@ export function ListView({ resource }: { resource: Resource }) {
                     {resource.columns.map((c, i) => (
                       <td key={c.name}>
                         {i === 0 ? (
-                          <Link href={`/${resource.path}/${row.id}`}>{String(row[c.name] ?? "—")}</Link>
+                          <Link href={`/${resource.path}/${row.id}`}>{cell(row, c.name) || "—"}</Link>
                         ) : (
-                          String(row[c.name] ?? "")
+                          cell(row, c.name)
                         )}
                       </td>
                     ))}
