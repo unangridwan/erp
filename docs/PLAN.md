@@ -245,8 +245,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   PPN barang mewah, PPh 23 dipotong), faktur & tagihan multi mata uang, jurnal umum, posting bernomor per jurnal,
   jurnal balik / nota kredit, pembayaran & rekonsiliasi parsial, lock date, akun piutang/utang antar perusahaan,
   dimensi cabang & unit bisnis, laporan (neraca saldo, buku besar, neraca, laba rugi, umur piutang/utang)
-- [ ] Fase 1 ditunda: rekonsiliasi bank (impor mutasi), aset tetap & penyusutan, anggaran, selisih kurs saat pelunasan,
-  tutup buku akhir tahun otomatis, ekspor PDF/Excel laporan
+- [x] Fase 1 (lanjutan): selisih kurs otomatis saat pelunasan valas, rekonsiliasi bank (impor CSV mutasi dengan pemetaan
+  kolom, saran pencocokan, biaya bank, pembatalan), aset tetap & penyusutan (garis lurus / saldo menurun, preset kelompok
+  fiskal), tutup buku akhir tahun, anggaran vs realisasi, ekspor Excel & cetak/PDF laporan
+- [ ] Fase 1 ditunda: pelepasan/penjualan aset, revaluasi selisih kurs akhir bulan (unrealized), koneksi API bank langsung
 - [ ] Ditunda: rate limiter berbasis Redis (multi-instance), SSO, impor Excel (.xlsx), sumber kurs otomatis
   (KMK kurs pajak / BI), pesan error API dua bahasa
 

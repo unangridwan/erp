@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Fragment, useEffect, useState } from "react";
+import { download } from "../../../../components/accounting/download";
 import { useOptions, type AccountOption } from "../../../../components/accounting/use-options";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
@@ -37,6 +38,16 @@ export default function ReportsPage() {
   const [result, setResult] = useState<{ tab: Tab; data: any } | null>(null);
   const data = result?.tab === tab ? result.data : null;
   const [error, setError] = useState<string | null>(null);
+
+  const queryString = () => {
+    const params = new URLSearchParams({ dateTo: filters.dateTo, companyIds: filters.companyIds.join(",") });
+    if (tab !== "balance-sheet" && tab !== "aged") params.set("dateFrom", filters.dateFrom);
+    if (filters.branchId) params.set("branchId", filters.branchId);
+    if (filters.businessUnitId) params.set("businessUnitId", filters.businessUnitId);
+    if (tab === "general-ledger") params.set("accountId", filters.accountId);
+    if (tab === "aged") params.set("type", filters.type);
+    return params.toString();
+  };
 
   useEffect(() => {
     if (tab === "general-ledger" && !filters.accountId) {
@@ -101,15 +112,42 @@ export default function ReportsPage() {
     <>
       <header className="toolbar">
         <h1>{l("Laporan keuangan", "Financial reports")}</h1>
+        {data && (
+          <>
+            <button
+              className="no-print"
+              onClick={() =>
+                download(`/reports/${tab}/export?${queryString()}`, `${tab}.xlsx`).catch((e: Error) =>
+                  setError(e.message),
+                )
+              }
+            >
+              {l("Ekspor Excel", "Export Excel")}
+            </button>
+            <button className="no-print" onClick={() => window.print()}>
+              {l("Cetak / PDF", "Print / PDF")}
+            </button>
+          </>
+        )}
       </header>
-      <nav className="tabs">
+      <p className="print-only">
+        {me.companies
+          .filter((c) => filters.companyIds.includes(c.id))
+          .map((c) => c.name)
+          .join(", ")}{" "}
+        · {tabs.find(([k]) => k === tab)?.[1]} ·{" "}
+        {tab === "balance-sheet" || tab === "aged"
+          ? filters.dateTo
+          : `${filters.dateFrom} – ${filters.dateTo}`}
+      </p>
+      <nav className="tabs no-print">
         {tabs.map(([key, label]) => (
           <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
             {label}
           </button>
         ))}
       </nav>
-      <div className="panel filters">
+      <div className="panel filters no-print">
         {tab !== "balance-sheet" && tab !== "aged" && (
           <label className="field">
             <span>{l("Dari", "From")}</span>

@@ -53,14 +53,19 @@ Header opsional `X-Company-Id` memilih perusahaan aktif (harus termasuk perusaha
 
 ### Akuntansi (Fase 1)
 
-| Endpoint                                                                                   | Keterangan                                                                       |
-| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| `/accounts`, `/journals`, `/taxes`                                                         | Bagan akun, jurnal, pajak (per perusahaan aktif; dipasang otomatis)              |
-| `POST /accounting/setup`, `GET/PATCH /accounting/settings`                                 | Pasang COA standar, lock date                                                    |
-| `GET/POST /moves`, `GET/PATCH/DELETE /moves/:id`                                           | Draft jurnal umum atau faktur/tagihan (`moveType`)                               |
-| `POST /moves/:id/post`, `POST /moves/:id/reverse`                                          | Posting (nomor `INV/2026/0001`), jurnal balik / nota kredit                      |
-| `GET/POST /payments`, `POST /reconcile`                                                    | Pembayaran (melunasi faktur), rekonsiliasi manual                                |
-| `GET /reports/trial-balance`, `/general-ledger`, `/balance-sheet`, `/profit-loss`, `/aged` | Laporan; filter `dateFrom`, `dateTo`, `companyIds`, `branchId`, `businessUnitId` |
+| Endpoint                                                                                                     | Keterangan                                                                       |
+| ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `/accounts`, `/journals`, `/taxes`                                                                           | Bagan akun, jurnal, pajak (per perusahaan aktif; dipasang otomatis)              |
+| `POST /accounting/setup`, `GET/PATCH /accounting/settings`                                                   | Pasang COA standar, lock date                                                    |
+| `GET/POST /moves`, `GET/PATCH/DELETE /moves/:id`                                                             | Draft jurnal umum atau faktur/tagihan (`moveType`)                               |
+| `POST /moves/:id/post`, `POST /moves/:id/reverse`                                                            | Posting (nomor `INV/2026/0001`), jurnal balik / nota kredit                      |
+| `GET/POST /payments`, `POST /reconcile`                                                                      | Pembayaran (melunasi faktur), rekonsiliasi manual                                |
+| `GET /reports/trial-balance`, `/general-ledger`, `/balance-sheet`, `/profit-loss`, `/aged`                   | Laporan; filter `dateFrom`, `dateTo`, `companyIds`, `branchId`, `businessUnitId` |
+| `GET /reports/:name/export`                                                                                  | Ekspor laporan ke Excel (parameter sama)                                         |
+| `/bank-statements`, `POST /bank-statements/import`, `/bank-statement-lines/:id/{suggestions,reconcile,undo}` | Rekonsiliasi bank                                                                |
+| `/assets`, `POST /assets/:id/confirm`, `POST /assets/depreciate`                                             | Aset tetap & penyusutan                                                          |
+| `/budgets`, `GET /reports/budget?budgetId=`                                                                  | Anggaran vs realisasi                                                            |
+| `POST /accounting/close-year`                                                                                | Tutup buku tahun fiskal                                                          |
 
 Resource master mendukung `GET /x?q=&limit=&offset=&active=all|false`, `GET/PATCH/DELETE /x/:id`, `POST /x`,
 `GET /x/export` (CSV) dan `POST /x/import` (`{ "csv": "..." }`; baris ber-`id` diperbarui, tanpa `id` dibuat; satu baris

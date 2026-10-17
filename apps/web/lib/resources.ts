@@ -537,6 +537,24 @@ export const PAGES: Page[] = [
     permission: "accounting.read",
   },
   {
+    href: "/accounting/bank",
+    label: L("Mutasi Bank", "Bank Statements"),
+    group: ACCOUNTING,
+    permission: "accounting.read",
+  },
+  {
+    href: "/accounting/assets",
+    label: L("Aset Tetap", "Fixed Assets"),
+    group: ACCOUNTING,
+    permission: "accounting.read",
+  },
+  {
+    href: "/accounting/budgets",
+    label: L("Anggaran", "Budgets"),
+    group: ACCOUNTING,
+    permission: "accounting.read",
+  },
+  {
     href: "/accounting/settings",
     label: L("Pengaturan Akuntansi", "Accounting Settings"),
     group: ACCOUNTING,

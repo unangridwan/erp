@@ -48,6 +48,37 @@ export default function AccountingSettingsPage() {
     }
   }
 
+  const [fiscalYear, setFiscalYear] = useState(String(new Date().getFullYear() - 1));
+
+  async function closeYear() {
+    setError(null);
+    setNotice(null);
+    if (
+      !confirm(
+        l(
+          `Tutup buku tahun fiskal ${fiscalYear}? Saldo laba rugi dipindah ke saldo laba dan periode dikunci.`,
+          `Close fiscal year ${fiscalYear}? P&L balances move to retained earnings and the period is locked.`,
+        ),
+      )
+    )
+      return;
+    try {
+      const r = await api<{ name: string; netProfit: string }>("/accounting/close-year", {
+        method: "POST",
+        body: { fiscalYear: Number(fiscalYear) },
+      });
+      setNotice(
+        l(
+          `Tahun ${fiscalYear} ditutup (${r.name}); laba bersih ${r.netProfit}.`,
+          `Year ${fiscalYear} closed (${r.name}); net profit ${r.netProfit}.`,
+        ),
+      );
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   if (settings === undefined) return <p className="muted">{error ?? l("Memuat…", "Loading…")}</p>;
 
   return (
@@ -79,6 +110,30 @@ export default function AccountingSettingsPage() {
           </p>
           <button className="primary">{l("Simpan", "Save")}</button>
         </form>
+      )}
+      {settings !== null && (
+        <section className="stack close-year">
+          <h2>{l("Tutup buku akhir tahun", "Year-end closing")}</h2>
+          <p className="muted">
+            {l(
+              "Membuat entri penutup yang memindahkan saldo pendapatan & beban ke Saldo Laba, lalu mengunci periode sampai akhir tahun fiskal.",
+              "Creates a closing entry moving income & expense balances to Retained Earnings, then locks the period up to fiscal year end.",
+            )}
+          </p>
+          <label className="field">
+            <span>{l("Tahun fiskal (tahun berakhirnya)", "Fiscal year (ending year)")}</span>
+            <input
+              type="number"
+              min={2000}
+              max={2100}
+              value={fiscalYear}
+              onChange={(e) => setFiscalYear(e.target.value)}
+            />
+          </label>
+          <button className="danger" onClick={closeYear}>
+            {l("Tutup buku", "Close year")}
+          </button>
+        </section>
       )}
       {notice && <p className="notice">{notice}</p>}
       {error && <p className="error">{error}</p>}

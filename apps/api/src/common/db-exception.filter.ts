@@ -13,9 +13,9 @@ export class DbExceptionFilter implements ExceptionFilter {
     const pg = findPgError(error);
     const mapped = pg && PG_STATUS[pg.code];
     if (mapped) {
-      res
-        .status(mapped.status)
-        .json({ statusCode: mapped.status, message: mapped.message, detail: pg.detail });
+      // Pesan dari trigger aturan bisnis (mis. entri tidak seimbang, periode dikunci) sudah ramah pengguna.
+      const message = pg.code === "23514" && pg.fromTrigger && pg.message ? pg.message : mapped.message;
+      res.status(mapped.status).json({ statusCode: mapped.status, message, detail: pg.detail });
       return;
     }
     console.error(error);

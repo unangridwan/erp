@@ -1,4 +1,14 @@
-import { boolean, date, numeric, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  date,
+  integer,
+  numeric,
+  pgTable,
+  smallint,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { audit, tenantId } from "./core.js";
 import { currencies } from "./master.js";
 
@@ -75,6 +85,8 @@ export const accountingSettings = pgTable("accounting_settings", {
   saleJournalId: uuid("sale_journal_id").notNull(),
   purchaseJournalId: uuid("purchase_journal_id").notNull(),
   generalJournalId: uuid("general_journal_id").notNull(),
+  fxGainAccountId: uuid("fx_gain_account_id"),
+  fxLossAccountId: uuid("fx_loss_account_id"),
   updatedAt: audit.updatedAt,
 });
 
@@ -103,6 +115,7 @@ export const accountMoves = pgTable("account_moves", {
     .notNull()
     .default("not_paid"),
   reversedEntryId: uuid("reversed_entry_id"),
+  closingYear: smallint("closing_year"),
   postedAt: timestamp("posted_at", { withTimezone: true }),
   postedBy: uuid("posted_by"),
   createdBy: uuid("created_by"),
@@ -137,6 +150,9 @@ export const accountMoveLines = pgTable("account_move_lines", {
   branchId: uuid("branch_id"),
   icCompanyId: uuid("ic_company_id"),
   amountResidual: numeric("amount_residual", { precision: 20, scale: 2 }).notNull().default("0"),
+  amountResidualCurrency: numeric("amount_residual_currency", { precision: 20, scale: 2 })
+    .notNull()
+    .default("0"),
   reconciled: boolean("reconciled").notNull().default(false),
   createdAt: audit.createdAt,
 });
@@ -163,4 +179,88 @@ export const payments = pgTable("payments", {
   memo: text("memo"),
   moveId: uuid("move_id").notNull(),
   createdAt: audit.createdAt,
+});
+
+export const bankStatements = pgTable("bank_statements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  journalId: uuid("journal_id").notNull(),
+  name: text("name").notNull(),
+  date: date("date").notNull(),
+  balanceStart: numeric("balance_start", { precision: 20, scale: 2 }),
+  balanceEnd: numeric("balance_end", { precision: 20, scale: 2 }),
+  createdAt: audit.createdAt,
+});
+
+export const bankStatementLines = pgTable("bank_statement_lines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  statementId: uuid("statement_id").notNull(),
+  sequence: integer("sequence").notNull().default(0),
+  date: date("date").notNull(),
+  paymentRef: text("payment_ref").notNull(),
+  partnerName: text("partner_name"),
+  amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
+  partnerId: uuid("partner_id"),
+  moveId: uuid("move_id"),
+  createdAt: audit.createdAt,
+});
+
+export const assets = pgTable("assets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  code: text("code"),
+  name: text("name").notNull(),
+  state: text("state", { enum: ["draft", "running", "closed"] })
+    .notNull()
+    .default("draft"),
+  method: text("method", { enum: ["straight_line", "declining_balance"] })
+    .notNull()
+    .default("straight_line"),
+  acquisitionDate: date("acquisition_date").notNull(),
+  firstDepreciationDate: date("first_depreciation_date").notNull(),
+  cost: numeric("cost", { precision: 20, scale: 2 }).notNull(),
+  salvageValue: numeric("salvage_value", { precision: 20, scale: 2 }).notNull().default("0"),
+  usefulLifeMonths: integer("useful_life_months").notNull(),
+  assetAccountId: uuid("asset_account_id").notNull(),
+  depreciationAccountId: uuid("depreciation_account_id").notNull(),
+  expenseAccountId: uuid("expense_account_id").notNull(),
+  journalId: uuid("journal_id").notNull(),
+  branchId: uuid("branch_id"),
+  businessUnitId: uuid("business_unit_id"),
+  ...audit,
+});
+
+export const assetDepreciationLines = pgTable("asset_depreciation_lines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  assetId: uuid("asset_id").notNull(),
+  sequence: integer("sequence").notNull(),
+  date: date("date").notNull(),
+  amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
+  accumulated: numeric("accumulated", { precision: 20, scale: 2 }).notNull(),
+  bookValue: numeric("book_value", { precision: 20, scale: 2 }).notNull(),
+  moveId: uuid("move_id"),
+});
+
+export const budgets = pgTable("budgets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  dateFrom: date("date_from").notNull(),
+  dateTo: date("date_to").notNull(),
+  ...audit,
+});
+
+export const budgetLines = pgTable("budget_lines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  budgetId: uuid("budget_id").notNull(),
+  accountId: uuid("account_id").notNull(),
+  businessUnitId: uuid("business_unit_id"),
+  branchId: uuid("branch_id"),
+  amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
 });

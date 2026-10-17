@@ -72,6 +72,16 @@ export class PaymentService {
         ],
       },
       companyId,
+      {
+        // Pembayaran valas mencatat jumlah dalam mata uangnya agar pelunasan faktur valas bisa dipasangkan.
+        lineCurrency:
+          currencyCode === books.currencyCode
+            ? undefined
+            : [
+                { currencyCode, amountCurrency: inbound ? input.amount : `-${input.amount}` },
+                { currencyCode, amountCurrency: inbound ? `-${input.amount}` : input.amount },
+              ],
+      },
     );
     const name = await this.moves.post(tx, moveId);
     const [payment] = await tx

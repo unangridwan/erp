@@ -283,3 +283,74 @@ export const paymentSchema = z.object({
 });
 
 export const reconcileSchema = z.object({ lineIds: z.array(z.string().uuid()).min(2) });
+
+// ---- Akuntansi lanjutan ----
+
+export const assetSchema = z.object({
+  companyId: z.string().uuid().optional(),
+  code: z.string().trim().max(50).nullish(),
+  name: z.string().trim().min(1).max(200),
+  method: z.enum(["straight_line", "declining_balance"]).default("straight_line"),
+  acquisitionDate: z.string().date(),
+  firstDepreciationDate: z.string().date(),
+  cost: nonNegative(2).refine((v) => Number(v) > 0, "Harga perolehan harus lebih dari 0"),
+  salvageValue: nonNegative(2).default("0"),
+  usefulLifeMonths: z.coerce.number().int().min(1).max(1200),
+  assetAccountId: z.string().uuid(),
+  depreciationAccountId: z.string().uuid(),
+  expenseAccountId: z.string().uuid(),
+  journalId: z.string().uuid().optional(),
+  branchId: z.string().uuid().nullish(),
+  businessUnitId: z.string().uuid().nullish(),
+});
+
+export const depreciateSchema = z.object({ date: z.string().date() });
+export const closeYearSchema = z.object({ fiscalYear: z.coerce.number().int().min(2000).max(2100) });
+
+export const budgetSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  dateFrom: z.string().date(),
+  dateTo: z.string().date(),
+  lines: z
+    .array(
+      z.object({
+        accountId: z.string().uuid(),
+        amount: decimalString(2),
+        businessUnitId: z.string().uuid().nullish(),
+        branchId: z.string().uuid().nullish(),
+      }),
+    )
+    .default([]),
+});
+
+export const statementImportSchema = z.object({
+  journalId: z.string().uuid(),
+  name: z.string().trim().min(1).max(200),
+  csv: z.string().min(1).max(10_000_000),
+  balanceStart: decimalString(2).nullish(),
+  balanceEnd: decimalString(2).nullish(),
+  mapping: z.object({
+    date: z.string().min(1),
+    description: z.string().min(1),
+    amount: z.string().optional(),
+    debit: z.string().optional(),
+    credit: z.string().optional(),
+    partner: z.string().optional(),
+    dateFormat: z
+      .enum(["DD/MM/YYYY", "YYYY-MM-DD", "MM/DD/YYYY", "DD-MM-YYYY", "DD/MM/YY"])
+      .default("DD/MM/YYYY"),
+    decimal: z.enum([",", "."]).default(","),
+    outflow: z.enum(["debit", "credit"]).default("debit"),
+  }),
+});
+
+/**
+ * Rekonsiliasi satu baris mutasi: lunasi baris piutang/utang terbuka (`moveLineIds`), sisanya
+ * (mis. biaya bank) dibukukan ke `accountId`.
+ */
+export const statementReconcileSchema = z.object({
+  partnerId: z.string().uuid().nullish(),
+  moveLineIds: z.array(z.string().uuid()).default([]),
+  accountId: z.string().uuid().nullish(),
+  label: z.string().trim().max(500).nullish(),
+});

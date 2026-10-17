@@ -1,6 +1,6 @@
-import { Module } from "@nestjs/common";
+import { BadRequestException, Module } from "@nestjs/common";
 import { schema, type Db } from "@erp/db";
-import { accountSchema, journalSchema, taxSchema } from "@erp/shared";
+import { accountSchema, assetSchema, journalSchema, taxSchema } from "@erp/shared";
 import { ActivityService } from "../activity/activity.service.js";
 import { createCrudController } from "../common/crud.js";
 import { MasterModule } from "../master/master.module.js";
@@ -11,7 +11,17 @@ import {
   PaymentsController,
   ReportsController,
 } from "./accounting.controller.js";
+import { AssetService, validateAsset } from "./asset.service.js";
+import { BankService } from "./bank.service.js";
+import { BudgetService } from "./budget.service.js";
+import { ClosingService } from "./closing.service.js";
 import { assertCompanyAccounts } from "./context.js";
+import {
+  AssetActionsController,
+  BankController,
+  BudgetsController,
+  ClosingAndExportController,
+} from "./extended.controller.js";
 import { MoveService } from "./move.service.js";
 import { PaymentService } from "./payment.service.js";
 import { ReconcileService } from "./reconcile.service.js";
@@ -66,6 +76,24 @@ const TaxesController = createCrudController({
   beforeSave: sameCompanyAccount("accountId"),
 });
 
+/** Aset tetap: CRUD generik untuk draft; konfirmasi & penyusutan lewat AssetActionsController. */
+const AssetsController = createCrudController({
+  path: "assets",
+  model: "asset",
+  table: schema.assets,
+  schema: assetSchema,
+  read: "accounting.read",
+  write: "accounting.write",
+  searchColumns: [schema.assets.name, schema.assets.code],
+  orderBy: schema.assets.name,
+  companyColumn: schema.assets.companyId,
+  perCompany: true,
+  beforeSave: validateAsset,
+  beforeDelete: async (_tx, row) => {
+    if (row.state !== "draft") throw new BadRequestException("Hanya aset draft yang bisa dihapus");
+  },
+});
+
 @Module({
   imports: [MasterModule],
   controllers: [
@@ -76,7 +104,23 @@ const TaxesController = createCrudController({
     MovesController,
     PaymentsController,
     ReportsController,
+    BankController,
+    AssetActionsController,
+    AssetsController,
+    BudgetsController,
+    ClosingAndExportController,
   ],
-  providers: [ActivityService, SequenceService, MoveService, ReconcileService, PaymentService, ReportService],
+  providers: [
+    ActivityService,
+    SequenceService,
+    MoveService,
+    ReconcileService,
+    PaymentService,
+    ReportService,
+    BankService,
+    AssetService,
+    BudgetService,
+    ClosingService,
+  ],
 })
 export class AccountingModule {}

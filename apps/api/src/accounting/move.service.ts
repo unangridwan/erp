@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  forwardRef,
   Inject,
   Injectable,
   NotFoundException,
@@ -51,17 +52,31 @@ export class MoveService {
   constructor(
     @Inject(SequenceService) private readonly sequences: SequenceService,
     @Inject(FxService) private readonly fx: FxService,
-    @Inject(ReconcileService) private readonly reconcile: ReconcileService,
+    // Pick: lihat catatan di ReconcileService tentang ketergantungan melingkar.
+    @Inject(forwardRef(() => ReconcileService))
+    private readonly reconcile: Pick<ReconcileService, "reconcileLines">,
     @Inject(ActivityService) private readonly activity: ActivityService,
   ) {}
 
   // ---- Membuat & mengubah draft ----
 
-  async createEntry(tx: Db, input: JournalEntryInput, companyId = currentContext().companyId) {
+  /**
+   * Buat draft jurnal umum. `opts.lineCurrency` (internal) memberi mata uang & jumlah valas per baris,
+   * dipakai pembayaran valas dan jurnal selisih kurs.
+   */
+  async createEntry(
+    tx: Db,
+    input: JournalEntryInput,
+    companyId = currentContext().companyId,
+    opts: { lineCurrency?: ({ currencyCode: string; amountCurrency: string } | undefined)[] } = {},
+  ) {
     const books = await loadBooks(tx, companyId);
     const journalId = input.journalId ?? books.settings.generalJournalId;
     await assertCompanyJournal(tx, companyId, journalId, ["general", "bank", "cash", "sale", "purchase"]);
-    const lines = await this.entryLines(tx, books, input);
+    const lines = (await this.entryLines(tx, books, input)).map((l, i) => ({
+      ...l,
+      ...(opts.lineCurrency?.[i] ?? {}),
+    }));
     const [move] = await tx
       .insert(schema.accountMoves)
       .values({
@@ -182,7 +197,10 @@ export class MoveService {
     for (const line of lines.filter((l) => reconcilable.has(l.accountId))) {
       await tx
         .update(schema.accountMoveLines)
-        .set({ amountResidual: dec(line.debit).minus(line.credit).toFixed(2) })
+        .set({
+          amountResidual: dec(line.debit).minus(line.credit).toFixed(2),
+          amountResidualCurrency: line.amountCurrency,
+        })
         .where(eq(schema.accountMoveLines.id, line.id));
     }
     const residual = lines
@@ -263,6 +281,7 @@ export class MoveService {
             balance: _b,
             createdAt: _c,
             amountResidual: _r,
+            amountResidualCurrency: _rcur,
             reconciled: _rc,
             ...l
           }) => ({

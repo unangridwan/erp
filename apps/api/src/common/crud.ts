@@ -69,6 +69,8 @@ export interface CrudOptions<T extends Table> {
   refs?: Record<string, Table>;
   /** Validasi tambahan sebelum simpan. */
   beforeSave?: (tx: Db, values: Record<string, unknown>, id?: string) => Promise<void>;
+  /** Dipanggil sebelum menghapus (mis. menolak penghapusan data yang sudah dipakai). */
+  beforeDelete?: (tx: Db, row: Record<string, unknown>) => Promise<void>;
   /** Dipanggil setelah baris baru dibuat, dalam transaksi yang sama. */
   afterCreate?: (tx: Db, row: Record<string, unknown> & { id: string }) => Promise<void>;
 }
@@ -323,7 +325,8 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
     @RequirePermission(opts.write)
     remove(@Param("id", ParseUUIDPipe) id: string) {
       return this.tenantDb.run(async (tx) => {
-        await this.find(tx, id);
+        const row = await this.find(tx, id);
+        await opts.beforeDelete?.(tx, row);
         await tx.delete(table).where(eq(table.id, id));
         await this.activity.log(tx, { resModel: opts.model, resId: id, action: "delete" });
       });

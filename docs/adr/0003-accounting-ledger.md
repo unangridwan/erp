@@ -34,5 +34,9 @@ selalu seimbang walau ada bug aplikasi.
 ## Konsekuensi
 
 - Laporan dihitung langsung dari baris posted dengan SQL agregat; untuk volume besar akan ditambah materialized view.
-- Selisih kurs saat pelunasan dokumen valas belum dibukukan otomatis (sisa tetap di baris pembayaran) — direncanakan.
+- Selisih kurs: baris piutang/utang menyimpan sisa dalam mata uang dokumen (`amount_residual_currency`). Bila semua
+  baris yang direkonsiliasi memakai valas yang sama, pemasangan dilakukan dalam valas; baris yang lunas dalam valas tetapi
+  masih bersisa rupiah ditutup dengan jurnal laba/rugi selisih kurs otomatis. Revaluasi akhir bulan belum ada.
+- Tutup buku: entri penutup (`closing_year`) memindahkan saldo laba rugi ke Saldo Laba dan mengunci periode dalam satu
+  transaksi; laporan laba rugi mengecualikan entri penutup agar hasil usaha tahun itu tetap terlihat.
 - Laporan multi-perusahaan saat ini menjumlahkan saja; eliminasi intercompany dilakukan oleh mesin konsolidasi.

@@ -58,7 +58,7 @@ const ACCOUNTS: { key?: string; code: string; name: string; type: AccountType; r
   { code: "4-1200", name: "Pendapatan Antar Perusahaan", type: "income" },
   { code: "4-1900", name: "Potongan Penjualan", type: "income" },
   { code: "4-9000", name: "Pendapatan Lain-lain", type: "income_other" },
-  { code: "4-9100", name: "Laba Selisih Kurs", type: "income_other" },
+  { key: "fxGain", code: "4-9100", name: "Laba Selisih Kurs", type: "income_other" },
   { code: "4-9200", name: "Pendapatan Bunga", type: "income_other" },
   { code: "5-1000", name: "Harga Pokok Penjualan", type: "expense_direct_cost" },
   { code: "6-1000", name: "Beban Gaji dan Tunjangan", type: "expense" },
@@ -70,7 +70,7 @@ const ACCOUNTS: { key?: string; code: string; name: string; type: AccountType; r
   { code: "6-6000", name: "Beban Pemasaran", type: "expense" },
   { code: "6-7000", name: "Beban Antar Perusahaan", type: "expense" },
   { code: "7-1000", name: "Beban Administrasi Bank", type: "expense_other" },
-  { code: "7-1100", name: "Rugi Selisih Kurs", type: "expense_other" },
+  { key: "fxLoss", code: "7-1100", name: "Rugi Selisih Kurs", type: "expense_other" },
   { code: "7-1200", name: "Beban Bunga", type: "expense_other" },
   { code: "8-1000", name: "Beban Pajak Penghasilan", type: "expense_other" },
 ];
@@ -186,6 +186,8 @@ export async function installChart(tx: Db, companyId: string): Promise<boolean> 
     saleJournalId: journal("sale"),
     purchaseJournalId: journal("purchase"),
     generalJournalId: journal("general"),
+    fxGainAccountId: account("fxGain"),
+    fxLossAccountId: account("fxLoss"),
   });
   return true;
 }

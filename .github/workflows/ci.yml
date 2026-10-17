@@ -32,3 +32,14 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      # Jalankan API hasil build (tsc + decorator metadata) untuk menangkap error injeksi yang tidak muncul di vitest.
+      - name: Boot check API
+        env:
+          JWT_SECRET: ci-secret-yang-panjangnya-lebih-dari-32-karakter
+          ENCRYPTION_KEY: ci-encryption-key-yang-panjangnya-lebih-dari-32
+          MAIL_TRANSPORT: json
+        run: |
+          node apps/api/dist/main.js > api.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:3001/health && exit 0; sleep 1; done
+          cat api.log
+          exit 1

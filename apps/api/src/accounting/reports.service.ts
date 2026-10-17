@@ -221,6 +221,7 @@ export class ReportService {
       join account_moves m on m.id = l.move_id
       join accounts a on a.id = l.account_id
       where ${s.where} and m.date between ${from} and ${q.dateTo} and a.account_type in (${list(PROFIT_LOSS_TYPES)})
+        and m.closing_year is null
       group by a.id, a.code, a.name, a.account_type
       order by a.code`);
     const section = (types: readonly string[], sign: 1 | -1) => {
