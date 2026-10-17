@@ -234,6 +234,13 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 
 ---
 
+## Status
+- [x] Scaffold monorepo, CI, RLS multi-tenant, struktur grup (tenant, perusahaan, kepemilikan, unit bisnis, cabang)
+- [x] Fase 0 (inti): auth JWT, RBAC + akses per perusahaan, master Partner/Product/UoM/Currency, partner intercompany
+  otomatis, sequence dokumen, log aktivitas, UI list/form generik
+- [ ] Fase 0 (sisa): refresh token & 2FA, rate limit login, undangan user via email, import/export CSV, i18n EN,
+  kurs harian, FK komposit `(tenant_id, id)`, wilayah Indonesia
+
 ## 5. Roadmap Bertahap
 
 | Fase | Durasi (tim 3–5 dev) | Hasil |

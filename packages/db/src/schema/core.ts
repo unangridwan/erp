@@ -15,13 +15,13 @@ import {
 } from "drizzle-orm/pg-core";
 import { CONSOLIDATION_METHODS, ENTITY_TYPES } from "@erp/shared";
 
-const audit = {
+export const audit = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 };
 
 /** Kolom tenant: default diambil dari `app.tenant_id` sesi, ditegakkan oleh RLS. */
-const tenantId = () =>
+export const tenantId = () =>
   uuid("tenant_id")
     .notNull()
     .default(sql`nullif(current_setting('app.tenant_id', true), '')::uuid`)

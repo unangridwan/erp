@@ -13,13 +13,17 @@ Satu tenant dapat berisi grup usaha: holding, anak perusahaan, unit bisnis, caba
 - Shared database, shared schema. Setiap tabel bisnis punya `tenant_id` dengan default
   `current_setting('app.tenant_id')`.
 - RLS `ENABLE` + `FORCE` dengan policy `tenant_isolation` di setiap tabel bisnis.
-- Aplikasi berjalan sebagai role tanpa `BYPASSRLS` (`app_user`) dan men-set `app.tenant_id` per transaksi
-  (`set_config(..., true)`, lihat `withTenant` di `packages/db/src/client.ts`).
+- Aplikasi terhubung sebagai pemilik schema, lalu di setiap transaksi tenant menjalankan `set local role app_user`
+  (tanpa `BYPASSRLS`) dan men-set `app.tenant_id` (`set_config(..., true)`), lihat `withTenant` di
+  `packages/db/src/client.ts`. Koneksi pemilik tanpa role ini hanya dipakai untuk signup & lookup tenant saat login.
 - Di dalam tenant, entitas legal = `companies` (hierarki `parent_id` + `ownership_history`); unit bisnis &
   cabang adalah dimensi. Pembatasan akses per perusahaan ditangani di lapisan aplikasi (`user_companies`).
 
 ## Konsekuensi
 
-- Isolasi ditegakkan database, diuji di `packages/db/test/rls.test.ts`.
+- Isolasi ditegakkan database, diuji di `packages/db/test/rls.test.ts` dan `apps/api/test/foundation.test.ts`.
+- Pemeriksaan foreign key Postgres **tidak** tunduk pada RLS, sehingga tenant bisa saja merujuk id milik tenant
+  lain. Karena itu setiap id rujukan dicek terlihat oleh tenant sebelum disimpan (`refs` di
+  `apps/api/src/common/crud.ts`). Hardening berikutnya: FK komposit `(tenant_id, id)`.
 - Migrasi dan job lintas tenant (billing, maintenance) memakai role pemilik secara eksplisit.
 - Tenant sangat besar dapat dipindah ke database terpisah di kemudian hari tanpa ubah skema.

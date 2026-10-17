@@ -11,11 +11,12 @@ export function createDb(url: string, options: postgres.Options<Record<string, n
 }
 
 /**
- * Jalankan `fn` dalam transaksi dengan konteks tenant aktif.
- * `set_config(..., true)` bersifat lokal-transaksi sehingga aman dipakai dengan connection pool.
+ * Jalankan `fn` dalam transaksi dengan konteks tenant aktif, sebagai role `app_user` (tunduk pada RLS).
+ * `set local` / `set_config(..., true)` bersifat lokal-transaksi sehingga aman dipakai dengan connection pool.
  */
 export async function withTenant<T>(db: Db, tenantId: string, fn: (tx: Db) => Promise<T>): Promise<T> {
   return db.transaction(async (tx) => {
+    await tx.execute(sql`set local role app_user`);
     await tx.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
     return fn(tx as unknown as Db);
   });
