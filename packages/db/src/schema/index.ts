@@ -2,3 +2,4 @@ export * from "./core.js";
 export * from "./master.js";
 export * from "./security.js";
 export * from "./accounting.js";
+export * from "./sales.js";

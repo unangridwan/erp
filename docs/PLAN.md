@@ -248,6 +248,15 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] Fase 1 (lanjutan): selisih kurs otomatis saat pelunasan valas, rekonsiliasi bank (impor CSV mutasi dengan pemetaan
   kolom, saran pencocokan, biaya bank, pembatalan), aset tetap & penyusutan (garis lurus / saldo menurun, preset kelompok
   fiskal), tutup buku akhir tahun, anggaran vs realisasi, ekspor Excel & cetak/PDF laporan
+- [x] Fase 2 (CRM + Penjualan): lead & peluang dengan pipeline kanban (seret antar tahap), konversi lead → pelanggan,
+  tandai menang/kalah (alasan kalah), aktivitas terjadwal (telepon/rapat/email/to-do) + "Aktivitas Saya", tim penjualan,
+  aturan rekaman (penjual hanya melihat data miliknya tanpa `crm.all`/`sales.all`), analisis pipeline tertimbang;
+  penawaran → pesanan (nomor `SO/2026/0001`), daftar harga (produk/kategori/semua, min. kuantitas, promo bertanggal,
+  valas), termin pembayaran, pajak bawaan PPN, PDF penawaran & kirim email berlampiran, konfirmasi menandai peluang
+  menang, faktur dari pesanan (sisa kuantitas, uang muka persentase/tetap ke akun Uang Muka Pelanggan, potongan DP di
+  faktur akhir), status penagihan dihitung dari faktur/nota kredit, analisis penjualan
+- [ ] Fase 2 ditunda (menunggu Fase 3 Inventory): faktur berdasarkan kuantitas terkirim, retur penjualan dari pengiriman,
+  aturan intercompany SO↔PO; juga komisi penjual, portal pelanggan & tanda tangan online, varian produk
 - [ ] Fase 1 ditunda: pelepasan/penjualan aset, revaluasi selisih kurs akhir bulan (unrealized), koneksi API bank langsung
 - [ ] Ditunda: rate limiter berbasis Redis (multi-instance), SSO, impor Excel (.xlsx), sumber kurs otomatis
   (KMK kurs pajak / BI), pesan error API dua bahasa

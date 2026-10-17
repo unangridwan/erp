@@ -34,6 +34,8 @@ export interface Resource {
 const MASTER = L("Master Data", "Master Data");
 const GROUP = L("Struktur Grup", "Group Structure");
 export const ACCOUNTING = L("Akuntansi", "Accounting");
+export const CRM = L("CRM", "CRM");
+export const SALES = L("Penjualan", "Sales");
 
 const name = (required = true): Field => ({ name: "name", label: L("Nama", "Name"), type: "text", required });
 const code: Field = { name: "code", label: L("Kode", "Code"), type: "text", required: true };
@@ -95,6 +97,27 @@ export const RESOURCES: Resource[] = [
         valueKey: "name",
       },
       { name: "postalCode", label: L("Kode pos", "Postal code"), type: "text" },
+      {
+        name: "paymentTermId",
+        label: L("Termin pembayaran", "Payment terms"),
+        type: "ref",
+        resource: "payment-terms",
+        display: "name",
+      },
+      {
+        name: "pricelistId",
+        label: L("Daftar harga", "Pricelist"),
+        type: "ref",
+        resource: "pricelists",
+        display: "name",
+      },
+      {
+        name: "salespersonId",
+        label: L("Penjual", "Salesperson"),
+        type: "ref",
+        resource: "users/options",
+        display: "name",
+      },
       companyScope,
     ],
   },
@@ -497,6 +520,81 @@ RESOURCES.push(
   },
 );
 
+RESOURCES.push(
+  {
+    path: "crm-stages",
+    model: "crm_stage",
+    title: L("Tahap Pipeline", "Pipeline Stages"),
+    singular: L("Tahap", "Stage"),
+    permission: "crm",
+    writePermission: "crm.manage",
+    group: CRM,
+    columns: [
+      { name: "sequence", label: L("Urutan", "Sequence") },
+      { name: "name", label: L("Nama", "Name") },
+      { name: "probability", label: L("Probabilitas %", "Probability %") },
+    ],
+    fields: [
+      name(),
+      { name: "sequence", label: L("Urutan", "Sequence"), type: "number" },
+      { name: "probability", label: L("Probabilitas %", "Probability %"), type: "number" },
+      { name: "isWon", label: L("Tahap menang", "Won stage"), type: "boolean" },
+      { name: "fold", label: L("Dilipat di kanban", "Folded in kanban"), type: "boolean" },
+    ],
+  },
+  {
+    path: "lost-reasons",
+    model: "crm_lost_reason",
+    title: L("Alasan Kalah", "Lost Reasons"),
+    singular: L("Alasan kalah", "Lost reason"),
+    permission: "crm",
+    writePermission: "crm.manage",
+    group: CRM,
+    columns: [{ name: "name", label: L("Nama", "Name") }],
+    fields: [name(), { name: "active", label: L("Aktif", "Active"), type: "boolean" }],
+  },
+  {
+    path: "sales-teams",
+    model: "sales_team",
+    title: L("Tim Penjualan", "Sales Teams"),
+    singular: L("Tim penjualan", "Sales team"),
+    permission: "crm",
+    writePermission: "crm.manage",
+    group: CRM,
+    columns: [{ name: "name", label: L("Nama", "Name") }],
+    fields: [
+      name(),
+      {
+        name: "leaderId",
+        label: L("Ketua tim", "Team leader"),
+        type: "ref",
+        resource: "users/options",
+        display: "name",
+      },
+      { name: "active", label: L("Aktif", "Active"), type: "boolean" },
+      companyScope,
+    ],
+  },
+  {
+    path: "payment-terms",
+    model: "payment_term",
+    title: L("Termin Pembayaran", "Payment Terms"),
+    singular: L("Termin pembayaran", "Payment term"),
+    permission: "sales",
+    writePermission: "sales.manage",
+    group: SALES,
+    columns: [
+      { name: "name", label: L("Nama", "Name") },
+      { name: "days", label: L("Hari", "Days") },
+    ],
+    fields: [
+      name(),
+      { name: "days", label: L("Jatuh tempo (hari)", "Due in (days)"), type: "number", required: true },
+      { name: "active", label: L("Aktif", "Active"), type: "boolean" },
+    ],
+  },
+);
+
 /** Halaman modul khusus (bukan CRUD generik) yang tampil di menu samping. */
 export interface Page {
   href: string;
@@ -506,6 +604,50 @@ export interface Page {
 }
 
 export const PAGES: Page[] = [
+  { href: "/crm/pipeline", label: L("Pipeline", "Pipeline"), group: CRM, permission: "crm.read" },
+  { href: "/crm/leads", label: L("Lead", "Leads"), group: CRM, permission: "crm.read" },
+  {
+    href: "/crm/activities",
+    label: L("Aktivitas Saya", "My Activities"),
+    group: CRM,
+    permission: "crm.read",
+  },
+  {
+    href: "/crm/reports",
+    label: L("Analisis Pipeline", "Pipeline Analysis"),
+    group: CRM,
+    permission: "crm.read",
+  },
+  {
+    href: "/sales/quotations",
+    label: L("Penawaran", "Quotations"),
+    group: SALES,
+    permission: "sales.read",
+  },
+  {
+    href: "/sales/orders",
+    label: L("Pesanan Penjualan", "Sales Orders"),
+    group: SALES,
+    permission: "sales.read",
+  },
+  {
+    href: "/sales/to-invoice",
+    label: L("Perlu Ditagih", "To Invoice"),
+    group: SALES,
+    permission: "sales.read",
+  },
+  {
+    href: "/sales/pricelists",
+    label: L("Daftar Harga", "Pricelists"),
+    group: SALES,
+    permission: "sales.read",
+  },
+  {
+    href: "/sales/reports",
+    label: L("Analisis Penjualan", "Sales Analysis"),
+    group: SALES,
+    permission: "sales.read",
+  },
   {
     href: "/accounting/invoices",
     label: L("Faktur Penjualan", "Customer Invoices"),
@@ -592,3 +734,47 @@ export const PAYMENT_STATE_LABEL: Record<string, Text> = {
   paid: L("Lunas", "Paid"),
   reversed: L("Dibalik", "Reversed"),
 };
+
+/** Halaman daftar dokumen penjualan. */
+export const ORDER_KINDS = {
+  quotations: { state: "draft,sent", invoiceStatus: "", title: L("Penawaran", "Quotations") },
+  orders: { state: "sale", invoiceStatus: "", title: L("Pesanan Penjualan", "Sales Orders") },
+  "to-invoice": { state: "sale", invoiceStatus: "to_invoice", title: L("Perlu Ditagih", "To Invoice") },
+} as const;
+export type OrderKind = keyof typeof ORDER_KINDS;
+
+export const ORDER_STATE_LABEL: Record<string, Text> = {
+  draft: L("Penawaran", "Quotation"),
+  sent: L("Penawaran terkirim", "Quotation sent"),
+  sale: L("Pesanan", "Sales order"),
+  cancel: L("Batal", "Cancelled"),
+};
+
+export const INVOICE_STATUS_LABEL: Record<string, Text> = {
+  no: L("Tidak ada", "Nothing to invoice"),
+  to_invoice: L("Perlu ditagih", "To invoice"),
+  invoiced: L("Sudah ditagih", "Fully invoiced"),
+};
+
+export const LEAD_STATE_LABEL: Record<string, Text> = {
+  open: L("Terbuka", "Open"),
+  won: L("Menang", "Won"),
+  lost: L("Kalah", "Lost"),
+};
+
+export const LEAD_SOURCES: [string, Text][] = [
+  ["website", L("Website", "Website")],
+  ["referral", L("Referensi", "Referral")],
+  ["event", L("Acara/pameran", "Event")],
+  ["ads", L("Iklan", "Advertising")],
+  ["social", L("Media sosial", "Social media")],
+  ["cold_call", L("Telepon langsung", "Cold call")],
+  ["other", L("Lainnya", "Other")],
+];
+
+export const ACTIVITY_TYPES: [string, Text][] = [
+  ["call", L("Telepon", "Call")],
+  ["meeting", L("Rapat", "Meeting")],
+  ["email", L("Email", "Email")],
+  ["todo", L("To-do", "To-do")],
+];

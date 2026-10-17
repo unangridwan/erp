@@ -7,9 +7,11 @@ import { AuthGuard } from "./auth/auth.guard.js";
 import { AuthService } from "./auth/auth.service.js";
 import { DatabaseModule } from "./common/database.js";
 import { DbExceptionFilter } from "./common/db-exception.filter.js";
-import { Mailer } from "./common/mailer.js";
+import { MailModule } from "./common/mailer.js";
 import { RateLimiter } from "./common/rate-limiter.js";
 import { contextMiddleware } from "./common/request-context.js";
+import { CrmModule } from "./crm/crm.module.js";
+import { SalesModule } from "./sales/sales.module.js";
 import { HealthController } from "./health/health.controller.js";
 import { MasterModule } from "./master/master.module.js";
 import { SequenceController, SequenceService } from "./sequences/sequence.service.js";
@@ -17,7 +19,7 @@ import { UsersController } from "./users/users.controller.js";
 import { UsersService } from "./users/users.service.js";
 
 @Module({
-  imports: [DatabaseModule, MasterModule, AccountingModule],
+  imports: [DatabaseModule, MailModule, MasterModule, AccountingModule, CrmModule, SalesModule],
   controllers: [HealthController, AuthController, ActivityController, SequenceController, UsersController],
   providers: [
     AuthService,
@@ -25,7 +27,6 @@ import { UsersService } from "./users/users.service.js";
     SequenceService,
     UsersService,
     RateLimiter,
-    Mailer,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_FILTER, useClass: DbExceptionFilter },
   ],

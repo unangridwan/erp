@@ -58,6 +58,7 @@ const MESSAGES = {
   "chatter.create": L("membuat", "created"),
   "chatter.update": L("mengubah", "updated"),
   "chatter.delete": L("menghapus", "deleted"),
+  "chatter.comment": L("mencatat", "noted"),
   "chatter.system": L("Sistem", "System"),
   "home.welcome": L("Selamat datang", "Welcome"),
   "home.start": L("Mulai dari master data", "Start with master data"),

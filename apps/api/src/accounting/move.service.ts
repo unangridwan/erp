@@ -95,14 +95,34 @@ export class MoveService {
     return move!.id;
   }
 
-  async createInvoice(tx: Db, input: InvoiceInput, companyId = currentContext().companyId) {
+  /**
+   * Buat draft faktur/tagihan. `opts` (internal) dipakai modul penjualan: dokumen asal dan
+   * tautan baris barang ke baris pesanan (indeks sama dengan `input.lines`).
+   */
+  async createInvoice(
+    tx: Db,
+    input: InvoiceInput,
+    companyId = currentContext().companyId,
+    opts: { invoiceOrigin?: string; saleLineIds?: (string | null)[] } = {},
+  ) {
     const books = await loadBooks(tx, companyId);
     const { header, lines } = await this.invoiceDraft(tx, books, input);
     const [move] = await tx
       .insert(schema.accountMoves)
-      .values({ ...header, companyId, createdBy: currentContext().userId })
+      .values({
+        ...header,
+        companyId,
+        invoiceOrigin: opts.invoiceOrigin ?? null,
+        createdBy: currentContext().userId,
+      })
       .returning({ id: schema.accountMoves.id });
-    await tx.insert(schema.accountMoveLines).values(lines.map((l) => ({ ...l, moveId: move!.id })));
+    await tx.insert(schema.accountMoveLines).values(
+      lines.map((l) => ({
+        ...l,
+        moveId: move!.id,
+        saleLineId: l.displayType === "product" ? (opts.saleLineIds?.[l.sequence ?? -1] ?? null) : null,
+      })),
+    );
     await this.activity.log(tx, { resModel: "account_move", resId: move!.id, action: "create" });
     return move!.id;
   }
@@ -111,6 +131,15 @@ export class MoveService {
   async updateDraft(tx: Db, id: string, input: JournalEntryInput | InvoiceInput) {
     const move = await this.lockDraft(tx, id);
     const books = await loadBooks(tx, move.companyId);
+    // Tautan ke baris pesanan penjualan dipertahankan bila baris di posisi yang sama masih produk yang sama.
+    const oldLines = await tx
+      .select({
+        sequence: schema.accountMoveLines.sequence,
+        productId: schema.accountMoveLines.productId,
+        saleLineId: schema.accountMoveLines.saleLineId,
+      })
+      .from(schema.accountMoveLines)
+      .where(and(eq(schema.accountMoveLines.moveId, id), eq(schema.accountMoveLines.displayType, "product")));
     await tx.delete(schema.accountMoveLines).where(eq(schema.accountMoveLines.moveId, id));
     if ("moveType" in input) {
       if (input.moveType !== move.moveType) throw fieldError("moveType", "Jenis dokumen tidak bisa diubah");
@@ -119,7 +148,13 @@ export class MoveService {
         .update(schema.accountMoves)
         .set({ ...header, updatedAt: sql`now()` })
         .where(eq(schema.accountMoves.id, id));
-      await tx.insert(schema.accountMoveLines).values(lines.map((l) => ({ ...l, moveId: id })));
+      await tx.insert(schema.accountMoveLines).values(
+        lines.map((l) => {
+          const old = l.displayType === "product" && oldLines.find((o) => o.sequence === l.sequence);
+          const keep = old && old.productId === (l.productId ?? null);
+          return { ...l, moveId: id, saleLineId: keep ? old.saleLineId : null };
+        }),
+      );
     } else {
       if (move.moveType !== "entry") throw fieldError("moveType", "Dokumen ini adalah faktur/tagihan");
       const journalId = input.journalId ?? move.journalId;

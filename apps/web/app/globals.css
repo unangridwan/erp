@@ -450,3 +450,98 @@ tr.detail td {
     border: none;
   }
 }
+
+/* ---- CRM & Penjualan ---- */
+.state-sale,
+.state-won,
+.state-invoiced {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.state-sent,
+.state-to_invoice {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.state-lost,
+.state-cancel {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+.kanban {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(240px, 1fr);
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  align-items: start;
+}
+.kanban-col {
+  background: var(--hover);
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 160px;
+}
+.kanban-col.drop {
+  outline: 2px dashed var(--accent);
+}
+.kanban-col header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.kanban-col header small {
+  color: var(--muted);
+}
+.kanban-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: grab;
+}
+.kanban-card a {
+  font-weight: 600;
+}
+.kanban-card .meta {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 12px;
+}
+.overdue {
+  color: var(--danger);
+}
+.stars {
+  color: #d4a017;
+  letter-spacing: 1px;
+}
+.inline-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+  margin: 8px 0;
+}
+.activity-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.activity-list li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}

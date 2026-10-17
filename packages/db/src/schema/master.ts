@@ -84,6 +84,9 @@ export const partners = pgTable("partners", {
   province: text("province"),
   postalCode: text("postal_code"),
   icCompanyId: uuid("ic_company_id").references(() => companies.id),
+  paymentTermId: uuid("payment_term_id"),
+  pricelistId: uuid("pricelist_id"),
+  salespersonId: uuid("salesperson_id"),
   active: boolean("active").notNull().default(true),
   ...audit,
 });

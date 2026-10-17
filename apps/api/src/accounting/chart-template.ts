@@ -45,7 +45,7 @@ const ACCOUNTS: { key?: string; code: string; name: string; type: AccountType; r
   { code: "2-1330", name: "Utang PPh 25/29", type: "liability_current" },
   { code: "2-1400", name: "Utang BPJS", type: "liability_current" },
   { code: "2-1500", name: "Utang Gaji", type: "liability_current" },
-  { code: "2-1600", name: "Uang Muka Pelanggan", type: "liability_current" },
+  { key: "customerDown", code: "2-1600", name: "Uang Muka Pelanggan", type: "liability_current" },
   { code: "2-1700", name: "Biaya Masih Harus Dibayar", type: "liability_current" },
   { code: "2-2100", name: "Utang Bank Jangka Panjang", type: "liability_non_current" },
   { code: "2-2200", name: "Liabilitas Imbalan Kerja", type: "liability_non_current" },
@@ -165,16 +165,20 @@ export async function installChart(tx: Db, companyId: string): Promise<boolean> 
   const journal = (key: string) =>
     journals.find((j) => j.code === JOURNALS.find((x) => x.key === key)!.code)!.id;
 
-  await tx.insert(schema.taxes).values(
-    TAXES.map((t) => ({
-      companyId,
-      name: t.name,
-      typeTaxUse: t.use,
-      amount: t.amount,
-      baseRatio: t.baseRatio,
-      accountId: account(t.account),
-    })),
-  );
+  const taxes = await tx
+    .insert(schema.taxes)
+    .values(
+      TAXES.map((t) => ({
+        companyId,
+        name: t.name,
+        typeTaxUse: t.use,
+        amount: t.amount,
+        baseRatio: t.baseRatio,
+        accountId: account(t.account),
+      })),
+    )
+    .returning({ id: schema.taxes.id, name: schema.taxes.name });
+  const tax = (name: string) => taxes.find((t) => t.name === name)!.id;
 
   await tx.insert(schema.accountingSettings).values({
     companyId,
@@ -188,6 +192,9 @@ export async function installChart(tx: Db, companyId: string): Promise<boolean> 
     generalJournalId: journal("general"),
     fxGainAccountId: account("fxGain"),
     fxLossAccountId: account("fxLoss"),
+    defaultSaleTaxId: tax("PPN Keluaran 12% (DPP 11/12)"),
+    defaultPurchaseTaxId: tax("PPN Masukan 12% (DPP 11/12)"),
+    downPaymentAccountId: account("customerDown"),
   });
   return true;
 }

@@ -109,7 +109,13 @@ const PartnersController = createCrudController({
   searchColumns: [schema.partners.name, schema.partners.email, schema.partners.npwp, schema.partners.city],
   orderBy: schema.partners.name,
   companyColumn: schema.partners.companyId,
-  refs: { companyId: schema.companies, parentId: schema.partners },
+  refs: {
+    companyId: schema.companies,
+    parentId: schema.partners,
+    paymentTermId: schema.paymentTerms,
+    pricelistId: schema.pricelists,
+    salespersonId: schema.users,
+  },
 });
 
 const ProductCategoriesController = createCrudController({

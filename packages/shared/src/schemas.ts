@@ -117,6 +117,9 @@ export const partnerSchema = z.object({
   city: optionalText,
   province: optionalText,
   postalCode: optionalText,
+  paymentTermId: optionalUuid,
+  pricelistId: optionalUuid,
+  salespersonId: optionalUuid,
   active: z.boolean().default(true),
 });
 
@@ -354,3 +357,157 @@ export const statementReconcileSchema = z.object({
   accountId: z.string().uuid().nullish(),
   label: z.string().trim().max(500).nullish(),
 });
+
+// ---- CRM & penjualan ----
+
+export const LEAD_SOURCE_VALUES = [
+  "website",
+  "referral",
+  "event",
+  "ads",
+  "social",
+  "cold_call",
+  "other",
+] as const;
+
+export const crmStageSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  sequence: z.coerce.number().int().default(10),
+  probability: z.coerce.number().min(0).max(100).default(10).transform(String),
+  isWon: z.boolean().default(false),
+  fold: z.boolean().default(false),
+});
+
+export const lostReasonSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  active: z.boolean().default(true),
+});
+
+export const salesTeamSchema = z.object({
+  companyId: z.string().uuid().nullish(),
+  name: z.string().trim().min(1).max(100),
+  leaderId: z.string().uuid().nullish(),
+  memberIds: z.array(z.string().uuid()).default([]),
+  active: z.boolean().default(true),
+});
+
+export const paymentTermSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  days: z.coerce.number().int().min(0).max(3650),
+  active: z.boolean().default(true),
+});
+
+export const pricelistSchema = z.object({
+  companyId: z.string().uuid().nullish(),
+  name: z.string().trim().min(1).max(100),
+  currencyCode: z.string().length(3).toUpperCase().default("IDR"),
+  active: z.boolean().default(true),
+  items: z
+    .array(
+      z
+        .object({
+          productId: z.string().uuid().nullish(),
+          categoryId: z.string().uuid().nullish(),
+          minQuantity: nonNegative(4).default("0"),
+          compute: z.enum(["fixed", "discount"]).default("discount"),
+          fixedPrice: nonNegative(4).nullish(),
+          discount: decimalString(4).default("0"),
+          dateStart: z.string().date().nullish(),
+          dateEnd: z.string().date().nullish(),
+        })
+        .refine((i) => !(i.productId && i.categoryId), "Pilih produk atau kategori, bukan keduanya")
+        .refine((i) => i.compute !== "fixed" || i.fixedPrice != null, "Harga tetap wajib diisi"),
+    )
+    .default([]),
+});
+
+export const leadSchema = z.object({
+  leadType: z.enum(["lead", "opportunity"]).default("opportunity"),
+  name: z.string().trim().min(1).max(200),
+  partnerId: z.string().uuid().nullish(),
+  contactName: z.string().trim().max(200).nullish(),
+  partnerName: z.string().trim().max(200).nullish(),
+  email: z
+    .string()
+    .trim()
+    .email()
+    .nullish()
+    .or(z.literal("").transform(() => null)),
+  phone: z.string().trim().max(50).nullish(),
+  source: z.enum(LEAD_SOURCE_VALUES).nullish(),
+  stageId: z.string().uuid().nullish(),
+  userId: z.string().uuid().nullish(),
+  teamId: z.string().uuid().nullish(),
+  expectedRevenue: nonNegative(2).default("0"),
+  probability: z.coerce.number().min(0).max(100).transform(String).optional(),
+  expectedClose: z.string().date().nullish(),
+  priority: z.coerce.number().int().min(0).max(3).default(0),
+  description: z.string().max(5000).nullish(),
+  branchId: z.string().uuid().nullish(),
+  businessUnitId: z.string().uuid().nullish(),
+});
+
+export const markLostSchema = z.object({
+  lostReasonId: z.string().uuid().nullish(),
+  lostNote: z.string().trim().max(2000).nullish(),
+});
+
+/** Konversi lead → peluang: pakai partner yang ada, buat partner baru dari data lead, atau tanpa partner. */
+export const convertLeadSchema = z.object({
+  partner: z.enum(["existing", "create", "none"]).default("create"),
+  partnerId: z.string().uuid().nullish(),
+});
+
+export const activitySchema = z.object({
+  resModel: z.enum(["crm_lead", "sale_order", "partner"]),
+  resId: z.string().uuid(),
+  activityType: z.enum(["call", "meeting", "email", "todo"]).default("todo"),
+  summary: z.string().trim().min(1).max(200),
+  note: z.string().max(2000).nullish(),
+  dueDate: z.string().date(),
+  userId: z.string().uuid().optional(),
+});
+
+export const saleOrderSchema = z.object({
+  partnerId: z.string().uuid(),
+  dateOrder: z.string().date(),
+  validityDate: z.string().date().nullish(),
+  paymentTermId: z.string().uuid().nullish(),
+  pricelistId: z.string().uuid().nullish(),
+  userId: z.string().uuid().nullish(),
+  teamId: z.string().uuid().nullish(),
+  leadId: z.string().uuid().nullish(),
+  clientOrderRef: z.string().trim().max(100).nullish(),
+  note: z.string().max(5000).nullish(),
+  branchId: z.string().uuid().nullish(),
+  businessUnitId: z.string().uuid().nullish(),
+  lines: z
+    .array(
+      z.object({
+        id: z.string().uuid().optional(),
+        productId: z.string().uuid().nullish(),
+        name: z.string().trim().max(500).optional(),
+        quantity: nonNegative(4).default("1"),
+        /** Kosong = ambil dari daftar harga / harga jual produk. */
+        priceUnit: decimalString(4).nullish(),
+        discount: nonNegative(4).default("0"),
+        taxIds: z.array(z.string().uuid()).optional(),
+      }),
+    )
+    .min(1, "Minimal satu baris"),
+});
+
+/**
+ * Faktur dari pesanan: `regular` = sisa kuantitas yang belum ditagih (uang muka yang sudah ditagih dipotong),
+ * `percentage`/`fixed` = faktur uang muka (jumlah tetap sebelum pajak).
+ */
+const invoiceDate = { date: z.string().date().optional() };
+export const createInvoiceFromOrderSchema = z.discriminatedUnion("method", [
+  z.object({ method: z.literal("regular"), ...invoiceDate }),
+  z.object({ method: z.literal("percentage"), percentage: z.coerce.number().gt(0).max(100), ...invoiceDate }),
+  z.object({
+    method: z.literal("fixed"),
+    amount: nonNegative(2).refine((v) => Number(v) > 0, "Harus lebih dari 0"),
+    ...invoiceDate,
+  }),
+]);

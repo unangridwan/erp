@@ -122,5 +122,6 @@ const AssetsController = createCrudController({
     BudgetService,
     ClosingService,
   ],
+  exports: [MoveService],
 })
 export class AccountingModule {}

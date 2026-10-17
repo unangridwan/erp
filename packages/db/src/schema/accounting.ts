@@ -87,6 +87,9 @@ export const accountingSettings = pgTable("accounting_settings", {
   generalJournalId: uuid("general_journal_id").notNull(),
   fxGainAccountId: uuid("fx_gain_account_id"),
   fxLossAccountId: uuid("fx_loss_account_id"),
+  defaultSaleTaxId: uuid("default_sale_tax_id"),
+  defaultPurchaseTaxId: uuid("default_purchase_tax_id"),
+  downPaymentAccountId: uuid("down_payment_account_id"),
   updatedAt: audit.updatedAt,
 });
 
@@ -116,6 +119,7 @@ export const accountMoves = pgTable("account_moves", {
     .default("not_paid"),
   reversedEntryId: uuid("reversed_entry_id"),
   closingYear: smallint("closing_year"),
+  invoiceOrigin: text("invoice_origin"),
   postedAt: timestamp("posted_at", { withTimezone: true }),
   postedBy: uuid("posted_by"),
   createdBy: uuid("created_by"),
@@ -149,6 +153,7 @@ export const accountMoveLines = pgTable("account_move_lines", {
   businessUnitId: uuid("business_unit_id"),
   branchId: uuid("branch_id"),
   icCompanyId: uuid("ic_company_id"),
+  saleLineId: uuid("sale_line_id"),
   amountResidual: numeric("amount_residual", { precision: 20, scale: 2 }).notNull().default("0"),
   amountResidualCurrency: numeric("amount_residual_currency", { precision: 20, scale: 2 })
     .notNull()

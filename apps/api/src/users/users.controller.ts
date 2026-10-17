@@ -25,6 +25,21 @@ export class UsersController {
     @Inject(CONFIG) private readonly config: AppConfig,
   ) {}
 
+  /** Pilihan user aktif di perusahaan aktif (penanggung jawab lead, penjual). Tanpa data sensitif. */
+  @Get("users/options")
+  options() {
+    return this.tenantDb.run((tx) =>
+      tx
+        .select({ id: schema.users.id, name: schema.users.name })
+        .from(schema.users)
+        .innerJoin(schema.userCompanies, eq(schema.userCompanies.userId, schema.users.id))
+        .where(
+          and(eq(schema.users.active, true), eq(schema.userCompanies.companyId, currentContext().companyId)),
+        )
+        .orderBy(asc(schema.users.name)),
+    );
+  }
+
   @Get("users")
   @RequirePermission("user.read")
   list() {

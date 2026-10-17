@@ -45,6 +45,7 @@ export function client(app: INestApplication, token: string, companyId?: string)
     get: (url: string) => withAuth(request(server).get(url)),
     post: (url: string, body?: object) => withAuth(request(server).post(url)).send(body),
     patch: (url: string, body?: object) => withAuth(request(server).patch(url)).send(body),
+    put: (url: string, body?: object) => withAuth(request(server).put(url)).send(body),
     delete: (url: string) => withAuth(request(server).delete(url)),
   };
 }

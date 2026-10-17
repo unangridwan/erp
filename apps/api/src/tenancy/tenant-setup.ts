@@ -29,6 +29,27 @@ const DEFAULT_UOMS: Record<string, [string, number][]> = {
   ],
 };
 
+/** Tahapan pipeline CRM bawaan: [nama, probabilitas %, menang]. */
+const DEFAULT_STAGES: [string, number, boolean][] = [
+  ["Baru", 10, false],
+  ["Kualifikasi", 30, false],
+  ["Proposal", 60, false],
+  ["Negosiasi", 80, false],
+  ["Menang", 100, true],
+];
+const DEFAULT_LOST_REASONS = [
+  "Harga terlalu tinggi",
+  "Memilih pesaing",
+  "Tidak ada anggaran",
+  "Tidak ada respons",
+];
+const DEFAULT_PAYMENT_TERMS: [string, number][] = [
+  ["Tunai", 0],
+  ["Net 14 hari", 14],
+  ["Net 30 hari", 30],
+  ["Net 60 hari", 60],
+];
+
 export interface SeedResult {
   companyId: string;
   adminRoleId: string;
@@ -81,6 +102,17 @@ export async function seedTenant(tx: Db, companyName: string): Promise<SeedResul
   }
 
   await installChart(tx, company!.id);
+
+  await tx.insert(schema.crmStages).values(
+    DEFAULT_STAGES.map(([name, probability, isWon], i) => ({
+      name,
+      sequence: (i + 1) * 10,
+      probability: String(probability),
+      isWon,
+    })),
+  );
+  await tx.insert(schema.crmLostReasons).values(DEFAULT_LOST_REASONS.map((name) => ({ name })));
+  await tx.insert(schema.paymentTerms).values(DEFAULT_PAYMENT_TERMS.map(([name, days]) => ({ name, days })));
 
   return { companyId: company!.id, adminRoleId: adminRole!.id, userRoleId: userRole!.id };
 }

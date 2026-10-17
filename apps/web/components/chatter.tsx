@@ -27,7 +27,7 @@ export function Chatter(props: {
     timeStyle: "short",
   });
   const action = (a: string) =>
-    ["create", "update", "delete"].includes(a) ? t(`chatter.${a}` as MessageKey) : a;
+    ["create", "update", "delete", "comment"].includes(a) ? t(`chatter.${a}` as MessageKey) : a;
   const [entries, setEntries] = useState<Entry[]>([]);
 
   useEffect(() => {
