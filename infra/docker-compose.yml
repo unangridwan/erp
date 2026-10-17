@@ -1,0 +1,33 @@
+name: erp
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: erp
+      POSTGRES_DB: erp
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp"]
+      interval: 5s
+      retries: 10
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: erp
+      MINIO_ROOT_PASSWORD: erp-secret
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [miniodata:/data]
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports: ["1025:1025", "8025:8025"]
+volumes:
+  pgdata:
+  miniodata:

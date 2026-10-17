@@ -1,0 +1,30 @@
+{
+  "name": "@erp/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src test",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "migrate": "node --experimental-strip-types src/migrate.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@erp/shared": "workspace:*",
+    "drizzle-orm": "^0.38.3",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "vitest": "^2.1.8"
+  }
+}

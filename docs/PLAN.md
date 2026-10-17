@@ -1,0 +1,281 @@
+# Rencana Pembangunan ERP (mirip Odoo) — SaaS Multi-tenant, Fokus Indonesia
+
+## Context
+Repository `unangridwan/erp` masih kosong (belum ada commit). Tujuannya membangun ERP lengkap seperti Odoo:
+modular, terintegrasi (Sales → Inventory → Accounting → HR), dijual sebagai **SaaS multi-tenant**, dengan
+**lokalisasi Indonesia** (PPN, e-Faktur/Coretax DJP, PPh 21 TER, BPJS, Rupiah, Bahasa Indonesia).
+Keputusan yang sudah diambil:
+- Stack: **TypeScript full-stack** — NestJS + PostgreSQL + Drizzle ORM (backend), Next.js + React (frontend).
+- MVP mencakup 4 domain: **Sales+CRM, Purchase+Inventory, Accounting, HR+Payroll**.
+
+Rencana ini menyusun arsitektur, struktur repo, desain data inti, roadmap per fase, dan langkah pertama
+yang akan dikerjakan di branch `claude/friendly-hypatia-g289ty`.
+
+---
+
+## 1. Arsitektur
+
+**Modular monolith** (bukan microservices di awal) — satu deployable, tapi setiap modul ERP
+terisolasi dengan batas jelas (seperti addon Odoo). Bisa dipecah jadi service nanti bila perlu.
+
+```
+Browser (Next.js App Router, React, TanStack Query, shadcn/ui)
+        │  REST + OpenAPI (typed client di-generate)
+API Gateway / NestJS app ──► Modul: core, crm, sales, purchase, inventory, accounting, hr, payroll, l10n_id
+        │                          │ komunikasi antar modul via Domain Events (in-process EventBus + Outbox)
+        ├── PostgreSQL 16 (Row-Level Security per tenant)
+        ├── Redis (cache, session, BullMQ job queue)
+        ├── Object storage S3/MinIO (lampiran, PDF faktur)
+        └── Worker (BullMQ): PDF, email, laporan berat, sinkronisasi Coretax, payroll run
+```
+
+### Multi-tenancy
+- **Shared DB, shared schema + kolom `tenant_id`** di setiap tabel bisnis, ditegakkan dengan
+  **PostgreSQL Row-Level Security** (`SET app.tenant_id` per request/transaksi). Murah, skalabel,
+  dan aman dari bocor data walau ada bug query.
+- Tenant di-resolve dari subdomain (`acme.erpku.id`) atau header JWT.
+- Dalam satu tenant: **struktur grup** — holding → anak/cucu perusahaan (entitas legal, `company_id`)
+  → unit bisnis → cabang. Detail di §3.10 (Konsolidasi Grup).
+- Tabel global (non-tenant): `tenants`, `plans`, `subscriptions`, mata uang, wilayah Indonesia, master pajak.
+
+### Prinsip lintas-modul (meniru kekuatan Odoo)
+| Konsep Odoo | Implementasi |
+|---|---|
+| Addon/modul + dependency | Setiap modul = NestJS module + manifest (`depends`, `permissions`, `menus`, `migrations`); modul bisa diaktifkan per tenant (dasar paket langganan) |
+| ORM `res.partner` dll. | Master bersama di `core`: Partner (customer/vendor/karyawan kontak), Product, UoM, Currency, Company |
+| Workflow state (`draft→confirmed→done`) | State machine eksplisit per dokumen (XState-like kecil / tabel transisi) + audit |
+| Chatter / mail.thread | `activity_log` + komentar + lampiran polymorphic (`res_model`, `res_id`) untuk semua dokumen |
+| Sequence (`SO/2026/0001`) | Service `sequence` per company, per tipe dokumen, reset tahunan, gap-safe dengan row lock |
+| Access rights & record rules | RBAC (role → permission) + record rules (mis. salesperson hanya lihat lead miliknya) |
+| Multi-currency | Kurs harian (sumber kurs BI/Kemenkeu), selisih kurs realized/unrealized |
+| Reports QWeb | Template PDF (React-PDF / Puppeteer HTML→PDF) |
+| Studio (custom field) | Fase lanjut: custom fields via kolom `jsonb` + metadata |
+
+### Integrasi antar modul (event-driven)
+- Sales Order confirmed → `inventory` buat Delivery Order.
+- Delivery done → `accounting` jurnal HPP (COGS) & persediaan; Invoice posted → jurnal Piutang/Pendapatan/PPN Keluaran.
+- Goods Receipt → jurnal persediaan / GRNI; Vendor Bill → Hutang + PPN Masukan.
+- Payroll run → jurnal beban gaji, utang PPh 21, utang BPJS.
+- Pola **Transactional Outbox** agar event tidak hilang; handler idempotent.
+
+---
+
+## 2. Struktur Repository (monorepo pnpm + Turborepo)
+
+```
+erp/
+├── apps/
+│   ├── api/                # NestJS (HTTP API)
+│   ├── worker/             # BullMQ worker (pakai modul yang sama)
+│   └── web/                # Next.js (UI back-office)
+├── packages/
+│   ├── db/                 # Drizzle schema, migrasi, seed, RLS policies
+│   ├── modules/            # logika domain per modul (dipakai api & worker)
+│   │   ├── core/  crm/  sales/  purchase/  inventory/
+│   │   ├── accounting/  hr/  payroll/  l10n-id/
+│   ├── shared/             # tipe, zod schema, util money/decimal, error
+│   ├── ui/                 # komponen shadcn/ui + komponen ERP (DataTable, Form builder, Kanban, Chatter)
+│   └── api-client/         # client ter-generate dari OpenAPI
+├── infra/                  # docker-compose (postgres, redis, minio, mailpit), Dockerfile, k8s/helm nanti
+├── docs/                   # ADR, desain modul, panduan
+└── .github/workflows/      # CI: lint, typecheck, test, build
+```
+
+Tooling: pnpm, Turborepo, ESLint + Prettier, Vitest (unit), Jest/Supertest atau Vitest (integrasi API dengan
+Testcontainers Postgres), Playwright (E2E), Zod untuk validasi, `decimal.js` untuk uang (**jangan float**;
+simpan `numeric(18,2)` / kuantitas `numeric(18,4)`).
+
+---
+
+## 3. Modul & Fitur
+
+### 3.0 Core / Platform (fondasi, wajib dulu)
+- Auth: email+password, JWT access + refresh, 2FA (TOTP), undangan user, SSO (fase lanjut).
+- Tenant onboarding & billing langganan (paket = kumpulan modul + kuota user).
+- Company, cabang, user, role & permission, record rules, audit log.
+- Master: Partner, Product (+varian, kategori, UoM & konversi), Currency & kurs, wilayah Indonesia (provinsi→kelurahan), bank.
+- Sequence, lampiran, chatter/aktivitas, notifikasi (in-app + email), import/export CSV/Excel.
+- UI framework generik: list view (filter, group-by, pencarian), form view, kanban, pivot/graph sederhana.
+
+### 3.1 CRM
+Lead/opportunity, pipeline kanban per stage, aktivitas & reminder, sumber lead, tim sales, alasan kalah,
+konversi lead → customer → quotation.
+
+### 3.2 Sales
+Quotation → Sales Order → Delivery → Invoice; pricelist, diskon, syarat pembayaran, PDF penawaran,
+down payment, retur penjualan, komisi sales (lanjut), laporan penjualan.
+
+### 3.3 Purchase
+Purchase Request (opsional) → RFQ → PO (approval bertingkat) → Goods Receipt → Vendor Bill
+(3-way matching PO/GR/Bill), harga pemasok, retur pembelian.
+
+### 3.4 Inventory
+Multi-gudang & lokasi (hierarki), stock move & stock quant (model double-entry seperti Odoo:
+setiap move dari lokasi A → B), picking (receipt/delivery/internal transfer), lot/serial & tanggal kedaluwarsa,
+stock opname/penyesuaian, reorder rule (min/max), valuasi **FIFO & Average** dengan layer valuasi,
+laporan kartu stok.
+
+### 3.5 Accounting
+- COA standar Indonesia (template SAK EMKM / SAK ETAP), jurnal (Penjualan, Pembelian, Kas, Bank, Umum).
+- Journal entry double-entry dengan validasi debit=kredit, periode & lock date, tutup buku.
+- AR/AP: invoice, credit note, pembayaran, rekonsiliasi (parsial), aging report.
+- Bank: impor mutasi (CSV / format bank BCA/Mandiri/BRI), rekonsiliasi bank.
+- Aset tetap & penyusutan (garis lurus/saldo menurun), anggaran (lanjut).
+- Laporan: Neraca, Laba Rugi, Arus Kas, Buku Besar, Neraca Saldo — dapat difilter per perusahaan,
+  unit bisnis, cabang; laporan konsolidasi grup di §3.10.
+- Setiap baris jurnal wajib membawa dimensi `company_id`, `business_unit_id`, `branch_id` (+ analytic
+  opsional: proyek, departemen) agar laporan per segmen tidak perlu jurnal terpisah.
+
+### 3.6 HR
+Karyawan (data pribadi, NIK, NPWP, PTKP, BPJS), struktur organisasi & jabatan, kontrak (PKWT/PKWTT),
+absensi (clock-in web/mobile, geolokasi), shift, cuti & izin (saldo, approval), lembur.
+
+### 3.7 Payroll
+Komponen gaji (tunjangan tetap/tidak tetap, potongan), struktur gaji, payroll run bulanan,
+slip gaji PDF, **PPh 21 metode TER (PP 58/2023)** + perhitungan tahunan Desember, **BPJS Kesehatan &
+Ketenagakerjaan (JHT, JKK, JKM, JP)** dengan batas upah, THR, export file transfer bank, jurnal otomatis.
+
+### 3.8 Lokalisasi Indonesia (`l10n-id`)
+- PPN 11%/12% (DPP nilai lain 11/12 sesuai aturan 2025), PPnBM, PPh 23/4(2) potong-pungut.
+- **e-Faktur / Coretax DJP**: generate NSFP, export XML Coretax untuk Faktur Pajak Keluaran,
+  impor Faktur Masukan; e-Bupot (PPh 21/23).
+- Format angka & tanggal Indonesia, terbilang Rupiah di invoice, Bahasa Indonesia default (i18n `next-intl`, EN tersedia).
+- Kalender libur nasional untuk absensi/payroll.
+
+### 3.10 Konsolidasi Grup (Holding, Anak Perusahaan, Unit Bisnis, Cabang)
+
+**a. Struktur organisasi grup (3 level berbeda sifatnya)**
+| Level | Sifat | Pembukuan | Konsolidasi |
+|---|---|---|---|
+| **Perusahaan / entitas legal** (holding, anak, cucu, asosiasi, JV) | Badan hukum sendiri, NPWP sendiri, COA & periode fiskal sendiri, bisa beda mata uang | Buku besar terpisah per `company_id` | Dikonsolidasi dengan eliminasi + kepemilikan |
+| **Unit bisnis / divisi** | Segmen dalam satu atau lintas perusahaan | Dimensi pada baris jurnal | Agregasi (laporan segmen, PSAK 5) |
+| **Cabang** | Lokasi operasional; opsional NPWP cabang/NITKU untuk faktur | Dimensi pada baris jurnal, atau "akun RK (Rekening Koran) Pusat–Cabang" bila cabang pembukuan mandiri | Gabung ke perusahaan induknya + eliminasi RK pusat-cabang |
+
+- Pohon grup fleksibel (`group_structure`): node bisa holding, sub-holding, anak, cabang; mendukung
+  kepemilikan bertingkat & tidak langsung (holding 80% A, A 60% B → efektif 48%).
+- Riwayat kepemilikan bertanggal (`ownership_history`): akuisisi, divestasi, perubahan % di tengah periode.
+- User bisa diberi akses ke satu/banyak perusahaan; switcher perusahaan di UI; dashboard grup untuk eksekutif holding.
+
+**b. Metode konsolidasi per entitas (berdasarkan pengendalian, PSAK 65/66/15)**
+- **Penuh (full)** — anak dikendalikan (>50% atau kendali de facto): 100% aset/liabilitas/laba digabung,
+  porsi pihak lain dicatat sebagai **Kepentingan Non-Pengendali (KNP/NCI)**.
+- **Proporsional** — operasi bersama (joint operation): digabung sesuai %.
+- **Ekuitas (equity method)** — asosiasi/ventura bersama (20–50%): hanya baris "Investasi pada entitas asosiasi"
+  dan "Bagian laba asosiasi".
+- **Tidak dikonsolidasi** — investasi <20% (nilai wajar).
+
+**c. Transaksi antar perusahaan (intercompany) — diotomasi di sumbernya**
+- Partner otomatis untuk setiap perusahaan grup (flag `is_intercompany`, `ic_company_id`).
+- **Aturan intercompany** (mirip Odoo): SO di perusahaan A ke perusahaan B otomatis membuat PO di B;
+  invoice A otomatis membuat vendor bill di B; transfer stok antar perusahaan; pinjaman & dividen antar perusahaan;
+  alokasi biaya / management fee holding ke anak.
+- Akun intercompany khusus (piutang/hutang IC, pendapatan/beban IC) + **mitra IC wajib** pada baris jurnal (`ic_partner_company_id`).
+- **Rekonsiliasi intercompany**: laporan pencocokan saldo A↔B per akun/periode, deteksi selisih
+  (beda kurs, beda timing, belum dicatat), workflow konfirmasi saldo antar entitas sebelum tutup buku.
+
+**d. Proses konsolidasi (per periode, dijalankan di worker)**
+1. **Lock** periode di semua entitas (cek tutup buku & rekonsiliasi IC selesai).
+2. **Mapping COA**: COA lokal tiap entitas → **COA grup** (`consolidation_account_map`), sehingga anak boleh punya COA berbeda.
+3. **Translasi mata uang** (PSAK 10): aset & liabilitas kurs penutupan, L/R kurs rata-rata, ekuitas kurs historis;
+   selisih ke "Selisih kurs penjabaran" di OCI.
+4. **Penyesuaian** kebijakan akuntansi (bila beda) — jurnal penyesuaian konsolidasi.
+5. **Eliminasi otomatis**:
+   - Investasi induk vs ekuitas anak (+ goodwill / keuntungan pembelian dari PPA saat akuisisi).
+   - Piutang ↔ hutang IC, pendapatan ↔ beban IC, dividen IC.
+   - **Laba belum terealisasi** atas persediaan/aset tetap yang masih ada di entitas pembeli (unrealized profit, pakai margin per transaksi).
+   - RK Pusat ↔ RK Cabang.
+6. **Hitung KNP** atas ekuitas & laba anak (kepemilikan efektif bertingkat).
+7. **Jurnal konsolidasi manual** (top-side adjustment) dengan approval dan audit trail.
+8. Simpan **snapshot hasil** (`consolidation_run` versi, bisa dijalankan ulang/draft vs final).
+
+Jurnal eliminasi & penyesuaian disimpan di **"entitas konsolidasi" virtual** (buku terpisah), sehingga
+buku besar entitas legal tidak pernah tersentuh.
+
+**e. Laporan konsolidasi**
+- Neraca, Laba Rugi & OCI, Arus Kas, Perubahan Ekuitas — konsolidasian.
+- **Kertas kerja konsolidasi (worksheet)**: kolom per entitas → total gabungan → eliminasi → konsolidasi, drill-down sampai jurnal sumber.
+- Laporan per sub-grup (konsolidasi parsial: misal sub-holding saja), per unit bisnis, per cabang, laporan segmen.
+- Perbandingan periode, budget vs aktual grup, ekspor Excel/PDF.
+- Konsolidasi non-keuangan: stok grup, penjualan grup, headcount & biaya gaji grup (dashboard).
+
+**f. Fase pengerjaan**
+- Fase 0: model `companies` hierarkis + dimensi unit bisnis/cabang + akses multi-company (fondasi wajib sejak awal).
+- Fase 1: dimensi pada jurnal, laporan per entitas/unit/cabang, akun & partner intercompany.
+- Fase 2–3: aturan intercompany otomatis (SO↔PO, invoice↔bill, transfer stok).
+- **Fase 5b (baru, 5–6 minggu)**: mesin konsolidasi (mapping COA, translasi, eliminasi, KNP, equity method,
+  worksheet, laporan konsolidasian, rekonsiliasi IC).
+
+### 3.9 Fase lanjut (setelah MVP, menuju "selengkap Odoo")
+POS (offline-capable), Manufacturing/MRP (BoM, work order), Project & Timesheet, Helpdesk, Website/e-commerce,
+Marketing/email, Fleet, Maintenance, Document management, Approval engine generik, Studio (custom field/form),
+mobile app (React Native/Expo), integrasi marketplace (Tokopedia/Shopee), payment gateway (Midtrans/Xendit),
+BI dashboard, public REST API + webhook untuk partner.
+
+---
+
+## 4. Desain Data Inti (contoh tabel kunci)
+Semua tabel bisnis: `id uuid`, `tenant_id`, `company_id`, `created_at/by`, `updated_at/by`, `deleted_at` (soft delete untuk master).
+
+- `core`: tenants, companies, users, roles, permissions, user_roles, partners, partner_addresses, products, product_variants, uom, currencies, currency_rates, sequences, attachments, activity_logs, outbox_events
+- `crm`: crm_stages, crm_leads, crm_activities
+- `sales`: pricelists, sale_orders, sale_order_lines
+- `purchase`: purchase_orders, purchase_order_lines
+- `inventory`: warehouses, stock_locations, stock_pickings, stock_moves, stock_quants, stock_lots, stock_valuation_layers
+- `accounting`: accounts, journals, account_moves, account_move_lines, taxes, payments, reconciliations, fiscal_periods
+- `hr/payroll`: employees, departments, jobs, contracts, attendances, leaves, leave_allocations, salary_rules, payslips, payslip_lines
+- `l10n_id`: tax_invoices (faktur pajak), nsfp_ranges, withholding_slips (bupot)
+- `group/consolidation`: companies (`parent_id`, `entity_type`: holding/subsidiary/associate/jv, `currency_id`, `fiscal_year_start`),
+  business_units, branches (`company_id`, `nitku`), ownership_history (`parent_company_id`, `child_company_id`, `pct`, `valid_from/to`, `method`),
+  intercompany_rules, group_accounts (COA grup), consolidation_account_map, consolidation_runs, consolidation_entries
+  (eliminasi/penyesuaian), consolidation_balances (snapshot per entitas per akun grup), ic_reconciliations, acquisitions (goodwill/PPA)
+- `account_move_lines` membawa: `company_id`, `business_unit_id`, `branch_id`, `ic_partner_company_id`, `analytic_distribution jsonb`
+
+Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/credit note), semua angka uang pakai decimal.
+
+---
+
+## 5. Roadmap Bertahap
+
+| Fase | Durasi (tim 3–5 dev) | Hasil |
+|---|---|---|
+| **0. Fondasi** | 4–6 minggu | Monorepo, CI, docker-compose, DB + RLS, auth, tenant & company, RBAC, master Partner/Product/UoM, sequence, chatter, UI shell (menu, list/form generik), i18n |
+| **1. Accounting inti** | 6–8 minggu | COA, jurnal, journal entry, pajak, invoice/bill manual, pembayaran, rekonsiliasi, laporan dasar (GL, TB, Neraca, L/R) — jadi "tulang punggung" semua modul lain |
+| **2. Sales + CRM** | 5–6 minggu | Lead/pipeline, quotation→SO→invoice otomatis, PDF, pricelist |
+| **3. Purchase + Inventory** | 8–10 minggu | PO→GR→Bill, gudang/lokasi, stock move, delivery dari SO, valuasi FIFO/Average, jurnal otomatis persediaan & HPP |
+| **4. HR + Payroll** | 6–8 minggu | Karyawan, absensi, cuti, payroll run, PPh 21 TER, BPJS, slip, jurnal gaji |
+| **5. Lokalisasi pajak & go-live MVP** | 4–6 minggu | e-Faktur/Coretax XML, e-Bupot, billing SaaS, onboarding wizard, hardening keamanan, backup, monitoring → **beta pelanggan** |
+| **5b. Konsolidasi grup** | 5–6 minggu | Mapping COA grup, translasi kurs, eliminasi IC & laba belum terealisasi, KNP, equity method, worksheet & laporan konsolidasian, rekonsiliasi IC (fondasi struktur grup & dimensi sudah dibangun sejak Fase 0–3) |
+| **6+. Ekspansi** | berkelanjutan | Modul fase lanjut (POS, MRP, Project, dll.) |
+
+Total MVP termasuk konsolidasi ±9–12 bulan. Setiap fase diakhiri demo alur end-to-end.
+
+---
+
+## 6. Non-fungsional
+- **Keamanan**: RLS + guard tenant di aplikasi, OWASP ASVS, rate limiting, enkripsi data sensitif (NIK, NPWP, rekening) di level kolom, audit trail, kepatuhan **UU PDP**.
+- **Performa**: index `(tenant_id, company_id, …)`, pagination cursor, laporan berat di worker + materialized view.
+- **Observability**: logging terstruktur (pino), OpenTelemetry, Sentry, health check.
+- **DevOps**: Docker, staging & production, migrasi DB otomatis di CI/CD, backup PITR, hosting di region Indonesia (data residency).
+- **Kualitas**: unit test untuk logika perhitungan (pajak, payroll, valuasi stok wajib coverage tinggi), integration test per alur dokumen, E2E Playwright untuk alur utama.
+
+---
+
+## 7. Langkah Pertama yang Akan Dikerjakan (setelah rencana disetujui)
+Di branch `claude/friendly-hypatia-g289ty`:
+1. `docs/`: simpan rencana ini sebagai `docs/PLAN.md` + ADR awal (`docs/adr/0001-modular-monolith.md`, `0002-multitenancy-rls.md`).
+2. Scaffold monorepo: `package.json` root, `pnpm-workspace.yaml`, `turbo.json`, tsconfig base, ESLint/Prettier.
+3. `apps/api` (NestJS) dengan health endpoint, `apps/web` (Next.js) shell, `packages/db` (Drizzle + migrasi awal tabel `tenants`, `companies` hierarkis (`parent_id`, `entity_type`),
+   `business_units`, `branches`, `users`, `user_companies`) beserta policy RLS.
+4. `infra/docker-compose.yml`: postgres, redis, minio, mailpit.
+5. CI GitHub Actions: lint, typecheck, test, build.
+6. README berisi cara menjalankan lokal.
+7. Commit & push ke `claude/friendly-hypatia-g289ty`.
+
+## 8. Verifikasi (untuk langkah pertama)
+- `pnpm install && pnpm -w lint && pnpm -w typecheck && pnpm -w test` lulus.
+- `docker compose -f infra/docker-compose.yml up -d` lalu `pnpm --filter db migrate` sukses.
+- `pnpm --filter api dev` → `GET /health` mengembalikan 200; `pnpm --filter web dev` → halaman login/shell tampil.
+- Test integrasi RLS: query dengan `app.tenant_id` tenant A tidak bisa membaca baris tenant B.
+- (Saat Fase 5b) test konsolidasi dengan skenario grup contoh: holding 100% anak A, 80% anak B (beda mata uang USD),
+  30% asosiasi C, penjualan IC A→B dengan stok tersisa — cocokkan worksheet dengan hitungan manual
+  (eliminasi IC = 0 selisih, KNP 20% benar, neraca konsolidasi balance).
