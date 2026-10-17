@@ -23,9 +23,9 @@
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "migrate": "node --experimental-strip-types src/migrate.ts",
+    "migrate": "node dist/bin/migrate.js",
     "test": "vitest run",
-    "seed:regions": "node --experimental-strip-types src/seed-regions.ts"
+    "seed:regions": "node dist/bin/seed-regions.js"
   },
   "dependencies": {
     "@erp/shared": "workspace:*",

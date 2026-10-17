@@ -4,6 +4,7 @@ import { createInterface } from "node:readline";
 import { createGunzip } from "node:zlib";
 import postgres from "postgres";
 
+// Sama untuk src/ dan dist/: keduanya satu tingkat di bawah folder paket.
 const FILE = join(import.meta.dirname, "..", "data", "regions.csv.gz");
 const BATCH = 5000;
 
@@ -51,10 +52,4 @@ export async function seedRegions(url: string): Promise<number> {
   } finally {
     await sql.end();
   }
-}
-
-if (import.meta.filename === process.argv[1]) {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL belum di-set");
-  console.log(`regions: ${await seedRegions(url)} baris`);
 }

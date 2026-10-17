@@ -6,6 +6,8 @@
     "node": ">=22"
   },
   "scripts": {
+    "db:setup": "turbo run build --filter=@erp/db --filter=@erp/shared && pnpm --filter @erp/db migrate && pnpm --filter @erp/db seed:regions",
+    "db:migrate": "pnpm --filter @erp/db migrate",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",

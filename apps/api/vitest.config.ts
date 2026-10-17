@@ -7,6 +7,7 @@ export default defineConfig({
       ENCRYPTION_KEY: "test-encryption-key-yang-panjangnya-32-karakter-lebih",
       MAIL_TRANSPORT: "json",
     },
+    setupFiles: ["./test/setup-env.ts"],
     // Test e2e berbagi satu database; jalankan file secara berurutan.
     fileParallelism: false,
   },

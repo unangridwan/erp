@@ -15,21 +15,48 @@ Rencana lengkap: [docs/PLAN.md](docs/PLAN.md) · Keputusan arsitektur: [docs/adr
 
 ## Menjalankan lokal
 
-Prasyarat: Node 22, pnpm 10, Docker.
+Prasyarat: [Git](https://git-scm.com), [Node.js 22](https://nodejs.org), pnpm 10 (`npm i -g pnpm`), dan
+[Docker Desktop](https://www.docker.com/products/docker-desktop/). Perintah di bawah sama untuk **Windows
+(PowerShell)**, macOS, dan Linux — file `.env` dibaca otomatis oleh API, migrasi, dan test.
 
 ```bash
-cp .env.example .env            # isi JWT_SECRET & ENCRYPTION_KEY (masing-masing ≥ 32 karakter)
-docker compose -f infra/docker-compose.yml up -d
+git clone https://github.com/unangridwan/erp.git
+cd erp
 pnpm install
-set -a && . ./.env && set +a
-pnpm build --filter=@erp/db --filter=@erp/shared
-pnpm --filter @erp/db migrate
-pnpm --filter @erp/db seed:regions   # wilayah Indonesia (provinsi s.d. desa), opsional
-pnpm dev                        # api di :3001, web di :3000
+copy .env.example .env          # macOS/Linux: cp .env.example .env
 ```
 
-Buka http://localhost:3000/signup untuk mendaftarkan perusahaan (tenant) pertama. Signup otomatis membuat
-perusahaan holding (`HQ`), role `admin` & `user`, satuan (UoM) bawaan, dan user admin.
+Buka `.env` dan ganti `JWT_SECRET` serta `ENCRYPTION_KEY` dengan dua teks acak berbeda (masing-masing ≥ 32 karakter).
+
+```bash
+docker compose -f infra/docker-compose.yml up -d   # Postgres, Redis, MinIO, Mailpit
+pnpm db:setup                                       # build paket, migrasi database, data wilayah
+pnpm dev                                            # api di :3001, web di :3000
+```
+
+| Alamat                       | Isi                                 |
+| ---------------------------- | ----------------------------------- |
+| http://localhost:3000        | Aplikasi web — mulai dari `/signup` |
+| http://localhost:3001/health | Cek API                             |
+| http://localhost:8025        | Mailpit: email undangan user        |
+
+Signup otomatis membuat perusahaan holding (`HQ`), role `admin` & `user`, satuan (UoM) bawaan, bagan akun, jurnal,
+pajak, dan user admin.
+
+### Masalah umum
+
+- **Port 5432 sudah dipakai** (ada PostgreSQL lain di komputer): hentikan layanan itu, atau ubah port di
+  `infra/docker-compose.yml` menjadi `"5433:5432"` dan `DATABASE_URL` di `.env` menjadi `...@localhost:5433/erp`.
+- **`docker` tidak dikenal**: pastikan Docker Desktop sudah berjalan (ikon di system tray) lalu buka terminal baru.
+- **Mulai dari awal**: `docker compose -f infra/docker-compose.yml down -v`, lalu ulangi `up -d` dan `pnpm db:setup`.
+- **`pnpm format:check` gagal di Windows karena akhir baris CRLF** (clone dibuat sebelum `.gitattributes` ada): hapus
+  folder lalu clone ulang.
+
+### Menjalankan test
+
+```bash
+pnpm lint && pnpm typecheck && pnpm test    # test database memakai DATABASE_URL dari .env
+```
 
 ## API (Fase 0)
 
