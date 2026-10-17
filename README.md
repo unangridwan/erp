@@ -11,7 +11,7 @@ Rencana lengkap: [docs/PLAN.md](docs/PLAN.md) · Keputusan arsitektur: [docs/adr
 | `apps/web`        | Frontend Next.js                                                |
 | `packages/db`     | Skema Drizzle, migrasi SQL, Row-Level Security                  |
 | `packages/shared` | Tipe & util bersama (mis. perhitungan kepemilikan efektif grup) |
-| `infra`           | docker-compose untuk Postgres, Redis, MinIO, Mailpit            |
+| `infra`           | docker-compose untuk Postgres, Redis, Mailpit                   |
 
 ## Menjalankan lokal
 
@@ -29,7 +29,7 @@ copy .env.example .env          # macOS/Linux: cp .env.example .env
 Buka `.env` dan ganti `JWT_SECRET` serta `ENCRYPTION_KEY` dengan dua teks acak berbeda (masing-masing ≥ 32 karakter).
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d   # Postgres, Redis, MinIO, Mailpit
+docker compose -f infra/docker-compose.yml up -d   # Postgres, Redis, Mailpit
 pnpm db:setup                                       # build paket, migrasi database, data wilayah
 pnpm dev                                            # api di :3001, web di :3000
 ```
