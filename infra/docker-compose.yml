@@ -6,7 +6,8 @@ services:
       POSTGRES_USER: erp
       POSTGRES_PASSWORD: erp
       POSTGRES_DB: erp
-    ports: ["5432:5432"]
+    # Port 5433 di host agar tidak bentrok dengan PostgreSQL yang mungkin sudah terpasang (umum di Windows).
+    ports: ["5433:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro

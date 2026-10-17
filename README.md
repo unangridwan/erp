@@ -45,8 +45,10 @@ pajak, dan user admin.
 
 ### Masalah umum
 
-- **Port 5432 sudah dipakai** (ada PostgreSQL lain di komputer): hentikan layanan itu, atau ubah port di
-  `infra/docker-compose.yml` menjadi `"5433:5432"` dan `DATABASE_URL` di `.env` menjadi `...@localhost:5433/erp`.
+- **`password authentication failed` / `password gagal diotentikasi` untuk user `erp`**: aplikasi tersambung ke
+  PostgreSQL lain, bukan yang dari Docker. Postgres Docker memakai port **5433**; pastikan `DATABASE_URL` di `.env`
+  berakhiran `@localhost:5433/erp` (salin ulang dari `.env.example` bila perlu), lalu jalankan
+  `docker compose -f infra/docker-compose.yml up -d` lagi.
 - **`docker` tidak dikenal**: pastikan Docker Desktop sudah berjalan (ikon di system tray) lalu buka terminal baru.
 - **Mulai dari awal**: `docker compose -f infra/docker-compose.yml down -v`, lalu ulangi `up -d` dan `pnpm db:setup`.
 - **`pnpm format:check` gagal di Windows karena akhir baris CRLF** (clone dibuat sebelum `.gitattributes` ada): hapus
