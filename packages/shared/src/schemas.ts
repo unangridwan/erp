@@ -669,3 +669,193 @@ export const purchaseOrderSchema = z.object({
 });
 
 export const billFromOrderSchema = z.object({ date: z.string().date().optional() });
+
+// ---- SDM & payroll ----
+
+const digits = (len: number[], label: string) =>
+  z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/[.\-\s]/g, ""))
+    // Nilai tersamar ("••••1234") dari API berarti tidak diubah.
+    .refine(
+      (v) => v.startsWith("••••") || (len.includes(v.length) && /^\d+$/.test(v)),
+      `${label} harus ${len.join(" atau ")} digit`,
+    );
+
+export const departmentSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  parentId: optionalUuid,
+  managerId: optionalUuid,
+  active: z.boolean().default(true),
+});
+
+export const jobPositionSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  active: z.boolean().default(true),
+});
+
+export const PTKP_STATUS_VALUES = ["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"] as const;
+
+export const employeeSchema = z.object({
+  employeeNumber: z.string().trim().max(30).nullish(),
+  name: z.string().trim().min(1).max(200),
+  departmentId: optionalUuid,
+  jobId: optionalUuid,
+  managerId: optionalUuid,
+  userId: optionalUuid,
+  workEmail: z
+    .string()
+    .trim()
+    .email()
+    .nullish()
+    .or(z.literal("").transform(() => null)),
+  workPhone: optionalText,
+  branchId: optionalUuid,
+  businessUnitId: optionalUuid,
+  nik: digits([16], "NIK")
+    .nullish()
+    .or(z.literal("").transform(() => null)),
+  npwp: digits([15, 16], "NPWP")
+    .nullish()
+    .or(z.literal("").transform(() => null)),
+  birthDate: z.string().date().nullish(),
+  gender: z.enum(["male", "female"]).nullish(),
+  ptkpStatus: z.enum(PTKP_STATUS_VALUES).default("TK/0"),
+  bpjsKesNo: optionalText,
+  bpjsTkNo: optionalText,
+  bankName: optionalText,
+  bankAccount: z
+    .string()
+    .trim()
+    .max(50)
+    .nullish()
+    .or(z.literal("").transform(() => null)),
+  bankAccountName: optionalText,
+  joinDate: z.string().date(),
+  resignDate: z.string().date().nullish(),
+  active: z.boolean().default(true),
+});
+
+export const salaryComponentSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .min(1)
+    .max(20)
+    .regex(/^[A-Z0-9_]+$/, "Huruf besar, angka, atau _"),
+  name: z.string().trim().min(1).max(100),
+  kind: z.enum(["allowance", "deduction"]),
+  /** Tunjangan tetap: ikut dasar upah BPJS & lembur. */
+  fixed: z.boolean().default(false),
+  /** Termasuk penghasilan bruto PPh 21. */
+  taxable: z.boolean().default(true),
+  accountId: optionalUuid,
+  active: z.boolean().default(true),
+});
+
+export const contractSchema = z
+  .object({
+    employeeId: z.string().uuid(),
+    contractType: z.enum(["pkwt", "pkwtt"]).default("pkwtt"),
+    dateStart: z.string().date(),
+    dateEnd: z.string().date().nullish(),
+    wage: nonNegative(2),
+    note: z.string().max(2000).nullish(),
+    allowances: z.array(z.object({ componentId: z.string().uuid(), amount: nonNegative(2) })).default([]),
+  })
+  .refine((c) => c.contractType !== "pkwt" || c.dateEnd, {
+    message: "PKWT wajib punya tanggal berakhir",
+    path: ["dateEnd"],
+  })
+  .refine((c) => !c.dateEnd || c.dateEnd >= c.dateStart, {
+    message: "Tanggal berakhir sebelum mulai",
+    path: ["dateEnd"],
+  });
+
+export const holidaySchema = z.object({
+  date: z.string().date(),
+  name: z.string().trim().min(1).max(100),
+});
+
+export const leaveTypeSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  paid: z.boolean().default(true),
+  requiresAllocation: z.boolean().default(true),
+  active: z.boolean().default(true),
+});
+
+export const leaveAllocationSchema = z.object({
+  employeeId: z.string().uuid(),
+  leaveTypeId: z.string().uuid(),
+  days: nonNegative(2),
+  dateFrom: z.string().date(),
+  dateTo: z.string().date(),
+  note: optionalText,
+});
+
+export const leaveRequestSchema = z
+  .object({
+    employeeId: z.string().uuid().optional(),
+    leaveTypeId: z.string().uuid(),
+    dateFrom: z.string().date(),
+    dateTo: z.string().date(),
+    reason: z.string().trim().max(1000).nullish(),
+  })
+  .refine((r) => r.dateTo >= r.dateFrom, { message: "Tanggal selesai sebelum mulai", path: ["dateTo"] });
+
+export const overtimeSchema = z.object({
+  employeeId: z.string().uuid(),
+  date: z.string().date(),
+  hours: nonNegative(2).refine((v) => Number(v) > 0 && Number(v) <= 12, "1–12 jam"),
+  dayType: z.enum(["workday", "rest_day"]).default("workday"),
+  description: optionalText,
+});
+
+export const attendanceSchema = z
+  .object({
+    employeeId: z.string().uuid(),
+    checkIn: z.string().datetime({ offset: true }),
+    checkOut: z.string().datetime({ offset: true }).nullish(),
+  })
+  .refine((a) => !a.checkOut || a.checkOut > a.checkIn, {
+    message: "Jam pulang sebelum jam masuk",
+    path: ["checkOut"],
+  });
+
+export const checkInSchema = z.object({
+  latitude: z.coerce.number().min(-90).max(90).nullish(),
+  longitude: z.coerce.number().min(-180).max(180).nullish(),
+});
+
+export const payrollSettingsSchema = z.object({
+  jkkRate: z.enum(["0.24", "0.54", "0.89", "1.27", "1.74"]),
+  kesWageCap: nonNegative(2),
+  jpWageCap: nonNegative(2),
+  salaryExpenseAccountId: z.string().uuid(),
+  bpjsExpenseAccountId: z.string().uuid(),
+  salaryPayableAccountId: z.string().uuid(),
+  pph21PayableAccountId: z.string().uuid(),
+  bpjsPayableAccountId: z.string().uuid(),
+  journalId: z.string().uuid(),
+});
+
+export const payrollRunSchema = z.object({
+  /** Bulan payroll (YYYY-MM). */
+  period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Format YYYY-MM"),
+  paymentDate: z.string().date(),
+  name: z.string().trim().max(100).nullish(),
+});
+
+export const payslipInputsSchema = z.object({
+  inputs: z.array(
+    z.object({
+      componentId: z.string().uuid(),
+      amount: nonNegative(2),
+      description: z.string().trim().max(200).nullish(),
+    }),
+  ),
+});
+
+export const payRunSchema = z.object({ journalId: z.string().uuid(), date: z.string().date() });

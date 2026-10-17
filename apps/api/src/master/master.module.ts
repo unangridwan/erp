@@ -16,6 +16,7 @@ import { ActivityService } from "../activity/activity.service.js";
 import { TenantDb } from "../common/database.js";
 import { installChart } from "../accounting/chart-template.js";
 import { installInventory } from "../inventory/setup.js";
+import { installPayroll } from "../payroll/setup.js";
 import { createCrudController } from "../common/crud.js";
 import { FxController, FxService } from "./fx.controller.js";
 import { RegionsController } from "./regions.controller.js";
@@ -62,6 +63,7 @@ const CompaniesController = createCrudController({
     await createIntercompanyPartner(tx, company);
     await installChart(tx, company.id);
     await installInventory(tx, company.id);
+    await installPayroll(tx, company.id);
   },
 });
 

@@ -8,3 +8,4 @@ export * from "./depreciation.js";
 export * from "./bank-import.js";
 export * from "./sales.js";
 export * from "./inventory.js";
+export * from "./payroll.js";

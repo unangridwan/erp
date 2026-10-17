@@ -30,6 +30,14 @@ export const PERMISSIONS = [
   "purchase.manage",
   /** Menyetujui PO di atas batas persetujuan. */
   "purchase.approve",
+  "hr.read",
+  "hr.write",
+  /** Data sensitif karyawan (NIK, NPWP, rekening), kontrak, dan pengaturan SDM. */
+  "hr.manage",
+  "payroll.read",
+  "payroll.write",
+  /** Posting & pembayaran payroll, pengaturan payroll. */
+  "payroll.manage",
   "currency.read",
   "currency.write",
   "user.read",

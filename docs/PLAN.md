@@ -261,6 +261,15 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   Selisih Persediaan), stock opname, kartu stok, valuasi per tanggal, aturan pemesanan ulang min/max → RFQ otomatis;
   harga pemasok bertingkat, RFQ → PO dengan batas persetujuan, penerimaan otomatis dari PO, tagihan dari PO sebatas barang
   diterima (3-way matching), analisis pembelian; SO kini membuat pengiriman dan ditagih sesuai kuantitas terkirim
+- [x] Fase 4 (SDM + Payroll): departemen, jabatan, karyawan (NIK/NPWP/rekening terenkripsi AES-256-GCM, tersamar tanpa
+  `hr.manage`), kontrak PKWT/PKWTT dengan tunjangan tetap/tidak tetap, absensi masuk/pulang (dengan lokasi), hari libur,
+  jenis/jatah/pengajuan cuti dengan saldo & persetujuan, lembur (PP 35/2021), portal karyawan (absen, cuti, slip gaji);
+  payroll bulanan dengan PPh 21 metode TER (PP 58/2023) dan perhitungan setahun di masa pajak terakhir (PMK 168/2023,
+  termasuk pengembalian kelebihan potong), BPJS Kesehatan/JHT/JKK/JKM/JP dengan batas upah, THR/bonus/potongan per slip,
+  prorata karyawan baru/keluar, jurnal gaji per cabang/unit bisnis, pembayaran, file transfer bank, rekap PPh 21 & BPJS,
+  slip gaji PDF
+- [ ] Fase 4 ditunda: e-Bupot 21 (XML Coretax), jadwal shift & aturan keterlambatan, approval berjenjang, pinjaman
+  karyawan dengan cicilan otomatis, pesangon (PP 35/2021), BPJS untuk pekerja harian/borongan
 - [ ] Fase 2–3 ditunda: aturan intercompany SO↔PO & transfer stok antar perusahaan, nota kredit otomatis dari retur,
   selisih harga pembelian (bill vs PO) ke akun tersendiri, konversi satuan beli/jual, dropship, reservasi stok, varian
   produk, komisi penjual, portal pelanggan

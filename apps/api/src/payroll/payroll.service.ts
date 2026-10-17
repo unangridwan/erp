@@ -1,0 +1,772 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, lt, ne, or, schema, sql, type Db } from "@erp/db";
+import {
+  computePayslip,
+  workingDays,
+  type PayslipItem,
+  type payrollRunSchema,
+  type payrollSettingsSchema,
+} from "@erp/shared";
+import { Decimal } from "decimal.js";
+import type { z } from "zod";
+import { ActivityService } from "../activity/activity.service.js";
+import { assertCompanyAccounts, assertCompanyJournal, fieldError } from "../accounting/context.js";
+import { MoveService } from "../accounting/move.service.js";
+import { currentContext } from "../common/request-context.js";
+import { EmployeeService } from "../hr/employee.service.js";
+import { holidaysBetween, LeaveService } from "../hr/leave.service.js";
+
+const RUN = schema.payrollRuns;
+const SLIP = schema.payslips;
+const d = (v: Decimal.Value | null | undefined) => new Decimal(v ?? 0);
+const MONTHS = [
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
+];
+const lastDay = (period: string) => {
+  const [y, m] = period.split("-").map(Number) as [number, number];
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+};
+
+@Injectable()
+export class PayrollService {
+  constructor(
+    @Inject(MoveService) private readonly moves: MoveService,
+    @Inject(ActivityService) private readonly activity: ActivityService,
+    @Inject(EmployeeService) private readonly employees: EmployeeService,
+    @Inject(LeaveService) private readonly leaves: LeaveService,
+  ) {}
+
+  // ---- Pengaturan ----
+
+  async settings(tx: Db, companyId = currentContext().companyId) {
+    const [row] = await tx
+      .select()
+      .from(schema.payrollSettings)
+      .where(eq(schema.payrollSettings.companyId, companyId));
+    if (!row)
+      throw new BadRequestException(
+        "Payroll belum disiapkan (pasang bagan akun standar di Pengaturan Akuntansi)",
+      );
+    return row;
+  }
+
+  async updateSettings(tx: Db, input: z.infer<typeof payrollSettingsSchema>) {
+    const companyId = currentContext().companyId;
+    await this.settings(tx, companyId);
+    await assertCompanyAccounts(tx, companyId, [
+      { path: "salaryExpenseAccountId", id: input.salaryExpenseAccountId },
+      { path: "bpjsExpenseAccountId", id: input.bpjsExpenseAccountId },
+      { path: "salaryPayableAccountId", id: input.salaryPayableAccountId },
+      { path: "pph21PayableAccountId", id: input.pph21PayableAccountId },
+      { path: "bpjsPayableAccountId", id: input.bpjsPayableAccountId },
+    ]);
+    await assertCompanyJournal(tx, companyId, input.journalId, ["general"]);
+    const [row] = await tx
+      .update(schema.payrollSettings)
+      .set({ ...input, updatedAt: sql`now()` })
+      .where(eq(schema.payrollSettings.companyId, companyId))
+      .returning();
+    return row!;
+  }
+
+  // ---- Payroll run ----
+
+  async list(tx: Db) {
+    return tx
+      .select({
+        run: RUN,
+        employees: sql<number>`(select count(*)::int from ${SLIP} s where s.run_id = payroll_runs.id)`,
+        net: sql<string>`(select coalesce(sum(s.net), 0)::text from ${SLIP} s where s.run_id = payroll_runs.id)`,
+        pph21: sql<string>`(select coalesce(sum(s.pph21), 0)::text from ${SLIP} s where s.run_id = payroll_runs.id)`,
+      })
+      .from(RUN)
+      .where(eq(RUN.companyId, currentContext().companyId))
+      .orderBy(desc(RUN.periodStart))
+      .then((rows) => rows.map((r) => ({ ...r.run, employees: r.employees, net: r.net, pph21: r.pph21 })));
+  }
+
+  async get(tx: Db, id: string) {
+    const run = await this.find(tx, id);
+    const slips = await tx
+      .select({
+        slip: SLIP,
+        employeeName: schema.employees.name,
+        employeeNumber: schema.employees.employeeNumber,
+        departmentName: schema.departments.name,
+      })
+      .from(SLIP)
+      .innerJoin(schema.employees, eq(schema.employees.id, SLIP.employeeId))
+      .leftJoin(schema.departments, eq(schema.departments.id, schema.employees.departmentId))
+      .where(eq(SLIP.runId, id))
+      .orderBy(asc(schema.employees.name));
+    const payslips = slips.map((r) => ({
+      ...r.slip,
+      employeeName: r.employeeName,
+      employeeNumber: r.employeeNumber,
+      departmentName: r.departmentName,
+    }));
+    const sum = (
+      k: "earnings" | "gross" | "pph21" | "employeeBpjs" | "employerBpjs" | "deductions" | "net",
+    ) => payslips.reduce((s, p) => s.plus(p[k]), d(0)).toFixed(2);
+    const moves = await tx
+      .select({ id: schema.accountMoves.id, name: schema.accountMoves.name })
+      .from(schema.accountMoves)
+      .where(
+        inArray(
+          schema.accountMoves.id,
+          [run.accountMoveId, run.paymentMoveId].filter((x): x is string => Boolean(x)),
+        ),
+      );
+    return {
+      ...run,
+      payslips,
+      totals: {
+        earnings: sum("earnings"),
+        gross: sum("gross"),
+        pph21: sum("pph21"),
+        employeeBpjs: sum("employeeBpjs"),
+        employerBpjs: sum("employerBpjs"),
+        deductions: sum("deductions"),
+        net: sum("net"),
+      },
+      accountMove: moves.find((m) => m.id === run.accountMoveId) ?? null,
+      paymentMove: moves.find((m) => m.id === run.paymentMoveId) ?? null,
+    };
+  }
+
+  /** Buat payroll bulanan untuk semua karyawan dengan kontrak berjalan, lalu hitung. */
+  async create(tx: Db, input: z.infer<typeof payrollRunSchema>) {
+    const companyId = currentContext().companyId;
+    await this.settings(tx, companyId);
+    const periodStart = `${input.period}-01`;
+    const periodEnd = lastDay(input.period);
+    const [existing] = await tx
+      .select({ id: RUN.id })
+      .from(RUN)
+      .where(and(eq(RUN.companyId, companyId), eq(RUN.periodStart, periodStart), ne(RUN.state, "cancel")));
+    if (existing) throw new ConflictException("Payroll untuk bulan ini sudah ada");
+    const [y, m] = input.period.split("-").map(Number) as [number, number];
+    const [run] = await tx
+      .insert(RUN)
+      .values({
+        companyId,
+        name: input.name || `Gaji ${MONTHS[m - 1]} ${y}`,
+        periodStart,
+        periodEnd,
+        paymentDate: input.paymentDate,
+        createdBy: currentContext().userId,
+      })
+      .returning();
+    await this.compute(tx, run!.id);
+    await this.activity.log(tx, { resModel: "payroll_run", resId: run!.id, action: "create" });
+    return run!;
+  }
+
+  /**
+   * Hitung ulang semua slip (hanya draft): karyawan baru yang memenuhi syarat ditambahkan,
+   * yang tidak lagi memenuhi syarat dikeluarkan.
+   */
+  async compute(tx: Db, id: string) {
+    const run = await this.find(tx, id, true);
+    if (run.state !== "draft")
+      throw new BadRequestException("Payroll yang sudah diposting tidak bisa dihitung ulang");
+    const settings = await this.settings(tx, run.companyId);
+    const holidays = await holidaysBetween(tx, run.periodStart, run.periodEnd);
+    const monthDays = workingDays(run.periodStart, run.periodEnd, holidays);
+    const eligible = await tx
+      .select({ employee: schema.employees, contract: schema.contracts })
+      .from(schema.contracts)
+      .innerJoin(schema.employees, eq(schema.employees.id, schema.contracts.employeeId))
+      .where(
+        and(
+          eq(schema.contracts.companyId, run.companyId),
+          inArray(schema.contracts.state, ["running", "closed"]),
+          lte(schema.contracts.dateStart, run.periodEnd),
+          or(isNull(schema.contracts.dateEnd), gte(schema.contracts.dateEnd, run.periodStart)),
+          lte(schema.employees.joinDate, run.periodEnd),
+          or(isNull(schema.employees.resignDate), gte(schema.employees.resignDate, run.periodStart)),
+        ),
+      )
+      .orderBy(desc(schema.contracts.dateStart));
+    // Satu kontrak per karyawan: yang terbaru dalam periode.
+    const byEmployee = new Map<string, (typeof eligible)[number]>();
+    for (const row of eligible) if (!byEmployee.has(row.employee.id)) byEmployee.set(row.employee.id, row);
+
+    const existing = await tx.select().from(SLIP).where(eq(SLIP.runId, id));
+    for (const slip of existing.filter((s) => !byEmployee.has(s.employeeId))) {
+      await tx.delete(SLIP).where(eq(SLIP.id, slip.id));
+    }
+    for (const { employee, contract } of byEmployee.values()) {
+      let slip = existing.find((s) => s.employeeId === employee.id);
+      if (!slip) {
+        [slip] = await tx
+          .insert(SLIP)
+          .values({
+            companyId: run.companyId,
+            runId: id,
+            employeeId: employee.id,
+            contractId: contract.id,
+            ptkpStatus: employee.ptkpStatus,
+            hasNpwp: this.employees.hasTaxId(employee),
+            terCategory: "A",
+          })
+          .returning();
+      }
+      await this.computeSlip(tx, run, slip!.id, employee, contract, settings, holidays, monthDays);
+    }
+    return this.get(tx, id);
+  }
+
+  private async computeSlip(
+    tx: Db,
+    run: typeof RUN.$inferSelect,
+    slipId: string,
+    employee: typeof schema.employees.$inferSelect,
+    contract: typeof schema.contracts.$inferSelect,
+    settings: typeof schema.payrollSettings.$inferSelect,
+    holidays: string[],
+    monthDays: number,
+  ) {
+    const components = await tx
+      .select()
+      .from(schema.salaryComponents)
+      .where(eq(schema.salaryComponents.companyId, run.companyId));
+    const comp = new Map(components.map((c) => [c.id, c]));
+    const allowanceRows = await tx
+      .select()
+      .from(schema.contractAllowances)
+      .where(eq(schema.contractAllowances.contractId, contract.id));
+    const inputs = await tx
+      .select()
+      .from(schema.payslipInputs)
+      .where(eq(schema.payslipInputs.payslipId, slipId));
+    const item = (
+      componentId: string,
+      amount: string,
+      suffix?: string | null,
+    ): PayslipItem & { componentId: string } => {
+      const c = comp.get(componentId)!;
+      return {
+        componentId,
+        code: c.code,
+        name: suffix ? `${c.name} — ${suffix}` : c.name,
+        amount,
+        fixed: c.fixed,
+        taxable: c.taxable,
+      };
+    };
+    const allowances = [
+      ...allowanceRows
+        .filter((a) => comp.get(a.componentId)?.kind === "allowance")
+        .map((a) => item(a.componentId, a.amount)),
+      ...inputs
+        .filter((i) => comp.get(i.componentId)?.kind === "allowance")
+        .map((i) => ({ ...item(i.componentId, i.amount, i.description), fixed: false })),
+    ];
+    const deductions = [
+      ...allowanceRows
+        .filter((a) => comp.get(a.componentId)?.kind === "deduction")
+        .map((a) => item(a.componentId, a.amount)),
+      ...inputs
+        .filter((i) => comp.get(i.componentId)?.kind === "deduction")
+        .map((i) => item(i.componentId, i.amount, i.description)),
+    ];
+
+    // Hari tidak dibayar: cuti tanpa upah + hari kerja di luar masa kerja/kontrak (masuk/keluar di tengah bulan).
+    const from = [run.periodStart, employee.joinDate, contract.dateStart].sort().at(-1)!;
+    const to = [
+      run.periodEnd,
+      employee.resignDate ?? run.periodEnd,
+      contract.dateEnd ?? run.periodEnd,
+    ].sort()[0]!;
+    const employedDays = from <= to ? workingDays(from, to, holidays) : 0;
+    const unpaidLeave = await this.leaves.unpaidDays(tx, employee.id, from, to, holidays);
+    const unpaidDays = monthDays - employedDays + unpaidLeave;
+
+    const overtime = await tx
+      .select()
+      .from(schema.overtimes)
+      .where(
+        and(
+          eq(schema.overtimes.employeeId, employee.id),
+          gte(schema.overtimes.date, run.periodStart),
+          lte(schema.overtimes.date, run.periodEnd),
+          or(isNull(schema.overtimes.payslipId), eq(schema.overtimes.payslipId, slipId)),
+        ),
+      );
+
+    // Akumulasi masa sebelumnya dalam tahun pajak yang sama (payroll yang sudah diposting).
+    const year = run.periodStart.slice(0, 4);
+    const [ytd] = await tx
+      .select({
+        gross: sql<string>`coalesce(sum(${SLIP.gross}), 0)::text`,
+        pph21: sql<string>`coalesce(sum(${SLIP.pph21}), 0)::text`,
+        pension: sql<string>`coalesce(sum(${SLIP.employeePension}), 0)::text`,
+        months: sql<number>`count(*)::int`,
+      })
+      .from(SLIP)
+      .innerJoin(RUN, eq(RUN.id, SLIP.runId))
+      .where(
+        and(
+          eq(SLIP.employeeId, employee.id),
+          eq(SLIP.companyId, run.companyId),
+          inArray(RUN.state, ["done", "paid"]),
+          gte(RUN.periodStart, `${year}-01-01`),
+          lt(RUN.periodStart, run.periodStart),
+        ),
+      );
+    const isFinal =
+      run.periodStart.slice(5, 7) === "12" ||
+      Boolean(
+        employee.resignDate && employee.resignDate >= run.periodStart && employee.resignDate <= run.periodEnd,
+      );
+    const hasNpwp = this.employees.hasTaxId(employee);
+
+    const result = computePayslip({
+      wage: contract.wage,
+      allowances,
+      deductions,
+      overtime: overtime.map((o) => ({ hours: o.hours, day: o.dayType })),
+      unpaidDays,
+      workingDays: monthDays,
+      status: employee.ptkpStatus,
+      hasNpwp,
+      bpjs: { jkkRate: settings.jkkRate, kesWageCap: settings.kesWageCap, jpWageCap: settings.jpWageCap },
+      isFinal,
+      ytd: {
+        gross: ytd?.gross ?? 0,
+        pph21: ytd?.pph21 ?? 0,
+        employeePension: ytd?.pension ?? 0,
+        months: ytd?.months ?? 0,
+      },
+    });
+
+    await tx.delete(schema.payslipLines).where(eq(schema.payslipLines.payslipId, slipId));
+    const componentByCode = new Map(
+      [...allowances, ...deductions].map((x) => [x.code + x.name, x.componentId]),
+    );
+    await tx.insert(schema.payslipLines).values(
+      result.lines.map((l, i) => ({
+        payslipId: slipId,
+        sequence: i,
+        code: l.code,
+        name: l.name,
+        category: l.category,
+        amount: l.amount,
+        componentId: componentByCode.get(l.code + l.name) ?? null,
+      })),
+    );
+    await tx
+      .update(SLIP)
+      .set({
+        contractId: contract.id,
+        ptkpStatus: employee.ptkpStatus,
+        hasNpwp,
+        terCategory: result.terCategory,
+        terRate: result.terRate,
+        isFinal,
+        workingDays: monthDays,
+        unpaidDays: String(unpaidDays),
+        earnings: result.earnings,
+        gross: result.gross,
+        pph21: result.pph21,
+        employeeBpjs: result.employeeBpjs,
+        employerBpjs: result.employerBpjs,
+        employeePension: result.employeePension,
+        deductions: result.deductions,
+        net: result.net,
+        annual: result.annual,
+        branchId: employee.branchId,
+        businessUnitId: employee.businessUnitId,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(SLIP.id, slipId));
+  }
+
+  /** Ganti komponen tidak tetap (THR, bonus, potongan) pada slip lalu hitung ulang slip itu. */
+  async setInputs(
+    tx: Db,
+    slipId: string,
+    inputs: { componentId: string; amount: string; description?: string | null }[],
+  ) {
+    const slip = await this.findSlip(tx, slipId);
+    const run = await this.find(tx, slip.runId, true);
+    if (run.state !== "draft") throw new BadRequestException("Payroll sudah diposting");
+    for (const [i, input] of inputs.entries()) {
+      const [c] = await tx
+        .select({ id: schema.salaryComponents.id })
+        .from(schema.salaryComponents)
+        .where(
+          and(
+            eq(schema.salaryComponents.id, input.componentId),
+            eq(schema.salaryComponents.companyId, run.companyId),
+          ),
+        );
+      if (!c) throw fieldError(`inputs.${i}.componentId`, "Komponen gaji tidak ditemukan");
+    }
+    await tx.delete(schema.payslipInputs).where(eq(schema.payslipInputs.payslipId, slipId));
+    if (inputs.length)
+      await tx
+        .insert(schema.payslipInputs)
+        .values(inputs.map((x) => ({ ...x, description: x.description ?? null, payslipId: slipId })));
+    const [employee] = await tx
+      .select()
+      .from(schema.employees)
+      .where(eq(schema.employees.id, slip.employeeId));
+    const [contract] = await tx
+      .select()
+      .from(schema.contracts)
+      .where(eq(schema.contracts.id, slip.contractId));
+    const holidays = await holidaysBetween(tx, run.periodStart, run.periodEnd);
+    await this.computeSlip(
+      tx,
+      run,
+      slipId,
+      employee!,
+      contract!,
+      await this.settings(tx, run.companyId),
+      holidays,
+      workingDays(run.periodStart, run.periodEnd, holidays),
+    );
+    return this.payslip(tx, slipId);
+  }
+
+  /**
+   * Posting payroll: jurnal beban gaji & BPJS (per cabang/unit bisnis) vs utang BPJS, utang PPh 21,
+   * potongan, dan utang gaji (gaji bersih).
+   */
+  async post(tx: Db, id: string) {
+    const run = await this.find(tx, id, true);
+    if (run.state !== "draft") throw new BadRequestException("Payroll sudah diposting");
+    const s = await this.settings(tx, run.companyId);
+    const slips = await tx.select().from(SLIP).where(eq(SLIP.runId, id));
+    if (!slips.length) throw new BadRequestException("Tidak ada slip gaji");
+    const lines = await tx
+      .select({ line: schema.payslipLines, accountId: schema.salaryComponents.accountId })
+      .from(schema.payslipLines)
+      .leftJoin(schema.salaryComponents, eq(schema.salaryComponents.id, schema.payslipLines.componentId))
+      .where(
+        inArray(
+          schema.payslipLines.payslipId,
+          slips.map((x) => x.id),
+        ),
+      );
+
+    // Agregasi: key = akun|cabang|unit bisnis; nilai positif = debit.
+    const entries = new Map<string, Decimal>();
+    const add = (
+      accountId: string,
+      amount: Decimal,
+      dims: { branchId: string | null; businessUnitId: string | null } = {
+        branchId: null,
+        businessUnitId: null,
+      },
+    ) => {
+      const key = `${accountId}|${dims.branchId ?? ""}|${dims.businessUnitId ?? ""}`;
+      entries.set(key, (entries.get(key) ?? d(0)).plus(amount));
+    };
+    for (const slip of slips) {
+      const dims = { branchId: slip.branchId, businessUnitId: slip.businessUnitId };
+      for (const { line, accountId } of lines.filter((l) => l.line.payslipId === slip.id)) {
+        const amount = d(line.amount);
+        switch (line.category) {
+          case "basic":
+          case "allowance":
+          case "overtime":
+          case "unpaid":
+            add(accountId ?? s.salaryExpenseAccountId, amount, dims);
+            break;
+          case "bpjs_employer":
+            add(s.bpjsExpenseAccountId, amount, dims);
+            add(s.bpjsPayableAccountId, amount.negated());
+            break;
+          case "bpjs_employee":
+            add(s.bpjsPayableAccountId, amount); // baris slip bernilai negatif
+            break;
+          case "tax":
+            add(s.pph21PayableAccountId, amount);
+            break;
+          case "deduction":
+            add(accountId ?? s.salaryExpenseAccountId, amount);
+            break;
+        }
+      }
+      add(s.salaryPayableAccountId, d(slip.net).negated());
+    }
+    const journalLines = [...entries.entries()]
+      .filter(([, v]) => !v.isZero())
+      .map(([key, v]) => {
+        const [accountId, branchId, businessUnitId] = key.split("|") as [string, string, string];
+        return {
+          accountId,
+          name: run.name,
+          debit: v.gt(0) ? v.toFixed(2) : "0",
+          credit: v.lt(0) ? v.abs().toFixed(2) : "0",
+          branchId: branchId || null,
+          businessUnitId: businessUnitId || null,
+        };
+      });
+    const moveId = await this.moves.createEntry(
+      tx,
+      { journalId: s.journalId, date: run.periodEnd, ref: run.name, lines: journalLines },
+      run.companyId,
+    );
+    await this.moves.post(tx, moveId);
+    await tx
+      .update(schema.overtimes)
+      .set({
+        payslipId: sql`(select s.id from ${SLIP} s where s.run_id = ${id} and s.employee_id = overtimes.employee_id)`,
+      })
+      .where(
+        and(
+          eq(schema.overtimes.companyId, run.companyId),
+          isNull(schema.overtimes.payslipId),
+          gte(schema.overtimes.date, run.periodStart),
+          lte(schema.overtimes.date, run.periodEnd),
+          inArray(
+            schema.overtimes.employeeId,
+            slips.map((x) => x.employeeId),
+          ),
+        ),
+      );
+    await tx
+      .update(RUN)
+      .set({ state: "done", accountMoveId: moveId, updatedAt: sql`now()` })
+      .where(eq(RUN.id, id));
+    await this.activity.log(tx, {
+      resModel: "payroll_run",
+      resId: id,
+      action: "update",
+      message: "Payroll diposting",
+    });
+    return this.get(tx, id);
+  }
+
+  /** Bayar gaji bersih: Dr Utang Gaji / Cr kas atau bank. */
+  async pay(tx: Db, id: string, input: { journalId: string; date: string }) {
+    const run = await this.find(tx, id, true);
+    if (run.state !== "done") throw new BadRequestException("Posting payroll sebelum membayar");
+    const s = await this.settings(tx, run.companyId);
+    const journal = await assertCompanyJournal(tx, run.companyId, input.journalId, ["bank", "cash"]);
+    if (!journal.defaultAccountId) throw fieldError("journalId", "Jurnal kas/bank belum punya akun");
+    const [total] = await tx
+      .select({ net: sql<string>`coalesce(sum(${SLIP.net}), 0)::text` })
+      .from(SLIP)
+      .where(eq(SLIP.runId, id));
+    const amount = d(total?.net);
+    if (amount.lte(0)) throw new BadRequestException("Tidak ada gaji bersih yang perlu dibayar");
+    const moveId = await this.moves.createEntry(
+      tx,
+      {
+        journalId: journal.id,
+        date: input.date,
+        ref: `Pembayaran ${run.name}`,
+        lines: [
+          { accountId: s.salaryPayableAccountId, name: run.name, debit: amount.toFixed(2), credit: "0" },
+          { accountId: journal.defaultAccountId, name: run.name, debit: "0", credit: amount.toFixed(2) },
+        ],
+      },
+      run.companyId,
+    );
+    await this.moves.post(tx, moveId);
+    await tx
+      .update(RUN)
+      .set({ state: "paid", paymentMoveId: moveId, updatedAt: sql`now()` })
+      .where(eq(RUN.id, id));
+    return this.get(tx, id);
+  }
+
+  async cancel(tx: Db, id: string) {
+    const run = await this.find(tx, id, true);
+    if (run.state !== "draft")
+      throw new BadRequestException("Payroll yang sudah diposting tidak bisa dibatalkan (balik jurnalnya)");
+    await tx.delete(SLIP).where(eq(SLIP.runId, id));
+    await tx
+      .update(RUN)
+      .set({ state: "cancel", updatedAt: sql`now()` })
+      .where(eq(RUN.id, id));
+  }
+
+  /** Daftar transfer bank (gaji bersih per karyawan) untuk diunggah ke internet banking. */
+  async bankTransfer(tx: Db, id: string) {
+    await this.find(tx, id);
+    const rows = await tx
+      .select({ slip: SLIP, employee: schema.employees })
+      .from(SLIP)
+      .innerJoin(schema.employees, eq(schema.employees.id, SLIP.employeeId))
+      .where(eq(SLIP.runId, id))
+      .orderBy(asc(schema.employees.name));
+    return rows
+      .filter((r) => d(r.slip.net).gt(0))
+      .map((r) => {
+        const e = this.employees.decrypted(r.employee);
+        return {
+          employeeNumber: r.employee.employeeNumber,
+          name: r.employee.name,
+          bankName: r.employee.bankName ?? "",
+          bankAccount: e.bankAccount ?? "",
+          bankAccountName: r.employee.bankAccountName ?? r.employee.name,
+          amount: d(r.slip.net).toFixed(0),
+        };
+      });
+  }
+
+  /** Rekap PPh 21 (dasar pengisian e-Bupot 21 / SPT Masa) dan BPJS per karyawan. */
+  async recap(tx: Db, id: string) {
+    await this.find(tx, id);
+    const rows = await tx
+      .select({ slip: SLIP, employee: schema.employees })
+      .from(SLIP)
+      .innerJoin(schema.employees, eq(schema.employees.id, SLIP.employeeId))
+      .where(eq(SLIP.runId, id))
+      .orderBy(asc(schema.employees.name));
+    const lines = rows.length
+      ? await tx
+          .select()
+          .from(schema.payslipLines)
+          .where(
+            inArray(
+              schema.payslipLines.payslipId,
+              rows.map((r) => r.slip.id),
+            ),
+          )
+      : [];
+    const amount = (slipId: string, code: string) =>
+      d(lines.find((l) => l.payslipId === slipId && l.code === code)?.amount ?? 0)
+        .abs()
+        .toFixed(0);
+    return rows.map((r) => {
+      const e = this.employees.decrypted(r.employee);
+      return {
+        employeeNumber: r.employee.employeeNumber,
+        name: r.employee.name,
+        nik: e.nik,
+        npwp: e.npwp,
+        ptkpStatus: r.slip.ptkpStatus,
+        terCategory: r.slip.terCategory,
+        terRate: r.slip.terRate,
+        isFinal: r.slip.isFinal,
+        gross: r.slip.gross,
+        pph21: r.slip.pph21,
+        bpjsKesNo: r.employee.bpjsKesNo,
+        bpjsTkNo: r.employee.bpjsTkNo,
+        bpjs: {
+          kesEmployer: amount(r.slip.id, "BPJS_KES_ER"),
+          kesEmployee: amount(r.slip.id, "BPJS_KES_EE"),
+          jhtEmployer: amount(r.slip.id, "JHT_ER"),
+          jhtEmployee: amount(r.slip.id, "JHT_EE"),
+          jkk: amount(r.slip.id, "JKK"),
+          jkm: amount(r.slip.id, "JKM"),
+          jpEmployer: amount(r.slip.id, "JP_ER"),
+          jpEmployee: amount(r.slip.id, "JP_EE"),
+        },
+      };
+    });
+  }
+
+  // ---- Slip gaji ----
+
+  async payslip(tx: Db, slipId: string) {
+    const slip = await this.findSlip(tx, slipId);
+    const [run] = await tx.select().from(RUN).where(eq(RUN.id, slip.runId));
+    const [employee] = await tx
+      .select({
+        employee: schema.employees,
+        departmentName: schema.departments.name,
+        jobName: schema.jobPositions.name,
+      })
+      .from(schema.employees)
+      .leftJoin(schema.departments, eq(schema.departments.id, schema.employees.departmentId))
+      .leftJoin(schema.jobPositions, eq(schema.jobPositions.id, schema.employees.jobId))
+      .where(eq(schema.employees.id, slip.employeeId));
+    const lines = await tx
+      .select()
+      .from(schema.payslipLines)
+      .where(eq(schema.payslipLines.payslipId, slipId))
+      .orderBy(asc(schema.payslipLines.sequence));
+    const inputs = await tx
+      .select({
+        input: schema.payslipInputs,
+        code: schema.salaryComponents.code,
+        componentName: schema.salaryComponents.name,
+      })
+      .from(schema.payslipInputs)
+      .innerJoin(schema.salaryComponents, eq(schema.salaryComponents.id, schema.payslipInputs.componentId))
+      .where(eq(schema.payslipInputs.payslipId, slipId));
+    return {
+      ...slip,
+      run: {
+        id: run!.id,
+        name: run!.name,
+        periodStart: run!.periodStart,
+        periodEnd: run!.periodEnd,
+        paymentDate: run!.paymentDate,
+        state: run!.state,
+      },
+      employee: {
+        id: employee!.employee.id,
+        name: employee!.employee.name,
+        employeeNumber: employee!.employee.employeeNumber,
+        departmentName: employee!.departmentName,
+        jobName: employee!.jobName,
+        userId: employee!.employee.userId,
+      },
+      lines,
+      inputs: inputs.map((i) => ({ ...i.input, code: i.code, componentName: i.componentName })),
+    };
+  }
+
+  /** Slip gaji milik user yang login (hanya payroll yang sudah diposting). */
+  async mySlips(tx: Db) {
+    const employee = await this.employees.mine(tx);
+    return tx
+      .select({
+        id: SLIP.id,
+        runName: RUN.name,
+        periodStart: RUN.periodStart,
+        paymentDate: RUN.paymentDate,
+        net: SLIP.net,
+        pph21: SLIP.pph21,
+      })
+      .from(SLIP)
+      .innerJoin(RUN, eq(RUN.id, SLIP.runId))
+      .where(and(eq(SLIP.employeeId, employee.id), inArray(RUN.state, ["done", "paid"])))
+      .orderBy(desc(RUN.periodStart));
+  }
+
+  async findSlip(tx: Db, slipId: string) {
+    const [slip] = await tx
+      .select()
+      .from(SLIP)
+      .where(and(eq(SLIP.id, slipId), eq(SLIP.companyId, currentContext().companyId)));
+    if (!slip) throw new NotFoundException("Slip gaji tidak ditemukan");
+    return slip;
+  }
+
+  private async find(tx: Db, id: string, lock = false) {
+    const q = tx
+      .select()
+      .from(RUN)
+      .where(and(eq(RUN.id, id), eq(RUN.companyId, currentContext().companyId)));
+    const [run] = lock ? await q.for("update") : await q;
+    if (!run) throw new NotFoundException("Payroll tidak ditemukan");
+    return run;
+  }
+}

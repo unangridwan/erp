@@ -545,3 +545,18 @@ tr.detail td {
   align-items: baseline;
   flex-wrap: wrap;
 }
+
+/* Beberapa tabel berdampingan (slip gaji). */
+.split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+.split > section {
+  min-width: 0;
+  overflow-x: auto;
+}
+.split td {
+  white-space: normal;
+}

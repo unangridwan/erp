@@ -14,6 +14,8 @@ import { CrmModule } from "./crm/crm.module.js";
 import { SalesModule } from "./sales/sales.module.js";
 import { InventoryModule } from "./inventory/inventory.module.js";
 import { PurchaseModule } from "./purchase/purchase.module.js";
+import { HrModule } from "./hr/hr.module.js";
+import { PayrollModule } from "./payroll/payroll.module.js";
 import { HealthController } from "./health/health.controller.js";
 import { MasterModule } from "./master/master.module.js";
 import { SequenceController, SequenceService } from "./sequences/sequence.service.js";
@@ -30,6 +32,8 @@ import { UsersService } from "./users/users.service.js";
     SalesModule,
     InventoryModule,
     PurchaseModule,
+    HrModule,
+    PayrollModule,
   ],
   controllers: [HealthController, AuthController, ActivityController, SequenceController, UsersController],
   providers: [

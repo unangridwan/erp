@@ -27,6 +27,8 @@ import { RequirePermission } from "../auth/decorators.js";
 import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
+import { installInventory } from "../inventory/setup.js";
+import { installPayroll } from "../payroll/setup.js";
 import { installChart } from "./chart-template.js";
 import { MoveService } from "./move.service.js";
 import { PaymentService } from "./payment.service.js";
@@ -52,9 +54,14 @@ export class AccountingController {
   @HttpCode(200)
   @RequirePermission("accounting.manage")
   setup() {
-    return this.tenantDb.run(async (tx) => ({
-      installed: await installChart(tx, currentContext().companyId),
-    }));
+    return this.tenantDb.run(async (tx) => {
+      const companyId = currentContext().companyId;
+      const installed = await installChart(tx, companyId);
+      // Persediaan & payroll memakai akun dari bagan akun standar.
+      await installInventory(tx, companyId);
+      await installPayroll(tx, companyId);
+      return { installed };
+    });
   }
 
   @Get("settings")

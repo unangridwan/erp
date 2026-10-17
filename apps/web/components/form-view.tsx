@@ -20,8 +20,10 @@ function toPayload(fields: Field[], values: Values, isNew: boolean): Values {
   const entries: [string, unknown][] = [];
   for (const f of fields) {
     const v = values[f.name];
-    if (f.type === "boolean") entries.push([f.name, Boolean(v)]);
-    else if (v === "" || v === undefined || v === null) {
+    if (f.type === "boolean") {
+      // Belum disentuh pada data baru: biarkan default server (mis. aktif = ya).
+      if (!(isNew && v === undefined)) entries.push([f.name, Boolean(v)]);
+    } else if (v === "" || v === undefined || v === null) {
       if (!isNew && f.type !== "select") entries.push([f.name, null]);
     } else entries.push([f.name, f.type === "number" ? Number(v) : v]);
   }
@@ -34,7 +36,10 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
   const router = useRouter();
   const isNew = id === "new";
   const editable = canWrite(me.permissions, resource);
-  const [values, setValues] = useState<Values>({});
+  // Data baru: "Aktif" dicentang sesuai default server.
+  const [values, setValues] = useState<Values>(() =>
+    isNew && resource.fields.some((f) => f.name === "active") ? { active: true } : {},
+  );
   const [loaded, setLoaded] = useState(isNew);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});

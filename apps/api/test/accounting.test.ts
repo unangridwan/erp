@@ -61,7 +61,7 @@ describe.skipIf(!hasDb)("Fase 1: akuntansi inti", () => {
       expect(Object.keys(acc)).toEqual(
         expect.arrayContaining(["1-1100", "1-1300", "2-1100", "2-1200", "4-1000", "6-5000"]),
       );
-      expect(Object.keys(jr).sort()).toEqual(["BILL", "BNK1", "CSH1", "INV", "MISC", "STJ"]);
+      expect(Object.keys(jr).sort()).toEqual(["BILL", "BNK1", "CSH1", "INV", "MISC", "SAL", "STJ"]);
       expect(Object.keys(tax)).toHaveLength(6);
       const settings = (await a.get("/accounting/settings").expect(200)).body;
       expect(settings).toMatchObject({

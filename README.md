@@ -127,6 +127,24 @@ Header opsional `X-Company-Id` memilih perusahaan aktif (harus termasuk perusaha
 | `POST /purchase-orders/:id/{send,confirm,approve,cancel,draft,bill}`, `GET …/pdf`                   | Kirim RFQ, konfirmasi (dengan persetujuan), tagihan dari barang diterima, PDF                         |
 | `GET /purchase-orders/matching`, `GET /purchase-orders/report?from=&to=&groupBy=`                   | Pencocokan 3 arah, analisis pembelian                                                                 |
 
+### SDM & Payroll (Fase 4)
+
+| Endpoint                                                                                                               | Keterangan                                                                        |
+| ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `/employees`, `/departments`, `/job-positions`, `/public-holidays`, `/leave-types`, `/leave-allocations`, `/overtimes` | Data karyawan (NIK/NPWP/rekening terenkripsi), struktur, hari libur, cuti, lembur |
+| `GET/POST /contracts`, `GET/PUT/DELETE /contracts/:id`, `POST /contracts/:id/{start,close}`                            | Kontrak PKWT/PKWTT dengan tunjangan & potongan bulanan                            |
+| `GET/POST /leaves`, `GET /leaves/balances?employeeId=`, `POST /leaves/:id/{approve,refuse,cancel}`                     | Pengajuan cuti (hari kerja di luar libur), saldo jatah                            |
+| `POST /attendance/{check-in,check-out}`, `GET/POST /attendance`                                                        | Absensi dari portal, rekap & koreksi manual                                       |
+| `GET /me/{employee,attendance,leaves,leave-types,payslips}`                                                            | Portal karyawan (user yang terhubung ke data karyawan)                            |
+| `/salary-components`, `GET/PUT /payroll/settings`                                                                      | Komponen gaji, tarif JKK, batas upah BPJS, akun & jurnal gaji                     |
+| `GET/POST /payroll-runs`, `GET /payroll-runs/:id`, `POST /payroll-runs/:id/{compute,post,pay,cancel}`                  | Payroll bulanan: hitung, posting jurnal, bayar gaji bersih                        |
+| `GET /payroll-runs/:id/{bank-transfer,recap}?format=csv`                                                               | File transfer bank, rekap PPh 21 & BPJS (NIK/NPWP)                                |
+| `GET /payslips/:id`, `PUT /payslips/:id/inputs`, `GET /payslips/:id/pdf`                                               | Slip gaji, input THR/bonus/potongan, PDF                                          |
+
+PPh 21 dihitung dengan TER (PP 58/2023) per bulan dan tarif Pasal 17 setahun di Desember atau bulan karyawan keluar.
+Tarif TER, PTKP, BPJS, dan lembur ada di `packages/shared/src/payroll.ts` (dengan unit test); batas upah JP perlu
+diperbarui di Pengaturan Payroll setiap Maret.
+
 Konfirmasi SO membuat pengiriman; barang ditagih sesuai kuantitas terkirim (jasa sesuai kuantitas dipesan). Validasi
 transfer barang stok membuat jurnal di jurnal **STJ**: penerimaan Dr Persediaan / Cr Barang Diterima Belum Ditagih,
 pengiriman Dr HPP / Cr Persediaan, opname ke Selisih Persediaan. Tagihan dari PO mendebit Barang Diterima Belum Ditagih.

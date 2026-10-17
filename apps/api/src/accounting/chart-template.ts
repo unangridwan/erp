@@ -22,6 +22,7 @@ const ACCOUNTS: { key?: string; code: string; name: string; type: AccountType; r
   { key: "pph23Prepaid", code: "1-1510", name: "PPh 23 Dibayar Dimuka", type: "asset_current" },
   { code: "1-1600", name: "Uang Muka Pembelian", type: "asset_current" },
   { code: "1-1700", name: "Biaya Dibayar Dimuka", type: "asset_current" },
+  { code: "1-1800", name: "Piutang Karyawan", type: "asset_current" },
   { code: "1-2100", name: "Peralatan Kantor", type: "asset_fixed" },
   { code: "1-2190", name: "Akumulasi Penyusutan Peralatan Kantor", type: "asset_fixed" },
   { code: "1-2200", name: "Kendaraan", type: "asset_fixed" },
@@ -90,6 +91,7 @@ const JOURNALS: {
   { key: "cash", code: "CSH1", name: "Kas", type: "cash", account: "cash" },
   { key: "general", code: "MISC", name: "Jurnal Umum", type: "general" },
   { key: "stock", code: "STJ", name: "Valuasi Persediaan", type: "general" },
+  { key: "payroll", code: "SAL", name: "Gaji", type: "general" },
 ];
 
 // PMK 131/2024: PPN 12%; untuk barang/jasa non-mewah DPP = 11/12 harga jual (efektif 11%).

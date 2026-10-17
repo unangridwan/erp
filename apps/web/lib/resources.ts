@@ -40,6 +40,9 @@ export const CRM = L("CRM", "CRM");
 export const SALES = L("Penjualan", "Sales");
 export const INVENTORY = L("Persediaan", "Inventory");
 export const PURCHASE = L("Pembelian", "Purchase");
+export const HR = L("SDM", "Employees");
+export const PAYROLL = L("Payroll", "Payroll");
+export const ME = L("Saya", "Me");
 
 const name = (required = true): Field => ({ name: "name", label: L("Nama", "Name"), type: "text", required });
 const code: Field = { name: "code", label: L("Kode", "Code"), type: "text", required: true };
@@ -400,8 +403,9 @@ export const RESOURCES: Resource[] = [
 
 export const findResource = (path: string) => RESOURCES.find((r) => r.path === path);
 
+/** Permission kosong = cukup login (mis. portal karyawan). */
 export const can = (permissions: string[], perm: string) =>
-  permissions.includes("*") || permissions.includes(perm);
+  perm === "" || permissions.includes("*") || permissions.includes(perm);
 export const canWrite = (permissions: string[], resource: Resource) =>
   can(permissions, resource.writePermission ?? `${resource.permission}.write`);
 
@@ -773,6 +777,288 @@ RESOURCES.push(
   },
 );
 
+const PTKP: [string, Text][] = ["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"].map((s) => [
+  s,
+  L(s, s),
+]);
+
+RESOURCES.push(
+  {
+    path: "employees",
+    model: "employee",
+    title: L("Karyawan", "Employees"),
+    singular: L("Karyawan", "Employee"),
+    permission: "hr",
+    group: HR,
+    columns: [
+      { name: "employeeNumber", label: L("No. karyawan", "Employee no.") },
+      { name: "name", label: L("Nama", "Name") },
+      { name: "departmentName", label: L("Departemen", "Department") },
+      { name: "jobName", label: L("Jabatan", "Job position") },
+      { name: "workEmail", label: L("Email kerja", "Work email") },
+    ],
+    fields: [
+      name(),
+      {
+        name: "employeeNumber",
+        label: L("No. karyawan (kosong = otomatis)", "Employee no. (empty = automatic)"),
+        type: "text",
+      },
+      {
+        name: "departmentId",
+        label: L("Departemen", "Department"),
+        type: "ref",
+        resource: "departments",
+        display: "name",
+      },
+      {
+        name: "jobId",
+        label: L("Jabatan", "Job position"),
+        type: "ref",
+        resource: "job-positions",
+        display: "name",
+      },
+      {
+        name: "managerId",
+        label: L("Atasan", "Manager"),
+        type: "ref",
+        resource: "employees",
+        display: "name",
+      },
+      {
+        name: "userId",
+        label: L("Akun login (portal)", "User account (portal)"),
+        type: "ref",
+        resource: "users/options",
+        display: "name",
+      },
+      { name: "workEmail", label: L("Email kerja", "Work email"), type: "email" },
+      { name: "workPhone", label: L("Telepon kerja", "Work phone"), type: "text" },
+      { name: "branchId", label: L("Cabang", "Branch"), type: "ref", resource: "branches", display: "name" },
+      {
+        name: "businessUnitId",
+        label: L("Unit bisnis", "Business unit"),
+        type: "ref",
+        resource: "business-units",
+        display: "name",
+      },
+      { name: "joinDate", label: L("Tanggal masuk", "Join date"), type: "date", required: true },
+      { name: "resignDate", label: L("Tanggal keluar", "Resign date"), type: "date" },
+      { name: "nik", label: L("NIK (KTP)", "National ID (NIK)"), type: "text" },
+      { name: "npwp", label: L("NPWP", "Tax ID (NPWP)"), type: "text" },
+      { name: "ptkpStatus", label: L("Status PTKP", "PTKP status"), type: "select", options: PTKP },
+      { name: "birthDate", label: L("Tanggal lahir", "Birth date"), type: "date" },
+      {
+        name: "gender",
+        label: L("Jenis kelamin", "Gender"),
+        type: "select",
+        options: [
+          ["male", L("Laki-laki", "Male")],
+          ["female", L("Perempuan", "Female")],
+        ],
+      },
+      { name: "bpjsKesNo", label: L("No. BPJS Kesehatan", "BPJS Health no."), type: "text" },
+      { name: "bpjsTkNo", label: L("No. BPJS Ketenagakerjaan", "BPJS Employment no."), type: "text" },
+      { name: "bankName", label: L("Bank", "Bank"), type: "text" },
+      { name: "bankAccount", label: L("No. rekening", "Account number"), type: "text" },
+      { name: "bankAccountName", label: L("Nama pemilik rekening", "Account holder"), type: "text" },
+      { name: "active", label: L("Aktif", "Active"), type: "boolean" },
+    ],
+  },
+  {
+    path: "departments",
+    model: "department",
+    title: L("Departemen", "Departments"),
+    singular: L("Departemen", "Department"),
+    permission: "hr",
+    writePermission: "hr.manage",
+    group: HR,
+    columns: [
+      { name: "name", label: L("Nama", "Name") },
+      { name: "managerId", label: L("Kepala", "Manager") },
+    ],
+    fields: [
+      name(),
+      {
+        name: "parentId",
+        label: L("Induk", "Parent"),
+        type: "ref",
+        resource: "departments",
+        display: "name",
+      },
+      {
+        name: "managerId",
+        label: L("Kepala departemen", "Manager"),
+        type: "ref",
+        resource: "employees",
+        display: "name",
+      },
+      { name: "active", label: L("Aktif", "Active"), type: "boolean" },
+    ],
+  },
+  {
+    path: "job-positions",
+    model: "job_position",
+    title: L("Jabatan", "Job Positions"),
+    singular: L("Jabatan", "Job position"),
+    permission: "hr",
+    writePermission: "hr.manage",
+    group: HR,
+    columns: [{ name: "name", label: L("Nama", "Name") }],
+    fields: [name(), { name: "active", label: L("Aktif", "Active"), type: "boolean" }],
+  },
+  {
+    path: "leave-allocations",
+    model: "leave_allocation",
+    title: L("Jatah Cuti", "Leave Allocations"),
+    singular: L("Jatah cuti", "Leave allocation"),
+    permission: "hr",
+    writePermission: "hr.manage",
+    group: HR,
+    columns: [
+      { name: "employeeId", label: L("Karyawan", "Employee") },
+      { name: "leaveTypeId", label: L("Jenis cuti", "Leave type") },
+      { name: "days", label: L("Hari", "Days") },
+      { name: "dateFrom", label: L("Berlaku dari", "Valid from") },
+      { name: "dateTo", label: L("Sampai", "To") },
+    ],
+    fields: [
+      {
+        name: "employeeId",
+        label: L("Karyawan", "Employee"),
+        type: "ref",
+        resource: "employees",
+        display: "name",
+        required: true,
+      },
+      {
+        name: "leaveTypeId",
+        label: L("Jenis cuti", "Leave type"),
+        type: "ref",
+        resource: "leave-types",
+        display: "name",
+        required: true,
+      },
+      { name: "days", label: L("Jumlah hari", "Days"), type: "number", required: true },
+      { name: "dateFrom", label: L("Berlaku dari", "Valid from"), type: "date", required: true },
+      { name: "dateTo", label: L("Berlaku sampai", "Valid to"), type: "date", required: true },
+      { name: "note", label: L("Catatan", "Note"), type: "text" },
+    ],
+  },
+  {
+    path: "leave-types",
+    model: "leave_type",
+    title: L("Jenis Cuti", "Leave Types"),
+    singular: L("Jenis cuti", "Leave type"),
+    permission: "hr",
+    writePermission: "hr.manage",
+    group: HR,
+    columns: [{ name: "name", label: L("Nama", "Name") }],
+    fields: [
+      name(),
+      {
+        name: "paid",
+        label: L("Dibayar (tidak memotong gaji)", "Paid (no salary deduction)"),
+        type: "boolean",
+      },
+      { name: "requiresAllocation", label: L("Memakai jatah/saldo", "Requires allocation"), type: "boolean" },
+      { name: "active", label: L("Aktif", "Active"), type: "boolean" },
+    ],
+  },
+  {
+    path: "overtimes",
+    model: "overtime",
+    title: L("Lembur", "Overtime"),
+    singular: L("Lembur", "Overtime"),
+    permission: "hr",
+    group: HR,
+    columns: [
+      { name: "employeeId", label: L("Karyawan", "Employee") },
+      { name: "date", label: L("Tanggal", "Date") },
+      { name: "hours", label: L("Jam", "Hours") },
+      { name: "dayType", label: L("Jenis hari", "Day type") },
+    ],
+    fields: [
+      {
+        name: "employeeId",
+        label: L("Karyawan", "Employee"),
+        type: "ref",
+        resource: "employees",
+        display: "name",
+        required: true,
+      },
+      { name: "date", label: L("Tanggal", "Date"), type: "date", required: true },
+      { name: "hours", label: L("Jumlah jam", "Hours"), type: "number", required: true },
+      {
+        name: "dayType",
+        label: L("Jenis hari", "Day type"),
+        type: "select",
+        options: [
+          ["workday", L("Hari kerja (1,5× jam pertama, 2× berikutnya)", "Workday")],
+          ["rest_day", L("Hari istirahat/libur (2×/3×/4×)", "Rest day / holiday")],
+        ],
+      },
+      { name: "description", label: L("Keterangan", "Description"), type: "text" },
+    ],
+  },
+  {
+    path: "public-holidays",
+    model: "public_holiday",
+    title: L("Hari Libur", "Public Holidays"),
+    singular: L("Hari libur", "Public holiday"),
+    permission: "hr",
+    writePermission: "hr.manage",
+    group: HR,
+    columns: [
+      { name: "date", label: L("Tanggal", "Date") },
+      { name: "name", label: L("Nama", "Name") },
+    ],
+    fields: [{ name: "date", label: L("Tanggal", "Date"), type: "date", required: true }, name()],
+  },
+  {
+    path: "salary-components",
+    model: "salary_component",
+    title: L("Komponen Gaji", "Salary Components"),
+    singular: L("Komponen gaji", "Salary component"),
+    permission: "payroll",
+    writePermission: "payroll.manage",
+    group: PAYROLL,
+    columns: [
+      { name: "code", label: L("Kode", "Code") },
+      { name: "name", label: L("Nama", "Name") },
+      { name: "kind", label: L("Jenis", "Kind") },
+    ],
+    fields: [
+      code,
+      name(),
+      {
+        name: "kind",
+        label: L("Jenis", "Kind"),
+        type: "select",
+        required: true,
+        options: [
+          ["allowance", L("Tunjangan / pendapatan", "Allowance / earning")],
+          ["deduction", L("Potongan", "Deduction")],
+        ],
+      },
+      {
+        name: "fixed",
+        label: L("Tunjangan tetap (dasar BPJS & lembur)", "Fixed allowance (BPJS & overtime base)"),
+        type: "boolean",
+      },
+      { name: "taxable", label: L("Objek PPh 21", "Subject to PPh 21"), type: "boolean" },
+      {
+        name: "accountId",
+        label: L("Akun (kosong = bawaan payroll)", "Account (empty = payroll default)"),
+        type: "ref",
+        resource: "accounts",
+        display: "name",
+      },
+      { name: "active", label: L("Aktif", "Active"), type: "boolean" },
+    ],
+  },
+);
+
 /** Halaman modul khusus (bukan CRUD generik) yang tampil di menu samping. */
 export interface Page {
   href: string;
@@ -782,6 +1068,22 @@ export interface Page {
 }
 
 export const PAGES: Page[] = [
+  { href: "/me", label: L("Portal Saya", "My Portal"), group: ME, permission: "" },
+  { href: "/hr/contracts", label: L("Kontrak Kerja", "Contracts"), group: HR, permission: "hr.manage" },
+  { href: "/hr/leaves", label: L("Pengajuan Cuti", "Time Off"), group: HR, permission: "hr.read" },
+  { href: "/hr/attendance", label: L("Absensi", "Attendance"), group: HR, permission: "hr.read" },
+  {
+    href: "/payroll/runs",
+    label: L("Penggajian", "Payroll Runs"),
+    group: PAYROLL,
+    permission: "payroll.read",
+  },
+  {
+    href: "/payroll/settings",
+    label: L("Pengaturan Payroll", "Payroll Settings"),
+    group: PAYROLL,
+    permission: "payroll.manage",
+  },
   { href: "/inventory/overview", label: L("Stok", "Stock"), group: INVENTORY, permission: "inventory.read" },
   {
     href: "/inventory/receipts",
@@ -1089,4 +1391,25 @@ export const DELIVERY_STATUS_LABEL: Record<string, Text> = {
   pending: L("Belum dikirim", "Not delivered"),
   partial: L("Dikirim sebagian", "Partially delivered"),
   full: L("Terkirim penuh", "Fully delivered"),
+};
+
+export const LEAVE_STATE_LABEL: Record<string, Text> = {
+  confirm: L("Menunggu persetujuan", "To approve"),
+  approved: L("Disetujui", "Approved"),
+  refused: L("Ditolak", "Refused"),
+  cancel: L("Dibatalkan", "Cancelled"),
+};
+
+export const PAYROLL_STATE_LABEL: Record<string, Text> = {
+  draft: L("Draft", "Draft"),
+  done: L("Diposting", "Posted"),
+  paid: L("Dibayar", "Paid"),
+  cancel: L("Batal", "Cancelled"),
+};
+
+export const CONTRACT_STATE_LABEL: Record<string, Text> = {
+  draft: L("Draft", "Draft"),
+  running: L("Berjalan", "Running"),
+  closed: L("Berakhir", "Expired"),
+  cancel: L("Batal", "Cancelled"),
 };
