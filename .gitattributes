@@ -1,0 +1,4 @@
+# Simpan semua teks dengan akhir baris LF (Prettier & skrip mengandalkannya), termasuk di Windows.
+* text=auto eol=lf
+*.gz binary
+*.png binary
