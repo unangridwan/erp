@@ -13,6 +13,10 @@
     "./migrate": {
       "types": "./dist/migrate.d.ts",
       "default": "./dist/migrate.js"
+    },
+    "./seed-regions": {
+      "types": "./dist/seed-regions.d.ts",
+      "default": "./dist/seed-regions.js"
     }
   },
   "scripts": {
@@ -20,7 +24,8 @@
     "lint": "eslint src test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "node --experimental-strip-types src/migrate.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "seed:regions": "node --experimental-strip-types src/seed-regions.ts"
   },
   "dependencies": {
     "@erp/shared": "workspace:*",

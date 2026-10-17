@@ -4,6 +4,7 @@ import {
   branchSchema,
   businessUnitSchema,
   companySchema,
+  currencyRateSchema,
   ownershipSchema,
   partnerSchema,
   productCategorySchema,
@@ -14,6 +15,8 @@ import { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
 import { TenantDb } from "../common/database.js";
 import { createCrudController } from "../common/crud.js";
+import { FxController, FxService } from "./fx.controller.js";
+import { RegionsController } from "./regions.controller.js";
 
 /** Tolak parent yang membuat siklus (perusahaan menjadi induk dari leluhurnya sendiri). */
 async function assertNoCompanyCycle(tx: Db, values: Record<string, unknown>, id?: string) {
@@ -153,6 +156,27 @@ const ProductsController = createCrudController({
   refs: { companyId: schema.companies, categoryId: schema.productCategories, uomId: schema.uoms },
 });
 
+const CurrencyRatesController = createCrudController({
+  path: "currency-rates",
+  model: "currency_rate",
+  table: schema.currencyRates,
+  schema: currencyRateSchema,
+  read: "currency.read",
+  write: "currency.write",
+  searchColumns: [schema.currencyRates.currencyCode],
+  orderBy: schema.currencyRates.rateDate,
+  refs: {},
+  beforeSave: async (tx, values) => {
+    if (typeof values.currencyCode !== "string") return;
+    const [currency] = await tx
+      .select()
+      .from(schema.currencies)
+      .where(eq(schema.currencies.code, values.currencyCode));
+    if (!currency) throw new BadRequestException(`Mata uang ${values.currencyCode} tidak dikenal`);
+    if (currency.code === "IDR") throw new BadRequestException("IDR adalah mata uang dasar (kurs selalu 1)");
+  },
+});
+
 /** Mata uang adalah master global (read-only bagi tenant). */
 @Controller("currencies")
 class CurrenciesController {
@@ -178,7 +202,11 @@ class CurrenciesController {
     UomsController,
     ProductsController,
     CurrenciesController,
+    CurrencyRatesController,
+    FxController,
+    RegionsController,
   ],
-  providers: [ActivityService],
+  providers: [ActivityService, FxService],
+  exports: [FxService],
 })
 export class MasterModule {}

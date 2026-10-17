@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../lib/api";
+import { useI18n } from "../lib/i18n";
 import { canWrite, type Field, type Resource } from "../lib/resources";
 import { Chatter } from "./chatter";
 import { useMe } from "./me-context";
@@ -29,6 +30,7 @@ function toPayload(fields: Field[], values: Values, isNew: boolean): Values {
 
 export function FormView({ resource, id }: { resource: Resource; id: string }) {
   const me = useMe();
+  const { t, tx } = useI18n();
   const router = useRouter();
   const isNew = id === "new";
   const editable = canWrite(me.permissions, resource);
@@ -64,7 +66,7 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
         setVersion((v) => v + 1);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal menyimpan");
+      setError(err instanceof Error ? err.message : String(err));
       if (err instanceof ApiError) setFieldErrors(err.fieldErrors);
     } finally {
       setSaving(false);
@@ -72,16 +74,16 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
   }
 
   async function onDelete() {
-    if (!confirm(`Hapus ${resource.singular.toLowerCase()} ini?`)) return;
+    if (!confirm(t("form.confirmDelete"))) return;
     try {
       await api(`/${resource.path}/${id}`, { method: "DELETE" });
       router.replace(`/${resource.path}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal menghapus");
+      setError(err instanceof Error ? err.message : String(err));
     }
   }
 
-  if (!loaded) return <p className="muted">{error ?? "Memuat…"}</p>;
+  if (!loaded) return <p className="muted">{error ?? t("app.loading")}</p>;
 
   const set = (name: string, value: unknown) => setValues((v) => ({ ...v, [name]: value }));
 
@@ -90,16 +92,18 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
       <form className="panel" onSubmit={onSubmit}>
         <header className="toolbar">
           <h1>
-            {isNew ? `${resource.singular} baru` : String(values.name ?? values.code ?? resource.singular)}
+            {isNew
+              ? `${tx(resource.singular)} ${t("form.new")}`
+              : String(values.name ?? values.code ?? tx(resource.singular))}
           </h1>
           {editable && (
             <button className="primary" disabled={saving}>
-              {saving ? "Menyimpan…" : "Simpan"}
+              {saving ? t("form.saving") : t("form.save")}
             </button>
           )}
           {editable && !isNew && (
             <button type="button" className="danger" onClick={onDelete}>
-              Hapus
+              {t("form.delete")}
             </button>
           )}
         </header>
@@ -108,7 +112,7 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
           {resource.fields.map((f) => (
             <label key={f.name} className={f.type === "boolean" ? "field check" : "field"}>
               <span>
-                {f.label}
+                {tx(f.label)}
                 {"required" in f && f.required ? " *" : ""}
               </span>
               <FieldInput field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} />
@@ -122,7 +126,7 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
           model={resource.model}
           id={id}
           version={version}
-          labels={Object.fromEntries(resource.fields.map((f) => [f.name, f.label]))}
+          labels={Object.fromEntries(resource.fields.map((f) => [f.name, tx(f.label)]))}
         />
       )}
     </div>
@@ -138,6 +142,7 @@ function FieldInput({
   value: unknown;
   onChange: (v: unknown) => void;
 }) {
+  const { tx } = useI18n();
   const str = value === null || value === undefined ? "" : String(value);
   switch (field.type) {
     case "boolean":
@@ -148,7 +153,7 @@ function FieldInput({
           <option value="">—</option>
           {field.options.map(([v, label]) => (
             <option key={v} value={v}>
-              {label}
+              {tx(label)}
             </option>
           ))}
         </select>

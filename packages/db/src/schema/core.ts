@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   date,
   numeric,
@@ -114,6 +115,9 @@ export const users = pgTable(
     email: text("email").notNull(),
     name: text("name").notNull(),
     passwordHash: text("password_hash"),
+    totpSecretEnc: text("totp_secret_enc"),
+    totpEnabled: boolean("totp_enabled").notNull().default(false),
+    totpLastStep: bigint("totp_last_step", { mode: "number" }),
     active: boolean("active").notNull().default(true),
     ...audit,
   },

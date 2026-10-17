@@ -5,11 +5,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { MeContext } from "../../components/me-context";
 import { api, session, type Me } from "../../lib/api";
-import { RESOURCES } from "../../lib/resources";
+import { LocaleSwitch, useI18n } from "../../lib/i18n";
+import { can, RESOURCES } from "../../lib/resources";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { t, tx } = useI18n();
   const [me, setMe] = useState<Me | null>(null);
 
   useEffect(() => {
@@ -28,10 +30,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       });
   }, [router]);
 
-  if (!me) return <main className="shell muted">Memuat…</main>;
+  if (!me) return <main className="shell muted">{t("app.loading")}</main>;
 
-  const groups = [...new Set(RESOURCES.map((r) => r.group))];
-  const canRead = (perm: string) => me.permissions.includes("*") || me.permissions.includes(`${perm}.read`);
+  const groups = [...new Map(RESOURCES.map((r) => [r.group.id, r.group])).values()];
+  const link = (href: string, label: string) => (
+    <Link key={href} href={href} className={pathname.startsWith(href) ? "active" : ""}>
+      {label}
+    </Link>
+  );
 
   return (
     <MeContext.Provider value={me}>
@@ -41,7 +47,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             ERP
           </Link>
           <label className="field">
-            <span>Perusahaan aktif</span>
+            <span>{t("app.activeCompany")}</span>
             <select
               value={me.activeCompanyId}
               onChange={(e) => {
@@ -56,32 +62,36 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               ))}
             </select>
           </label>
-          {groups.map((group) => (
-            <nav key={group}>
-              <h2>{group}</h2>
-              {RESOURCES.filter((r) => r.group === group && canRead(r.permission)).map((r) => (
-                <Link
-                  key={r.path}
-                  href={`/${r.path}`}
-                  className={pathname.startsWith(`/${r.path}`) ? "active" : ""}
-                >
-                  {r.title}
-                </Link>
-              ))}
-            </nav>
-          ))}
+          {groups.map((group) => {
+            const items = RESOURCES.filter(
+              (r) => r.group.id === group.id && can(me.permissions, `${r.permission}.read`),
+            );
+            if (!items.length) return null;
+            return (
+              <nav key={group.id}>
+                <h2>{tx(group)}</h2>
+                {items.map((r) => link(`/${r.path}`, tx(r.title)))}
+              </nav>
+            );
+          })}
+          <nav>
+            <h2>{t("nav.settings")}</h2>
+            {can(me.permissions, "user.read") && link("/settings/users", t("nav.users"))}
+            {link("/settings/security", t("nav.security"))}
+          </nav>
           <div className="user">
             <span>{me.name}</span>
             <button
               className="link"
-              onClick={() => {
-                session.clear();
+              onClick={async () => {
+                await session.logout();
                 router.replace("/login");
               }}
             >
-              Keluar
+              {t("app.logout")}
             </button>
           </div>
+          <LocaleSwitch />
         </aside>
         <main className="content">{children}</main>
       </div>

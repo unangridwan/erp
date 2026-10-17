@@ -29,10 +29,38 @@ export const signupSchema = z.object({
 });
 export type SignupInput = z.infer<typeof signupSchema>;
 
+const totpCode = z
+  .string()
+  .trim()
+  .regex(/^\d{6}$/, "Kode 2FA harus 6 digit");
+
 export const loginSchema = z.object({
   tenantSlug: z.string().trim().toLowerCase().min(1),
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(1),
+  /** Kode TOTP, wajib bila user mengaktifkan 2FA. */
+  code: totpCode.optional(),
+});
+
+export const refreshSchema = z.object({ refreshToken: z.string().min(20) });
+export const totpCodeSchema = z.object({ code: totpCode });
+
+export const inviteSchema = z.object({
+  name: z.string().trim().min(2).max(200),
+  email: z.string().trim().toLowerCase().email(),
+  roleIds: z.array(z.string().uuid()).default([]),
+  companyIds: z.array(z.string().uuid()).min(1, "Pilih minimal satu perusahaan"),
+});
+
+export const acceptInviteSchema = z.object({
+  token: z.string().min(20),
+  password: z.string().min(8).max(200),
+});
+
+export const currencyRateSchema = z.object({
+  currencyCode: z.string().trim().length(3).toUpperCase(),
+  rateDate: z.string().date(),
+  rate: z.coerce.number().positive().transform(String),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 

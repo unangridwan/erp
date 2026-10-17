@@ -8,6 +8,8 @@ export const PERMISSIONS = [
   "product.write",
   "uom.read",
   "uom.write",
+  "currency.read",
+  "currency.write",
   "user.read",
   "user.write",
   "settings.manage",

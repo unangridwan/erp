@@ -2,36 +2,67 @@
 
 import Link from "next/link";
 import { useMe } from "../../components/me-context";
+import { L, useI18n } from "../../lib/i18n";
 
 const MODULES = [
-  { name: "CRM", desc: "Lead & pipeline penjualan", phase: "Fase 2" },
-  { name: "Penjualan", desc: "Penawaran, sales order, faktur", phase: "Fase 2" },
-  { name: "Pembelian", desc: "RFQ, purchase order, tagihan vendor", phase: "Fase 3" },
-  { name: "Persediaan", desc: "Gudang, stok, valuasi", phase: "Fase 3" },
-  { name: "Akuntansi", desc: "Jurnal, buku besar, laporan keuangan", phase: "Fase 1" },
-  { name: "SDM & Penggajian", desc: "Karyawan, absensi, PPh 21, BPJS", phase: "Fase 4" },
-  { name: "Konsolidasi", desc: "Laporan konsolidasian grup", phase: "Fase 5b" },
+  { name: L("CRM", "CRM"), desc: L("Lead & pipeline penjualan", "Leads & sales pipeline"), phase: "2" },
+  {
+    name: L("Penjualan", "Sales"),
+    desc: L("Penawaran, sales order, faktur", "Quotations, sales orders, invoices"),
+    phase: "2",
+  },
+  {
+    name: L("Pembelian", "Purchasing"),
+    desc: L("RFQ, purchase order, tagihan vendor", "RFQs, purchase orders, vendor bills"),
+    phase: "3",
+  },
+  {
+    name: L("Persediaan", "Inventory"),
+    desc: L("Gudang, stok, valuasi", "Warehouses, stock, valuation"),
+    phase: "3",
+  },
+  {
+    name: L("Akuntansi", "Accounting"),
+    desc: L("Jurnal, buku besar, laporan keuangan", "Journals, ledger, financial reports"),
+    phase: "1",
+  },
+  {
+    name: L("SDM & Penggajian", "HR & Payroll"),
+    desc: L("Karyawan, absensi, PPh 21, BPJS", "Employees, attendance, PPh 21, BPJS"),
+    phase: "4",
+  },
+  {
+    name: L("Konsolidasi", "Consolidation"),
+    desc: L("Laporan konsolidasian grup", "Group consolidated reports"),
+    phase: "5b",
+  },
 ];
 
 export default function Dashboard() {
   const me = useMe();
+  const { t, tx, locale } = useI18n();
   const active = me.companies.find((c) => c.id === me.activeCompanyId);
   return (
     <>
-      <h1>Selamat datang, {me.name}</h1>
-      <p className="muted">Perusahaan aktif: {active?.name}</p>
-      <h2>Mulai dari master data</h2>
-      <p>
-        <Link href="/companies">Struktur grup</Link> · <Link href="/partners">Kontak</Link> ·{" "}
-        <Link href="/products">Produk</Link>
+      <h1>
+        {t("home.welcome")}, {me.name}
+      </h1>
+      <p className="muted">
+        {t("app.activeCompany")}: {active?.name}
       </p>
-      <h2>Modul</h2>
+      <h2>{t("home.start")}</h2>
+      <p>
+        <Link href="/companies">{locale === "id" ? "Struktur grup" : "Group structure"}</Link> ·{" "}
+        <Link href="/partners">{locale === "id" ? "Kontak" : "Contacts"}</Link> ·{" "}
+        <Link href="/products">{locale === "id" ? "Produk" : "Products"}</Link>
+      </p>
+      <h2>{t("home.modules")}</h2>
       <ul className="grid">
         {MODULES.map((m) => (
-          <li key={m.name} className="card">
-            <strong>{m.name}</strong>
-            <span>{m.desc}</span>
-            <small className="badge">{m.phase}</small>
+          <li key={m.name.id} className="card">
+            <strong>{tx(m.name)}</strong>
+            <span>{tx(m.desc)}</span>
+            <small className="badge">{locale === "id" ? `Fase ${m.phase}` : `Phase ${m.phase}`}</small>
           </li>
         ))}
       </ul>

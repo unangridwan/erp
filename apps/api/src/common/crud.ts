@@ -12,6 +12,7 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   type Type,
 } from "@nestjs/common";
 import {
@@ -29,12 +30,15 @@ import {
   type PgTable,
   type SQL,
 } from "@erp/db";
-import { ALL_PERMISSIONS, type Permission } from "@erp/shared";
+import { ALL_PERMISSIONS, parseCsv, toCsv, type Permission } from "@erp/shared";
+import type { Response } from "express";
+import { z } from "zod";
 import type { AnyZodObject } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
 import { RequirePermission } from "../auth/decorators.js";
 import { TenantDb } from "./database.js";
 import { currentContext } from "./request-context.js";
+import { coerceCsvRow, exportColumns } from "./csv-import.js";
 import { parse } from "./zod.js";
 
 type Table = PgTable & { id: PgColumn };
@@ -83,6 +87,9 @@ export async function assertRefsVisible(
 }
 
 const MAX_LIMIT = 200;
+const MAX_IMPORT_ROWS = 5000;
+const EXPORT_LIMIT = 50_000;
+const importBody = z.object({ csv: z.string().min(1).max(10_000_000) });
 
 /**
  * Membuat controller REST standar (list/get/create/update/delete) untuk sebuah tabel master,
@@ -106,6 +113,16 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
     }
   };
 
+  const listFilter = (query: Record<string, string | undefined>): SQL | undefined => {
+    const filters: (SQL | undefined)[] = [companyFilter()];
+    if (query.q && opts.searchColumns.length) {
+      const term = `%${query.q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+      filters.push(or(...opts.searchColumns.map((c) => ilike(c, term))));
+    }
+    if (hasActive && query.active !== "all") filters.push(eq(table.active!, query.active !== "false"));
+    return and(...filters);
+  };
+
   @Controller(opts.path)
   class CrudController {
     constructor(
@@ -118,13 +135,7 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
     list(@Query() query: Record<string, string | undefined>) {
       const limit = Math.min(Math.max(Number(query.limit) || 50, 1), MAX_LIMIT);
       const offset = Math.max(Number(query.offset) || 0, 0);
-      const filters: (SQL | undefined)[] = [companyFilter()];
-      if (query.q) {
-        const term = `%${query.q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
-        filters.push(or(...opts.searchColumns.map((c) => ilike(c, term))));
-      }
-      if (hasActive && query.active !== "all") filters.push(eq(table.active!, query.active !== "false"));
-      const where = and(...filters);
+      const where = listFilter(query);
 
       return this.tenantDb.run(async (tx) => {
         const items = await tx
@@ -136,6 +147,110 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
           .offset(offset);
         const [{ total } = { total: 0 }] = await tx.select({ total: count() }).from(table).where(where);
         return { items, total, limit, offset };
+      });
+    }
+
+    /** Ekspor CSV dengan filter yang sama seperti list. Didaftarkan sebelum `:id` agar tidak tertangkap rute itu. */
+    @Get("export")
+    @RequirePermission(opts.read)
+    async export(@Query() query: Record<string, string | undefined>, @Res() res: Response) {
+      const rows = await this.tenantDb.run((tx) =>
+        tx.select().from(table).where(listFilter(query)).orderBy(asc(opts.orderBy)).limit(EXPORT_LIMIT),
+      );
+      res
+        .type("text/csv; charset=utf-8")
+        .attachment(`${opts.path}.csv`)
+        .send("\uFEFF" + toCsv(exportColumns(opts.schema), rows as Record<string, unknown>[]));
+    }
+
+    /**
+     * Impor CSV: baris dengan `id` memperbarui data yang ada, tanpa `id` membuat baru.
+     * Semua baris divalidasi dulu; bila ada yang gagal, tidak ada yang disimpan.
+     */
+    @Post("import")
+    @HttpCode(200)
+    @RequirePermission(opts.write)
+    async import(@Body() body: unknown) {
+      let rows: Record<string, string>[];
+      try {
+        rows = parseCsv(parse(importBody, body).csv);
+      } catch (e) {
+        throw new BadRequestException(e instanceof Error ? e.message : "CSV tidak valid");
+      }
+      if (rows.length === 0) throw new BadRequestException("CSV kosong");
+      if (rows.length > MAX_IMPORT_ROWS)
+        throw new BadRequestException(`Maksimal ${MAX_IMPORT_ROWS} baris per impor`);
+
+      const errors: { row: number; path: string; message: string }[] = [];
+      const parsed = rows.map((raw, i) => {
+        const id = raw.id?.trim() || undefined;
+        const schema = id ? opts.schema.partial() : opts.schema;
+        const result = schema.safeParse(coerceCsvRow(opts.schema, raw));
+        if (!result.success) {
+          for (const issue of result.error.issues) {
+            errors.push({ row: i + 2, path: issue.path.join("."), message: issue.message });
+          }
+        }
+        return { id, values: result.success ? (result.data as Record<string, unknown>) : {} };
+      });
+      if (errors.length)
+        throw new BadRequestException({ message: "Impor dibatalkan: ada baris tidak valid", errors });
+
+      return this.tenantDb.run(async (tx) => {
+        let created = 0;
+        let updated = 0;
+        for (const [i, { id, values }] of parsed.entries()) {
+          try {
+            assertCompanyAllowed(values);
+            await assertRefsVisible(tx, opts.refs ?? {}, values);
+            if (id) {
+              await this.find(tx, id);
+              await opts.beforeSave?.(tx, values, id);
+              await tx
+                .update(table)
+                .set({ ...values, ...(hasUpdatedAt ? { updatedAt: sql`now()` } : {}) })
+                .where(eq(table.id, id));
+              await this.activity.log(tx, {
+                resModel: opts.model,
+                resId: id,
+                action: "update",
+                message: "Impor CSV",
+              });
+              updated++;
+            } else {
+              await opts.beforeSave?.(tx, values);
+              const [row] = await tx.insert(table).values(values).returning();
+              const createdRow = row as Record<string, unknown> & { id: string };
+              await opts.afterCreate?.(tx, createdRow);
+              await this.activity.log(tx, {
+                resModel: opts.model,
+                resId: createdRow.id,
+                action: "create",
+                message: "Impor CSV",
+              });
+              created++;
+            }
+          } catch (e) {
+            // Sertakan nomor baris agar user tahu baris mana yang gagal; transaksi otomatis di-rollback.
+            if (e instanceof BadRequestException || e instanceof NotFoundException) {
+              const response = e.getResponse() as {
+                message?: string;
+                errors?: { path: string; message: string }[];
+              };
+              throw new BadRequestException({
+                message: `Impor dibatalkan pada baris ${i + 2}`,
+                errors: (response.errors ?? [{ path: "", message: response.message ?? e.message }]).map(
+                  (err) => ({
+                    row: i + 2,
+                    ...err,
+                  }),
+                ),
+              });
+            }
+            throw e;
+          }
+        }
+        return { created, updated };
       });
     }
 

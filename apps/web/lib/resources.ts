@@ -1,12 +1,15 @@
+import { L, type Text } from "./i18n";
+
 /** Definisi tampilan list & form per resource — mirip "view" di Odoo. */
 export type Field =
-  | { name: string; label: string; type: "text" | "email" | "number" | "date"; required?: boolean }
-  | { name: string; label: string; type: "boolean" }
-  | { name: string; label: string; type: "select"; options: [string, string][]; required?: boolean }
+  | { name: string; label: Text; type: "text" | "email" | "number" | "date"; required?: boolean }
+  | { name: string; label: Text; type: "boolean" }
+  | { name: string; label: Text; type: "select"; options: [string, Text][]; required?: boolean }
   | {
       name: string;
-      label: string;
+      label: Text;
       type: "ref";
+      /** Path API, boleh dengan query string (mis. "regions?level=1"). */
       resource: string;
       display: string;
       valueKey?: string;
@@ -16,189 +19,232 @@ export type Field =
 export interface Resource {
   path: string;
   model: string;
-  title: string;
-  singular: string;
+  title: Text;
+  singular: Text;
   permission: string;
-  columns: { name: string; label: string }[];
+  columns: { name: string; label: Text }[];
   fields: Field[];
-  group: string;
+  group: Text;
+  /** Tampilkan tombol impor/ekspor CSV. */
+  csv?: boolean;
 }
 
-const ENTITY_TYPES: [string, string][] = [
-  ["holding", "Holding"],
-  ["subsidiary", "Anak perusahaan"],
-  ["associate", "Asosiasi"],
-  ["joint_venture", "Ventura bersama"],
-  ["other", "Lainnya"],
+const MASTER = L("Master Data", "Master Data");
+const GROUP = L("Struktur Grup", "Group Structure");
+const ACCOUNTING = L("Keuangan", "Finance");
+
+const name = (required = true): Field => ({ name: "name", label: L("Nama", "Name"), type: "text", required });
+const code: Field = { name: "code", label: L("Kode", "Code"), type: "text", required: true };
+const companyScope: Field = {
+  name: "companyId",
+  label: L("Khusus perusahaan (kosong = seluruh grup)", "Company only (empty = whole group)"),
+  type: "ref",
+  resource: "companies",
+  display: "name",
+};
+
+const ENTITY_TYPES: [string, Text][] = [
+  ["holding", L("Holding", "Holding")],
+  ["subsidiary", L("Anak perusahaan", "Subsidiary")],
+  ["associate", L("Asosiasi", "Associate")],
+  ["joint_venture", L("Ventura bersama", "Joint venture")],
+  ["other", L("Lainnya", "Other")],
 ];
 
 export const RESOURCES: Resource[] = [
   {
     path: "partners",
     model: "partner",
-    title: "Kontak",
-    singular: "Kontak",
+    title: L("Kontak", "Contacts"),
+    singular: L("Kontak", "Contact"),
     permission: "partner",
-    group: "Master Data",
+    group: MASTER,
+    csv: true,
     columns: [
-      { name: "name", label: "Nama" },
-      { name: "city", label: "Kota" },
-      { name: "phone", label: "Telepon" },
-      { name: "email", label: "Email" },
+      { name: "name", label: L("Nama", "Name") },
+      { name: "city", label: L("Kota", "City") },
+      { name: "phone", label: L("Telepon", "Phone") },
+      { name: "email", label: L("Email", "Email") },
     ],
     fields: [
-      { name: "name", label: "Nama", type: "text", required: true },
+      name(),
       {
         name: "kind",
-        label: "Jenis",
+        label: L("Jenis", "Type"),
         type: "select",
         options: [
-          ["company", "Perusahaan"],
-          ["person", "Perorangan"],
+          ["company", L("Perusahaan", "Company")],
+          ["person", L("Perorangan", "Individual")],
         ],
       },
-      { name: "isCustomer", label: "Pelanggan", type: "boolean" },
-      { name: "isSupplier", label: "Pemasok", type: "boolean" },
-      { name: "npwp", label: "NPWP", type: "text" },
-      { name: "email", label: "Email", type: "email" },
-      { name: "phone", label: "Telepon", type: "text" },
-      { name: "street", label: "Alamat", type: "text" },
-      { name: "city", label: "Kota", type: "text" },
-      { name: "province", label: "Provinsi", type: "text" },
-      { name: "postalCode", label: "Kode pos", type: "text" },
+      { name: "isCustomer", label: L("Pelanggan", "Customer"), type: "boolean" },
+      { name: "isSupplier", label: L("Pemasok", "Supplier"), type: "boolean" },
+      { name: "npwp", label: L("NPWP", "Tax ID (NPWP)"), type: "text" },
+      { name: "email", label: L("Email", "Email"), type: "email" },
+      { name: "phone", label: L("Telepon", "Phone"), type: "text" },
+      { name: "street", label: L("Alamat", "Street"), type: "text" },
+      { name: "city", label: L("Kota", "City"), type: "text" },
       {
-        name: "companyId",
-        label: "Khusus perusahaan (kosong = seluruh grup)",
+        name: "province",
+        label: L("Provinsi", "Province"),
         type: "ref",
-        resource: "companies",
+        resource: "regions?level=1",
         display: "name",
+        valueKey: "name",
       },
+      { name: "postalCode", label: L("Kode pos", "Postal code"), type: "text" },
+      companyScope,
     ],
   },
   {
     path: "products",
     model: "product",
-    title: "Produk",
-    singular: "Produk",
+    title: L("Produk", "Products"),
+    singular: L("Produk", "Product"),
     permission: "product",
-    group: "Master Data",
+    group: MASTER,
+    csv: true,
     columns: [
-      { name: "sku", label: "SKU" },
-      { name: "name", label: "Nama" },
-      { name: "salePrice", label: "Harga jual" },
-      { name: "cost", label: "Biaya" },
+      { name: "sku", label: L("SKU", "SKU") },
+      { name: "name", label: L("Nama", "Name") },
+      { name: "salePrice", label: L("Harga jual", "Sales price") },
+      { name: "cost", label: L("Biaya", "Cost") },
     ],
     fields: [
-      { name: "sku", label: "SKU", type: "text", required: true },
-      { name: "name", label: "Nama", type: "text", required: true },
+      { name: "sku", label: L("SKU", "SKU"), type: "text", required: true },
+      name(),
       {
         name: "productType",
-        label: "Tipe",
+        label: L("Tipe", "Type"),
         type: "select",
         options: [
-          ["storable", "Barang stok"],
-          ["consumable", "Habis pakai"],
-          ["service", "Jasa"],
+          ["storable", L("Barang stok", "Storable")],
+          ["consumable", L("Habis pakai", "Consumable")],
+          ["service", L("Jasa", "Service")],
         ],
       },
-      { name: "categoryId", label: "Kategori", type: "ref", resource: "product-categories", display: "name" },
-      { name: "uomId", label: "Satuan", type: "ref", resource: "uoms", display: "name", required: true },
-      { name: "salePrice", label: "Harga jual", type: "number" },
-      { name: "cost", label: "Biaya", type: "number" },
-      { name: "barcode", label: "Barcode", type: "text" },
       {
-        name: "companyId",
-        label: "Khusus perusahaan (kosong = seluruh grup)",
+        name: "categoryId",
+        label: L("Kategori", "Category"),
         type: "ref",
-        resource: "companies",
+        resource: "product-categories",
         display: "name",
       },
+      {
+        name: "uomId",
+        label: L("Satuan", "Unit"),
+        type: "ref",
+        resource: "uoms",
+        display: "name",
+        required: true,
+      },
+      { name: "salePrice", label: L("Harga jual", "Sales price"), type: "number" },
+      { name: "cost", label: L("Biaya", "Cost"), type: "number" },
+      { name: "barcode", label: L("Barcode", "Barcode"), type: "text" },
+      companyScope,
     ],
   },
   {
     path: "product-categories",
     model: "product_category",
-    title: "Kategori Produk",
-    singular: "Kategori",
+    title: L("Kategori Produk", "Product Categories"),
+    singular: L("Kategori", "Category"),
     permission: "product",
-    group: "Master Data",
-    columns: [{ name: "name", label: "Nama" }],
+    group: MASTER,
+    csv: true,
+    columns: [{ name: "name", label: L("Nama", "Name") }],
     fields: [
-      { name: "name", label: "Nama", type: "text", required: true },
-      { name: "parentId", label: "Induk", type: "ref", resource: "product-categories", display: "name" },
+      name(),
+      {
+        name: "parentId",
+        label: L("Induk", "Parent"),
+        type: "ref",
+        resource: "product-categories",
+        display: "name",
+      },
     ],
   },
   {
     path: "uoms",
     model: "uom",
-    title: "Satuan",
-    singular: "Satuan",
+    title: L("Satuan", "Units of Measure"),
+    singular: L("Satuan", "Unit"),
     permission: "uom",
-    group: "Master Data",
+    group: MASTER,
     columns: [
-      { name: "name", label: "Nama" },
-      { name: "factor", label: "Faktor" },
+      { name: "name", label: L("Nama", "Name") },
+      { name: "factor", label: L("Faktor", "Factor") },
     ],
     fields: [
-      { name: "name", label: "Nama", type: "text", required: true },
+      name(),
       {
         name: "categoryId",
-        label: "Kategori",
+        label: L("Kategori", "Category"),
         type: "ref",
         resource: "uom-categories",
         display: "name",
         required: true,
       },
-      { name: "factor", label: "Faktor terhadap satuan referensi", type: "number", required: true },
-      { name: "isReference", label: "Satuan referensi", type: "boolean" },
+      {
+        name: "factor",
+        label: L("Faktor terhadap satuan referensi", "Factor to reference unit"),
+        type: "number",
+        required: true,
+      },
+      { name: "isReference", label: L("Satuan referensi", "Reference unit"), type: "boolean" },
     ],
   },
   {
     path: "companies",
     model: "company",
-    title: "Perusahaan",
-    singular: "Perusahaan",
+    title: L("Perusahaan", "Companies"),
+    singular: L("Perusahaan", "Company"),
     permission: "company",
-    group: "Struktur Grup",
+    group: GROUP,
+    csv: true,
     columns: [
-      { name: "code", label: "Kode" },
-      { name: "name", label: "Nama" },
-      { name: "entityType", label: "Jenis" },
-      { name: "currencyCode", label: "Mata uang" },
+      { name: "code", label: L("Kode", "Code") },
+      { name: "name", label: L("Nama", "Name") },
+      { name: "entityType", label: L("Jenis", "Type") },
+      { name: "currencyCode", label: L("Mata uang", "Currency") },
     ],
     fields: [
-      { name: "code", label: "Kode", type: "text", required: true },
-      { name: "name", label: "Nama", type: "text", required: true },
-      { name: "entityType", label: "Jenis entitas", type: "select", options: ENTITY_TYPES },
-      { name: "parentId", label: "Induk", type: "ref", resource: "companies", display: "name" },
-      { name: "npwp", label: "NPWP", type: "text" },
+      code,
+      name(),
+      { name: "entityType", label: L("Jenis entitas", "Entity type"), type: "select", options: ENTITY_TYPES },
+      { name: "parentId", label: L("Induk", "Parent"), type: "ref", resource: "companies", display: "name" },
+      { name: "npwp", label: L("NPWP", "Tax ID (NPWP)"), type: "text" },
       {
         name: "currencyCode",
-        label: "Mata uang",
+        label: L("Mata uang", "Currency"),
         type: "ref",
         resource: "currencies",
         display: "code",
         valueKey: "code",
       },
-      { name: "fiscalYearStartMonth", label: "Awal tahun fiskal (bulan)", type: "number" },
+      {
+        name: "fiscalYearStartMonth",
+        label: L("Awal tahun fiskal (bulan)", "Fiscal year start (month)"),
+        type: "number",
+      },
     ],
   },
   {
     path: "ownerships",
     model: "ownership",
-    title: "Kepemilikan",
-    singular: "Kepemilikan",
+    title: L("Kepemilikan", "Ownership"),
+    singular: L("Kepemilikan", "Ownership"),
     permission: "company",
-    group: "Struktur Grup",
+    group: GROUP,
     columns: [
-      { name: "pct", label: "%" },
-      { name: "method", label: "Metode" },
-      { name: "validFrom", label: "Berlaku sejak" },
+      { name: "pct", label: L("%", "%") },
+      { name: "method", label: L("Metode", "Method") },
+      { name: "validFrom", label: L("Berlaku sejak", "Valid from") },
     ],
     fields: [
       {
         name: "parentCompanyId",
-        label: "Pemilik",
+        label: L("Pemilik", "Owner"),
         type: "ref",
         resource: "companies",
         display: "name",
@@ -206,75 +252,107 @@ export const RESOURCES: Resource[] = [
       },
       {
         name: "childCompanyId",
-        label: "Dimiliki",
+        label: L("Dimiliki", "Owned"),
         type: "ref",
         resource: "companies",
         display: "name",
         required: true,
       },
-      { name: "pct", label: "Persentase", type: "number", required: true },
+      { name: "pct", label: L("Persentase", "Percentage"), type: "number", required: true },
       {
         name: "method",
-        label: "Metode konsolidasi",
+        label: L("Metode konsolidasi", "Consolidation method"),
         type: "select",
         required: true,
         options: [
-          ["full", "Penuh"],
-          ["proportional", "Proporsional"],
-          ["equity", "Ekuitas"],
-          ["none", "Tidak dikonsolidasi"],
+          ["full", L("Penuh", "Full")],
+          ["proportional", L("Proporsional", "Proportional")],
+          ["equity", L("Ekuitas", "Equity method")],
+          ["none", L("Tidak dikonsolidasi", "Not consolidated")],
         ],
       },
-      { name: "validFrom", label: "Berlaku sejak", type: "date", required: true },
-      { name: "validTo", label: "Berlaku sampai", type: "date" },
+      { name: "validFrom", label: L("Berlaku sejak", "Valid from"), type: "date", required: true },
+      { name: "validTo", label: L("Berlaku sampai", "Valid to"), type: "date" },
     ],
   },
   {
     path: "business-units",
     model: "business_unit",
-    title: "Unit Bisnis",
-    singular: "Unit Bisnis",
+    title: L("Unit Bisnis", "Business Units"),
+    singular: L("Unit Bisnis", "Business Unit"),
     permission: "company",
-    group: "Struktur Grup",
+    group: GROUP,
+    csv: true,
     columns: [
-      { name: "code", label: "Kode" },
-      { name: "name", label: "Nama" },
+      { name: "code", label: L("Kode", "Code") },
+      { name: "name", label: L("Nama", "Name") },
     ],
-    fields: [
-      { name: "code", label: "Kode", type: "text", required: true },
-      { name: "name", label: "Nama", type: "text", required: true },
-    ],
+    fields: [code, name()],
   },
   {
     path: "branches",
     model: "branch",
-    title: "Cabang",
-    singular: "Cabang",
+    title: L("Cabang", "Branches"),
+    singular: L("Cabang", "Branch"),
     permission: "company",
-    group: "Struktur Grup",
+    group: GROUP,
+    csv: true,
     columns: [
-      { name: "code", label: "Kode" },
-      { name: "name", label: "Nama" },
-      { name: "nitku", label: "NITKU" },
+      { name: "code", label: L("Kode", "Code") },
+      { name: "name", label: L("Nama", "Name") },
+      { name: "nitku", label: L("NITKU", "NITKU") },
     ],
     fields: [
       {
         name: "companyId",
-        label: "Perusahaan",
+        label: L("Perusahaan", "Company"),
         type: "ref",
         resource: "companies",
         display: "name",
         required: true,
       },
-      { name: "code", label: "Kode", type: "text", required: true },
-      { name: "name", label: "Nama", type: "text", required: true },
-      { name: "nitku", label: "NITKU", type: "text" },
+      code,
+      name(),
+      { name: "nitku", label: L("NITKU", "NITKU"), type: "text" },
+    ],
+  },
+  {
+    path: "currency-rates",
+    model: "currency_rate",
+    title: L("Kurs Harian", "Exchange Rates"),
+    singular: L("Kurs", "Rate"),
+    permission: "currency",
+    group: ACCOUNTING,
+    csv: true,
+    columns: [
+      { name: "currencyCode", label: L("Mata uang", "Currency") },
+      { name: "rateDate", label: L("Tanggal", "Date") },
+      { name: "rate", label: L("Kurs (IDR)", "Rate (IDR)") },
+    ],
+    fields: [
+      {
+        name: "currencyCode",
+        label: L("Mata uang", "Currency"),
+        type: "ref",
+        resource: "currencies",
+        display: "code",
+        valueKey: "code",
+        required: true,
+      },
+      { name: "rateDate", label: L("Tanggal", "Date"), type: "date", required: true },
+      {
+        name: "rate",
+        label: L("Nilai 1 unit dalam IDR", "Value of 1 unit in IDR"),
+        type: "number",
+        required: true,
+      },
     ],
   },
 ];
 
 export const findResource = (path: string) => RESOURCES.find((r) => r.path === path);
 
-export function canWrite(permissions: string[], resource: Resource) {
-  return permissions.includes("*") || permissions.includes(`${resource.permission}.write`);
-}
+export const can = (permissions: string[], perm: string) =>
+  permissions.includes("*") || permissions.includes(perm);
+export const canWrite = (permissions: string[], resource: Resource) =>
+  can(permissions, `${resource.permission}.write`);

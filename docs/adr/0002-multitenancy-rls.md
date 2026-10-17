@@ -23,7 +23,9 @@ Satu tenant dapat berisi grup usaha: holding, anak perusahaan, unit bisnis, caba
 
 - Isolasi ditegakkan database, diuji di `packages/db/test/rls.test.ts` dan `apps/api/test/foundation.test.ts`.
 - Pemeriksaan foreign key Postgres **tidak** tunduk pada RLS, sehingga tenant bisa saja merujuk id milik tenant
-  lain. Karena itu setiap id rujukan dicek terlihat oleh tenant sebelum disimpan (`refs` di
-  `apps/api/src/common/crud.ts`). Hardening berikutnya: FK komposit `(tenant_id, id)`.
+  lain. Karena itu semua FK antar tabel ber-tenant berbentuk komposit `(tenant_id, kolom) → (tenant_id, id)`
+  (migrasi `0003`), sehingga database sendiri menolak rujukan lintas tenant. Aplikasi tetap mengecek rujukan
+  (`refs` di `apps/api/src/common/crud.ts`) untuk pesan error per field yang lebih jelas.
+- Tabel baru wajib mengikuti pola yang sama: kolom `tenant_id`, policy `tenant_isolation`, dan FK komposit.
 - Migrasi dan job lintas tenant (billing, maintenance) memakai role pemilik secara eksplisit.
 - Tenant sangat besar dapat dipindah ke database terpisah di kemudian hari tanpa ubah skema.

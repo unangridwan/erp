@@ -238,8 +238,11 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] Scaffold monorepo, CI, RLS multi-tenant, struktur grup (tenant, perusahaan, kepemilikan, unit bisnis, cabang)
 - [x] Fase 0 (inti): auth JWT, RBAC + akses per perusahaan, master Partner/Product/UoM/Currency, partner intercompany
   otomatis, sequence dokumen, log aktivitas, UI list/form generik
-- [ ] Fase 0 (sisa): refresh token & 2FA, rate limit login, undangan user via email, import/export CSV, i18n EN,
-  kurs harian, FK komposit `(tenant_id, id)`, wilayah Indonesia
+- [x] Fase 0 (lanjutan): refresh token berotasi, 2FA TOTP (secret terenkripsi AES-GCM), rate limit login,
+  undangan user via email, impor/ekspor CSV, UI dua bahasa (ID/EN), kurs harian + konversi, FK komposit
+  `(tenant_id, id)`, data wilayah Indonesia (Kepmendagri 2025)
+- [ ] Ditunda: rate limiter berbasis Redis (multi-instance), SSO, impor Excel (.xlsx), sumber kurs otomatis
+  (KMK kurs pajak / BI), pesan error API dua bahasa
 
 ## 5. Roadmap Bertahap
 

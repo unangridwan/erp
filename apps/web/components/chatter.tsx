@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { useI18n, type MessageKey } from "../lib/i18n";
 
 interface Entry {
   id: string;
@@ -12,9 +13,6 @@ interface Entry {
   userName: string | null;
 }
 
-const ACTION_LABEL: Record<string, string> = { create: "membuat", update: "mengubah", delete: "menghapus" };
-const dateFmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" });
-
 /** Riwayat perubahan dokumen (mirip chatter Odoo). */
 export function Chatter(props: {
   model: string;
@@ -23,6 +21,13 @@ export function Chatter(props: {
   labels: Record<string, string>;
 }) {
   const { model, id, version, labels } = props;
+  const { t, locale } = useI18n();
+  const dateFmt = new Intl.DateTimeFormat(locale === "id" ? "id-ID" : "en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  const action = (a: string) =>
+    ["create", "update", "delete"].includes(a) ? t(`chatter.${a}` as MessageKey) : a;
   const [entries, setEntries] = useState<Entry[]>([]);
 
   useEffect(() => {
@@ -33,13 +38,14 @@ export function Chatter(props: {
 
   return (
     <aside className="panel chatter">
-      <h2>Aktivitas</h2>
-      {entries.length === 0 && <p className="muted">Belum ada aktivitas.</p>}
+      <h2>{t("chatter.title")}</h2>
+      {entries.length === 0 && <p className="muted">{t("chatter.empty")}</p>}
       <ol>
         {entries.map((e) => (
           <li key={e.id}>
-            <strong>{e.userName ?? "Sistem"}</strong> {ACTION_LABEL[e.action] ?? e.action}
+            <strong>{e.userName ?? t("chatter.system")}</strong> {action(e.action)}
             <time className="muted"> · {dateFmt.format(new Date(e.createdAt))}</time>
+            {e.message && <span className="muted"> · {e.message}</span>}
             {e.changes && (
               <ul>
                 {Object.entries(e.changes).map(([field, c]) => (
