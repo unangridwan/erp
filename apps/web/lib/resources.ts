@@ -32,6 +32,8 @@ export interface Resource {
   writePermission?: string;
   /** Data tidak bisa dihapus (cukup dinonaktifkan). */
   noDelete?: boolean;
+  /** Tampilan kartu (kanban) — menjadi tampilan bawaan seperti di Odoo. */
+  kanban?: { title: string; lines: string[]; tag?: string };
 }
 
 const MASTER = L("Master Data", "Master Data");
@@ -43,8 +45,6 @@ export const INVENTORY = L("Persediaan", "Inventory");
 export const PURCHASE = L("Pembelian", "Purchase");
 export const HR = L("SDM", "Employees");
 export const PAYROLL = L("Payroll", "Payroll");
-export const ME = L("Saya", "Me");
-export const TAX = L("Pajak", "Tax");
 
 const name = (required = true): Field => ({ name: "name", label: L("Nama", "Name"), type: "text", required });
 const code: Field = { name: "code", label: L("Kode", "Code"), type: "text", required: true };
@@ -87,6 +87,7 @@ const TAX_KINDS: [string, Text][] = [
 export const RESOURCES: Resource[] = [
   {
     path: "partners",
+    kanban: { title: "name", lines: ["city", "email", "phone"] },
     model: "partner",
     title: L("Kontak", "Contacts"),
     singular: L("Kontak", "Contact"),
@@ -179,6 +180,7 @@ export const RESOURCES: Resource[] = [
   },
   {
     path: "products",
+    kanban: { title: "name", lines: ["sku", "salePrice"], tag: "productType" },
     model: "product",
     title: L("Produk", "Products"),
     singular: L("Produk", "Product"),
@@ -307,6 +309,7 @@ export const RESOURCES: Resource[] = [
   },
   {
     path: "companies",
+    kanban: { title: "name", lines: ["code", "npwp", "city"], tag: "entityType" },
     model: "company",
     title: L("Perusahaan", "Companies"),
     singular: L("Perusahaan", "Company"),
@@ -864,6 +867,7 @@ const PTKP: [string, Text][] = ["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K
 RESOURCES.push(
   {
     path: "employees",
+    kanban: { title: "name", lines: ["jobName", "workEmail", "workPhone"], tag: "departmentName" },
     model: "employee",
     title: L("Karyawan", "Employees"),
     singular: L("Karyawan", "Employee"),
@@ -1138,230 +1142,6 @@ RESOURCES.push(
   },
 );
 
-/** Halaman modul khusus (bukan CRUD generik) yang tampil di menu samping. */
-export interface Page {
-  href: string;
-  label: Text;
-  group: Text;
-  permission: string;
-}
-
-export const PAGES: Page[] = [
-  {
-    href: "/tax/invoices",
-    label: L("Faktur Pajak Keluaran", "Output Tax Invoices"),
-    group: TAX,
-    permission: "tax.read",
-  },
-  {
-    href: "/tax/input",
-    label: L("Faktur Pajak Masukan", "Input Tax Invoices"),
-    group: TAX,
-    permission: "tax.read",
-  },
-  {
-    href: "/tax/withholding",
-    label: L("Bukti Potong", "Withholding Slips"),
-    group: TAX,
-    permission: "tax.read",
-  },
-  { href: "/tax/vat", label: L("Rekap PPN", "VAT Summary"), group: TAX, permission: "tax.read" },
-  { href: "/me", label: L("Portal Saya", "My Portal"), group: ME, permission: "" },
-  { href: "/hr/contracts", label: L("Kontrak Kerja", "Contracts"), group: HR, permission: "hr.manage" },
-  { href: "/hr/leaves", label: L("Pengajuan Cuti", "Time Off"), group: HR, permission: "hr.read" },
-  { href: "/hr/attendance", label: L("Absensi", "Attendance"), group: HR, permission: "hr.read" },
-  {
-    href: "/payroll/runs",
-    label: L("Penggajian", "Payroll Runs"),
-    group: PAYROLL,
-    permission: "payroll.read",
-  },
-  {
-    href: "/payroll/settings",
-    label: L("Pengaturan Payroll", "Payroll Settings"),
-    group: PAYROLL,
-    permission: "payroll.manage",
-  },
-  { href: "/inventory/overview", label: L("Stok", "Stock"), group: INVENTORY, permission: "inventory.read" },
-  {
-    href: "/inventory/receipts",
-    label: L("Penerimaan", "Receipts"),
-    group: INVENTORY,
-    permission: "inventory.read",
-  },
-  {
-    href: "/inventory/deliveries",
-    label: L("Pengiriman", "Deliveries"),
-    group: INVENTORY,
-    permission: "inventory.read",
-  },
-  {
-    href: "/inventory/internal",
-    label: L("Transfer Internal", "Internal Transfers"),
-    group: INVENTORY,
-    permission: "inventory.read",
-  },
-  {
-    href: "/inventory/adjustments",
-    label: L("Stock Opname", "Physical Inventory"),
-    group: INVENTORY,
-    permission: "inventory.manage",
-  },
-  {
-    href: "/inventory/card",
-    label: L("Kartu Stok", "Stock Card"),
-    group: INVENTORY,
-    permission: "inventory.read",
-  },
-  {
-    href: "/inventory/valuation",
-    label: L("Valuasi Persediaan", "Inventory Valuation"),
-    group: INVENTORY,
-    permission: "inventory.read",
-  },
-  {
-    href: "/inventory/lots",
-    label: L("Lot / Serial", "Lots / Serials"),
-    group: INVENTORY,
-    permission: "inventory.read",
-  },
-  {
-    href: "/inventory/replenishment",
-    label: L("Pengadaan Ulang", "Replenishment"),
-    group: INVENTORY,
-    permission: "inventory.read",
-  },
-  {
-    href: "/purchase/rfq",
-    label: L("Permintaan Penawaran", "Requests for Quotation"),
-    group: PURCHASE,
-    permission: "purchase.read",
-  },
-  {
-    href: "/purchase/orders",
-    label: L("Pesanan Pembelian", "Purchase Orders"),
-    group: PURCHASE,
-    permission: "purchase.read",
-  },
-  {
-    href: "/purchase/to-bill",
-    label: L("Perlu Ditagihkan", "To Bill"),
-    group: PURCHASE,
-    permission: "purchase.read",
-  },
-  {
-    href: "/purchase/matching",
-    label: L("Pencocokan 3 Arah", "3-Way Matching"),
-    group: PURCHASE,
-    permission: "purchase.read",
-  },
-  {
-    href: "/purchase/reports",
-    label: L("Analisis Pembelian", "Purchase Analysis"),
-    group: PURCHASE,
-    permission: "purchase.read",
-  },
-  { href: "/crm/pipeline", label: L("Pipeline", "Pipeline"), group: CRM, permission: "crm.read" },
-  { href: "/crm/leads", label: L("Lead", "Leads"), group: CRM, permission: "crm.read" },
-  {
-    href: "/crm/activities",
-    label: L("Aktivitas Saya", "My Activities"),
-    group: CRM,
-    permission: "crm.read",
-  },
-  {
-    href: "/crm/reports",
-    label: L("Analisis Pipeline", "Pipeline Analysis"),
-    group: CRM,
-    permission: "crm.read",
-  },
-  {
-    href: "/sales/quotations",
-    label: L("Penawaran", "Quotations"),
-    group: SALES,
-    permission: "sales.read",
-  },
-  {
-    href: "/sales/orders",
-    label: L("Pesanan Penjualan", "Sales Orders"),
-    group: SALES,
-    permission: "sales.read",
-  },
-  {
-    href: "/sales/to-invoice",
-    label: L("Perlu Ditagih", "To Invoice"),
-    group: SALES,
-    permission: "sales.read",
-  },
-  {
-    href: "/sales/pricelists",
-    label: L("Daftar Harga", "Pricelists"),
-    group: SALES,
-    permission: "sales.read",
-  },
-  {
-    href: "/sales/reports",
-    label: L("Analisis Penjualan", "Sales Analysis"),
-    group: SALES,
-    permission: "sales.read",
-  },
-  {
-    href: "/accounting/invoices",
-    label: L("Faktur Penjualan", "Customer Invoices"),
-    group: ACCOUNTING,
-    permission: "accounting.read",
-  },
-  {
-    href: "/accounting/bills",
-    label: L("Tagihan Pembelian", "Vendor Bills"),
-    group: ACCOUNTING,
-    permission: "accounting.read",
-  },
-  {
-    href: "/accounting/entries",
-    label: L("Jurnal Umum", "Journal Entries"),
-    group: ACCOUNTING,
-    permission: "accounting.read",
-  },
-  {
-    href: "/accounting/payments",
-    label: L("Pembayaran", "Payments"),
-    group: ACCOUNTING,
-    permission: "accounting.read",
-  },
-  {
-    href: "/accounting/reports",
-    label: L("Laporan Keuangan", "Financial Reports"),
-    group: ACCOUNTING,
-    permission: "accounting.read",
-  },
-  {
-    href: "/accounting/bank",
-    label: L("Mutasi Bank", "Bank Statements"),
-    group: ACCOUNTING,
-    permission: "accounting.read",
-  },
-  {
-    href: "/accounting/assets",
-    label: L("Aset Tetap", "Fixed Assets"),
-    group: ACCOUNTING,
-    permission: "accounting.read",
-  },
-  {
-    href: "/accounting/budgets",
-    label: L("Anggaran", "Budgets"),
-    group: ACCOUNTING,
-    permission: "accounting.read",
-  },
-  {
-    href: "/accounting/settings",
-    label: L("Pengaturan Akuntansi", "Accounting Settings"),
-    group: ACCOUNTING,
-    permission: "accounting.manage",
-  },
-];
-
-/** Jenis dokumen per halaman daftar. */
 export const MOVE_KINDS = {
   invoices: {
     types: ["out_invoice", "out_refund"],
