@@ -19,6 +19,8 @@ interface Row {
   incoming: string;
   outgoing: string;
   forecast: string;
+  reserved: string;
+  available: string;
   averageCost: string | null;
   value: string | null;
 }
@@ -75,7 +77,9 @@ export default function StockOverviewPage() {
             <thead>
               <tr>
                 <th>{l("Produk", "Product")}</th>
-                <th className="num">{l("Tersedia", "On hand")}</th>
+                <th className="num">{l("Di tangan", "On hand")}</th>
+                <th className="num">{l("Dicadangkan", "Reserved")}</th>
+                <th className="num">{l("Bebas", "Free")}</th>
                 <th className="num">{l("Akan masuk", "Incoming")}</th>
                 <th className="num">{l("Akan keluar", "Outgoing")}</th>
                 <th className="num">{l("Perkiraan", "Forecast")}</th>
@@ -102,6 +106,8 @@ export default function StockOverviewPage() {
                   <td className={`num${Number(r.onHand) < 0 ? " overdue" : ""}`}>
                     {n(r.onHand)} {r.uomName}
                   </td>
+                  <td className="num">{n(r.reserved)}</td>
+                  <td className="num">{n(r.available)}</td>
                   <td className="num">{n(r.incoming)}</td>
                   <td className="num">{n(r.outgoing)}</td>
                   <td className="num">{n(r.forecast)}</td>
@@ -113,7 +119,7 @@ export default function StockOverviewPage() {
             {!warehouseId && (
               <tfoot>
                 <tr>
-                  <th colSpan={6}>{l("Total nilai persediaan", "Total inventory value")}</th>
+                  <th colSpan={8}>{l("Total nilai persediaan", "Total inventory value")}</th>
                   <th className="num">{money(total, locale)}</th>
                 </tr>
               </tfoot>

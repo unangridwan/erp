@@ -21,8 +21,10 @@ import {
   type CurrencyOption,
   type ProductOption,
   type TaxOption,
+  type UomOption,
 } from "../accounting/use-options";
 import { Chatter } from "../chatter";
+import { UomPick } from "../uom-pick";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
 
@@ -37,6 +39,8 @@ interface Line {
   taxIds: string[];
   priceSubtotal: string;
   qtyReceived: string;
+  uomId: string | null;
+  uomName: string | null;
   qtyBilled: string;
 }
 interface Order {
@@ -73,7 +77,7 @@ interface Order {
   }[];
 }
 interface Preview {
-  lines: { priceUnit: string; taxIds: string[]; priceSubtotal: string }[];
+  lines: { priceUnit: string; taxIds: string[]; priceSubtotal: string; uomId: string | null }[];
   taxes: { taxId: string; name: string; amount: string }[];
   amountUntaxed: string;
   amountTotal: string;
@@ -86,6 +90,8 @@ interface FormLine {
   priceUnit: string;
   discount: string;
   taxIds: string[] | null;
+  /** Kosong = satuan beli produk. */
+  uomId: string;
 }
 
 const emptyLine = (): FormLine => ({
@@ -95,6 +101,7 @@ const emptyLine = (): FormLine => ({
   priceUnit: "",
   discount: "0",
   taxIds: null,
+  uomId: "",
 });
 const num = (v: string) => String(Number(v));
 const orNull = (v: string) => (v === "" ? null : v);
@@ -122,6 +129,7 @@ export function PurchaseForm({ id }: { id: string }) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const products = useOptions<ProductOption>("/products");
+  const uoms = useOptions<UomOption>("/uoms");
   const taxes = useOptions<TaxOption>("/taxes").filter((t) => t.typeTaxUse === "purchase");
   const terms = useOptions<{ id: string; name: string }>("/payment-terms");
   const currencies = useOptions<CurrencyOption>("/currencies");
@@ -150,6 +158,7 @@ export function PurchaseForm({ id }: { id: string }) {
             priceUnit: num(x.priceUnit),
             discount: num(x.discount),
             taxIds: x.taxIds,
+            uomId: x.uomId ?? "",
           })),
         );
       })
@@ -177,6 +186,7 @@ export function PurchaseForm({ id }: { id: string }) {
         priceUnit: x.priceUnit === "" ? null : x.priceUnit,
         discount: x.discount || "0",
         taxIds: x.taxIds ?? undefined,
+        uomId: orNull(x.uomId),
       })),
   });
 
@@ -475,7 +485,9 @@ export function PurchaseForm({ id }: { id: string }) {
                       <tr key={i}>
                         <td>{products.find((pr) => pr.id === x.productId)?.sku ?? ""}</td>
                         <td>{x.name}</td>
-                        <td className="num">{money(x.quantity, locale, 4)}</td>
+                        <td className="num">
+                          {money(x.quantity, locale, 4)} {saved?.uomName ?? ""}
+                        </td>
                         {confirmed && (
                           <td className="num">{saved ? money(saved.qtyReceived, locale, 4) : ""}</td>
                         )}
@@ -507,6 +519,7 @@ export function PurchaseForm({ id }: { id: string }) {
                               productId: e.target.value,
                               name: product?.name ?? x.name,
                               priceUnit: "",
+                              uomId: "",
                             });
                           }}
                         >
@@ -530,6 +543,18 @@ export function PurchaseForm({ id }: { id: string }) {
                           value={x.quantity}
                           onChange={(e) => setLine(i, { quantity: e.target.value })}
                         />
+                        <UomPick
+                          product={products.find((pr) => pr.id === x.productId)}
+                          uoms={uoms}
+                          value={
+                            x.uomId ||
+                            p?.uomId ||
+                            products.find((pr) => pr.id === x.productId)?.purchaseUomId ||
+                            ""
+                          }
+                          onChange={(uomId) => setLine(i, { uomId, priceUnit: "" })}
+                        />
+                        {err(`lines.${i}.uomId`)}
                       </td>
                       <td>
                         <input

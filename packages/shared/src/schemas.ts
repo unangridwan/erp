@@ -199,6 +199,10 @@ export const productSchema = z.object({
     .regex(/^\d{6}$/, "Kode barang/jasa Coretax 6 digit")
     .nullish()
     .or(z.literal("").transform(() => null)),
+  /** Satuan bawaan penjualan/pembelian (kosong = satuan produk). */
+  saleUomId: optionalUuid,
+  purchaseUomId: optionalUuid,
+  dropship: z.boolean().default(false),
   active: z.boolean().default(true),
 });
 
@@ -333,6 +337,7 @@ export const invoiceSchema = z.object({
         taxIds: z.array(z.string().uuid()).default([]),
         businessUnitId: z.string().uuid().nullish(),
         branchId: z.string().uuid().nullish(),
+        uomId: z.string().uuid().nullish(),
       }),
     )
     .min(1, "Minimal satu baris"),
@@ -592,6 +597,10 @@ export const saleOrderSchema = z.object({
         priceUnit: decimalString(4).nullish(),
         discount: nonNegative(4).default("0"),
         taxIds: z.array(z.string().uuid()).optional(),
+        /** Kosong = satuan jual produk (atau satuan produk). */
+        uomId: z.string().uuid().nullish(),
+        /** Kosong = bawaan produk; dikirim langsung dari pemasok ke pelanggan. */
+        dropship: z.boolean().optional(),
       }),
     )
     .min(1, "Minimal satu baris"),
@@ -756,6 +765,8 @@ export const purchaseOrderSchema = z.object({
         discount: nonNegative(4).default("0"),
         taxIds: z.array(z.string().uuid()).optional(),
         datePlanned: z.string().date().nullish(),
+        /** Kosong = satuan beli produk (atau satuan produk). */
+        uomId: z.string().uuid().nullish(),
       }),
     )
     .min(1, "Minimal satu baris"),

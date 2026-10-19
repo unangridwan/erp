@@ -295,6 +295,30 @@ class PickingsController {
     });
   }
 
+  /** Cek ketersediaan: cadangkan stok lokasi asal untuk transfer siap. */
+  @Post(":id/reserve")
+  @HttpCode(200)
+  @RequirePermission("inventory.write")
+  reserve(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run(async (tx) => {
+      const picking = await this.stock.lockPicking(tx, id);
+      if (picking.state !== "ready")
+        throw new BadRequestException("Hanya transfer siap yang bisa dicadangkan");
+      await this.stock.reserve(tx, id);
+      return this.query.picking(tx, id);
+    });
+  }
+
+  @Post(":id/unreserve")
+  @HttpCode(200)
+  @RequirePermission("inventory.write")
+  unreserve(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run(async (tx) => {
+      await this.stock.unreserve(tx, id);
+      return this.query.picking(tx, id);
+    });
+  }
+
   @Post(":id/cancel")
   @HttpCode(200)
   @RequirePermission("inventory.write")

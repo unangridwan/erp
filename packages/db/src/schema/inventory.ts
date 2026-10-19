@@ -4,7 +4,7 @@ import { audit, tenantId } from "./core.js";
 // FK di database berbentuk komposit (tenant_id, id); di sini cukup dideklarasikan kolomnya.
 
 export const LOCATION_USAGES = ["view", "internal", "supplier", "customer", "inventory", "transit"] as const;
-export const PICKING_TYPES = ["incoming", "outgoing", "internal"] as const;
+export const PICKING_TYPES = ["incoming", "outgoing", "internal", "dropship"] as const;
 export const PICKING_STATES = ["draft", "ready", "done", "cancel"] as const;
 
 export const stockLocations = pgTable("stock_locations", {
@@ -77,6 +77,8 @@ export const stockMoves = pgTable("stock_moves", {
   name: text("name").notNull(),
   quantity: numeric("quantity", { precision: 18, scale: 4 }).notNull(),
   quantityDone: numeric("quantity_done", { precision: 18, scale: 4 }).notNull().default("0"),
+  /** Dicadangkan dari stok lokasi asal selama pergerakan siap. */
+  quantityReserved: numeric("quantity_reserved", { precision: 18, scale: 4 }).notNull().default("0"),
   locationId: uuid("location_id").notNull(),
   locationDestId: uuid("location_dest_id").notNull(),
   state: text("state", { enum: PICKING_STATES }).notNull().default("draft"),

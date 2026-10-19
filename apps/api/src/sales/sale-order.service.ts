@@ -49,6 +49,7 @@ import {
   ownedScope,
 } from "../crm/checks.js";
 import { LeadService } from "../crm/lead.service.js";
+import { uomRatio } from "../master/uom.js";
 import { StockService, type LinkedDocument } from "../inventory/stock.service.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { renderOrderPdf } from "./order-pdf.js";
@@ -75,10 +76,14 @@ const qtyInvoiced = (lineId: PgColumn | SQL) => sql<string>`coalesce((
   from ${schema.accountMoveLines} aml join ${schema.accountMoves} m on m.id = aml.move_id
   where aml.sale_line_id = ${lineId} and aml.display_type = 'product'), 0)`;
 
-/** Kuantitas terkirim per baris pesanan: pengiriman menambah, retur pelanggan mengurangi. */
-const qtyDelivered = (lineId: PgColumn | SQL) => sql<string>`coalesce((
+/**
+ * Kuantitas terkirim per baris pesanan dalam satuan baris: pengiriman menambah, retur pelanggan mengurangi
+ * (pergerakan stok dalam satuan produk, dibagi rasio satuan baris).
+ */
+const qtyDelivered = (lineId: PgColumn | SQL) => sql<string>`(coalesce((
   select sum(case when sm.origin_return_move_id is null then sm.quantity_done else -sm.quantity_done end)
-  from ${schema.stockMoves} sm where sm.sale_line_id = ${lineId} and sm.state = 'done'), 0)`;
+  from ${schema.stockMoves} sm where sm.sale_line_id = ${lineId} and sm.state = 'done'), 0)
+  / coalesce((select x.uom_ratio from ${OL} x where x.id = ${lineId}), 1))`;
 
 /** Barang (stok/habis pakai) ditagih sebanyak yang terkirim; jasa sebanyak yang dipesan. */
 const isGoods = sql.raw(
@@ -245,8 +250,16 @@ export class SaleOrderService implements OnModuleInit {
       .innerJoin(OL, eq(OL.id, schema.accountMoveLines.saleLineId))
       .where(eq(OL.orderId, id))
       .orderBy(asc(schema.accountMoves.date));
+    const dropshipOrders = await tx
+      .select({
+        id: schema.purchaseOrders.id,
+        name: schema.purchaseOrders.name,
+        state: schema.purchaseOrders.state,
+      })
+      .from(schema.purchaseOrders)
+      .where(eq(schema.purchaseOrders.dropshipSaleOrderId, id));
     const status = await this.refreshInvoiceStatus(tx, order);
-    return { ...order, ...names, invoiceStatus: status, lines, taxes, invoices, pickings };
+    return { ...order, ...names, invoiceStatus: status, lines, taxes, invoices, pickings, dropshipOrders };
   }
 
   /** Pratinjau harga & total (onchange form) tanpa menyimpan. */
@@ -372,7 +385,12 @@ export class SaleOrderService implements OnModuleInit {
       .set({ state: "sale", confirmedAt: new Date(), invoiceStatus: "to_invoice", updatedAt: sql`now()` })
       .where(eq(O.id, id));
     const goods = lines.filter(
-      (l) => !l.isDownpayment && l.productId && l.productType !== "service" && dec(l.quantity).gt(0),
+      (l) =>
+        !l.isDownpayment &&
+        !l.dropship &&
+        l.productId &&
+        l.productType !== "service" &&
+        dec(l.quantity).gt(0),
     );
     if (goods.length) {
       await this.stock.createPicking(tx, {
@@ -383,10 +401,11 @@ export class SaleOrderService implements OnModuleInit {
         scheduledDate: order.dateOrder,
         origin: order.name,
         saleOrderId: order.id,
+        // Pergerakan stok dalam satuan produk.
         moves: goods.map((l) => ({
           productId: l.productId!,
           name: l.name,
-          quantity: l.quantity,
+          quantity: dec(l.quantity).times(l.uomRatio).toDecimalPlaces(4).toFixed(4),
           saleLineId: l.id,
         })),
       });
@@ -475,6 +494,7 @@ export class SaleOrderService implements OnModuleInit {
 
     type InvLine = {
       saleLineId: string;
+      uomId?: string | null;
       productId: string | null;
       accountId: string | null;
       name: string;
@@ -499,6 +519,7 @@ export class SaleOrderService implements OnModuleInit {
         if (remaining.lte(0)) continue;
         invLines.push({
           saleLineId: l.id,
+          uomId: l.uomId,
           productId: l.productId,
           accountId: null,
           name: l.name,
@@ -607,6 +628,7 @@ export class SaleOrderService implements OnModuleInit {
           taxIds: l.taxIds,
           businessUnitId: order.businessUnitId,
           branchId: order.branchId,
+          uomId: l.uomId ?? null,
         })),
       },
       order.companyId,
@@ -639,7 +661,12 @@ export class SaleOrderService implements OnModuleInit {
       .where(and(eq(schema.stockMoves.pickingId, picking.id), eq(schema.stockMoves.state, "done")));
     const lines = await this.lines(tx, order.id);
     const refund = lines.flatMap((l) => {
-      const qty = returned.filter((r) => r.saleLineId === l.id).reduce((sum, r) => sum.plus(r.qty), dec(0));
+      // Pergerakan dalam satuan produk → satuan baris.
+      const qty = returned
+        .filter((r) => r.saleLineId === l.id)
+        .reduce((sum, r) => sum.plus(r.qty), dec(0))
+        .div(l.uomRatio)
+        .toDecimalPlaces(4);
       const over = Decimal.min(qty, dec(l.qtyInvoiced).minus(l.qtyDelivered));
       return qty.gt(0) && over.gt(0) ? [{ l, qty: over }] : [];
     });
@@ -665,6 +692,7 @@ export class SaleOrderService implements OnModuleInit {
           taxIds: l.taxIds,
           businessUnitId: order.businessUnitId,
           branchId: order.branchId,
+          uomId: l.uomId,
         })),
       },
       order.companyId,
@@ -796,17 +824,20 @@ export class SaleOrderService implements OnModuleInit {
         line: OL,
         productName: schema.products.name,
         productType: schema.products.productType,
+        uomName: schema.uoms.name,
         qtyInvoiced: qtyInvoiced(sql`sale_order_lines.id`),
         qtyDelivered: qtyDelivered(sql`sale_order_lines.id`),
       })
       .from(OL)
       .leftJoin(schema.products, eq(schema.products.id, OL.productId))
+      .leftJoin(schema.uoms, eq(schema.uoms.id, OL.uomId))
       .where(eq(OL.orderId, orderId))
       .orderBy(asc(OL.sequence));
     return rows.map((r) => ({
       ...r.line,
       productName: r.productName,
       productType: r.productType,
+      uomName: r.uomName,
       qtyInvoiced: dec(r.qtyInvoiced).toFixed(4),
       qtyDelivered: dec(r.qtyDelivered).toFixed(4),
     }));
@@ -929,18 +960,26 @@ export class SaleOrderService implements OnModuleInit {
       if (l.productId && !product) throw fieldError(`lines.${i}.productId`, "Produk tidak ditemukan");
       const name = l.name || product?.name;
       if (!name) throw fieldError(`lines.${i}.name`, "Isi deskripsi atau pilih produk");
+      // Satuan baris: input → satuan jual produk → satuan produk.
+      const uomId = product ? (l.uomId ?? product.saleUomId ?? product.uomId) : (l.uomId ?? null);
+      const ratio = product ? await uomRatio(tx, product.uomId, uomId, `lines.${i}.uomId`) : dec(1);
       let priceUnit = l.priceUnit;
       if (priceUnit == null) {
         if (!product) throw fieldError(`lines.${i}.priceUnit`, "Isi harga satuan");
-        priceUnit = await this.pricelists.priceFor(
+        // Daftar harga berlaku per satuan produk.
+        const base = await this.pricelists.priceFor(
           tx,
           pricelist,
           product,
-          l.quantity,
+          dec(l.quantity).times(ratio).toFixed(4),
           input.dateOrder,
           books.currencyCode,
         );
+        priceUnit = dec(base).times(ratio).toFixed(4);
       }
+      const dropship = l.dropship ?? product?.dropship ?? false;
+      if (dropship && (!product || product.productType === "service"))
+        throw fieldError(`lines.${i}.dropship`, "Dropship hanya untuk barang");
       lines.push({
         sequence: i,
         productId: product?.id ?? null,
@@ -952,6 +991,9 @@ export class SaleOrderService implements OnModuleInit {
         taxIds: l.taxIds ?? defaultTaxIds,
         priceSubtotal: "0",
         isDownpayment: false,
+        uomId,
+        uomRatio: ratio.toFixed(6),
+        dropship,
       });
     }
 

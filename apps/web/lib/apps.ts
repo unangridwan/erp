@@ -129,6 +129,7 @@ export const APPS: App[] = [
         link("Penerimaan", "Receipts", "/inventory/receipts", "inventory.read"),
         link("Pengiriman", "Deliveries", "/inventory/deliveries", "inventory.read"),
         link("Transfer Internal", "Internal Transfers", "/inventory/internal", "inventory.read"),
+        link("Dropship", "Dropship", "/inventory/dropship", "inventory.read"),
         link("Stock Opname", "Physical Inventory", "/inventory/adjustments", "inventory.manage"),
         link("Pengadaan Ulang", "Replenishment", "/inventory/replenishment", "inventory.read"),
       ]),

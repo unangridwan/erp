@@ -305,7 +305,11 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   kredit → draft tagihan/nota debit terhubung baris PO (transfer stok antar perusahaan lewat pasangan SO/PO); draft nota
   kredit/debit otomatis dari retur barang yang sudah ditagih; selisih harga tagihan vs PO ke akun 5-1100; aturan komisi
   (per penjual/tim/bawaan, dasar faktur atau lunas) dan laporan komisi + Excel
-- [ ] Fase 2–3 ditunda: konversi satuan beli/jual, dropship, reservasi stok, varian produk, portal pelanggan
+- [x] Fase 3 (tunda, selesai): satuan beli/jual dengan konversi (baris SO/PO/faktur dalam satuan sekategori, stok &
+  valuasi dalam satuan produk), reservasi stok untuk transfer keluar (urut jadwal, cek ketersediaan, lepas cadangan,
+  stok tercadang tidak bisa dipakai transfer lain), dropship SO → RFQ pemasok utama → transfer pemasok → pelanggan
+  (HPP langsung sebesar harga beli)
+- [ ] Fase 2–3 ditunda: varian produk, portal pelanggan
 - [x] Fase 1 (tunda, selesai): pelepasan aset tetap — dijual (faktur pelanggan + jurnal pelepasan, laba/rugi ke akun
   4-9500, penyusutan sampai bulan sebelum pelepasan) atau dihapusbukukan; penjualan ke perusahaan grup membuat draf aset di
   buku pembeli dan laba belum terealisasinya dieliminasi di konsolidasi (berkurang seiring penyusutan pembeli); revaluasi

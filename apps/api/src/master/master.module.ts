@@ -21,6 +21,7 @@ import { assertCompanyLimit } from "../billing/limits.js";
 import { createCrudController } from "../common/crud.js";
 import { FxController, FxService } from "./fx.controller.js";
 import { RegionsController } from "./regions.controller.js";
+import { assertProductUoms } from "./uom.js";
 
 /** Tolak parent yang membuat siklus (perusahaan menjadi induk dari leluhurnya sendiri). */
 async function assertNoCompanyCycle(tx: Db, values: Record<string, unknown>, id?: string) {
@@ -171,7 +172,14 @@ const ProductsController = createCrudController({
   searchColumns: [schema.products.sku, schema.products.name, schema.products.barcode],
   orderBy: schema.products.name,
   companyColumn: schema.products.companyId,
-  refs: { companyId: schema.companies, categoryId: schema.productCategories, uomId: schema.uoms },
+  refs: {
+    companyId: schema.companies,
+    categoryId: schema.productCategories,
+    uomId: schema.uoms,
+    saleUomId: schema.uoms,
+    purchaseUomId: schema.uoms,
+  },
+  beforeSave: (tx, values, id) => assertProductUoms(tx, values, id),
 });
 
 const CurrencyRatesController = createCrudController({

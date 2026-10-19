@@ -148,6 +148,11 @@ export const products = pgTable("products", {
     .notNull()
     .default("average"),
   taxGoodsCode: text("tax_goods_code"),
+  /** Satuan bawaan baris penjualan/pembelian (kosong = satuan produk), sekategori dengan `uomId`. */
+  saleUomId: uuid("sale_uom_id"),
+  purchaseUomId: uuid("purchase_uom_id"),
+  /** Bawaan baris penjualan: dikirim langsung dari pemasok ke pelanggan. */
+  dropship: boolean("dropship").notNull().default(false),
   active: boolean("active").notNull().default(true),
   ...audit,
 });

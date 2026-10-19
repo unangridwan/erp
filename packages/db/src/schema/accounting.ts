@@ -165,6 +165,8 @@ export const accountMoveLines = pgTable("account_move_lines", {
   amountCurrency: numeric("amount_currency", { precision: 20, scale: 2 }).notNull().default("0"),
   productId: uuid("product_id"),
   quantity: numeric("quantity", { precision: 18, scale: 4 }),
+  /** Satuan kuantitas baris (kosong = satuan produk). */
+  uomId: uuid("uom_id"),
   priceUnit: numeric("price_unit", { precision: 20, scale: 4 }),
   discount: numeric("discount", { precision: 7, scale: 4 }).notNull().default("0"),
   taxIds: uuid("tax_ids").array().notNull().default([]),

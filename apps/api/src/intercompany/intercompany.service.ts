@@ -71,6 +71,7 @@ export class IntercompanyService implements OnModuleInit {
           priceUnit: l.priceUnit,
           discount: l.discount,
           taxIds: l.taxIds.length && tax ? [tax] : [],
+          uomId: l.uomId,
         })),
       }),
     );
@@ -118,6 +119,7 @@ export class IntercompanyService implements OnModuleInit {
           priceUnit: d(l.priceUnit).times(rate).toDecimalPlaces(4).toFixed(4),
           discount: l.discount,
           taxIds: l.taxIds.length && tax ? [tax] : [],
+          uomId: l.uomId,
         })),
       }),
     );
@@ -216,6 +218,7 @@ export class IntercompanyService implements OnModuleInit {
             taxIds: r.line.taxIds.length && tax ? [tax] : [],
             businessUnitId: null,
             branchId: null,
+            uomId: r.line.uomId,
           })),
         },
         target,
