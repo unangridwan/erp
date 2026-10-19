@@ -973,3 +973,51 @@ label.check {
 .content > .banner {
   margin: 12px 0;
 }
+
+/* Satuan & centang dropship di bawah kuantitas pada baris pesanan. */
+table.lines select.uom {
+  display: block;
+  width: 90px;
+  min-width: 0;
+  margin-top: 4px;
+}
+.inline-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+/* Pemilih nilai atribut untuk membuat varian produk. */
+.variant-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-top: 12px;
+}
+.variant-picker fieldset {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  padding: 6px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+code.wrap {
+  word-break: break-all;
+}
+
+/* Portal pelanggan. */
+.portal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.portal-brand {
+  font-weight: 600;
+  font-size: 18px;
+  margin-right: auto;
+}

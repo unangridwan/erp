@@ -221,7 +221,33 @@ export const RESOURCES: Resource[] = [
         display: "name",
         required: true,
       },
-      { name: "salePrice", label: L("Harga jual", "Sales price"), type: "number" },
+      {
+        name: "saleUomId",
+        label: L("Satuan jual (bawaan; sekategori)", "Sales unit (default; same category)"),
+        type: "ref",
+        resource: "uoms",
+        display: "name",
+      },
+      {
+        name: "purchaseUomId",
+        label: L("Satuan beli (bawaan; sekategori)", "Purchase unit (default; same category)"),
+        type: "ref",
+        resource: "uoms",
+        display: "name",
+      },
+      {
+        name: "dropship",
+        label: L(
+          "Dropship: dikirim pemasok langsung ke pelanggan",
+          "Dropship: vendor ships directly to customer",
+        ),
+        type: "boolean",
+      },
+      {
+        name: "salePrice",
+        label: L("Harga jual (per satuan produk)", "Sales price (per product unit)"),
+        type: "number",
+      },
       { name: "cost", label: L("Biaya", "Cost"), type: "number" },
       { name: "barcode", label: L("Barcode", "Barcode"), type: "text" },
       {
@@ -249,6 +275,55 @@ export const RESOURCES: Resource[] = [
         ],
       },
       companyScope,
+    ],
+  },
+  {
+    path: "product-attributes",
+    model: "product_attribute",
+    title: L("Atribut Produk", "Product Attributes"),
+    singular: L("Atribut", "Attribute"),
+    permission: "product",
+    group: MASTER,
+    columns: [
+      { name: "name", label: L("Nama", "Name") },
+      { name: "sequence", label: L("Urutan", "Sequence") },
+    ],
+    fields: [
+      name(),
+      {
+        name: "sequence",
+        label: L("Urutan (posisi di nama/SKU varian)", "Sequence (position in variant name/SKU)"),
+        type: "number",
+      },
+      { name: "active", label: L("Aktif", "Active"), type: "boolean" },
+    ],
+  },
+  {
+    path: "product-attribute-values",
+    model: "product_attribute_value",
+    title: L("Nilai Atribut", "Attribute Values"),
+    singular: L("Nilai atribut", "Attribute value"),
+    permission: "product",
+    group: MASTER,
+    columns: [
+      { name: "name", label: L("Nilai", "Value") },
+      { name: "code", label: L("Kode", "Code") },
+      { name: "priceExtra", label: L("Tambahan harga", "Price extra") },
+    ],
+    fields: [
+      {
+        name: "attributeId",
+        label: L("Atribut", "Attribute"),
+        type: "ref",
+        resource: "product-attributes",
+        display: "name",
+        required: true,
+      },
+      name(),
+      { name: "code", label: L("Kode SKU (mis. M, MRH)", "SKU code (e.g. M, RED)"), type: "text" },
+      { name: "priceExtra", label: L("Tambahan harga jual", "Sales price extra"), type: "number" },
+      { name: "sequence", label: L("Urutan", "Sequence"), type: "number" },
+      { name: "active", label: L("Aktif", "Active"), type: "boolean" },
     ],
   },
   {
@@ -1344,6 +1419,7 @@ export const PICKING_KINDS = {
   receipts: { type: "incoming", title: L("Penerimaan", "Receipts") },
   deliveries: { type: "outgoing", title: L("Pengiriman", "Deliveries") },
   internal: { type: "internal", title: L("Transfer Internal", "Internal Transfers") },
+  dropship: { type: "dropship", title: L("Dropship", "Dropship") },
 } as const;
 export type PickingKind = keyof typeof PICKING_KINDS;
 
@@ -1358,6 +1434,7 @@ export const PICKING_TYPE_LABEL: Record<string, Text> = {
   incoming: L("Penerimaan", "Receipt"),
   outgoing: L("Pengiriman", "Delivery"),
   internal: L("Transfer internal", "Internal transfer"),
+  dropship: L("Dropship", "Dropship"),
 };
 
 /** Halaman daftar dokumen pembelian. */

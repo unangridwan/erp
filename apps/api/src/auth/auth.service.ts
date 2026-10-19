@@ -313,6 +313,8 @@ export class AuthService {
       const { payload } = await jwtVerify(token, this.config.jwtSecret, { algorithms: ["HS256"] });
       if (typeof payload.sub !== "string" || typeof payload.tid !== "string")
         throw new Error("klaim tidak lengkap");
+      // Token portal pelanggan tidak berlaku untuk API internal.
+      if (payload.typ === "portal") throw new Error("token portal");
       return { sub: payload.sub, tid: payload.tid };
     } catch {
       throw new UnauthorizedException("Token tidak valid atau kedaluwarsa");

@@ -42,6 +42,8 @@ export const purchaseOrders = pgTable("purchase_orders", {
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
   icSaleOrderId: uuid("ic_sale_order_id"),
+  /** PO dropship: barang dikirim pemasok langsung ke pelanggan SO ini. */
+  dropshipSaleOrderId: uuid("dropship_sale_order_id"),
   createdBy: uuid("created_by"),
   ...audit,
 });
@@ -59,5 +61,10 @@ export const purchaseOrderLines = pgTable("purchase_order_lines", {
   taxIds: uuid("tax_ids").array().notNull().default([]),
   priceSubtotal: numeric("price_subtotal", { precision: 20, scale: 2 }).notNull().default("0"),
   datePlanned: date("date_planned"),
+  /** Satuan baris & rasionya ke satuan produk (faktor baris ÷ faktor produk). */
+  uomId: uuid("uom_id"),
+  uomRatio: numeric("uom_ratio", { precision: 18, scale: 6 }).notNull().default("1"),
+  /** Baris SO yang dipenuhi lewat dropship. */
+  saleLineId: uuid("sale_line_id"),
   createdAt: audit.createdAt,
 });

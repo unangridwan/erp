@@ -327,7 +327,11 @@ export class TaxInvoiceService {
       })
       .from(schema.accountMoveLines)
       .leftJoin(schema.products, eq(schema.products.id, schema.accountMoveLines.productId))
-      .leftJoin(schema.uoms, eq(schema.uoms.id, schema.products.uomId))
+      // Kode satuan Coretax mengikuti satuan baris faktur (bisa berbeda dari satuan produk).
+      .leftJoin(
+        schema.uoms,
+        eq(schema.uoms.id, sql`coalesce(${schema.accountMoveLines.uomId}, ${schema.products.uomId})`),
+      )
       .where(
         and(eq(schema.accountMoveLines.moveId, moveId), eq(schema.accountMoveLines.displayType, "product")),
       )

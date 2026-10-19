@@ -76,7 +76,8 @@ export function PickingList({ kind }: { kind: PickingKind }) {
           <option value="cancel">{l("Batal", "Cancelled")}</option>
           <option value="">{l("Semua", "All")}</option>
         </select>
-        {can(me.permissions, "inventory.write") && (
+        {/* Dropship hanya dibuat dari pesanan penjualan. */}
+        {can(me.permissions, "inventory.write") && def.type !== "dropship" && (
           <Link className="button primary" href={`/inventory/pickings/new?type=${def.type}`}>
             {l("Baru", "New")}
           </Link>

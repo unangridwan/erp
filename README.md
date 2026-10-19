@@ -116,6 +116,13 @@ Header opsional `X-Company-Id` memilih perusahaan aktif (harus termasuk perusaha
 | `GET /sale-orders/report?from=&to=&groupBy=product\|partner\|salesperson\|month`              | Analisis penjualan pesanan terkonfirmasi                                       |
 | `GET /users/options`                                                                          | Pilihan user aktif perusahaan aktif (penanggung jawab, penjual)                |
 | `/commission-plans`, `GET /sales/commissions[/export]?dateFrom=&dateTo=`                      | Aturan komisi (penjual → tim → bawaan; dasar faktur/lunas), laporan & Excel    |
+| `/product-attributes`, `/product-attribute-values`, `GET/POST /products/:id/variants`         | Varian produk: atribut & nilai (kode SKU, tambahan harga), buat kombinasi      |
+| `GET /partners/:id/portal`, `POST /partners/:id/{portal-invite,portal-revoke}`                | Akses portal pelanggan: undang (email + tautan), cabut                         |
+
+**Portal pelanggan** (`/portal` di web; token portal terpisah dari token user internal):
+`POST /portal/auth/{login,accept}`, `GET /portal/me`, `GET /portal/orders[/:id[/pdf]]`, `POST /portal/orders/:id/accept`
+(setujui penawaran terkirim; dikonfirmasi atas nama penjualnya), `GET /portal/invoices[/:id[/pdf]]`. Pelanggan hanya
+melihat dokumen partnernya (beserta kontak di bawahnya).
 
 ### Pembelian & Persediaan (Fase 3)
 
@@ -124,6 +131,7 @@ Header opsional `X-Company-Id` memilih perusahaan aktif (harus termasuk perusaha
 | `/warehouses`, `/stock-locations`, `/reorder-rules`, `/product-suppliers`                           | Gudang (otomatis membuat lokasi stok), lokasi, aturan min/max, harga pemasok bertingkat               |
 | `GET/POST /pickings`, `GET/PUT/DELETE /pickings/:id`                                                | Transfer (`pickingType` incoming/outgoing/internal); filter `state`, `saleOrderId`, `purchaseOrderId` |
 | `POST /pickings/:id/{confirm,validate,cancel,return}`                                               | Validasi (kuantitas & lot/serial per baris, `createBackorder`), batal, retur                          |
+| `POST /pickings/:id/{reserve,unreserve}`                                                            | Cek ketersediaan (cadangkan stok lokasi asal) / lepas cadangan; detail memuat `availability`          |
 | `GET /stock/{overview,quants,card,valuation,lots}`, `POST /stock/adjustments`                       | Stok, quant per lokasi/lot, kartu stok, valuasi per tanggal, lot; stock opname                        |
 | `GET /replenishment`, `POST /replenishment/run`                                                     | Saran pengadaan dari aturan min/max; buat RFQ ke pemasok utama                                        |
 | `GET/POST /purchase-orders`, `GET/PUT/DELETE /purchase-orders/:id`, `POST /purchase-orders/compute` | RFQ/PO; `compute` = pratinjau harga pemasok, pajak, total                                             |
@@ -132,6 +140,15 @@ Header opsional `X-Company-Id` memilih perusahaan aktif (harus termasuk perusaha
 
 Otomatis (tanpa endpoint baru):
 
+- **Satuan beli/jual**: produk punya `saleUomId`/`purchaseUomId` bawaan; baris SO/PO/faktur boleh memakai satuan
+  lain sekategori (`uomId`, mis. beli per Lusin, stok per Pcs). Kuantitas & harga baris dalam satuan baris; pergerakan
+  stok, valuasi, harga pemasok & daftar harga dalam satuan produk (dikonversi dengan `uomRatio`).
+- **Reservasi stok**: transfer keluar yang siap otomatis mencadangkan stok lokasi asal (urut jadwal; dicadangkan ulang
+  saat stok masuk). Transfer lain tidak bisa memakai stok yang sudah dicadangkan; ringkasan stok menampilkan
+  `reserved` & `available`.
+- **Dropship**: baris SO bertanda dropship (bawaan dari produk) tidak dikirim dari gudang; konfirmasi SO membuat draft
+  RFQ ke pemasok utama, dan PO-nya menghasilkan transfer `dropship` pemasok → pelanggan (HPP = harga beli, lawan
+  Barang Diterima Belum Ditagih; tidak lewat persediaan).
 - **Retur setelah ditagih**: validasi retur pelanggan/ke pemasok membuat draft nota kredit/nota debit sebanyak
   kelebihan tagihan, dengan harga pesanan; respons `validate` memuat `documents`.
 - **Selisih harga pembelian**: saat tagihan PO diposting, selisih nilai tagihan vs nilai penerimaan (harga PO × kurs

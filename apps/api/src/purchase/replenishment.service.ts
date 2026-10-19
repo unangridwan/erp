@@ -27,6 +27,7 @@ export class ReplenishmentService {
         rule: R,
         productName: schema.products.name,
         sku: schema.products.sku,
+        uomId: schema.products.uomId,
         warehouseCode: schema.warehouses.code,
         onHand: sql<string>`coalesce((select sum(q.quantity) from ${schema.stockQuants} q
           where q.product_id = stock_reorder_rules.product_id and ${inWarehouse("q.location_id")}), 0)::text`,
@@ -36,7 +37,7 @@ export class ReplenishmentService {
         outgoing: sql<string>`coalesce((select sum(m.quantity) from ${schema.stockMoves} m
           where m.product_id = stock_reorder_rules.product_id and m.state in ('draft', 'ready')
             and ${inWarehouse("m.location_id")} and not ${inWarehouse("m.location_dest_id")}), 0)::text`,
-        rfq: sql<string>`coalesce((select sum(pl.quantity) from ${schema.purchaseOrderLines} pl
+        rfq: sql<string>`coalesce((select sum(pl.quantity * pl.uom_ratio) from ${schema.purchaseOrderLines} pl
           join ${schema.purchaseOrders} po on po.id = pl.order_id
           where pl.product_id = stock_reorder_rules.product_id and po.warehouse_id = stock_reorder_rules.warehouse_id
             and po.state in ('draft', 'sent', 'to_approve')), 0)::text`,
@@ -77,6 +78,7 @@ export class ReplenishmentService {
         ...r.rule,
         productName: r.productName,
         sku: r.sku,
+        uomId: r.uomId,
         warehouseCode: r.warehouseCode,
         onHand: d(r.onHand).toFixed(4),
         incoming: d(r.incoming).toFixed(4),
@@ -115,7 +117,13 @@ export class ReplenishmentService {
         datePlanned: planned,
         warehouseId: first.warehouseId,
         note: "Dibuat otomatis dari aturan pemesanan ulang",
-        lines: rules.map((r) => ({ productId: r.productId, quantity: r.toOrder, discount: "0" })),
+        // Kuantitas aturan dalam satuan produk (bukan satuan beli).
+        lines: rules.map((r) => ({
+          productId: r.productId,
+          quantity: r.toOrder,
+          discount: "0",
+          uomId: r.uomId,
+        })),
       });
       orderIds.push(order.id);
     }

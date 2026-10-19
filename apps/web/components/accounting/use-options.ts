@@ -40,6 +40,17 @@ export interface ProductOption {
   name: string;
   salePrice: string;
   cost: string;
+  uomId: string;
+  saleUomId: string | null;
+  purchaseUomId: string | null;
+  dropship: boolean;
+  /** Produk induk varian: tidak dipilih langsung di dokumen. */
+  isVariantTemplate: boolean;
+}
+export interface UomOption {
+  id: string;
+  name: string;
+  categoryId: string;
 }
 export interface CurrencyOption {
   code: string;

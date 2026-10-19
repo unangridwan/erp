@@ -22,6 +22,7 @@ interface Move {
   name: string;
   quantity: string;
   quantityDone: string;
+  quantityReserved: string;
   priceUnit: string | null;
   unitCost: string | null;
   value: string | null;
@@ -32,8 +33,10 @@ interface Move {
 interface Picking {
   id: string;
   name: string;
-  pickingType: "incoming" | "outgoing" | "internal";
+  pickingType: "incoming" | "outgoing" | "internal" | "dropship";
   state: "draft" | "ready" | "done" | "cancel";
+  /** Ketersediaan stok untuk barang keluar dari lokasi internal (null = tidak relevan). */
+  availability: "available" | "partial" | "waiting" | null;
   warehouseId: string;
   partnerId: string | null;
   partnerName: string | null;
@@ -63,6 +66,7 @@ interface Product {
   sku: string;
   name: string;
   productType: string;
+  isVariantTemplate: boolean;
 }
 interface Location {
   id: string;
@@ -101,7 +105,9 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
   const [lotOptions, setLotOptions] = useState<
     Record<string, { id: string; name: string; onHand: string }[]>
   >({});
-  const products = useOptions<Product>("/products").filter((p) => p.productType !== "service");
+  const products = useOptions<Product>("/products").filter(
+    (p) => p.productType !== "service" && !p.isVariantTemplate,
+  );
   const warehouses = useOptions<{ id: string; code: string; name: string }>("/warehouses");
   const internal = useOptions<Location>("/stock-locations?usage=internal");
 
@@ -307,6 +313,17 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
               </span>
             )}
             <span className="badge">{tx(PICKING_TYPE_LABEL[type]!)}</span>
+            {picking?.state === "ready" && picking.availability && (
+              <span
+                className={`badge ${picking.availability === "available" ? "state-posted" : picking.availability === "partial" ? "state-sent" : "state-cancel"}`}
+              >
+                {picking.availability === "available"
+                  ? l("Stok tersedia", "Available")
+                  : picking.availability === "partial"
+                    ? l("Tersedia sebagian", "Partially available")
+                    : l("Menunggu stok", "Waiting")}
+              </span>
+            )}
             {editable && (
               <button className="primary" disabled={busy}>
                 {l("Simpan", "Save")}
@@ -322,6 +339,21 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
                 {l("Validasi", "Validate")}
               </button>
             )}
+            {picking?.state === "ready" &&
+              writable &&
+              picking.availability &&
+              picking.availability !== "available" && (
+                <button type="button" disabled={busy} onClick={() => action("reserve")}>
+                  {l("Cek ketersediaan", "Check availability")}
+                </button>
+              )}
+            {picking?.state === "ready" &&
+              writable &&
+              picking.moves.some((m) => Number(m.quantityReserved) > 0) && (
+                <button type="button" disabled={busy} onClick={() => action("unreserve")}>
+                  {l("Lepas cadangan", "Unreserve")}
+                </button>
+              )}
             {workable && (
               <button
                 type="button"
@@ -334,23 +366,27 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
                 {l("Batalkan", "Cancel")}
               </button>
             )}
-            {picking?.state === "done" && picking.pickingType !== "internal" && writable && !returnQty && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  setReturnQty(
-                    Object.fromEntries(
-                      picking.moves
-                        .filter((m) => m.state === "done")
-                        .map((m) => [m.id, num(String(Number(m.quantityDone) - Number(m.returnedQty)))]),
-                    ),
-                  )
-                }
-              >
-                {l("Retur", "Return")}
-              </button>
-            )}
+            {picking?.state === "done" &&
+              picking.pickingType !== "internal" &&
+              picking.pickingType !== "dropship" &&
+              writable &&
+              !returnQty && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    setReturnQty(
+                      Object.fromEntries(
+                        picking.moves
+                          .filter((m) => m.state === "done")
+                          .map((m) => [m.id, num(String(Number(m.quantityDone) - Number(m.returnedQty)))]),
+                      ),
+                    )
+                  }
+                >
+                  {l("Retur", "Return")}
+                </button>
+              )}
             {picking && editable && (
               <button
                 type="button"
@@ -600,6 +636,9 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
                     <tr>
                       <th>{l("Produk", "Product")}</th>
                       <th className="num">{l("Diminta", "Demand")}</th>
+                      {picking.state === "ready" && picking.availability && (
+                        <th className="num">{l("Dicadangkan", "Reserved")}</th>
+                      )}
                       <th className="num">{l("Dikerjakan", "Done")}</th>
                       <th>{l("Lot / serial", "Lot / serial")}</th>
                       {picking.state === "done" && <th className="num">{l("Biaya/unit", "Unit cost")}</th>}
@@ -624,6 +663,9 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
                           <td className="num">
                             {num(m.quantity)} {m.uomName}
                           </td>
+                          {picking.state === "ready" && picking.availability && (
+                            <td className="num">{num(m.quantityReserved)}</td>
+                          )}
                           <td className="num">
                             {active ? (
                               <input

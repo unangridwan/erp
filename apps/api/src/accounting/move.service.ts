@@ -562,6 +562,7 @@ export class MoveService {
           name: l.name,
           productId: l.productId ?? null,
           quantity: l.quantity,
+          uomId: l.uomId ?? null,
           priceUnit: l.priceUnit,
           discount: l.discount,
           taxIds: l.taxIds,

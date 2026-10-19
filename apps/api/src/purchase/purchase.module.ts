@@ -28,6 +28,8 @@ import { parse } from "../common/zod.js";
 import { InventoryModule } from "../inventory/inventory.module.js";
 import { MasterModule } from "../master/master.module.js";
 import { SequenceService } from "../sequences/sequence.service.js";
+import { DropshipService } from "./dropship.service.js";
+import { SalesModule } from "../sales/sales.module.js";
 import { PurchaseOrderService, type PurchaseQuery } from "./purchase-order.service.js";
 import { ReplenishmentService } from "./replenishment.service.js";
 
@@ -216,9 +218,9 @@ class ReplenishmentController {
 }
 
 @Module({
-  imports: [MasterModule, AccountingModule, InventoryModule],
+  imports: [MasterModule, AccountingModule, InventoryModule, SalesModule],
   controllers: [ProductSuppliersController, PurchaseOrdersController, ReplenishmentController],
-  providers: [ActivityService, SequenceService, PurchaseOrderService, ReplenishmentService],
+  providers: [ActivityService, SequenceService, PurchaseOrderService, ReplenishmentService, DropshipService],
   exports: [PurchaseOrderService],
 })
 export class PurchaseModule {}

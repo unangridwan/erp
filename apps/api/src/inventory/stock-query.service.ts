@@ -29,7 +29,7 @@ export class StockQueryService {
     const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
     const offset = Math.max(Number(query.offset) || 0, 0);
     const filters: (SQL | undefined)[] = [eq(P.companyId, currentContext().companyId)];
-    if (query.pickingType && ["incoming", "outgoing", "internal"].includes(query.pickingType))
+    if (query.pickingType && ["incoming", "outgoing", "internal", "dropship"].includes(query.pickingType))
       filters.push(eq(P.pickingType, query.pickingType as "incoming"));
     const states = (query.state ?? "")
       .split(",")
@@ -87,12 +87,14 @@ export class StockQueryService {
         tracking: schema.products.tracking,
         productType: schema.products.productType,
         uomName: schema.uoms.name,
+        sourceUsage: schema.stockLocations.usage,
         returnedQty: sql<string>`coalesce((select sum(case when r.state = 'done' then r.quantity_done else r.quantity end)
           from ${M} r where r.origin_return_move_id = stock_moves.id and r.state <> 'cancel'), 0)::text`,
       })
       .from(M)
       .innerJoin(schema.products, eq(schema.products.id, M.productId))
       .innerJoin(schema.uoms, eq(schema.uoms.id, schema.products.uomId))
+      .innerJoin(schema.stockLocations, eq(schema.stockLocations.id, M.locationId))
       .where(eq(M.pickingId, id))
       .orderBy(asc(M.createdAt));
     const lots = moves.length
@@ -149,8 +151,20 @@ export class StockQueryService {
             .where(eq(schema.accountMoves.id, row.picking.accountMoveId))
         )[0]
       : null;
+    // Ketersediaan: hanya untuk barang stok yang keluar dari lokasi internal pada transfer siap.
+    const reservable = moves.filter(
+      (m) => m.move.state === "ready" && m.productType === "storable" && m.sourceUsage === "internal",
+    );
+    const availability = !reservable.length
+      ? null
+      : reservable.every((m) => d(m.move.quantityReserved).gte(m.move.quantity))
+        ? ("available" as const)
+        : reservable.some((m) => d(m.move.quantityReserved).gt(0))
+          ? ("partial" as const)
+          : ("waiting" as const);
     return {
       ...row.picking,
+      availability,
       partnerName: row.partnerName,
       locationName: locations.find((l) => l.id === row.picking.locationId)?.completeName ?? "",
       locationDestName: locations.find((l) => l.id === row.picking.locationDestId)?.completeName ?? "",
@@ -203,6 +217,8 @@ export class StockQueryService {
         outgoing: sql<string>`coalesce((select sum(m.quantity) from ${M} m
           where m.product_id = products.id and m.state = 'ready' and ${internal("m.location_id")}
             and not ${internal("m.location_dest_id")}), 0)::text`,
+        reserved: sql<string>`coalesce((select sum(m.quantity_reserved) from ${M} m
+          where m.product_id = products.id and m.state = 'ready' and ${internal("m.location_id")}), 0)::text`,
         value: sql<string>`coalesce((select sum(v.value) from ${schema.stockValuationLayers} v
           where v.product_id = products.id and v.company_id = ${ctx.companyId}), 0)::text`,
         valuedQty: sql<string>`coalesce((select sum(v.quantity) from ${schema.stockValuationLayers} v
@@ -217,6 +233,8 @@ export class StockQueryService {
     return rows.map((r) => ({
       ...r,
       forecast: d(r.onHand).plus(r.incoming).minus(r.outgoing).toFixed(4),
+      reserved: d(r.reserved).toFixed(4),
+      available: d(r.onHand).minus(r.reserved).toFixed(4),
       averageCost: d(r.valuedQty).gt(0) ? d(r.value).div(r.valuedQty).toDecimalPlaces(4).toFixed(4) : null,
       // Nilai per gudang tidak dihitung: valuasi berlaku per perusahaan.
       value: wh ? null : d(r.value).toFixed(2),

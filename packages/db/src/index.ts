@@ -16,6 +16,7 @@ export {
   isNull,
   lte,
   ne,
+  notInArray,
   or,
   sql,
   type SQL,

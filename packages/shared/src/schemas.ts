@@ -57,6 +57,20 @@ export const acceptInviteSchema = z.object({
   password: z.string().min(8).max(200),
 });
 
+// ---- Portal pelanggan ----
+
+export const portalLoginSchema = z.object({
+  tenantSlug: z.string().trim().toLowerCase().min(1),
+  email: z.string().trim().toLowerCase().email(),
+  password: z.string().min(1),
+});
+
+/** Undang kontak pelanggan ke portal (email bawaan dari partner). */
+export const portalInviteSchema = z.object({
+  email: z.string().trim().toLowerCase().email().optional(),
+  name: z.string().trim().min(2).max(200).optional(),
+});
+
 export const currencyRateSchema = z.object({
   currencyCode: z.string().trim().length(3).toUpperCase(),
   rateDate: z.string().date(),
@@ -199,7 +213,38 @@ export const productSchema = z.object({
     .regex(/^\d{6}$/, "Kode barang/jasa Coretax 6 digit")
     .nullish()
     .or(z.literal("").transform(() => null)),
+  /** Satuan bawaan penjualan/pembelian (kosong = satuan produk). */
+  saleUomId: optionalUuid,
+  purchaseUomId: optionalUuid,
+  dropship: z.boolean().default(false),
   active: z.boolean().default(true),
+});
+
+export const productAttributeSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  sequence: z.coerce.number().int().min(0).max(10000).default(10),
+  active: z.boolean().default(true),
+});
+
+export const productAttributeValueSchema = z.object({
+  attributeId: z.string().uuid(),
+  name: z.string().trim().min(1).max(100),
+  /** Kode pendek untuk SKU varian (kosong = dari nama). */
+  code: z
+    .string()
+    .trim()
+    .max(20)
+    .regex(/^[A-Za-z0-9]*$/, "Huruf/angka saja")
+    .nullish()
+    .or(z.literal("").transform(() => null)),
+  sequence: z.coerce.number().int().min(0).max(10000).default(10),
+  priceExtra: money.default("0"),
+  active: z.boolean().default(true),
+});
+
+/** Buat varian dari kombinasi nilai atribut (satu daftar nilai per atribut). */
+export const generateVariantsSchema = z.object({
+  values: z.array(z.array(z.string().uuid()).min(1)).min(1, "Pilih minimal satu atribut"),
 });
 
 export const userCreateSchema = z.object({
@@ -333,6 +378,7 @@ export const invoiceSchema = z.object({
         taxIds: z.array(z.string().uuid()).default([]),
         businessUnitId: z.string().uuid().nullish(),
         branchId: z.string().uuid().nullish(),
+        uomId: z.string().uuid().nullish(),
       }),
     )
     .min(1, "Minimal satu baris"),
@@ -592,6 +638,10 @@ export const saleOrderSchema = z.object({
         priceUnit: decimalString(4).nullish(),
         discount: nonNegative(4).default("0"),
         taxIds: z.array(z.string().uuid()).optional(),
+        /** Kosong = satuan jual produk (atau satuan produk). */
+        uomId: z.string().uuid().nullish(),
+        /** Kosong = bawaan produk; dikirim langsung dari pemasok ke pelanggan. */
+        dropship: z.boolean().optional(),
       }),
     )
     .min(1, "Minimal satu baris"),
@@ -756,6 +806,8 @@ export const purchaseOrderSchema = z.object({
         discount: nonNegative(4).default("0"),
         taxIds: z.array(z.string().uuid()).optional(),
         datePlanned: z.string().date().nullish(),
+        /** Kosong = satuan beli produk (atau satuan produk). */
+        uomId: z.string().uuid().nullish(),
       }),
     )
     .min(1, "Minimal satu baris"),

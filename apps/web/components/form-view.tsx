@@ -7,6 +7,7 @@ import { api, ApiError } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { canWrite, type Field, type Resource } from "../lib/resources";
 import { Chatter } from "./chatter";
+import { FormExtras } from "./form-extras";
 import { useMe } from "./me-context";
 import { RefSelect } from "./ref-select";
 
@@ -119,21 +120,24 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
         </div>
       </header>
       <div className="form-layout">
-        <form id="record-form" className="panel" onSubmit={onSubmit}>
-          {error && <p className="error">{error}</p>}
-          <fieldset disabled={!editable} className="fields">
-            {resource.fields.map((f) => (
-              <label key={f.name} className={f.type === "boolean" ? "field check" : "field"}>
-                <span>
-                  {tx(f.label)}
-                  {"required" in f && f.required ? " *" : ""}
-                </span>
-                <FieldInput field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} />
-                {fieldErrors[f.name] && <small className="error">{fieldErrors[f.name]}</small>}
-              </label>
-            ))}
-          </fieldset>
-        </form>
+        <div className="stack-wide">
+          <form id="record-form" className="panel" onSubmit={onSubmit}>
+            {error && <p className="error">{error}</p>}
+            <fieldset disabled={!editable} className="fields">
+              {resource.fields.map((f) => (
+                <label key={f.name} className={f.type === "boolean" ? "field check" : "field"}>
+                  <span>
+                    {tx(f.label)}
+                    {"required" in f && f.required ? " *" : ""}
+                  </span>
+                  <FieldInput field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} />
+                  {fieldErrors[f.name] && <small className="error">{fieldErrors[f.name]}</small>}
+                </label>
+              ))}
+            </fieldset>
+          </form>
+          {!isNew && <FormExtras path={resource.path} id={id} />}
+        </div>
         {!isNew && (
           <Chatter
             model={resource.model}

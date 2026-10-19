@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { and, asc, eq, gt, inArray, isNull, ne, schema, sql, type Db } from "@erp/db";
+import { and, asc, eq, gt, inArray, isNull, ne, notInArray, schema, sql, type Db } from "@erp/db";
 import {
   averageAfterIn,
   fifoConsume,
@@ -16,6 +16,7 @@ import { MoveService } from "../accounting/move.service.js";
 import { currentContext } from "../common/request-context.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { virtualLocation } from "./setup.js";
+import { assertNotTemplate } from "../master/variant.service.js";
 
 type Picking = typeof schema.stockPickings.$inferSelect;
 type Move = typeof schema.stockMoves.$inferSelect;
@@ -28,7 +29,12 @@ type LotInput = NonNullable<NonNullable<ValidateInput["moves"]>[number]["lots"]>
 
 const d = (v: Decimal.Value) => new Decimal(v);
 const money = (v: Decimal) => v.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-const PREFIX: Record<PickingType, string> = { incoming: "IN", outgoing: "OUT", internal: "INT" };
+const PREFIX: Record<PickingType, string> = {
+  incoming: "IN",
+  outgoing: "OUT",
+  internal: "INT",
+  dropship: "DS",
+};
 
 /** Data pergerakan baru (untuk transfer dari penjualan/pembelian/retur). */
 export interface NewMove {
@@ -84,6 +90,11 @@ export class StockService {
         locationId: wh.lotStockId,
         locationDestId: (await virtualLocation(tx, companyId, "customer")).id,
       };
+    if (type === "dropship")
+      return {
+        locationId: (await virtualLocation(tx, companyId, "supplier")).id,
+        locationDestId: (await virtualLocation(tx, companyId, "customer")).id,
+      };
     return { locationId: wh.lotStockId, locationDestId: wh.lotStockId };
   }
 
@@ -130,6 +141,7 @@ export class StockService {
       const p = products.find((x) => x.id === m.productId);
       if (!p || (p.companyId && p.companyId !== input.companyId))
         throw fieldError("moves", "Produk tidak ditemukan");
+      assertNotTemplate(p, "moves");
       return p.productType !== "service" && d(m.quantity).gt(0);
     });
     if (!stockable.length) return null;
@@ -180,6 +192,7 @@ export class StockService {
         reference: name,
       })),
     );
+    if (state === "ready") await this.reserve(tx, picking!.id);
     await this.activity.log(tx, { resModel: "stock_picking", resId: picking!.id, action: "create" });
     return picking!;
   }
@@ -210,7 +223,7 @@ export class StockService {
   async updateDraft(tx: Db, id: string, input: PickingInput) {
     const picking = await this.lockPicking(tx, id);
     if (picking.state !== "draft") throw new BadRequestException("Hanya transfer draft yang bisa diubah");
-    if (picking.saleOrderId || picking.purchaseOrderId)
+    if (picking.saleOrderId || picking.purchaseOrderId || picking.pickingType === "dropship")
       throw new BadRequestException("Transfer dari pesanan diubah lewat pesanannya");
     await tx.delete(schema.stockPickings).where(eq(schema.stockPickings.id, id));
     // Nomor lama dipertahankan agar tidak terjadi celah penomoran.
@@ -238,6 +251,92 @@ export class StockService {
       .update(schema.stockMoves)
       .set({ state: "ready" })
       .where(and(eq(schema.stockMoves.pickingId, id), ne(schema.stockMoves.state, "cancel")));
+    await this.reserve(tx, id);
+  }
+
+  // ---- Reservasi ----
+
+  /**
+   * Cadangkan stok untuk pergerakan siap dari lokasi internal (barang stok): sebanyak kebutuhan, dibatasi stok
+   * lokasi asal yang belum dicadangkan pergerakan lain. Transfer lain tidak bisa memakai stok yang sudah dicadangkan.
+   */
+  async reserve(tx: Db, pickingId: string) {
+    const rows = await tx
+      .select({ move: schema.stockMoves, productType: schema.products.productType })
+      .from(schema.stockMoves)
+      .innerJoin(schema.products, eq(schema.products.id, schema.stockMoves.productId))
+      .innerJoin(schema.stockLocations, eq(schema.stockLocations.id, schema.stockMoves.locationId))
+      .where(
+        and(
+          eq(schema.stockMoves.pickingId, pickingId),
+          eq(schema.stockMoves.state, "ready"),
+          eq(schema.stockLocations.usage, "internal"),
+        ),
+      )
+      .orderBy(asc(schema.stockMoves.createdAt));
+    for (const { move, productType } of rows) {
+      if (productType !== "storable") continue;
+      const free = await this.freeQty(tx, move.locationId, move.productId, [move.id]);
+      const reserved = Decimal.max(0, Decimal.min(move.quantity, free));
+      if (!reserved.equals(move.quantityReserved))
+        await tx
+          .update(schema.stockMoves)
+          .set({ quantityReserved: reserved.toFixed(4) })
+          .where(eq(schema.stockMoves.id, move.id));
+    }
+  }
+
+  /** Lepas cadangan transfer (stoknya bisa dipakai transfer lain). */
+  async unreserve(tx: Db, pickingId: string) {
+    const picking = await this.lockPicking(tx, pickingId);
+    if (picking.state !== "ready") throw new BadRequestException("Hanya transfer siap yang punya cadangan");
+    await tx
+      .update(schema.stockMoves)
+      .set({ quantityReserved: "0" })
+      .where(and(eq(schema.stockMoves.pickingId, pickingId), eq(schema.stockMoves.state, "ready")));
+  }
+
+  /** Stok lokasi yang belum dicadangkan pergerakan siap lain (selain `exclude`). */
+  private async freeQty(tx: Db, locationId: string, productId: string, exclude: string[]) {
+    const [onHand] = await tx
+      .select({ qty: sql<string>`coalesce(sum(${schema.stockQuants.quantity}), 0)` })
+      .from(schema.stockQuants)
+      .where(and(eq(schema.stockQuants.locationId, locationId), eq(schema.stockQuants.productId, productId)));
+    const [reserved] = await tx
+      .select({ qty: sql<string>`coalesce(sum(${schema.stockMoves.quantityReserved}), 0)` })
+      .from(schema.stockMoves)
+      .where(
+        and(
+          eq(schema.stockMoves.locationId, locationId),
+          eq(schema.stockMoves.productId, productId),
+          eq(schema.stockMoves.state, "ready"),
+          exclude.length ? notInArray(schema.stockMoves.id, exclude) : undefined,
+        ),
+      );
+    return d(onHand?.qty ?? 0).minus(reserved?.qty ?? 0);
+  }
+
+  /** Setelah stok bertambah: cadangkan ulang transfer yang masih menunggu, urut jadwal. */
+  private async reserveWaiting(tx: Db, companyId: string, productIds: string[]) {
+    if (!productIds.length) return;
+    const waiting = await tx
+      .selectDistinct({
+        id: schema.stockPickings.id,
+        scheduledDate: schema.stockPickings.scheduledDate,
+        createdAt: schema.stockPickings.createdAt,
+      })
+      .from(schema.stockMoves)
+      .innerJoin(schema.stockPickings, eq(schema.stockPickings.id, schema.stockMoves.pickingId))
+      .where(
+        and(
+          eq(schema.stockMoves.companyId, companyId),
+          eq(schema.stockMoves.state, "ready"),
+          inArray(schema.stockMoves.productId, productIds),
+          sql`${schema.stockMoves.quantityReserved} < ${schema.stockMoves.quantity}`,
+        ),
+      )
+      .orderBy(asc(schema.stockPickings.scheduledDate), asc(schema.stockPickings.createdAt));
+    for (const p of waiting) await this.reserve(tx, p.id);
   }
 
   async cancel(tx: Db, id: string) {
@@ -248,7 +347,10 @@ export class StockService {
       .update(schema.stockPickings)
       .set({ state: "cancel", updatedAt: sql`now()` })
       .where(eq(schema.stockPickings.id, id));
-    await tx.update(schema.stockMoves).set({ state: "cancel" }).where(eq(schema.stockMoves.pickingId, id));
+    await tx
+      .update(schema.stockMoves)
+      .set({ state: "cancel", quantityReserved: "0" })
+      .where(eq(schema.stockMoves.pickingId, id));
     await this.activity.log(tx, {
       resModel: "stock_picking",
       resId: id,
@@ -308,6 +410,7 @@ export class StockService {
       if (qtyDone.lt(move.quantity)) remaining.push({ move, quantity: d(move.quantity).minus(qtyDone) });
     }
     if (!done.length) throw new BadRequestException("Isi kuantitas yang dipindahkan minimal satu baris");
+    await this.assertNotReservedElsewhere(tx, picking, moves, done);
 
     const date = new Date();
     for (const r of remaining) {
@@ -362,6 +465,8 @@ export class StockService {
       action: "update",
       message: backorderId ? "Divalidasi sebagian; sisa dibuat sebagai backorder" : "Divalidasi",
     });
+    // Stok yang baru masuk dicadangkan untuk transfer yang menunggu.
+    await this.reserveWaiting(tx, picking.companyId, [...new Set(done.map((x) => x.product.id))]);
     const documents: LinkedDocument[] = [];
     for (const hook of this.validateHooks) {
       const doc = await hook(tx, { ...picking, state: "done" });
@@ -370,10 +475,36 @@ export class StockService {
     return { backorderId, documents };
   }
 
+  /** Barang keluar dari lokasi internal tidak boleh memakai stok yang dicadangkan transfer lain. */
+  private async assertNotReservedElsewhere(tx: Db, picking: Picking, moves: Move[], done: DoneMove[]) {
+    const need = new Map<string, { locationId: string; product: Product; qty: Decimal }>();
+    for (const { move, product } of done) {
+      if (product.productType !== "storable") continue;
+      const key = `${move.locationId}/${product.id}`;
+      const entry = need.get(key) ?? { locationId: move.locationId, product, qty: d(0) };
+      entry.qty = entry.qty.plus(move.quantityDone);
+      need.set(key, entry);
+    }
+    const own = moves.map((m) => m.id);
+    for (const { locationId, product, qty } of need.values()) {
+      const location = await this.location(tx, locationId, picking.companyId);
+      if (location.usage !== "internal") continue;
+      const free = await this.freeQty(tx, locationId, product.id, own);
+      if (qty.gt(free))
+        throw new BadRequestException(
+          `Stok ${product.name} di ${location.completeName} tidak cukup: yang belum dicadangkan transfer lain ${Decimal.max(free, 0).toFixed()}, dibutuhkan ${qty.toFixed()}`,
+        );
+    }
+  }
+
   /** Retur transfer selesai: barang kembali ke lokasi asal, dinilai dengan biaya pergerakan aslinya. */
   async createReturn(tx: Db, id: string, input: z.infer<typeof returnPickingSchema>) {
     const picking = await this.lockPicking(tx, id);
     if (picking.state !== "done") throw new BadRequestException("Hanya transfer selesai yang bisa diretur");
+    if (picking.pickingType === "dropship")
+      throw new BadRequestException(
+        "Dropship diretur lewat nota kredit pelanggan dan retur ke pemasok secara manual",
+      );
     if (picking.pickingType === "internal")
       throw new BadRequestException("Transfer internal dikembalikan dengan transfer internal baru");
     const originals = await tx
@@ -537,6 +668,29 @@ export class StockService {
       let value: Decimal | null = null;
       const incoming = src.usage !== "internal" && dest.usage === "internal";
       const outgoing = src.usage === "internal" && dest.usage !== "internal";
+      // Dropship: barang tidak pernah masuk gudang; langsung dibebankan ke HPP sebesar harga beli.
+      if (product.productType === "storable" && src.usage === "supplier" && dest.usage === "customer") {
+        if (!s.cogsAccountId || !s.stockInputAccountId)
+          throw new BadRequestException("Akun persediaan belum diatur di pengaturan akuntansi");
+        unitCost = d(move.priceUnit ?? (await this.currentCost(tx, companyId, product)));
+        value = money(qty.times(unitCost));
+        journalLines.push(
+          {
+            accountId: s.cogsAccountId,
+            debit: value,
+            credit: d(0),
+            name: `${product.name} (${qty.toFixed(0)}, dropship)`,
+            partnerId: null,
+          },
+          {
+            accountId: s.stockInputAccountId,
+            debit: d(0),
+            credit: value,
+            name: product.name,
+            partnerId: ctx.partnerId,
+          },
+        );
+      }
       if (product.productType === "storable" && (incoming || outgoing)) {
         await this.lockCost(tx, companyId, product.id);
         const counterpart = (usage: string) => {
@@ -635,6 +789,7 @@ export class StockService {
           date: ctx.date,
           unitCost: unitCost?.toFixed(4) ?? null,
           value: value?.toFixed(2) ?? null,
+          quantityReserved: "0",
         })
         .where(eq(schema.stockMoves.id, move.id));
     }

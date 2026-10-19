@@ -1,12 +1,25 @@
-import { BadRequestException, Controller, Get, Inject, Module } from "@nestjs/common";
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Module,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from "@nestjs/common";
 import { asc, eq, schema, type Db } from "@erp/db";
 import {
   branchSchema,
   businessUnitSchema,
   companySchema,
   currencyRateSchema,
+  generateVariantsSchema,
   ownershipSchema,
   partnerSchema,
+  productAttributeSchema,
+  productAttributeValueSchema,
   productCategorySchema,
   productSchema,
   uomSchema,
@@ -21,6 +34,10 @@ import { assertCompanyLimit } from "../billing/limits.js";
 import { createCrudController } from "../common/crud.js";
 import { FxController, FxService } from "./fx.controller.js";
 import { RegionsController } from "./regions.controller.js";
+import { assertProductUoms } from "./uom.js";
+import { VariantService } from "./variant.service.js";
+import { RequirePermission } from "../auth/decorators.js";
+import { parse } from "../common/zod.js";
 
 /** Tolak parent yang membuat siklus (perusahaan menjadi induk dari leluhurnya sendiri). */
 async function assertNoCompanyCycle(tx: Db, values: Record<string, unknown>, id?: string) {
@@ -171,8 +188,60 @@ const ProductsController = createCrudController({
   searchColumns: [schema.products.sku, schema.products.name, schema.products.barcode],
   orderBy: schema.products.name,
   companyColumn: schema.products.companyId,
-  refs: { companyId: schema.companies, categoryId: schema.productCategories, uomId: schema.uoms },
+  refs: {
+    companyId: schema.companies,
+    categoryId: schema.productCategories,
+    uomId: schema.uoms,
+    saleUomId: schema.uoms,
+    purchaseUomId: schema.uoms,
+  },
+  beforeSave: (tx, values, id) => assertProductUoms(tx, values, id),
 });
+
+const ProductAttributesController = createCrudController({
+  path: "product-attributes",
+  model: "product_attribute",
+  table: schema.productAttributes,
+  schema: productAttributeSchema,
+  read: "product.read",
+  write: "product.write",
+  searchColumns: [schema.productAttributes.name],
+  orderBy: schema.productAttributes.sequence,
+});
+
+const ProductAttributeValuesController = createCrudController({
+  path: "product-attribute-values",
+  model: "product_attribute_value",
+  table: schema.productAttributeValues,
+  schema: productAttributeValueSchema,
+  read: "product.read",
+  write: "product.write",
+  searchColumns: [schema.productAttributeValues.name],
+  orderBy: schema.productAttributeValues.sequence,
+  refs: { attributeId: schema.productAttributes },
+});
+
+/** Varian produk: daftar & pembuatan dari kombinasi nilai atribut. */
+@Controller("products")
+class ProductVariantsController {
+  constructor(
+    @Inject(TenantDb) private readonly tenantDb: TenantDb,
+    @Inject(VariantService) private readonly variants: VariantService,
+  ) {}
+
+  @Get(":id/variants")
+  @RequirePermission("product.read")
+  list(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.variants.list(tx, id));
+  }
+
+  @Post(":id/variants")
+  @RequirePermission("product.write")
+  generate(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(generateVariantsSchema, body);
+    return this.tenantDb.run((tx) => this.variants.generate(tx, id, input));
+  }
+}
 
 const CurrencyRatesController = createCrudController({
   path: "currency-rates",
@@ -219,12 +288,15 @@ class CurrenciesController {
     UomCategoriesController,
     UomsController,
     ProductsController,
+    ProductVariantsController,
+    ProductAttributesController,
+    ProductAttributeValuesController,
     CurrenciesController,
     CurrencyRatesController,
     FxController,
     RegionsController,
   ],
-  providers: [ActivityService, FxService],
+  providers: [ActivityService, FxService, VariantService],
   exports: [FxService],
 })
 export class MasterModule {}

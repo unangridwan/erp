@@ -14,9 +14,11 @@ import {
   ORDER_STATE_LABEL,
   PAYMENT_STATE_LABEL,
   PICKING_STATE_LABEL,
+  PURCHASE_STATE_LABEL,
 } from "../../lib/resources";
 import { download } from "../accounting/download";
-import { useOptions, type ProductOption, type TaxOption } from "../accounting/use-options";
+import { useOptions, type ProductOption, type TaxOption, type UomOption } from "../accounting/use-options";
+import { UomPick } from "../uom-pick";
 import { Chatter } from "../chatter";
 import { ActivitiesPanel } from "../crm/activities-panel";
 import { useMe } from "../me-context";
@@ -35,6 +37,9 @@ interface OrderLine {
   qtyInvoiced: string;
   qtyDelivered: string;
   productType: string | null;
+  uomId: string | null;
+  uomName: string | null;
+  dropship: boolean;
 }
 interface Order {
   id: string;
@@ -62,6 +67,7 @@ interface Order {
   deliveryStatus: string;
   warehouseId: string | null;
   pickings: { id: string; name: string; state: string; pickingType: string; scheduledDate: string }[];
+  dropshipOrders: { id: string; name: string; state: string }[];
   lines: OrderLine[];
   taxes: { taxId: string; name: string; amount: string }[];
   invoices: {
@@ -79,7 +85,13 @@ interface Preview {
   paymentTermId: string | null;
   pricelistId: string | null;
   userId: string | null;
-  lines: { priceUnit: string; taxIds: string[]; priceSubtotal: string }[];
+  lines: {
+    priceUnit: string;
+    taxIds: string[];
+    priceSubtotal: string;
+    uomId: string | null;
+    dropship: boolean;
+  }[];
   taxes: { taxId: string; name: string; amount: string }[];
   amountUntaxed: string;
   amountTax: string;
@@ -94,6 +106,10 @@ interface FormLine {
   priceUnit: string;
   discount: string;
   taxIds: string[] | null;
+  /** Kosong = satuan jual produk. */
+  uomId: string;
+  /** null = bawaan produk. */
+  dropship: boolean | null;
 }
 const emptyLine = (): FormLine => ({
   productId: "",
@@ -102,6 +118,8 @@ const emptyLine = (): FormLine => ({
   priceUnit: "",
   discount: "0",
   taxIds: null,
+  uomId: "",
+  dropship: null,
 });
 const num = (v: string) => String(Number(v));
 const orNull = (v: string) => (v === "" ? null : v);
@@ -139,7 +157,9 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
     null,
   );
 
-  const products = useOptions<ProductOption>("/products");
+  // Produk induk varian tidak dipilih langsung; pilih variannya.
+  const products = useOptions<ProductOption>("/products").filter((p) => !p.isVariantTemplate);
+  const uoms = useOptions<UomOption>("/uoms");
   const taxes = useOptions<TaxOption>("/taxes");
   const terms = useOptions<{ id: string; name: string }>("/payment-terms");
   const pricelists = useOptions<{ id: string; name: string; currencyCode: string }>("/pricelists");
@@ -177,6 +197,8 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
               priceUnit: num(x.priceUnit),
               discount: num(x.discount),
               taxIds: x.taxIds,
+              uomId: x.uomId ?? "",
+              dropship: x.dropship,
             })),
         );
       })
@@ -210,6 +232,8 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
           priceUnit: x.priceUnit === "" ? null : x.priceUnit,
           discount: x.discount || "0",
           taxIds: x.taxIds ?? undefined,
+          uomId: orNull(x.uomId),
+          dropship: x.dropship ?? undefined,
         })),
     };
   }
@@ -639,7 +663,10 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                       <tr key={i}>
                         <td>{products.find((pr) => pr.id === x.productId)?.sku ?? ""}</td>
                         <td>{x.name}</td>
-                        <td className="num">{money(x.quantity, locale, 4)}</td>
+                        <td className="num">
+                          {money(x.quantity, locale, 4)} {saved?.uomName ?? ""}
+                          {saved?.dropship && <small className="muted"> · dropship</small>}
+                        </td>
                         {confirmed && (
                           <td className="num">
                             {saved && saved.productType !== "service" && saved.productId
@@ -675,6 +702,8 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                               productId: e.target.value,
                               name: product?.name ?? x.name,
                               priceUnit: "",
+                              uomId: "",
+                              dropship: null,
                             });
                           }}
                         >
@@ -703,6 +732,35 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                           value={x.quantity}
                           onChange={(e) => setLine(i, { quantity: e.target.value })}
                         />
+                        <UomPick
+                          product={products.find((pr) => pr.id === x.productId)}
+                          uoms={uoms}
+                          value={
+                            x.uomId ||
+                            p?.uomId ||
+                            products.find((pr) => pr.id === x.productId)?.saleUomId ||
+                            ""
+                          }
+                          onChange={(uomId) => setLine(i, { uomId, priceUnit: "" })}
+                        />
+                        {err(`lines.${i}.uomId`)}
+                        {x.productId && (
+                          <label
+                            className="inline-check"
+                            title={l(
+                              "Dikirim pemasok langsung ke pelanggan",
+                              "Vendor ships directly to customer",
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={x.dropship ?? p?.dropship ?? false}
+                              onChange={(e) => setLine(i, { dropship: e.target.checked })}
+                            />{" "}
+                            <small>dropship</small>
+                          </label>
+                        )}
+                        {err(`lines.${i}.dropship`)}
                       </td>
                       {confirmed && <td className="num">{saved ? num(saved.qtyInvoiced) : ""}</td>}
                       <td>
@@ -838,12 +896,32 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                         {p.pickingType === "incoming" && (
                           <small className="muted"> · {l("retur", "return")}</small>
                         )}
+                        {p.pickingType === "dropship" && <small className="muted"> · dropship</small>}
                       </td>
                       <td>{formatDate(p.scheduledDate, locale)}</td>
                       <td>
                         <span className={`badge state-${p.state === "done" ? "posted" : p.state}`}>
                           {tx(PICKING_STATE_LABEL[p.state]!)}
                         </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+          {order && order.dropshipOrders.length > 0 && (
+            <>
+              <h2>{l("Pembelian dropship", "Dropship purchases")}</h2>
+              <table>
+                <tbody>
+                  {order.dropshipOrders.map((po) => (
+                    <tr key={po.id}>
+                      <td>
+                        <Link href={`/purchase/orders/${po.id}`}>{po.name}</Link>
+                      </td>
+                      <td>
+                        <span className="badge">{tx(PURCHASE_STATE_LABEL[po.state]!)}</span>
                       </td>
                     </tr>
                   ))}
