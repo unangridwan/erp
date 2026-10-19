@@ -41,6 +41,7 @@ export async function installPayroll(tx: Db, companyId: string) {
     salaryPayableAccountId: account("2-1500")!,
     pph21PayableAccountId: account("2-1300")!,
     bpjsPayableAccountId: account("2-1400")!,
+    employeeLoanAccountId: account("1-1800") ?? null,
     journalId: journal.id,
   });
   await tx

@@ -299,8 +299,12 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [ ] Fase 5 ditunda: bukti potong A1/A2 (XML), retur/pengganti faktur pajak via XML, faktur uang muka/pelunasan,
   PPnBM (STLG) per produk, validasi XSD resmi, NSFP lama (pra-Coretax), PITR/WAL archiving terkelola, tracing
   OpenTelemetry, Sentry
-- [ ] Fase 4 ditunda: jadwal shift & aturan keterlambatan, approval berjenjang, pinjaman
-  karyawan dengan cicilan otomatis, pesangon (PP 35/2021), BPJS untuk pekerja harian/borongan
+- [x] Fase 4 (tunda, selesai): jadwal kerja & penugasan shift dengan toleransi dan potongan keterlambatan per menit/
+  kejadian (zona waktu perusahaan, hari libur dikecualikan) yang masuk slip; persetujuan berjenjang cuti & lembur
+  (atasan → atasan dari atasan → HR, riwayat & kotak persetujuan); pinjaman karyawan (pencairan via kas/bank ke piutang
+  karyawan, cicilan otomatis di slip sampai lunas); hak akhir PP 35/2021 (pesangon, UPMK, UPH, uang pisah, kompensasi
+  PKWT) dengan PPh 21 final PP 68/2009 dan jurnal; kontrak harian lepas & borongan (upah dari absensi/hasil kerja, PPh 21
+  harian PMK 168/2023, BPJS JKK & JKM saja di bulan-bulan awal)
 - [x] Fase 2–3 (tunda, selesai sebagian): aturan antar perusahaan — SO → draft RFQ, PO → draft penawaran, faktur/nota
   kredit → draft tagihan/nota debit terhubung baris PO (transfer stok antar perusahaan lewat pasangan SO/PO); draft nota
   kredit/debit otomatis dari retur barang yang sudah ditagih; selisih harga tagihan vs PO ke akun 5-1100; aturan komisi

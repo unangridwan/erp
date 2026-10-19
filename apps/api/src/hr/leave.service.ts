@@ -12,6 +12,7 @@ import type { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
 import { fieldError } from "../accounting/context.js";
 import { currentContext } from "../common/request-context.js";
+import { ApprovalService } from "./approval.service.js";
 import { EmployeeService } from "./employee.service.js";
 
 type LeaveInput = z.infer<typeof leaveRequestSchema>;
@@ -32,6 +33,7 @@ export class LeaveService {
   constructor(
     @Inject(EmployeeService) private readonly employees: EmployeeService,
     @Inject(ActivityService) private readonly activity: ActivityService,
+    @Inject(ApprovalService) private readonly approvals: ApprovalService,
   ) {}
 
   async list(tx: Db, query: { employeeId?: string; state?: string }) {
@@ -164,6 +166,7 @@ export class LeaveService {
         dateTo: input.dateTo,
         days: String(days),
         reason: input.reason ?? null,
+        approvalLevels: await this.approvals.levels(tx, employee.companyId, "leave_request"),
         createdBy: ctx.userId,
       })
       .returning();
@@ -176,21 +179,11 @@ export class LeaveService {
     return row!;
   }
 
-  async decide(tx: Db, id: string, state: "approved" | "refused") {
-    const request = await this.find(tx, id);
-    if (request.state !== "confirm") throw new BadRequestException("Pengajuan sudah diproses");
-    const [row] = await tx
-      .update(R)
-      .set({ state, approvedBy: currentContext().userId, approvedAt: new Date(), updatedAt: sql`now()` })
-      .where(eq(R.id, id))
-      .returning();
-    await this.activity.log(tx, {
-      resModel: "employee",
-      resId: request.employeeId,
-      action: "comment",
-      message: `Cuti ${request.dateFrom} s.d. ${request.dateTo} ${state === "approved" ? "disetujui" : "ditolak"}`,
-    });
-    return row!;
+  /** Keputusan tahap persetujuan berjalan (berjenjang; lihat ApprovalService). */
+  async decide(tx: Db, id: string, state: "approved" | "refused", note?: string | null) {
+    await this.find(tx, id);
+    await this.approvals.decide(tx, "leave_request", id, state, note);
+    return this.find(tx, id);
   }
 
   /** Batalkan pengajuan sendiri (atau oleh HR). */

@@ -1,8 +1,9 @@
 "use client";
 
+import { SEVERANCE_REASONS, type SeveranceReason } from "@erp/shared";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { formatDate, money } from "../lib/format";
 import { useI18n } from "../lib/i18n";
 import { can } from "../lib/resources";
@@ -262,9 +263,218 @@ function PortalAccessPanel({ id }: { id: string }) {
   );
 }
 
+interface SeveranceResult {
+  article: string;
+  label: string;
+  monthlyWage: string;
+  unusedLeaveDays: string;
+  serviceYears: string;
+  upMonths: number;
+  upFactor: number;
+  up: string;
+  upmkMonths: number;
+  upmkFactor: number;
+  upmk: string;
+  leaveCompensation: string;
+  uph: string;
+  separationPay: string;
+  pkwtCompensation: string;
+  gross: string;
+  tax: string;
+  net: string;
+}
+interface SeveranceRow {
+  id: string;
+  reason: SeveranceReason;
+  endDate: string;
+  gross: string;
+  tax: string;
+  net: string;
+  moveId: string | null;
+  moveName: string | null;
+}
+
+/** Kalkulator & pencatatan hak akhir hubungan kerja (PP 35/2021) dengan PPh 21 final pesangon. */
+function SeverancePanel({ id }: { id: string }) {
+  const me = useMe();
+  const { l, locale } = useI18n();
+  const [rows, setRows] = useState<SeveranceRow[]>([]);
+  const [form, setForm] = useState({
+    reason: "resignation" as SeveranceReason,
+    endDate: new Date().toISOString().slice(0, 10),
+    unusedLeaveDays: "",
+    otherRights: "0",
+    separationPay: "0",
+  });
+  const [result, setResult] = useState<SeveranceResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    api<SeveranceRow[]>(`/employees/${id}/severances`)
+      .then(setRows)
+      .catch(() => setRows([]));
+  }, [id, version]);
+
+  const body = () => ({
+    ...form,
+    unusedLeaveDays: form.unusedLeaveDays === "" ? undefined : Number(form.unusedLeaveDays),
+  });
+  async function call(path: string) {
+    setError(null);
+    try {
+      return await api<SeveranceResult>(`/employees/${id}/${path}`, { method: "POST", body: body() });
+    } catch (e) {
+      setError(
+        e instanceof ApiError && Object.values(e.fieldErrors)[0]
+          ? Object.values(e.fieldErrors)[0]!
+          : e instanceof Error
+            ? e.message
+            : String(e),
+      );
+      return null;
+    }
+  }
+  const preview = async () => setResult(await call("severance/preview"));
+  const save = async () => {
+    if (!confirm(l("Catat & jurnal hak akhir ini?", "Record and post this final settlement?"))) return;
+    if (await call("severances")) {
+      setResult(null);
+      setVersion((v) => v + 1);
+    }
+  };
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+  const row = (label: string, amount: string, hint?: string) => (
+    <tr>
+      <td>
+        {label}
+        {hint && <span className="muted"> — {hint}</span>}
+      </td>
+      <td className="num">{money(amount, locale)}</td>
+    </tr>
+  );
+
+  return (
+    <section className="panel">
+      <h2>{l("Pesangon & hak akhir (PP 35/2021)", "Severance & final settlement (PP 35/2021)")}</h2>
+      {error && <p className="error">{error}</p>}
+      {rows.length > 0 && (
+        <table className="lines">
+          <thead>
+            <tr>
+              <th>{l("Alasan", "Reason")}</th>
+              <th>{l("Tanggal berakhir", "End date")}</th>
+              <th className="num">{l("Bruto", "Gross")}</th>
+              <th className="num">{l("PPh 21 final", "Final PPh 21")}</th>
+              <th className="num">{l("Diterima", "Net")}</th>
+              <th>{l("Jurnal", "Entry")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td>{SEVERANCE_REASONS[r.reason]?.label ?? r.reason}</td>
+                <td>{formatDate(r.endDate, locale)}</td>
+                <td className="num">{money(r.gross, locale)}</td>
+                <td className="num">{money(r.tax, locale)}</td>
+                <td className="num">{money(r.net, locale)}</td>
+                <td>{r.moveId && <Link href={`/accounting/moves/${r.moveId}`}>{r.moveName}</Link>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <div className="inline-panel">
+        <label className="field">
+          <span>{l("Alasan PHK", "Termination reason")}</span>
+          <select value={form.reason} onChange={set("reason")}>
+            {Object.entries(SEVERANCE_REASONS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v.article} — {v.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>{l("Tanggal berakhir", "End date")}</span>
+          <input type="date" value={form.endDate} onChange={set("endDate")} />
+        </label>
+        <label className="field">
+          <span>{l("Sisa cuti (kosong = dari saldo)", "Unused leave (empty = balance)")}</span>
+          <input
+            className="num"
+            inputMode="decimal"
+            value={form.unusedLeaveDays}
+            onChange={set("unusedLeaveDays")}
+          />
+        </label>
+        <label className="field">
+          <span>{l("Hak lain (ongkos pulang, dll.)", "Other rights (travel home, etc.)")}</span>
+          <input className="num" inputMode="decimal" value={form.otherRights} onChange={set("otherRights")} />
+        </label>
+        <label className="field">
+          <span>{l("Uang pisah (PK/PP/PKB)", "Separation pay (agreement)")}</span>
+          <input
+            className="num"
+            inputMode="decimal"
+            value={form.separationPay}
+            onChange={set("separationPay")}
+          />
+        </label>
+        <button type="button" onClick={preview}>
+          {l("Hitung", "Calculate")}
+        </button>
+      </div>
+      {result && (
+        <>
+          <p className="muted">
+            {result.article} · {l("masa kerja", "service")} {Number(result.serviceYears).toFixed(2)}{" "}
+            {l("tahun", "years")} · {l("upah sebulan", "monthly wage")} {money(result.monthlyWage, locale)} ·{" "}
+            {l("sisa cuti", "unused leave")} {Number(result.unusedLeaveDays)} {l("hari", "days")}
+          </p>
+          <table className="lines">
+            <tbody>
+              {row(
+                l("Uang pesangon", "Severance pay"),
+                result.up,
+                `${result.upMonths} × ${result.upFactor} ${l("bulan upah", "months")}`,
+              )}
+              {row(
+                l("Uang penghargaan masa kerja", "Long-service pay"),
+                result.upmk,
+                `${result.upmkMonths} × ${result.upmkFactor} ${l("bulan upah", "months")}`,
+              )}
+              {row(l("Uang penggantian hak", "Compensation of rights"), result.uph)}
+              {Number(result.separationPay) > 0 &&
+                row(l("Uang pisah", "Separation pay"), result.separationPay)}
+              {Number(result.pkwtCompensation) > 0 &&
+                row(l("Uang kompensasi PKWT", "Fixed-term compensation"), result.pkwtCompensation)}
+              {row(l("Bruto", "Gross"), result.gross)}
+              {row(l("PPh 21 final (PP 68/2009)", "Final PPh 21 (PP 68/2009)"), `-${result.tax}`)}
+              {row(l("Diterima", "Net"), result.net)}
+            </tbody>
+          </table>
+          {can(me.permissions, "payroll.manage") && (
+            <button type="button" className="primary" onClick={save}>
+              {l("Catat & jurnal", "Record & post")}
+            </button>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function EmployeeExtras({ id }: { id: string }) {
+  const me = useMe();
+  return can(me.permissions, "payroll.read") ? <SeverancePanel id={id} /> : null;
+}
+
 /** Panel tambahan di bawah form generik untuk resource tertentu. */
 export function FormExtras({ path, id }: { path: string; id: string }) {
   if (path === "products") return <VariantsPanel id={id} />;
   if (path === "partners") return <PortalAccessPanel id={id} />;
+  if (path === "employees") return <EmployeeExtras id={id} />;
   return null;
 }

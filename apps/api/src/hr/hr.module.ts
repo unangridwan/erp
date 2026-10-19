@@ -28,6 +28,10 @@ import {
   leaveRequestSchema,
   leaveTypeSchema,
   overtimeSchema,
+  approvalDecisionSchema,
+  shiftAssignmentSchema,
+  workEntrySchema,
+  workScheduleSchema,
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import { z } from "zod";
@@ -39,8 +43,10 @@ import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { SequenceService } from "../sequences/sequence.service.js";
+import { ApprovalService } from "./approval.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { LeaveService } from "./leave.service.js";
+import { ScheduleService } from "./schedule.service.js";
 
 /** Karyawan yang dirujuk harus milik perusahaan yang sama. */
 const sameCompanyEmployee = async (tx: Db, values: Record<string, unknown>) => {
@@ -148,7 +154,114 @@ const OvertimesController = createCrudController({
   beforeDelete: async (_tx, row) => {
     if (row.payslipId) throw new BadRequestException("Lembur sudah dibayar lewat slip gaji");
   },
+  // Lembur baru menunggu persetujuan bila perusahaan mewajibkannya (pengaturan payroll).
+  afterCreate: async (tx, row) => {
+    const [s] = await tx
+      .select({ levels: schema.payrollSettings.overtimeApprovalLevels })
+      .from(schema.payrollSettings)
+      .where(eq(schema.payrollSettings.companyId, String(row.companyId)));
+    if (s && s.levels > 0)
+      await tx
+        .update(schema.overtimes)
+        .set({ state: "confirm", approvalLevels: s.levels, approvalStep: 1 })
+        .where(eq(schema.overtimes.id, row.id));
+  },
 });
+
+const WorkSchedulesController = createCrudController({
+  path: "work-schedules",
+  model: "work_schedule",
+  table: schema.workSchedules,
+  schema: workScheduleSchema,
+  read: "hr.read",
+  write: "hr.manage",
+  searchColumns: [schema.workSchedules.name],
+  orderBy: schema.workSchedules.name,
+  companyColumn: schema.workSchedules.companyId,
+  perCompany: true,
+});
+
+const ShiftAssignmentsController = createCrudController({
+  path: "shift-assignments",
+  model: "shift_assignment",
+  table: schema.shiftAssignments,
+  schema: shiftAssignmentSchema,
+  read: "hr.read",
+  write: "hr.write",
+  searchColumns: [],
+  orderBy: schema.shiftAssignments.dateFrom,
+  companyColumn: schema.shiftAssignments.companyId,
+  perCompany: true,
+  refs: { scheduleId: schema.workSchedules },
+  beforeSave: async (tx, values) => {
+    await sameCompanyEmployee(tx, values);
+    if (
+      typeof values.dateFrom === "string" &&
+      typeof values.dateTo === "string" &&
+      values.dateTo < values.dateFrom
+    )
+      throw fieldError("dateTo", "Tanggal akhir sebelum tanggal mulai");
+  },
+});
+
+/** Hasil kerja borongan (satuan per tanggal) untuk upah borongan di payroll. */
+const WorkEntriesController = createCrudController({
+  path: "work-entries",
+  model: "work_entry",
+  table: schema.workEntries,
+  schema: workEntrySchema,
+  read: "hr.read",
+  write: "hr.write",
+  searchColumns: [schema.workEntries.description],
+  orderBy: schema.workEntries.date,
+  companyColumn: schema.workEntries.companyId,
+  perCompany: true,
+  beforeSave: async (tx, values, id) => {
+    await sameCompanyEmployee(tx, values);
+    if (id) {
+      const [row] = await tx.select().from(schema.workEntries).where(eq(schema.workEntries.id, id));
+      if (row?.payslipId) throw new BadRequestException("Hasil kerja sudah dibayar lewat slip gaji");
+    }
+  },
+  beforeDelete: async (_tx, row) => {
+    if (row.payslipId) throw new BadRequestException("Hasil kerja sudah dibayar lewat slip gaji");
+  },
+});
+
+/** Persetujuan berjenjang cuti & lembur. */
+@Controller("approvals")
+class ApprovalsController {
+  constructor(
+    @Inject(TenantDb) private readonly tenantDb: TenantDb,
+    @Inject(ApprovalService) private readonly approvals: ApprovalService,
+  ) {}
+
+  /** Pengajuan yang menunggu keputusan user ini. */
+  @Get("pending")
+  pending() {
+    return this.tenantDb.run((tx) => this.approvals.pending(tx));
+  }
+
+  @Get(":model/:id")
+  status(@Param("model") model: string, @Param("id", ParseUUIDPipe) id: string) {
+    if (model !== "leave_request" && model !== "overtime") throw new NotFoundException();
+    return this.tenantDb.run((tx) => this.approvals.status(tx, model, id));
+  }
+
+  @Post("overtime/:id/:decision")
+  @HttpCode(200)
+  overtime(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Param("decision") decision: string,
+    @Body() body: unknown,
+  ) {
+    if (decision !== "approve" && decision !== "refuse") throw new NotFoundException();
+    const input = parse(approvalDecisionSchema, body ?? {});
+    return this.tenantDb.run((tx) =>
+      this.approvals.decide(tx, "overtime", id, decision === "approve" ? "approved" : "refused", input.note),
+    );
+  }
+}
 
 @Controller("employees")
 class EmployeesController {
@@ -261,6 +374,7 @@ class ContractsController {
           employeeId: employee.id,
           name,
           contractType: input.contractType,
+          wageType: input.wageType,
           dateStart: input.dateStart,
           dateEnd: input.dateEnd ?? null,
           wage: input.wage,
@@ -300,6 +414,7 @@ class ContractsController {
         .update(C)
         .set({
           contractType: input.contractType,
+          wageType: input.wageType,
           dateStart: input.dateStart,
           dateEnd: input.dateEnd ?? null,
           wage: input.wage,
@@ -452,18 +567,19 @@ class LeavesController {
     return this.tenantDb.run((tx) => this.leaves.request(tx, input));
   }
 
+  /** Persetujuan berjenjang: atasan pada tahapnya, atau HR (hr.write) di tahap mana pun. */
   @Post(":id/approve")
   @HttpCode(200)
-  @RequirePermission("hr.write")
-  approve(@Param("id", ParseUUIDPipe) id: string) {
-    return this.tenantDb.run((tx) => this.leaves.decide(tx, id, "approved"));
+  approve(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(approvalDecisionSchema, body ?? {});
+    return this.tenantDb.run((tx) => this.leaves.decide(tx, id, "approved", input.note));
   }
 
   @Post(":id/refuse")
   @HttpCode(200)
-  @RequirePermission("hr.write")
-  refuse(@Param("id", ParseUUIDPipe) id: string) {
-    return this.tenantDb.run((tx) => this.leaves.decide(tx, id, "refused"));
+  refuse(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(approvalDecisionSchema, body ?? {});
+    return this.tenantDb.run((tx) => this.leaves.decide(tx, id, "refused", input.note));
   }
 
   @Post(":id/cancel")
@@ -484,7 +600,25 @@ class AttendanceController {
   constructor(
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(EmployeeService) private readonly employees: EmployeeService,
+    @Inject(ScheduleService) private readonly schedules: ScheduleService,
   ) {}
+
+  /** Rekap keterlambatan per karyawan (jadwal/shift & aturan potongan). */
+  @Get("lateness")
+  @RequirePermission("hr.read")
+  lateness(@Query() query: unknown) {
+    const q = parse(
+      z.object({ from: z.string().date(), to: z.string().date(), employeeId: z.string().uuid().optional() }),
+      query,
+    );
+    return this.tenantDb.run((tx) =>
+      this.schedules.lateness(tx, {
+        from: q.from,
+        to: q.to,
+        employeeIds: q.employeeId ? [q.employeeId] : undefined,
+      }),
+    );
+  }
 
   /** Absen masuk untuk karyawan yang terhubung dengan user ini. */
   @Post("check-in")
@@ -655,13 +789,24 @@ class PortalController {
     LeaveTypesController,
     LeaveAllocationsController,
     OvertimesController,
+    WorkSchedulesController,
+    ShiftAssignmentsController,
+    WorkEntriesController,
+    ApprovalsController,
     EmployeesController,
     ContractsController,
     LeavesController,
     AttendanceController,
     PortalController,
   ],
-  providers: [ActivityService, SequenceService, EmployeeService, LeaveService],
-  exports: [EmployeeService, LeaveService],
+  providers: [
+    ActivityService,
+    SequenceService,
+    EmployeeService,
+    LeaveService,
+    ApprovalService,
+    ScheduleService,
+  ],
+  exports: [EmployeeService, LeaveService, ScheduleService],
 })
 export class HrModule {}

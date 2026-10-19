@@ -18,6 +18,7 @@ interface Contract {
   dateStart: string;
   dateEnd: string | null;
   wage: string;
+  wageType: "monthly" | "daily" | "piece";
   state: string;
   note: string | null;
   allowances: { componentId: string; amount: string; name: string; kind: string; fixed: boolean }[];
@@ -44,6 +45,7 @@ export default function ContractPage() {
     dateStart: today(),
     dateEnd: "",
     wage: "",
+    wageType: "monthly",
     note: "",
   });
   const [allowances, setAllowances] = useState<{ componentId: string; amount: string }[]>([]);
@@ -62,6 +64,7 @@ export default function ContractPage() {
           dateStart: c.dateStart,
           dateEnd: c.dateEnd ?? "",
           wage: String(Number(c.wage)),
+          wageType: c.wageType,
           note: c.note ?? "",
         });
         setAllowances(
@@ -183,7 +186,26 @@ export default function ContractPage() {
           {err("dateEnd")}
         </label>
         <label className="field">
-          <span>{l("Gaji pokok / bulan *", "Base wage / month *")}</span>
+          <span>{l("Jenis upah", "Wage type")}</span>
+          <select
+            value={form.wageType}
+            onChange={(e) => setForm((f) => ({ ...f, wageType: e.target.value }))}
+          >
+            <option value="monthly">{l("Bulanan", "Monthly")}</option>
+            <option value="daily">{l("Harian lepas (per hari hadir)", "Daily (per day present)")}</option>
+            <option value="piece">
+              {l("Borongan (per satuan hasil kerja)", "Piece rate (per unit of output)")}
+            </option>
+          </select>
+        </label>
+        <label className="field">
+          <span>
+            {form.wageType === "daily"
+              ? l("Upah per hari *", "Wage per day *")
+              : form.wageType === "piece"
+                ? l("Upah per satuan *", "Rate per unit *")
+                : l("Gaji pokok / bulan *", "Base wage / month *")}
+          </span>
           <input
             className="num"
             inputMode="decimal"
@@ -286,13 +308,31 @@ export default function ContractPage() {
           </tfoot>
         )}
       </table>
-      <p className="muted">
-        {l(
-          "Upah dasar BPJS & lembur (gaji pokok + tunjangan tetap)",
-          "BPJS & overtime wage base (base + fixed allowances)",
-        )}
-        : {money(fixedTotal, locale)}
-      </p>
+      {form.wageType === "monthly" ? (
+        <p className="muted">
+          {l(
+            "Upah dasar BPJS & lembur (gaji pokok + tunjangan tetap)",
+            "BPJS & overtime wage base (base + fixed allowances)",
+          )}
+          : {money(fixedTotal, locale)}
+        </p>
+      ) : (
+        <p className="muted">
+          {form.wageType === "daily"
+            ? l(
+                "Upah dihitung dari jumlah hari hadir di absensi × upah per hari.",
+                "Pay = days present in attendance × daily wage.",
+              )
+            : l(
+                "Upah dihitung dari hasil kerja (menu Hasil Kerja Borongan) × upah per satuan.",
+                "Pay = recorded work entries (Piece Work menu) × rate per unit.",
+              )}{" "}
+          {l(
+            "Sebelum masa kerja mencapai batas di pengaturan payroll, BPJS yang dibayar hanya JKK & JKM.",
+            "Until the tenure threshold in payroll settings, only JKK & JKM are contributed.",
+          )}
+        </p>
+      )}
     </form>
   );
 }

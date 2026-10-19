@@ -192,6 +192,15 @@ export class EmployeeService {
         );
       if (!dept) throw fieldError("departmentId", "Departemen tidak ditemukan di perusahaan ini");
     }
+    if (input.scheduleId) {
+      const [schedule] = await tx
+        .select({ id: schema.workSchedules.id })
+        .from(schema.workSchedules)
+        .where(
+          and(eq(schema.workSchedules.id, input.scheduleId), eq(schema.workSchedules.companyId, companyId)),
+        );
+      if (!schedule) throw fieldError("scheduleId", "Jadwal kerja tidak ditemukan di perusahaan ini");
+    }
     if (input.jobId) {
       const [job] = await tx
         .select({ id: schema.jobPositions.id })

@@ -15,12 +15,15 @@ import {
 } from "@nestjs/common";
 import { eq, schema } from "@erp/db";
 import {
+  employeeLoanSchema,
   hasPermission,
+  loanDisburseSchema,
   payRunSchema,
   payrollRunSchema,
   payrollSettingsSchema,
   payslipInputsSchema,
   salaryComponentSchema,
+  severanceInputSchema,
   toCsv,
 } from "@erp/shared";
 import type { Response } from "express";
@@ -33,7 +36,9 @@ import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { HrModule } from "../hr/hr.module.js";
+import { LoanService } from "./loan.service.js";
 import { PayrollService } from "./payroll.service.js";
+import { SeveranceService } from "./severance.service.js";
 import { renderPayslipPdf } from "./payslip-pdf.js";
 
 const SalaryComponentsController = createCrudController({
@@ -284,9 +289,82 @@ class PayrollController {
   }
 }
 
+/** Pinjaman karyawan (dicicil lewat payroll). */
+@Controller("employee-loans")
+class LoansController {
+  constructor(
+    @Inject(TenantDb) private readonly tenantDb: TenantDb,
+    @Inject(LoanService) private readonly loans: LoanService,
+  ) {}
+
+  @Get()
+  @RequirePermission("payroll.read")
+  list(@Query() query: { employeeId?: string; state?: string }) {
+    return this.tenantDb.run((tx) => this.loans.list(tx, query));
+  }
+
+  @Get(":id")
+  @RequirePermission("payroll.read")
+  get(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.loans.get(tx, id));
+  }
+
+  @Post()
+  @RequirePermission("payroll.write")
+  create(@Body() body: unknown) {
+    const input = parse(employeeLoanSchema, body);
+    return this.tenantDb.run((tx) => this.loans.create(tx, input));
+  }
+
+  @Post(":id/disburse")
+  @HttpCode(200)
+  @RequirePermission("payroll.manage")
+  disburse(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(loanDisburseSchema, body);
+    return this.tenantDb.run((tx) => this.loans.disburse(tx, id, input));
+  }
+
+  @Post(":id/cancel")
+  @HttpCode(200)
+  @RequirePermission("payroll.manage")
+  cancel(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.loans.cancel(tx, id));
+  }
+}
+
+/** Hak akhir hubungan kerja (pesangon PP 35/2021). */
+@Controller("employees")
+class SeveranceController {
+  constructor(
+    @Inject(TenantDb) private readonly tenantDb: TenantDb,
+    @Inject(SeveranceService) private readonly severances: SeveranceService,
+  ) {}
+
+  @Get(":id/severances")
+  @RequirePermission("payroll.read")
+  list(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.severances.list(tx, id));
+  }
+
+  @Post(":id/severance/preview")
+  @HttpCode(200)
+  @RequirePermission("payroll.read")
+  preview(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(severanceInputSchema, body);
+    return this.tenantDb.run((tx) => this.severances.preview(tx, id, input));
+  }
+
+  @Post(":id/severances")
+  @RequirePermission("payroll.manage")
+  create(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(severanceInputSchema, body);
+    return this.tenantDb.run((tx) => this.severances.create(tx, id, input));
+  }
+}
+
 @Module({
   imports: [AccountingModule, HrModule],
-  controllers: [SalaryComponentsController, PayrollController],
-  providers: [ActivityService, PayrollService],
+  controllers: [SalaryComponentsController, PayrollController, LoansController, SeveranceController],
+  providers: [ActivityService, PayrollService, LoanService, SeveranceService],
 })
 export class PayrollModule {}

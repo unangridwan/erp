@@ -879,6 +879,8 @@ export const employeeSchema = z.object({
   bankAccountName: optionalText,
   joinDate: z.string().date(),
   resignDate: z.string().date().nullish(),
+  /** Jadwal kerja bawaan (shift). */
+  scheduleId: z.string().uuid().nullish(),
   active: z.boolean().default(true),
 });
 
@@ -904,6 +906,8 @@ export const contractSchema = z
   .object({
     employeeId: z.string().uuid(),
     contractType: z.enum(["pkwt", "pkwtt"]).default("pkwtt"),
+    /** monthly = gaji bulanan; daily = upah per hari; piece = tarif per satuan (borongan). */
+    wageType: z.enum(["monthly", "daily", "piece"]).default("monthly"),
     dateStart: z.string().date(),
     dateEnd: z.string().date().nullish(),
     wage: nonNegative(2),
@@ -984,6 +988,86 @@ export const payrollSettingsSchema = z.object({
   pph21PayableAccountId: z.string().uuid(),
   bpjsPayableAccountId: z.string().uuid(),
   journalId: z.string().uuid(),
+  timezone: z.string().trim().min(3).max(64).optional(),
+  employeeLoanAccountId: z.string().uuid().nullish(),
+  leaveApprovalLevels: z.coerce.number().int().min(1).max(3).optional(),
+  overtimeApprovalLevels: z.coerce.number().int().min(0).max(3).optional(),
+  casualFullBpjsMonths: z.coerce.number().int().min(0).max(24).optional(),
+});
+
+const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Format JJ:MM");
+
+export const workScheduleSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  startTime: clock,
+  endTime: clock,
+  toleranceMinutes: z.coerce.number().int().min(0).max(240).default(0),
+  penaltyPerMinute: nonNegative(2).default("0"),
+  penaltyPerOccurrence: nonNegative(2).default("0"),
+  workDays: z.array(z.coerce.number().int().min(0).max(6)).min(1).default([1, 2, 3, 4, 5]),
+  active: z.boolean().default(true),
+});
+
+export const shiftAssignmentSchema = z.object({
+  employeeId: z.string().uuid(),
+  scheduleId: z.string().uuid(),
+  dateFrom: z.string().date(),
+  dateTo: z.string().date(),
+});
+
+export const employeeLoanSchema = z.object({
+  employeeId: z.string().uuid(),
+  name: z.string().trim().min(1).max(200),
+  principal: nonNegative(2).refine((v) => Number(v) > 0, "Harus lebih dari 0"),
+  installment: nonNegative(2).refine((v) => Number(v) > 0, "Harus lebih dari 0"),
+  startPeriod: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Format YYYY-MM"),
+  note: z.string().max(2000).nullish(),
+});
+
+export const loanDisburseSchema = z.object({
+  journalId: z.string().uuid(),
+  date: z.string().date(),
+});
+
+export const workEntrySchema = z.object({
+  employeeId: z.string().uuid(),
+  date: z.string().date(),
+  quantity: nonNegative(4).refine((v) => Number(v) > 0, "Harus lebih dari 0"),
+  description: z.string().trim().max(500).nullish(),
+});
+
+export const approvalDecisionSchema = z.object({ note: z.string().trim().max(1000).nullish() });
+
+export const severanceInputSchema = z.object({
+  reason: z.enum([
+    "merger_refused",
+    "takeover",
+    "takeover_changed_terms",
+    "efficiency_loss",
+    "efficiency_prevent_loss",
+    "closure_loss",
+    "closure_no_loss",
+    "force_majeure_closure",
+    "force_majeure_no_closure",
+    "pkpu_loss",
+    "pkpu_no_loss",
+    "bankruptcy",
+    "employer_misconduct",
+    "resignation",
+    "absence",
+    "violation",
+    "urgent_violation",
+    "detention",
+    "long_illness",
+    "retirement",
+    "death",
+    "pkwt_end",
+  ]),
+  endDate: z.string().date(),
+  /** Kosong = sisa cuti tahunan dari saldo per tanggal berakhir. */
+  unusedLeaveDays: z.coerce.number().min(0).max(366).optional(),
+  otherRights: nonNegative(2).default("0"),
+  separationPay: nonNegative(2).default("0"),
 });
 
 export const payrollRunSchema = z.object({

@@ -14,7 +14,12 @@ type Settings = Record<
   | "salaryPayableAccountId"
   | "pph21PayableAccountId"
   | "bpjsPayableAccountId"
-  | "journalId",
+  | "journalId"
+  | "timezone"
+  | "employeeLoanAccountId"
+  | "leaveApprovalLevels"
+  | "overtimeApprovalLevels"
+  | "casualFullBpjsMonths",
   string
 >;
 
@@ -35,6 +40,10 @@ export default function PayrollSettingsPage() {
           jkkRate: String(Number(s.jkkRate)),
           kesWageCap: String(Number(s.kesWageCap)),
           jpWageCap: String(Number(s.jpWageCap)),
+          employeeLoanAccountId: s.employeeLoanAccountId ?? "",
+          leaveApprovalLevels: String(s.leaveApprovalLevels),
+          overtimeApprovalLevels: String(s.overtimeApprovalLevels),
+          casualFullBpjsMonths: String(s.casualFullBpjsMonths),
         }),
       )
       .catch((e: Error) => setError(e.message));
@@ -56,6 +65,11 @@ export default function PayrollSettingsPage() {
         pph21PayableAccountId,
         bpjsPayableAccountId,
         journalId,
+        timezone,
+        employeeLoanAccountId,
+        leaveApprovalLevels,
+        overtimeApprovalLevels,
+        casualFullBpjsMonths,
       } = form;
       await api("/payroll/settings", {
         method: "PUT",
@@ -69,6 +83,11 @@ export default function PayrollSettingsPage() {
           pph21PayableAccountId,
           bpjsPayableAccountId,
           journalId,
+          timezone,
+          employeeLoanAccountId: employeeLoanAccountId || null,
+          leaveApprovalLevels: Number(leaveApprovalLevels),
+          overtimeApprovalLevels: Number(overtimeApprovalLevels),
+          casualFullBpjsMonths: Number(casualFullBpjsMonths),
         },
       });
       setNotice(l("Pengaturan disimpan.", "Settings saved."));
@@ -80,10 +99,11 @@ export default function PayrollSettingsPage() {
   if (!form) return <p className="muted">{error ?? l("Memuat…", "Loading…")}</p>;
   const set = (k: keyof Settings) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f!, [k]: e.target.value }));
-  const accountSelect = (k: keyof Settings, label: string) => (
+  const accountSelect = (k: keyof Settings, label: string, optional = false) => (
     <label className="field">
       <span>{label}</span>
       <select value={form[k]} onChange={set(k)}>
+        {optional && <option value="">—</option>}
         {accounts.map((a) => (
           <option key={a.id} value={a.id}>
             {a.code} {a.name}
@@ -129,6 +149,11 @@ export default function PayrollSettingsPage() {
       {accountSelect("salaryPayableAccountId", l("Akun utang gaji", "Salary payable account"))}
       {accountSelect("pph21PayableAccountId", l("Akun utang PPh 21", "PPh 21 payable account"))}
       {accountSelect("bpjsPayableAccountId", l("Akun utang BPJS", "BPJS payable account"))}
+      {accountSelect(
+        "employeeLoanAccountId",
+        l("Akun piutang karyawan (pinjaman/kasbon)", "Employee loan receivable account"),
+        true,
+      )}
       <label className="field">
         <span>{l("Jurnal gaji", "Payroll journal")}</span>
         <select value={form.journalId} onChange={set("journalId")}>
@@ -140,6 +165,52 @@ export default function PayrollSettingsPage() {
               </option>
             ))}
         </select>
+      </label>
+      <h2>{l("Absensi & persetujuan", "Attendance & approvals")}</h2>
+      <label className="field">
+        <span>{l("Zona waktu absensi", "Attendance time zone")}</span>
+        <select value={form.timezone} onChange={set("timezone")}>
+          {[
+            ["Asia/Jakarta", "WIB (Asia/Jakarta)"],
+            ["Asia/Makassar", "WITA (Asia/Makassar)"],
+            ["Asia/Jayapura", "WIT (Asia/Jayapura)"],
+          ].map(([v, t]) => (
+            <option key={v} value={v}>
+              {t}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="field">
+        <span>{l("Tahap persetujuan cuti", "Time-off approval steps")}</span>
+        <select value={form.leaveApprovalLevels} onChange={set("leaveApprovalLevels")}>
+          <option value="1">{l("1 — atasan langsung", "1 — direct manager")}</option>
+          <option value="2">{l("2 — + atasan dari atasan", "2 — + manager's manager")}</option>
+          <option value="3">{l("3 — + HR", "3 — + HR")}</option>
+        </select>
+      </label>
+      <label className="field">
+        <span>{l("Tahap persetujuan lembur", "Overtime approval steps")}</span>
+        <select value={form.overtimeApprovalLevels} onChange={set("overtimeApprovalLevels")}>
+          <option value="0">{l("0 — langsung disetujui", "0 — approved on entry")}</option>
+          <option value="1">{l("1 — atasan langsung", "1 — direct manager")}</option>
+          <option value="2">{l("2 — + atasan dari atasan", "2 — + manager's manager")}</option>
+          <option value="3">{l("3 — + HR", "3 — + HR")}</option>
+        </select>
+      </label>
+      <label className="field">
+        <span>
+          {l(
+            "Pekerja harian/borongan: bulan masa kerja sebelum ikut BPJS penuh (sebelumnya JKK & JKM saja)",
+            "Daily/piece workers: months of service before full BPJS (JKK & JKM only before that)",
+          )}
+        </span>
+        <input
+          className="num"
+          inputMode="numeric"
+          value={form.casualFullBpjsMonths}
+          onChange={set("casualFullBpjsMonths")}
+        />
       </label>
       <button className="primary">{l("Simpan", "Save")}</button>
     </form>
