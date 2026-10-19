@@ -349,6 +349,14 @@ export const RESOURCES: Resource[] = [
         label: L("Awal tahun fiskal (bulan)", "Fiscal year start (month)"),
         type: "number",
       },
+      {
+        name: "icAutoDocuments",
+        label: L(
+          "Dokumen antar perusahaan otomatis (SO → RFQ, PO → penawaran, faktur → tagihan)",
+          "Automatic intercompany documents (SO → RFQ, PO → quotation, invoice → bill)",
+        ),
+        type: "boolean",
+      },
     ],
   },
   {
@@ -750,6 +758,53 @@ RESOURCES.push(
       },
       { name: "active", label: L("Aktif", "Active"), type: "boolean" },
       companyScope,
+    ],
+  },
+  {
+    path: "commission-plans",
+    model: "commission_plan",
+    title: L("Aturan Komisi", "Commission Plans"),
+    singular: L("Aturan komisi", "Commission plan"),
+    permission: "sales",
+    writePermission: "sales.manage",
+    group: SALES,
+    columns: [
+      { name: "name", label: L("Nama", "Name") },
+      { name: "rate", label: L("Tarif %", "Rate %") },
+      { name: "basis", label: L("Dasar", "Basis") },
+    ],
+    fields: [
+      name(),
+      {
+        name: "rate",
+        label: L("Tarif (% penjualan bersih)", "Rate (% of net sales)"),
+        type: "number",
+        required: true,
+      },
+      {
+        name: "basis",
+        label: L("Dasar komisi", "Commission basis"),
+        type: "select",
+        options: [
+          ["invoiced", L("Faktur diposting", "Posted invoices")],
+          ["paid", L("Faktur lunas", "Paid invoices")],
+        ],
+      },
+      {
+        name: "userId",
+        label: L("Penjual (kosongkan untuk tim/bawaan)", "Salesperson (empty for team/default)"),
+        type: "ref",
+        resource: "users/options",
+        display: "name",
+      },
+      {
+        name: "teamId",
+        label: L("Tim penjualan", "Sales team"),
+        type: "ref",
+        resource: "sales-teams",
+        display: "name",
+      },
+      { name: "active", label: L("Aktif", "Active"), type: "boolean" },
     ],
   },
   {

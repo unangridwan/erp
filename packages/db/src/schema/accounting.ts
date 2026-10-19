@@ -107,6 +107,7 @@ export const accountingSettings = pgTable("accounting_settings", {
   assetDisposalAccountId: uuid("asset_disposal_account_id"),
   unrealizedFxGainAccountId: uuid("unrealized_fx_gain_account_id"),
   unrealizedFxLossAccountId: uuid("unrealized_fx_loss_account_id"),
+  priceDifferenceAccountId: uuid("price_difference_account_id"),
   updatedAt: audit.updatedAt,
 });
 
@@ -137,6 +138,8 @@ export const accountMoves = pgTable("account_moves", {
   reversedEntryId: uuid("reversed_entry_id"),
   closingYear: smallint("closing_year"),
   invoiceOrigin: text("invoice_origin"),
+  /** Faktur perusahaan grup yang menjadi sumber tagihan/nota otomatis ini. */
+  icSourceMoveId: uuid("ic_source_move_id"),
   postedAt: timestamp("posted_at", { withTimezone: true }),
   postedBy: uuid("posted_by"),
   createdBy: uuid("created_by"),

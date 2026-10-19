@@ -290,8 +290,8 @@ class PickingsController {
   validate(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
     const input = parse(validatePickingSchema, body ?? {});
     return this.tenantDb.run(async (tx) => {
-      const { backorderId } = await this.stock.validate(tx, id, input);
-      return { ...(await this.query.picking(tx, id)), backorderId };
+      const { backorderId, documents } = await this.stock.validate(tx, id, input);
+      return { ...(await this.query.picking(tx, id)), backorderId, documents };
     });
   }
 

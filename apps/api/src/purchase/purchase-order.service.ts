@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  type OnModuleInit,
 } from "@nestjs/common";
 import {
   and,
@@ -34,17 +35,19 @@ import { Decimal } from "decimal.js";
 import type { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
 import { assertDimensions, assertPartner, fieldError, loadBooks } from "../accounting/context.js";
-import { MoveService } from "../accounting/move.service.js";
+import { MoveService, type PostedMove } from "../accounting/move.service.js";
 import { Mailer } from "../common/mailer.js";
 import { currentContext } from "../common/request-context.js";
 import { assertCompanyUser, assertPaymentTerm } from "../crm/checks.js";
-import { StockService } from "../inventory/stock.service.js";
+import { StockService, type LinkedDocument } from "../inventory/stock.service.js";
 import { FxService } from "../master/fx.controller.js";
 import { renderOrderPdf } from "../sales/order-pdf.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 
 export type PurchaseInput = z.infer<typeof purchaseOrderSchema>;
-type Order = typeof schema.purchaseOrders.$inferSelect;
+export type Order = typeof schema.purchaseOrders.$inferSelect;
+/** Dipanggil setelah PO dikonfirmasi/disetujui, dalam transaksi yang sama (mis. SO antar perusahaan). */
+export type ConfirmHook = (tx: Db, order: Order) => Promise<void>;
 
 const O = schema.purchaseOrders;
 const OL = schema.purchaseOrderLines;
@@ -95,7 +98,9 @@ export interface PurchaseQuery {
 }
 
 @Injectable()
-export class PurchaseOrderService {
+export class PurchaseOrderService implements OnModuleInit {
+  readonly confirmHooks: ConfirmHook[] = [];
+
   constructor(
     @Inject(MoveService) private readonly moves: MoveService,
     @Inject(SequenceService) private readonly sequences: SequenceService,
@@ -104,6 +109,11 @@ export class PurchaseOrderService {
     @Inject(FxService) private readonly fx: FxService,
     @Inject(Mailer) private readonly mailer: Mailer,
   ) {}
+
+  onModuleInit() {
+    this.stock.validateHooks.push((tx, picking) => this.refundFromReturn(tx, picking));
+    this.moves.postHooks.push((tx, move) => this.priceDifference(tx, move));
+  }
 
   async list(tx: Db, query: PurchaseQuery) {
     const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
@@ -592,6 +602,142 @@ export class PurchaseOrderService {
       action: "update",
       message: approvedBy ? "PO disetujui" : "PO dikonfirmasi",
     });
+    for (const hook of this.confirmHooks) await hook(tx, { ...order, state: "purchase" });
+  }
+
+  /**
+   * Retur ke pemasok atas barang yang sudah ditagih: draft nota debit (retur tagihan) sebanyak kelebihan
+   * tagihan (ditagih − diterima setelah retur), dengan harga PO.
+   */
+  private async refundFromReturn(
+    tx: Db,
+    picking: typeof schema.stockPickings.$inferSelect,
+  ): Promise<LinkedDocument | null> {
+    if (!picking.purchaseOrderId || !picking.returnOfId) return null;
+    const [order] = await tx.select().from(O).where(eq(O.id, picking.purchaseOrderId));
+    if (!order) return null;
+    const books = await loadBooks(tx, order.companyId);
+    const returned = await tx
+      .select({ purchaseLineId: schema.stockMoves.purchaseLineId, qty: schema.stockMoves.quantityDone })
+      .from(schema.stockMoves)
+      .where(and(eq(schema.stockMoves.pickingId, picking.id), eq(schema.stockMoves.state, "done")));
+    const lines = await this.lines(tx, order.id);
+    const refund = lines.flatMap((l) => {
+      const qty = returned.filter((r) => r.purchaseLineId === l.id).reduce((sum, r) => sum.plus(r.qty), d(0));
+      const over = Decimal.min(qty, d(l.qtyBilled).minus(l.qtyReceived));
+      return qty.gt(0) && over.gt(0) ? [{ l, qty: over }] : [];
+    });
+    if (!refund.length) return null;
+    const date = today();
+    const moveId = await this.moves.createInvoice(
+      tx,
+      {
+        moveType: "in_refund",
+        partnerId: order.partnerId,
+        date,
+        dueDate: date,
+        ref: `Retur ${picking.name}`,
+        narration: null,
+        currencyCode: order.currencyCode,
+        lines: refund.map(({ l, qty }) => ({
+          productId: l.productId,
+          accountId: l.productType === "storable" ? books.settings.stockInputAccountId : null,
+          name: l.name,
+          quantity: qty.toFixed(4),
+          priceUnit: l.priceUnit,
+          discount: l.discount,
+          taxIds: l.taxIds,
+          businessUnitId: order.businessUnitId,
+          branchId: order.branchId,
+        })),
+      },
+      order.companyId,
+      { invoiceOrigin: order.name, purchaseLineIds: refund.map(({ l }) => l.id) },
+    );
+    await this.activity.log(tx, {
+      resModel: "purchase_order",
+      resId: order.id,
+      action: "comment",
+      message: `Draft nota debit dibuat dari retur ${picking.name}`,
+    });
+    return { model: "account_move", id: moveId, moveType: "in_refund", label: "Draft nota debit" };
+  }
+
+  /**
+   * Selisih harga pembelian: barang stok dinilai dengan harga PO saat diterima (kredit Barang Diterima Belum
+   * Ditagih). Bila tagihan berbeda (harga/kurs), selisihnya dipindahkan dari akun itu ke akun Selisih Harga
+   * Pembelian sehingga saldo barang diterima belum ditagih kembali nol.
+   */
+  private async priceDifference(tx: Db, move: PostedMove) {
+    if (move.moveType !== "in_invoice" && move.moveType !== "in_refund") return;
+    const books = await loadBooks(tx, move.companyId);
+    const { stockInputAccountId: grni, priceDifferenceAccountId: diffAccount } = books.settings;
+    if (!grni || !diffAccount) return;
+    const rows = await tx
+      .select({
+        balance: schema.accountMoveLines.balance,
+        quantity: schema.accountMoveLines.quantity,
+        productName: schema.products.name,
+        priceUnit: OL.priceUnit,
+        discount: OL.discount,
+        currencyCode: O.currencyCode,
+        dateOrder: O.dateOrder,
+      })
+      .from(schema.accountMoveLines)
+      .innerJoin(OL, eq(OL.id, schema.accountMoveLines.purchaseLineId))
+      .innerJoin(O, eq(O.id, OL.orderId))
+      .innerJoin(schema.products, eq(schema.products.id, schema.accountMoveLines.productId))
+      .where(
+        and(
+          eq(schema.accountMoveLines.moveId, move.id),
+          eq(schema.accountMoveLines.displayType, "product"),
+          eq(schema.accountMoveLines.accountId, grni),
+          eq(schema.products.productType, "storable"),
+        ),
+      );
+    const sign = move.moveType === "in_invoice" ? 1 : -1;
+    const lines: { accountId: string; name: string; debit: string; credit: string }[] = [];
+    let total = d(0);
+    for (const r of rows) {
+      // Nilai penerimaan = kuantitas × harga bersih PO × kurs tanggal PO (sama seperti saat barang diterima).
+      const rate = await this.rate(tx, r.currencyCode, books.currencyCode, r.dateOrder);
+      const unit = d(r.priceUnit).times(d(100).minus(r.discount)).div(100).times(rate).toDecimalPlaces(4);
+      const expected = d(r.quantity ?? 0)
+        .times(unit)
+        .times(sign)
+        .toDecimalPlaces(books.decimals, Decimal.ROUND_HALF_UP);
+      const diff = d(r.balance ?? 0).minus(expected);
+      if (diff.isZero()) continue;
+      total = total.plus(diff);
+      lines.push({
+        accountId: diffAccount,
+        name: `Selisih harga ${r.productName}`,
+        debit: diff.gt(0) ? diff.toFixed(2) : "0",
+        credit: diff.lt(0) ? diff.negated().toFixed(2) : "0",
+      });
+    }
+    if (!lines.length) return;
+    lines.push({
+      accountId: grni,
+      name: `Selisih harga ${move.name}`,
+      debit: total.lt(0) ? total.negated().toFixed(2) : "0",
+      credit: total.gt(0) ? total.toFixed(2) : "0",
+    });
+    const [bill] = await tx
+      .select({ date: schema.accountMoves.date })
+      .from(schema.accountMoves)
+      .where(eq(schema.accountMoves.id, move.id));
+    const entryId = await this.moves.createEntry(
+      tx,
+      {
+        journalId: books.settings.stockJournalId ?? books.settings.generalJournalId,
+        date: bill!.date,
+        ref: `Selisih harga ${move.name}`,
+        lines: lines.filter((l) => l.debit !== "0" || l.credit !== "0"),
+      },
+      move.companyId,
+    );
+    await this.moves.post(tx, entryId);
   }
 
   private async rate(tx: Db, from: string, to: string, date: string) {

@@ -95,6 +95,8 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
   const [busy, setBusy] = useState(false);
   const [work, setWork] = useState<Record<string, Work>>({});
   const [backorder, setBackorder] = useState(true);
+  /** Dokumen yang dibuat otomatis saat validasi (mis. draft nota kredit dari retur yang sudah ditagih). */
+  const [documents, setDocuments] = useState<{ id: string; moveType: "out_refund" | "in_refund" }[]>([]);
   const [returnQty, setReturnQty] = useState<Record<string, string> | null>(null);
   const [lotOptions, setLotOptions] = useState<
     Record<string, { id: string; name: string; onHand: string }[]>
@@ -245,10 +247,16 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
           };
         }),
       };
-      const res = await api<Picking & { backorderId: string | null }>(`/pickings/${id}/validate`, {
+      const res = await api<
+        Picking & {
+          backorderId: string | null;
+          documents: { id: string; moveType: "out_refund" | "in_refund" }[];
+        }
+      >(`/pickings/${id}/validate`, {
         method: "POST",
         body,
       });
+      setDocuments(res.documents ?? []);
       if (res.backorderId)
         alert(
           l("Sisa kuantitas dibuat sebagai backorder.", "The remaining quantity was moved to a backorder."),
@@ -360,6 +368,19 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
             )}
           </header>
           {error && <p className="error">{error}</p>}
+          {documents.map((d) => (
+            <p key={d.id} className="notice">
+              {l(
+                "Barang ini sudah ditagih; dibuat otomatis:",
+                "These goods were already invoiced; created automatically:",
+              )}{" "}
+              <Link href={`/accounting/moves/${d.id}`}>
+                {d.moveType === "out_refund"
+                  ? l("draft nota kredit pelanggan", "draft customer credit note")
+                  : l("draft nota debit pemasok", "draft vendor debit note")}
+              </Link>
+            </p>
+          ))}
 
           {returnQty && picking && (
             <div className="inline-panel">

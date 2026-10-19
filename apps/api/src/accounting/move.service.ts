@@ -29,6 +29,14 @@ export type JournalEntryInput = z.infer<typeof journalEntrySchema>;
 export type InvoiceInput = z.infer<typeof invoiceSchema>;
 type MoveType = (typeof schema.MOVE_TYPES)[number];
 type NewLine = Omit<typeof schema.accountMoveLines.$inferInsert, "moveId">;
+export interface PostedMove {
+  id: string;
+  name: string;
+  moveType: MoveType;
+  companyId: string;
+}
+/** Dipanggil setelah entri diposting, dalam transaksi yang sama (didaftarkan modul lain saat inisialisasi). */
+export type PostHook = (tx: Db, move: PostedMove) => Promise<void>;
 
 const SALE_TYPES: MoveType[] = ["out_invoice", "out_refund"];
 const REVERSAL: Record<MoveType, MoveType> = {
@@ -49,6 +57,9 @@ const sideOf = (balance: Decimal, decimals: number) => ({
 
 @Injectable()
 export class MoveService {
+  /** Kait pasca-posting, mis. selisih harga pembelian dan tagihan antar perusahaan. */
+  readonly postHooks: PostHook[] = [];
+
   constructor(
     @Inject(SequenceService) private readonly sequences: SequenceService,
     @Inject(FxService) private readonly fx: FxService,
@@ -272,6 +283,8 @@ export class MoveService {
       action: "update",
       message: `Diposting sebagai ${name}`,
     });
+    for (const hook of this.postHooks)
+      await hook(tx, { id, name, moveType: move.moveType, companyId: move.companyId });
     return name;
   }
 

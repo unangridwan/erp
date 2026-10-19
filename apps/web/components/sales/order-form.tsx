@@ -54,6 +54,7 @@ interface Order {
   clientOrderRef: string | null;
   note: string | null;
   branchId: string | null;
+  icPurchaseOrderId: string | null;
   amountUntaxed: string;
   amountTax: string;
   amountTotal: string;
@@ -421,6 +422,14 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
               )}
           </header>
           {error && <p className="error">{error}</p>}
+          {order?.icPurchaseOrderId && (
+            <p className="notice">
+              {l(
+                "Terhubung dengan pesanan pembelian di perusahaan grup; faktur yang diposting otomatis menjadi draft tagihan di sana.",
+                "Linked to a purchase order in a group company; posted invoices automatically become draft bills there.",
+              )}
+            </p>
+          )}
 
           {invoiceForm && (
             <div className="inline-panel">

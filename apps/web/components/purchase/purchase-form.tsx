@@ -45,6 +45,7 @@ interface Order {
   state: "draft" | "sent" | "to_approve" | "purchase" | "cancel";
   partnerId: string;
   partnerRef: string | null;
+  icSaleOrderId: string | null;
   dateOrder: string;
   datePlanned: string | null;
   paymentTermId: string | null;
@@ -348,6 +349,14 @@ export function PurchaseForm({ id }: { id: string }) {
               )}
           </header>
           {error && <p className="error">{error}</p>}
+          {order?.icSaleOrderId && (
+            <p className="notice">
+              {l(
+                "Terhubung dengan pesanan penjualan di perusahaan grup; fakturnya otomatis menjadi draft tagihan PO ini.",
+                "Linked to a sales order in a group company; its invoices automatically become draft bills for this PO.",
+              )}
+            </p>
+          )}
           {order?.state === "to_approve" && (
             <p className="notice">
               {l(
