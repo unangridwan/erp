@@ -1,25 +1,32 @@
 :root {
-  --bg: #f6f6f7;
-  --fg: #1d1d1f;
+  /* Palet gaya Odoo: ungu primer, teal untuk tautan, latar abu terang. */
+  --bg: #f9fafb;
+  --fg: #212529;
   --card: #ffffff;
-  --border: #e2e2e6;
-  --muted: #6b6b72;
-  --accent: #5b4bdb;
+  --border: #dee2e6;
+  --muted: #6c757d;
+  --accent: #714b67;
   --accent-fg: #ffffff;
-  --danger: #c62f3b;
-  --hover: #f0eff8;
+  --link: #017e84;
+  --danger: #d23f3a;
+  --hover: #f2eef1;
+  --nav-bg: #ffffff;
+  --shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 2px 6px rgb(0 0 0 / 5%);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #131315;
-    --fg: #ececee;
-    --card: #1c1c20;
-    --border: #2d2d33;
-    --muted: #9b9ba3;
-    --accent: #8b7dff;
+    --bg: #1b1d26;
+    --fg: #e4e4e4;
+    --card: #262a36;
+    --border: #3c3e4b;
+    --muted: #9a9ca5;
+    --accent: #a07c9a;
     --accent-fg: #111;
+    --link: #48c6cc;
     --danger: #ff6b76;
-    --hover: #26252f;
+    --hover: #2f3341;
+    --nav-bg: #262a36;
+    --shadow: 0 1px 2px rgb(0 0 0 / 30%);
   }
 }
 * {
@@ -34,8 +41,11 @@ body {
     sans-serif;
 }
 a {
-  color: var(--accent);
+  color: var(--link);
   text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
 }
 h1 {
   font-size: 20px;
@@ -78,7 +88,7 @@ button:disabled {
 .link {
   border: none;
   background: none;
-  color: var(--accent);
+  color: var(--link);
   padding: 0;
 }
 .muted {
@@ -127,55 +137,70 @@ button:disabled {
   gap: 8px;
 }
 .app {
-  display: grid;
-  grid-template-columns: 240px 1fr;
   min-height: 100vh;
-}
-.sidebar {
-  background: var(--card);
-  border-right: 1px solid var(--border);
-  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-.sidebar nav {
-  display: flex;
-  flex-direction: column;
-}
-.sidebar nav a {
-  color: var(--fg);
-  padding: 6px 8px;
-  border-radius: 6px;
-}
-.sidebar nav a:hover,
-.sidebar nav a.active {
-  background: var(--hover);
-}
-.brand {
-  font-weight: 700;
-  font-size: 18px;
-  margin-bottom: 12px;
-}
-.user {
-  margin-top: auto;
-  display: flex;
-  justify-content: space-between;
-  padding-top: 16px;
 }
 .content {
-  padding: 24px;
+  padding: 0 16px 24px;
   min-width: 0;
+  flex: 1;
 }
+/* Control panel gaya Odoo: judul/breadcrumb + tombol aksi di kiri, pencarian di tengah, pager di kanan. */
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 8px 12px;
+  margin: 0 -16px 16px;
+  padding: 10px 16px;
   flex-wrap: wrap;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
 }
 .toolbar h1 {
   margin-right: auto;
+  font-size: 18px;
+  font-weight: 500;
+}
+.control-panel h1 {
+  margin-right: 0;
+}
+.control-panel .cp-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: auto;
+}
+.control-panel .cp-search {
+  flex: 0 1 420px;
+  min-width: 200px;
+}
+.control-panel .cp-search input {
+  width: 100%;
+}
+.control-panel .cp-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.view-switch {
+  display: inline-flex;
+}
+.view-switch button {
+  border-radius: 0;
+  padding: 4px 9px;
+}
+.view-switch button:first-child {
+  border-radius: 4px 0 0 4px;
+}
+.view-switch button:last-child {
+  border-radius: 0 4px 4px 0;
+  border-left: none;
+}
+.view-switch button.active {
+  background: var(--hover);
+  color: var(--accent);
 }
 .table-wrap {
   overflow-x: auto;
@@ -263,18 +288,8 @@ tbody tr:last-child td {
   font-size: 12px;
 }
 @media (max-width: 800px) {
-  .app {
-    grid-template-columns: 1fr;
-  }
-  .sidebar {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
   .form-layout {
     grid-template-columns: 1fr;
-  }
-  .content {
-    padding: 16px;
   }
 }
 .notice {
@@ -310,9 +325,6 @@ tbody tr:last-child td {
 .choices legend {
   font-size: 12px;
   color: var(--muted);
-}
-.sidebar > select {
-  margin-top: 8px;
 }
 code {
   background: var(--hover);
@@ -430,7 +442,8 @@ tr.detail td {
   display: none;
 }
 @media print {
-  .sidebar,
+  .navbar,
+  .banner,
   .no-print,
   .chatter {
     display: none !important;
@@ -646,4 +659,306 @@ label.check {
   gap: 6px;
   align-items: center;
   margin: 6px 0;
+}
+
+/* ---- Navbar & beranda aplikasi (gaya Odoo) ---- */
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 46px;
+  padding: 0 12px;
+  background: var(--nav-bg);
+  border-bottom: 1px solid var(--border);
+}
+.navbar a,
+.navbar button {
+  color: var(--fg);
+}
+.navbar a:hover {
+  text-decoration: none;
+}
+.nav-apps {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  color: var(--muted) !important;
+}
+.nav-apps:hover {
+  background: var(--hover);
+}
+.nav-app {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 500;
+  padding: 0 10px 0 4px;
+  white-space: nowrap;
+}
+.nav-menu {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.nav-menu > a,
+.nav-dropdown > button {
+  display: block;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  white-space: nowrap;
+  font-size: 14px;
+}
+.nav-menu > a:hover,
+.nav-dropdown > button:hover,
+.nav-menu > a.active,
+.nav-dropdown > button.active {
+  background: var(--hover);
+}
+.nav-dropdown {
+  position: relative;
+}
+.nav-items {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 14%);
+}
+.nav-items.right {
+  left: auto;
+  right: 0;
+}
+.nav-items a,
+.nav-items .nav-item {
+  padding: 6px 16px;
+  text-align: left;
+  border: none;
+  border-radius: 0;
+  background: none;
+  white-space: nowrap;
+}
+.nav-items a:hover,
+.nav-items .nav-item:hover,
+.nav-items a.active {
+  background: var(--hover);
+}
+.nav-user-head {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.nav-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.nav-company {
+  border: none;
+  background: none;
+  max-width: 220px;
+}
+.nav-company-name {
+  color: var(--muted);
+  white-space: nowrap;
+}
+.avatar,
+.nav-dropdown > button.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  padding: 0;
+  background: var(--accent);
+  color: var(--accent-fg) !important;
+  font-weight: 600;
+  font-size: 13px;
+}
+.nav-burger {
+  display: none;
+  border: none;
+  background: none;
+  font-size: 18px;
+}
+@media (max-width: 900px) {
+  .nav-burger {
+    display: block;
+  }
+  .nav-menu {
+    display: none;
+  }
+  .nav-menu.open {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    position: absolute;
+    top: 46px;
+    left: 0;
+    right: 0;
+    padding: 8px;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 6px 18px rgb(0 0 0 / 14%);
+    max-height: calc(100vh - 46px);
+    overflow-y: auto;
+  }
+  .nav-menu.open .nav-items {
+    position: static;
+    border: none;
+    box-shadow: none;
+    padding-left: 12px;
+  }
+  .nav-company-name {
+    display: none;
+  }
+}
+.app.home {
+  background:
+    radial-gradient(circle at 15% 10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 45%),
+    radial-gradient(circle at 85% 90%, color-mix(in srgb, var(--link) 12%, transparent), transparent 45%),
+    var(--bg);
+}
+.app.home .content {
+  padding-top: 32px;
+}
+.app-grid {
+  max-width: 900px;
+  margin: 24px auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 28px 16px;
+}
+.app-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg) !important;
+  font-size: 14px;
+  text-align: center;
+}
+.app-tile:hover {
+  text-decoration: none;
+}
+.app-tile-icon {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  transition:
+    transform 0.12s,
+    box-shadow 0.12s;
+}
+.app-tile:hover .app-tile-icon {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 14%);
+}
+
+/* ---- Kanban (kartu) ---- */
+.record-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px;
+}
+.record-card {
+  display: flex;
+  gap: 12px;
+  padding: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg) !important;
+  min-width: 0;
+}
+.record-card:hover {
+  text-decoration: none;
+  box-shadow: var(--shadow);
+}
+.record-avatar {
+  flex: 0 0 64px;
+  height: 64px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  font-weight: 600;
+  color: #fff;
+}
+.record-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.record-body strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.record-body span {
+  color: var(--muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.record-body .tag {
+  align-self: flex-start;
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--hover);
+  border-radius: 999px;
+  padding: 0 8px;
+}
+.breadcrumb {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.breadcrumb a {
+  font-size: 18px;
+}
+.breadcrumb span {
+  color: var(--muted);
+}
+.breadcrumb h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pager-text {
+  white-space: nowrap;
+  font-size: 13px;
+}
+/* Toolbar di dalam panel/kartu (form dokumen) tidak memakai gaya control panel selebar layar. */
+.panel .toolbar,
+.split .toolbar,
+.stack-wide .toolbar {
+  margin: 0 0 12px;
+  padding: 0 0 12px;
+  background: none;
+}
+.content > .banner {
+  margin: 12px 0;
 }

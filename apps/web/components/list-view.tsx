@@ -31,6 +31,35 @@ function useRefLabels(resource: Resource) {
   return labels;
 }
 
+const COLORS = ["#714b67", "#017e84", "#f06050", "#f0a033", "#6c5fb0", "#2e8b57", "#d4609c", "#3f7fbf"];
+/** Warna avatar kartu yang konsisten per nama. */
+const avatarColor = (name: string) =>
+  COLORS[[...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % COLORS.length]!;
+
+/** Pilihan tampilan per resource (kanban bawaan bila tersedia), diingat di browser. */
+function useViewMode(resource: Resource) {
+  const key = `erp.view.${resource.path}`;
+  const fallback: "kanban" | "list" = resource.kanban ? "kanban" : "list";
+  const [view, setViewState] = useState<"kanban" | "list">(fallback);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved === "kanban" || saved === "list") setViewState(resource.kanban ? saved : "list");
+    } catch {
+      // localStorage tidak tersedia; pakai tampilan bawaan.
+    }
+  }, [key, resource.kanban]);
+  const setView = (v: "kanban" | "list") => {
+    setViewState(v);
+    try {
+      localStorage.setItem(key, v);
+    } catch {
+      // abaikan
+    }
+  };
+  return [view, setView] as const;
+}
+
 export function ListView({ resource }: { resource: Resource }) {
   const me = useMe();
   const { t, tx } = useI18n();
@@ -44,6 +73,7 @@ export function ListView({ resource }: { resource: Resource }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const writable = canWrite(me.permissions, resource);
   const refLabels = useRefLabels(resource);
+  const [view, setView] = useViewMode(resource);
 
   useEffect(() => {
     const params = new URLSearchParams({ limit: String(PAGE), offset: String(offset) });
@@ -62,6 +92,11 @@ export function ListView({ resource }: { resource: Resource }) {
   const cell = (row: Row, name: string) => {
     const v = row[name];
     if (v === null || v === undefined) return "";
+    const field = resource.fields.find((f) => f.name === name);
+    if (field?.type === "select") {
+      const option = field.options.find(([key]) => key === v);
+      if (option) return tx(option[1]);
+    }
     return refLabels[name]?.get(String(v)) ?? String(v);
   };
 
@@ -95,39 +130,82 @@ export function ListView({ resource }: { resource: Resource }) {
 
   return (
     <>
-      <header className="toolbar">
-        <h1>{tx(resource.title)}</h1>
-        <input
-          type="search"
-          placeholder={t("list.search")}
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setOffset(0);
-          }}
-        />
-        {resource.csv && <button onClick={exportCsv}>{t("list.export")}</button>}
-        {resource.csv && writable && (
-          <>
-            <button onClick={() => fileInput.current?.click()}>{t("list.import")}</button>
-            <input
-              ref={fileInput}
-              type="file"
-              accept=".csv,text/csv"
-              hidden
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = "";
-                if (file) void importCsv(file);
-              }}
-            />
-          </>
-        )}
-        {writable && (
-          <Link className="button primary" href={`/${resource.path}/new`}>
-            {t("list.new")}
-          </Link>
-        )}
+      <header className="toolbar control-panel">
+        <div className="cp-left">
+          {writable && (
+            <Link className="button primary" href={`/${resource.path}/new`}>
+              {t("list.new")}
+            </Link>
+          )}
+          <h1>{tx(resource.title)}</h1>
+        </div>
+        <div className="cp-search">
+          <input
+            type="search"
+            placeholder={t("list.search")}
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setOffset(0);
+            }}
+          />
+        </div>
+        <div className="cp-right">
+          {resource.csv && <button onClick={exportCsv}>{t("list.export")}</button>}
+          {resource.csv && writable && (
+            <>
+              <button onClick={() => fileInput.current?.click()}>{t("list.import")}</button>
+              <input
+                ref={fileInput}
+                type="file"
+                accept=".csv,text/csv"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file) void importCsv(file);
+                }}
+              />
+            </>
+          )}
+          {data && (
+            <span className="muted pager-text">
+              {data.total === 0 ? 0 : offset + 1}–{Math.min(offset + PAGE, data.total)} / {data.total}
+            </span>
+          )}
+          <button
+            disabled={offset === 0}
+            onClick={() => setOffset(Math.max(0, offset - PAGE))}
+            aria-label="‹"
+          >
+            ‹
+          </button>
+          <button
+            disabled={!data || offset + PAGE >= data.total}
+            onClick={() => setOffset(offset + PAGE)}
+            aria-label="›"
+          >
+            ›
+          </button>
+          {resource.kanban && (
+            <span className="view-switch">
+              <button
+                className={view === "kanban" ? "active" : ""}
+                title="Kanban"
+                onClick={() => setView("kanban")}
+              >
+                ▦
+              </button>
+              <button
+                className={view === "list" ? "active" : ""}
+                title="List"
+                onClick={() => setView("list")}
+              >
+                ☰
+              </button>
+            </span>
+          )}
+        </div>
       </header>
       {notice && <p className="notice">{notice}</p>}
       {error && <p className="error">{error}</p>}
@@ -141,54 +219,64 @@ export function ListView({ resource }: { resource: Resource }) {
           ))}
         </ul>
       )}
-      {data && (
-        <>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  {resource.columns.map((c) => (
-                    <th key={c.name}>{tx(c.label)}</th>
+      {data && view === "kanban" && resource.kanban && (
+        <div className="record-cards">
+          {data.items.map((row) => {
+            const title = cell(row, resource.kanban!.title) || "—";
+            const tag = resource.kanban!.tag && cell(row, resource.kanban!.tag);
+            return (
+              <Link key={row.id} href={`/${resource.path}/${row.id}`} className="record-card">
+                <span className="record-avatar" style={{ background: avatarColor(title) }}>
+                  {title.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="record-body">
+                  <strong>{title}</strong>
+                  {resource.kanban!.lines.map((name) => {
+                    const v = cell(row, name);
+                    return v ? <span key={name}>{v}</span> : null;
+                  })}
+                  {tag && <span className="tag">{tag}</span>}
+                </span>
+              </Link>
+            );
+          })}
+          {data.items.length === 0 && <p className="muted">{t("list.empty")}</p>}
+        </div>
+      )}
+      {data && view === "list" && (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                {resource.columns.map((c) => (
+                  <th key={c.name}>{tx(c.label)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.items.map((row) => (
+                <tr key={row.id}>
+                  {resource.columns.map((c, i) => (
+                    <td key={c.name}>
+                      {i === 0 ? (
+                        <Link href={`/${resource.path}/${row.id}`}>{cell(row, c.name) || "—"}</Link>
+                      ) : (
+                        cell(row, c.name)
+                      )}
+                    </td>
                   ))}
                 </tr>
-              </thead>
-              <tbody>
-                {data.items.map((row) => (
-                  <tr key={row.id}>
-                    {resource.columns.map((c, i) => (
-                      <td key={c.name}>
-                        {i === 0 ? (
-                          <Link href={`/${resource.path}/${row.id}`}>{cell(row, c.name) || "—"}</Link>
-                        ) : (
-                          cell(row, c.name)
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-                {data.items.length === 0 && (
-                  <tr>
-                    <td colSpan={resource.columns.length} className="muted">
-                      {t("list.empty")}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <footer className="pager">
-            <span className="muted">
-              {data.total === 0 ? 0 : offset + 1}–{Math.min(offset + PAGE, data.total)} {t("list.of")}{" "}
-              {data.total}
-            </span>
-            <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>
-              ‹
-            </button>
-            <button disabled={offset + PAGE >= data.total} onClick={() => setOffset(offset + PAGE)}>
-              ›
-            </button>
-          </footer>
-        </>
+              ))}
+              {data.items.length === 0 && (
+                <tr>
+                  <td colSpan={resource.columns.length} className="muted">
+                    {t("list.empty")}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
     </>
   );

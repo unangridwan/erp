@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../lib/api";
@@ -92,17 +93,21 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
 
   const set = (name: string, value: unknown) => setValues((v) => ({ ...v, [name]: value }));
 
+  const recordName = isNew
+    ? `${tx(resource.singular)} ${t("form.new")}`
+    : String(values.name ?? values.code ?? tx(resource.singular));
+
   return (
-    <div className="form-layout">
-      <form className="panel" onSubmit={onSubmit}>
-        <header className="toolbar">
-          <h1>
-            {isNew
-              ? `${tx(resource.singular)} ${t("form.new")}`
-              : String(values.name ?? values.code ?? tx(resource.singular))}
-          </h1>
+    <>
+      <header className="toolbar control-panel">
+        <div className="cp-left">
+          <nav className="breadcrumb">
+            <Link href={`/${resource.path}`}>{tx(resource.title)}</Link>
+            <span>/</span>
+            <h1>{recordName}</h1>
+          </nav>
           {editable && (
-            <button className="primary" disabled={saving}>
+            <button className="primary" form="record-form" disabled={saving}>
               {saving ? t("form.saving") : t("form.save")}
             </button>
           )}
@@ -111,30 +116,34 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
               {t("form.delete")}
             </button>
           )}
-        </header>
-        {error && <p className="error">{error}</p>}
-        <fieldset disabled={!editable} className="fields">
-          {resource.fields.map((f) => (
-            <label key={f.name} className={f.type === "boolean" ? "field check" : "field"}>
-              <span>
-                {tx(f.label)}
-                {"required" in f && f.required ? " *" : ""}
-              </span>
-              <FieldInput field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} />
-              {fieldErrors[f.name] && <small className="error">{fieldErrors[f.name]}</small>}
-            </label>
-          ))}
-        </fieldset>
-      </form>
-      {!isNew && (
-        <Chatter
-          model={resource.model}
-          id={id}
-          version={version}
-          labels={Object.fromEntries(resource.fields.map((f) => [f.name, tx(f.label)]))}
-        />
-      )}
-    </div>
+        </div>
+      </header>
+      <div className="form-layout">
+        <form id="record-form" className="panel" onSubmit={onSubmit}>
+          {error && <p className="error">{error}</p>}
+          <fieldset disabled={!editable} className="fields">
+            {resource.fields.map((f) => (
+              <label key={f.name} className={f.type === "boolean" ? "field check" : "field"}>
+                <span>
+                  {tx(f.label)}
+                  {"required" in f && f.required ? " *" : ""}
+                </span>
+                <FieldInput field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} />
+                {fieldErrors[f.name] && <small className="error">{fieldErrors[f.name]}</small>}
+              </label>
+            ))}
+          </fieldset>
+        </form>
+        {!isNew && (
+          <Chatter
+            model={resource.model}
+            id={id}
+            version={version}
+            labels={Object.fromEntries(resource.fields.map((f) => [f.name, tx(f.label)]))}
+          />
+        )}
+      </div>
+    </>
   );
 }
 
