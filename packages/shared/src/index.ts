@@ -10,5 +10,6 @@ export * from "./sales.js";
 export * from "./inventory.js";
 export * from "./payroll.js";
 export * from "./coretax.js";
+export * from "./coretax-extra.js";
 export * from "./billing.js";
 export * from "./consolidation.js";

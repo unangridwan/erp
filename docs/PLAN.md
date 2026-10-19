@@ -296,9 +296,14 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [ ] Fase 5b ditunda: reklasifikasi selisih kurs penjabaran saat entitas asing dilepas, pengukuran ulang nilai wajar
   kepemilikan sebelumnya pada akuisisi bertahap, goodwill entitas asing dijabarkan kurs penutupan, laba belum
   terealisasi pada transaksi dengan asosiasi, laporan per sub-grup/segmen
-- [ ] Fase 5 ditunda: bukti potong A1/A2 (XML), retur/pengganti faktur pajak via XML, faktur uang muka/pelunasan,
-  PPnBM (STLG) per produk, validasi XSD resmi, NSFP lama (pra-Coretax), PITR/WAL archiving terkelola, tracing
-  OpenTelemetry, Sentry
+- [x] Fase 5 (tunda, selesai sebagian): bukti potong A1 (XML `A1Bulk` dari slip masa terakhir); faktur uang muka &
+  pelunasan (potongan uang muka mengurangi DPP); PPnBM per produk (tarif di produk, pajak PPnBM + PPN barang mewah
+  otomatis di baris penjualan, STLG di faktur); pemeriksaan isi XML faktur sebelum ekspor sesuai aturan template
+  (pengganti XSD — DJP tidak menerbitkan XSD); faktur pengganti (draft menunjuk faktur lama, status "diganti"); nota
+  retur pajak masukan dari nota debit (mengurangi PPN masukan di rekap); e-Faktur 3.x: rentang NSFP dan CSV FK/OF/RM
+- [ ] Fase 5 ditunda: bukti potong A2 (khusus ASN/bendahara instansi pemerintah); XML Coretax untuk faktur pengganti &
+  retur (impor XML Coretax hanya menerima faktur normal; skema retur pajak masukan belum bisa diverifikasi dari sini);
+  PITR/WAL archiving terkelola, tracing OpenTelemetry, Sentry
 - [x] Fase 4 (tunda, selesai): jadwal kerja & penugasan shift dengan toleransi dan potongan keterlambatan per menit/
   kejadian (zona waktu perusahaan, hari libur dikecualikan) yang masuk slip; persetujuan berjenjang cuti & lembur
   (atasan → atasan dari atasan → HR, riwayat & kotak persetujuan); pinjaman karyawan (pencairan via kas/bank ke piutang

@@ -37,7 +37,7 @@ export const JOURNAL_TYPES = ["sale", "purchase", "bank", "cash", "general"] as 
 export const MOVE_TYPES = ["entry", "out_invoice", "out_refund", "in_invoice", "in_refund"] as const;
 
 /** Jenis pajak untuk pelaporan Coretax. */
-export const TAX_KINDS = ["vat", "vat_luxury", "pph23", "pph4_2", "pph22", "other"] as const;
+export const TAX_KINDS = ["vat", "vat_luxury", "ppnbm", "pph23", "pph4_2", "pph22", "other"] as const;
 
 export const accounts = pgTable("accounts", {
   id: uuid("id").primaryKey().defaultRandom(),

@@ -196,6 +196,10 @@ memakai upah sebulan terakhir (harian × 21; borongan rata-rata 3 slip) dan sisa
 | `GET /input-tax-invoices`, `POST /input-tax-invoices/{import,credit}`, `PATCH /input-tax-invoices/:id`      | Faktur masukan dari CSV Coretax, cocok otomatis ke tagihan, kreditkan maks. 3 masa            |
 | `GET /withholding-slips?kind=bppu\|bpmp`, `POST /withholding-slips/{generate,export}`                       | Bukti potong PPh 23/4(2)/22 dari tagihan (BPPU) & PPh 21 bulanan dari payroll (BPMP), XML     |
 | `GET /tax/vat-report?year=&month=`, `GET /tax/exports`, `GET /tax/exports/:id`                              | Rekap SPT Masa PPN, riwayat berkas XML yang diekspor                                          |
+| `POST /tax-invoices/check`, `POST /tax-invoices/:id/replace`                                                | Periksa isi faktur sebelum diunggah; draft faktur pengganti atas faktur yang sudah terbit     |
+| `GET/POST /tax/nsfp-ranges`, `DELETE /tax/nsfp-ranges/:id`, `POST /tax-invoices/export-legacy`              | e-Faktur 3.x (pra-Coretax): rentang NSFP & CSV impor FK/OF (pengganti, uang muka/pelunasan)   |
+| `GET /tax-returns`, `POST /tax-returns/{generate,export-legacy}`, `PATCH /tax-returns/:id`                  | Nota retur pajak masukan dari nota debit; CSV RM untuk faktur lama; mengurangi PPN masukan    |
+| `POST /withholding-slips/generate {kind: "bpa1"}`                                                           | Bukti potong A1 tahunan dari slip masa terakhir (Desember/karyawan keluar), XML `A1Bulk`      |
 | `GET /onboarding`, `PUT /onboarding/company`, `POST /onboarding/{opening-balance,steps,complete}`           | Panduan awal: profil & PKP, saldo awal (selisih → 3-9900), checklist                          |
 | `GET /billing`, `POST /billing/{subscribe,cancel,resume}`, `POST /billing/invoices/:id/pay`                 | Paket, tagihan + PPN, pembayaran (Xendit atau transfer manual)                                |
 | `POST /billing/webhooks/xendit`                                                                             | Callback Xendit (header `x-callback-token` = `XENDIT_CALLBACK_TOKEN`)                         |
@@ -204,9 +208,18 @@ memakai upah sebulan terakhir (harian × 21; borongan rata-rata 3 slip) dan sisa
 | `GET /health/ready`, `GET /metrics`                                                                         | Readiness (DB & migrasi), metrik Prometheus (`Authorization: Bearer $METRICS_TOKEN`)          |
 
 Format XML mengikuti template impor Coretax: faktur keluaran (`TaxInvoiceBulk`, dicocokkan dengan contoh referensi
-Odoo `l10n_id_efaktur_coretax`), BPMP (`MmPayrollBulk`), dan BPPU (`BpuBulk`). **Uji dulu satu berkas di Coretax**
-(menu impor → XML Monitoring) sebelum dipakai rutin, terutama BPPU yang strukturnya belum bisa dicocokkan dengan
-template resmi DJP. Bukti potong A1 (Desember/karyawan keluar) belum dibuat — laporkan langsung di Coretax.
+Odoo `l10n_id_efaktur_coretax`), BPMP (`MmPayrollBulk`), BPPU (`BpuBulk`), dan BPA1 (`A1Bulk`). DJP tidak menerbitkan
+XSD untuk berkas impor ini, jadi sebelum ekspor ERP memeriksa aturan dari lembar Keterangan template (identitas
+16/22 digit, kode barang & satuan, rumus DPP/DPP nilai lain/PPN/PPnBM, keterangan fasilitas kode 07/08). **Uji dulu
+satu berkas di Coretax** (menu impor → XML Monitoring) sebelum dipakai rutin, terutama BPPU dan BPA1 yang susunannya
+belum bisa dicocokkan dengan berkas hasil konverter resmi DJP.
+
+Faktur pelunasan atas pesanan berpotongan uang muka: potongan dibagi ke baris berpajak sama sebagai diskon, sehingga
+DPP = penyerahan − uang muka yang sudah difakturkan. Produk barang mewah memakai tarif PPnBM (`luxuryTaxRate`); baris
+penjualannya otomatis berpajak PPN barang mewah (DPP = harga jual) + pajak PPnBM perusahaan bertarif sama. Faktur
+pengganti dan retur pajak masukan di Coretax dibuat lewat menu Coretax (impor XML Coretax hanya untuk faktur normal);
+ERP mencatat datanya, nomornya, dan pengaruhnya ke rekap PPN. CSV e-Faktur 3.x (FK/OF, RM) disediakan untuk PKP yang
+masih memakai aplikasi e-Faktur lama atau membetulkan faktur pra-Coretax.
 
 Paket langganan: tenant baru mendapat uji coba (`TRIAL_PLAN`, `TRIAL_DAYS`). Modul di luar paket ditolak (403),
 melebihi batas pengguna/perusahaan ditolak, dan langganan yang berakhir (lewat `BILLING_GRACE_DAYS`) menjadi baca saja

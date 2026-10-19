@@ -26,7 +26,12 @@ interface TaxInvoice {
   taxBase: string;
   otherTaxBase: string;
   vat: string;
+  stlg: string;
   efakturNumber: string | null;
+  downPayment: number;
+  replacesId: string | null;
+  replacedNumber: string | null;
+  nsfp: string | null;
 }
 
 interface Generated {
@@ -44,6 +49,7 @@ export default function TaxInvoicesPage() {
   const [editing, setEditing] = useState<TaxInvoice | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [problems, setProblems] = useState<string[] | null>(null);
   const [year, month] = period.split("-").map(Number) as [number, number];
   const canWrite = can(me.permissions, "tax.write");
 
@@ -60,6 +66,7 @@ export default function TaxInvoicesPage() {
   async function run(action: () => Promise<unknown>, done?: string) {
     setError(null);
     setMessage(null);
+    setProblems(null);
     try {
       await action();
       if (done) setMessage(done);
@@ -122,6 +129,44 @@ export default function TaxInvoicesPage() {
               {l(`Ekspor XML (${selected.size})`, `Export XML (${selected.size})`)}
             </button>
           )}
+          <button
+            disabled={!selected.size}
+            onClick={() =>
+              run(async () => {
+                const res = await api<{ checked: number; errors: string[] }>("/tax-invoices/check", {
+                  method: "POST",
+                  body: { ids: [...selected] },
+                });
+                if (res.errors.length) setProblems(res.errors);
+                else
+                  setMessage(
+                    l(
+                      `${res.checked} faktur memenuhi ketentuan template impor Coretax.`,
+                      `${res.checked} invoices pass the Coretax import template rules.`,
+                    ),
+                  );
+              })
+            }
+          >
+            {l(`Periksa (${selected.size})`, `Check (${selected.size})`)}
+          </button>
+          {can(me.permissions, "tax.manage") && (
+            <button
+              disabled={!selected.size}
+              title={l(
+                "Format CSV aplikasi e-Faktur 3.x untuk PKP yang belum memakai Coretax; NSFP diambil dari rentang terdaftar",
+                "e-Faktur 3.x CSV for taxpayers not yet on Coretax; NSFP taken from registered ranges",
+              )}
+              onClick={() =>
+                run(
+                  () => download("/tax-invoices/export-legacy", { ids: [...selected] }, "efaktur-lama.csv"),
+                  l("CSV e-Faktur 3.x diunduh.", "e-Faktur 3.x CSV downloaded."),
+                )
+              }
+            >
+              {l(`CSV e-Faktur lama (${selected.size})`, `Legacy e-Faktur CSV (${selected.size})`)}
+            </button>
+          )}
           <label className="button">
             {l("Impor nomor faktur (CSV Coretax)", "Import invoice numbers (Coretax CSV)")}
             <input
@@ -150,6 +195,18 @@ export default function TaxInvoicesPage() {
               }}
             />
           </label>
+        </div>
+      )}
+      {problems && (
+        <div className="panel">
+          <p className="error">
+            {l("Perbaiki sebelum diunggah ke Coretax:", "Fix before uploading to Coretax:")}
+          </p>
+          <ul>
+            {problems.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
         </div>
       )}
       {result && (
@@ -208,6 +265,7 @@ export default function TaxInvoicesPage() {
                 <th className="num">DPP</th>
                 <th className="num">{l("DPP nilai lain", "Other base")}</th>
                 <th className="num">PPN</th>
+                <th className="num">PPnBM</th>
                 <th>{l("Nomor faktur", "Invoice number")}</th>
                 <th>{l("Status", "Status")}</th>
                 <th />
@@ -224,6 +282,17 @@ export default function TaxInvoicesPage() {
                   <td>
                     {d.ref}
                     {d.reversed && <span className="badge state-cancel">{l("dibalik", "reversed")}</span>}
+                    {d.downPayment === 1 && (
+                      <span className="badge state-draft">{l("uang muka", "down payment")}</span>
+                    )}
+                    {d.downPayment === 2 && (
+                      <span className="badge state-draft">{l("pelunasan", "settlement")}</span>
+                    )}
+                    {d.replacesId && (
+                      <div className="muted small">
+                        {l("Pengganti", "Replaces")} {d.replacedNumber}
+                      </div>
+                    )}
                   </td>
                   <td>{formatDate(d.invoiceDate, locale)}</td>
                   <td>
@@ -238,7 +307,11 @@ export default function TaxInvoicesPage() {
                   <td className="num">{money(d.taxBase, locale)}</td>
                   <td className="num">{money(d.otherTaxBase, locale)}</td>
                   <td className="num">{money(d.vat, locale)}</td>
-                  <td>{d.efakturNumber ?? ""}</td>
+                  <td className="num">{Number(d.stlg) ? money(d.stlg, locale) : ""}</td>
+                  <td>
+                    {d.efakturNumber ?? ""}
+                    {d.nsfp && <div className="muted small">NSFP {d.nsfp}</div>}
+                  </td>
                   <td>
                     <span className={`badge ${taxStateClass(d.state)}`}>
                       {tx(TAX_DOC_STATE_LABEL[d.state]!)}
@@ -266,7 +339,27 @@ export default function TaxInvoicesPage() {
                         {l("Catat terbit", "Mark approved")}
                       </button>
                     )}
-                    {canWrite && d.state !== "cancelled" && (
+                    {canWrite && d.state === "approved" && (
+                      <button
+                        className="link"
+                        title={l(
+                          "Buat draft faktur pengganti (data dihitung ulang dari faktur penjualan)",
+                          "Create a replacement draft (recomputed from the sales invoice)",
+                        )}
+                        onClick={() =>
+                          run(
+                            () => api(`/tax-invoices/${d.id}/replace`, { method: "POST" }),
+                            l(
+                              "Draft pengganti dibuat. Buat penggantinya di Coretax (Faktur Keluaran → Ganti), lalu catat nomornya.",
+                              "Replacement draft created. Create it in Coretax (Output Invoices → Replace), then record its number.",
+                            ),
+                          )
+                        }
+                      >
+                        {l("Ganti", "Replace")}
+                      </button>
+                    )}
+                    {canWrite && d.state !== "cancelled" && d.state !== "replaced" && (
                       <button
                         className="link danger"
                         onClick={() => {
@@ -282,7 +375,7 @@ export default function TaxInvoicesPage() {
               ))}
               {docs.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="muted">
+                  <td colSpan={12} className="muted">
                     {l("Belum ada faktur pajak pada masa ini.", "No tax invoices in this period.")}
                   </td>
                 </tr>

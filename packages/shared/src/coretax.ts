@@ -110,6 +110,8 @@ export interface TaxInvoiceLineInput {
   qty: Decimal.Value;
   /** Diskon persen. */
   discount: Decimal.Value;
+  /** Diskon tambahan (Rupiah), mis. bagian potongan uang muka pada faktur pelunasan. */
+  extraDiscount?: Decimal.Value;
   /** DPP (subtotal setelah diskon) dalam Rupiah. */
   taxBase: Decimal.Value;
   /** Pajak PPN pada baris: tarif & rasio DPP (11/12 untuk non-mewah). */
@@ -146,7 +148,11 @@ export function taxInvoiceLine(input: TaxInvoiceLineInput, trxCode: TrxCode): Ta
   if (taxBase.lt(0)) throw new Error(`Baris "${input.name}" bernilai negatif`);
   const price = D(input.price);
   const qty = D(input.qty);
-  const discount = price.times(qty).times(D(input.discount)).div(100);
+  const discount = price
+    .times(qty)
+    .times(D(input.discount))
+    .div(100)
+    .plus(input.extraDiscount ?? 0);
   let vatRate = D(input.vat?.rate ?? 0);
   let ratio = D(input.vat?.baseRatio ?? 1);
   if ((trxCode === "07" || trxCode === "08") && input.vat && vatRate.isZero()) {

@@ -864,6 +864,36 @@ export class SaleOrderService implements OnModuleInit {
     return status;
   }
 
+  /**
+   * Pajak bawaan barang mewah: PPN barang mewah (DPP = harga jual, PMK 131/2024) + PPnBM perusahaan bertarif sama
+   * dengan tarif PPnBM produk.
+   */
+  private async luxuryTaxes(tx: Db, companyId: string, products: { luxuryTaxRate: string | null }[]) {
+    if (!products.some((p) => p.luxuryTaxRate)) return () => [] as string[];
+    const taxes = await tx
+      .select({ id: schema.taxes.id, amount: schema.taxes.amount, kind: schema.taxes.taxKind })
+      .from(schema.taxes)
+      .where(
+        and(
+          eq(schema.taxes.companyId, companyId),
+          eq(schema.taxes.typeTaxUse, "sale"),
+          eq(schema.taxes.active, true),
+          inArray(schema.taxes.taxKind, ["vat_luxury", "ppnbm"]),
+        ),
+      )
+      .orderBy(asc(schema.taxes.name));
+    const vat = taxes.find((t) => t.kind === "vat_luxury");
+    return (rate: string, i: number) => {
+      const ppnbm = taxes.find((t) => t.kind === "ppnbm" && dec(t.amount).eq(rate));
+      if (!ppnbm)
+        throw fieldError(
+          `lines.${i}.taxIds`,
+          `Pajak PPnBM ${dec(rate).toString()}% belum ada di perusahaan ini (buat di Akuntansi → Pajak, jenis PPnBM)`,
+        );
+      return vat ? [vat.id, ppnbm.id] : [ppnbm.id];
+    };
+  }
+
   private async currencyDecimals(tx: Db, code: string) {
     const [currency] = await tx.select().from(schema.currencies).where(eq(schema.currencies.code, code));
     if (!currency) throw fieldError("currencyCode", "Mata uang tidak dikenal");
@@ -954,6 +984,7 @@ export class SaleOrderService implements OnModuleInit {
           )
       : [];
     const defaultTaxIds = books.settings.defaultSaleTaxId ? [books.settings.defaultSaleTaxId] : [];
+    const luxuryTaxes = await this.luxuryTaxes(tx, companyId, products);
 
     const lines = [];
     for (const [i, l] of input.lines.entries()) {
@@ -990,7 +1021,7 @@ export class SaleOrderService implements OnModuleInit {
         quantity: l.quantity,
         priceUnit: dec(priceUnit).toFixed(4),
         discount: l.discount,
-        taxIds: l.taxIds ?? defaultTaxIds,
+        taxIds: l.taxIds ?? (product?.luxuryTaxRate ? luxuryTaxes(product.luxuryTaxRate, i) : defaultTaxIds),
         priceSubtotal: "0",
         isDownpayment: false,
         uomId,
