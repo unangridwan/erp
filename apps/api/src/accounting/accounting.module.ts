@@ -21,7 +21,9 @@ import {
   BankController,
   BudgetsController,
   ClosingAndExportController,
+  FxRevaluationController,
 } from "./extended.controller.js";
+import { FxRevaluationService } from "./fx-revaluation.service.js";
 import { MoveService } from "./move.service.js";
 import { PaymentService } from "./payment.service.js";
 import { ReconcileService } from "./reconcile.service.js";
@@ -106,6 +108,7 @@ const AssetsController = createCrudController({
     ReportsController,
     BankController,
     AssetActionsController,
+    FxRevaluationController,
     AssetsController,
     BudgetsController,
     ClosingAndExportController,
@@ -121,6 +124,7 @@ const AssetsController = createCrudController({
     AssetService,
     BudgetService,
     ClosingService,
+    FxRevaluationService,
   ],
   exports: [MoveService],
 })

@@ -102,6 +102,23 @@ export interface ConsolidationOptions {
   unrealizedProfits?: { sellerId: string; buyerId: string; closing: Decimal.Value; opening: Decimal.Value }[];
   /** Nilai barang yang dibeli `buyerId` dari `sellerId` selama periode (mata uang penyajian). */
   icGoods?: { sellerId: string; buyerId: string; amount: Decimal.Value }[];
+  /**
+   * Aset tetap yang dijual antar perusahaan grup (mata uang penyajian): laba penjual (`gain`), sisa laba belum
+   * terealisasi akhir/awal periode (berkurang seiring penyusutan pembeli), dan akun grup terkait.
+   */
+  assetProfits?: {
+    sellerId: string;
+    buyerId: string;
+    name: string;
+    gain: Decimal.Value;
+    closing: Decimal.Value;
+    opening: Decimal.Value;
+    /** Penjualan terjadi di dalam periode (laba penjual ada di laba rugi periode ini). */
+    inPeriod: boolean;
+    gainAccountId: string;
+    assetAccountId: string;
+    expenseAccountId: string;
+  }[];
 }
 
 export interface EntryLine {
@@ -535,6 +552,43 @@ export function consolidate(
       kind: "unrealized_profit",
       companyId: u.sellerId,
       description: `Laba belum terealisasi atas persediaan ${buyer.name} yang dibeli dari ${seller.name}`,
+      lines: nonZero(lines),
+    });
+  }
+
+  // ---- Laba belum terealisasi atas aset tetap antar perusahaan ----
+  for (const u of options.assetProfits ?? []) {
+    const seller = entityById.get(u.sellerId);
+    const buyer = entityById.get(u.buyerId);
+    if (!seller || !buyer || !inScope.has(u.sellerId) || !inScope.has(u.buyerId)) continue;
+    if (seller.disposal || buyer.disposal) continue;
+    const closing = r2(D(u.closing));
+    // Penjualan dalam periode: laba penjual dibalik; selain itu sisa awal periode dibebankan ke saldo laba.
+    const gain = u.inPeriod ? r2(D(u.gain)) : D(0);
+    const opening = u.inPeriod ? D(0) : r2(D(u.opening));
+    if (closing.isZero() && gain.isZero() && opening.isZero()) continue;
+    const pSeller = seller.isRoot || seller.method !== "full" ? D(1) : D(seller.effectivePct).div(100);
+    const nci = D(1).minus(pSeller);
+    const lines = [
+      line(retained, null, opening),
+      line(u.gainAccountId, u.sellerId, gain),
+      line(u.assetAccountId, u.buyerId, closing.negated()),
+      // Penyusutan pembeli atas laba yang belum terealisasi bukan beban grup.
+      line(u.expenseAccountId, u.buyerId, closing.minus(opening).minus(gain)),
+    ];
+    const profitEffect = closing.minus(opening);
+    if (nci.gt(0))
+      lines.push(
+        line(role("nci_profit"), null, nci.times(profitEffect).negated()),
+        line(role("nci_equity"), null, nci.times(closing)),
+        line(retained, null, nci.times(opening).negated()),
+      );
+    const rest = lines.reduce((s, l) => s.plus(l.amount), D(0));
+    if (!rest.isZero()) lines.push(line(retained, null, rest.negated()));
+    entries.push({
+      kind: "unrealized_profit",
+      companyId: u.sellerId,
+      description: `Laba belum terealisasi atas aset tetap ${u.name} yang dijual ${seller.name} ke ${buyer.name}`,
       lines: nonZero(lines),
     });
   }

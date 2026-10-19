@@ -293,8 +293,7 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   dieliminasi otomatis; selisih IC akibat kurs ke selisih kurs penjabaran; saldo awal dari proses final periode
   sebelumnya atau dihitung ulang; laporan perubahan ekuitas & arus kas (tidak langsung) konsolidasian; ekspor Excel
   multi-lembar & cetak/PDF; akun & laporan RK pusat–cabang dengan peringatan di konsolidasi
-- [ ] Fase 5b ditunda: laba belum terealisasi atas aset tetap antar perusahaan (menunggu fitur pelepasan aset; sementara
-  via jurnal manual), reklasifikasi selisih kurs penjabaran saat entitas asing dilepas, pengukuran ulang nilai wajar
+- [ ] Fase 5b ditunda: reklasifikasi selisih kurs penjabaran saat entitas asing dilepas, pengukuran ulang nilai wajar
   kepemilikan sebelumnya pada akuisisi bertahap, goodwill entitas asing dijabarkan kurs penutupan, laba belum
   terealisasi pada transaksi dengan asosiasi, laporan per sub-grup/segmen
 - [ ] Fase 5 ditunda: bukti potong A1/A2 (XML), retur/pengganti faktur pajak via XML, faktur uang muka/pelunasan,
@@ -305,7 +304,12 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [ ] Fase 2–3 ditunda: aturan intercompany SO↔PO & transfer stok antar perusahaan, nota kredit otomatis dari retur,
   selisih harga pembelian (bill vs PO) ke akun tersendiri, konversi satuan beli/jual, dropship, reservasi stok, varian
   produk, komisi penjual, portal pelanggan
-- [ ] Fase 1 ditunda: pelepasan/penjualan aset, revaluasi selisih kurs akhir bulan (unrealized), koneksi API bank langsung
+- [x] Fase 1 (tunda, selesai): pelepasan aset tetap — dijual (faktur pelanggan + jurnal pelepasan, laba/rugi ke akun
+  4-9500, penyusutan sampai bulan sebelum pelepasan) atau dihapusbukukan; penjualan ke perusahaan grup membuat draf aset di
+  buku pembeli dan laba belum terealisasinya dieliminasi di konsolidasi (berkurang seiring penyusutan pembeli); revaluasi
+  selisih kurs akhir bulan atas piutang/utang valas terbuka & rekening valas ke akun belum terealisasi (4-9110/7-1110)
+  dengan jurnal balik otomatis
+- [ ] Fase 1 ditunda: koneksi API bank langsung (butuh kerja sama/kredensial bank; impor CSV mutasi sudah tersedia)
 - [ ] Ditunda: rate limiter berbasis Redis (multi-instance), SSO, impor Excel (.xlsx), sumber kurs otomatis
   (KMK kurs pajak / BI), pesan error API dua bahasa
 

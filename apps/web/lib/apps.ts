@@ -166,6 +166,7 @@ export const APPS: App[] = [
         link("Jurnal Umum", "Journal Entries", "/accounting/entries", "accounting.read"),
         link("Mutasi Bank", "Bank Statements", "/accounting/bank", "accounting.read"),
         link("Aset Tetap", "Assets", "/accounting/assets", "accounting.read"),
+        link("Revaluasi Kurs", "Currency Revaluation", "/accounting/fx-revaluation", "accounting.read"),
         link("Anggaran", "Budgets", "/accounting/budgets", "accounting.read"),
       ]),
       group("Laporan", "Reporting", [

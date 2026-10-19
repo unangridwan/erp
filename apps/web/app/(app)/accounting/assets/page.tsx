@@ -22,9 +22,12 @@ interface Asset {
 function useAssetStateLabel() {
   const { l } = useI18n();
   return (state: string) =>
-    ({ draft: l("Draft", "Draft"), running: l("Berjalan", "Running"), closed: l("Selesai", "Closed") })[
-      state
-    ] ?? state;
+    ({
+      draft: l("Draft", "Draft"),
+      running: l("Berjalan", "Running"),
+      closed: l("Selesai disusutkan", "Fully depreciated"),
+      disposed: l("Dilepas", "Disposed"),
+    })[state] ?? state;
 }
 
 export default function AssetsPage() {

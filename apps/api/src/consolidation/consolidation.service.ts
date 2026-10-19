@@ -786,6 +786,8 @@ export class ConsolidationService {
       }
     }
 
+    options.assetProfits = await this.assetProfits(tx, trading, p.dateFrom, p.dateTo, warnings);
+
     let result: ReturnType<typeof consolidate>;
     try {
       result = consolidate(accounts, inputs, options);
@@ -924,6 +926,10 @@ export class ConsolidationService {
       join consolidation_account_map map on map.account_id = a.id
       where m.state = 'posted' and l.company_id = ${w.companyId} and m.date <= ${w.to}
         and l.ic_company_id is not null and l.display_type <> 'tax'
+        -- Faktur penjualan aset ke perusahaan grup: hanya piutangnya yang dieliminasi di sini; labanya lewat
+        -- eliminasi laba belum terealisasi aset tetap.
+        and not (a.account_type <> 'asset_receivable'
+                 and m.id in (select x.disposal_invoice_id from assets x where x.disposal_invoice_id is not null))
         and a.account_type in (${list(IC_TYPES)}) and ${window} ${cutoff}
       group by map.group_account_id, l.ic_company_id
       having sum(l.balance) <> 0`);
@@ -1006,6 +1012,91 @@ export class ConsolidationService {
       (await this.fx.rateOn(tx, presentation, date)).rate,
     );
     return local.times(rate).toFixed(2);
+  }
+
+  /**
+   * Aset tetap yang dijual antar perusahaan dalam lingkup: laba penjual dan sisanya yang belum terealisasi per
+   * akhir & awal periode = laba × (1 − akumulasi penyusutan pembeli ÷ dasar penyusutan), nol bila pembeli sudah
+   * melepas asetnya.
+   */
+  private async assetProfits(
+    tx: Db,
+    trading: { companyId: string; closingRate: string }[],
+    dateFrom: string,
+    dateTo: string,
+    warnings: string[],
+  ) {
+    const ids = trading.map((e) => e.companyId);
+    if (ids.length < 2) return [];
+    const rows = await tx.execute<{
+      id: string;
+      name: string;
+      buyer_id: string;
+      cost: string;
+      salvage: string;
+      buyer_disposal: string | null;
+      seller_id: string;
+      gain: string;
+      sold_on: string;
+      g_gain: string | null;
+      g_asset: string | null;
+      g_expense: string | null;
+      decimals: number;
+    }>(sql`
+      select b.id, b.name, b.company_id as buyer_id, cur.decimals, b.cost::text as cost, b.salvage_value::text as salvage,
+             b.disposal_date as buyer_disposal, s.company_id as seller_id, s.disposal_gain::text as gain,
+             s.disposal_date as sold_on, ga.group_account_id as g_gain, gb.group_account_id as g_asset,
+             ge.group_account_id as g_expense
+      from assets b
+      join assets s on s.id = b.source_asset_id
+      join companies bc on bc.id = b.company_id
+      join currencies cur on cur.code = bc.currency_code
+      join accounting_settings ss on ss.company_id = s.company_id
+      left join consolidation_account_map ga on ga.account_id = ss.asset_disposal_account_id
+      left join consolidation_account_map gb on gb.account_id = b.asset_account_id
+      left join consolidation_account_map ge on ge.account_id = b.expense_account_id
+      where b.company_id in (${list(ids)}) and s.company_id in (${list(ids)}) and b.company_id <> s.company_id
+        and s.disposal_gain is not null and s.disposal_date <= ${dateTo}`);
+    const remaining = async (r: (typeof rows)[number], date: string) => {
+      if (r.sold_on > date) return D(0);
+      if (r.buyer_disposal && r.buyer_disposal <= date) return D(0);
+      const [row] = await tx.execute<{ amount: string | null }>(sql`
+        select sum(amount)::text as amount from asset_depreciation_lines
+        where asset_id = ${r.id} and move_id is not null and date <= ${date}`);
+      const base = D(r.cost).minus(r.salvage);
+      if (base.isZero()) return D(0);
+      // Kelebihan penyusutan pembeli atas laba itu, dibulatkan seperti jadwal penyusutannya.
+      const realized = Decimal.min(D(r.gain), D(r.gain).times(D(row?.amount)).div(base)).toDecimalPlaces(
+        Number(r.decimals),
+        Decimal.ROUND_HALF_UP,
+      );
+      return D(r.gain).minus(realized);
+    };
+    const result: NonNullable<ConsolidationOptions["assetProfits"]> = [];
+    const openingDate = dayBefore(dateFrom);
+    for (const r of rows) {
+      if (!r.g_gain || !r.g_asset || !r.g_expense) {
+        warnings.push(
+          `Aset ${r.name}: akun belum dipetakan ke bagan akun grup — laba belum terealisasi tidak dieliminasi`,
+        );
+        continue;
+      }
+      const rate = trading.find((e) => e.companyId === r.seller_id)!.closingRate;
+      const inPeriod = r.sold_on >= dateFrom;
+      result.push({
+        sellerId: r.seller_id,
+        buyerId: r.buyer_id,
+        name: r.name,
+        gain: D(r.gain).times(rate).toFixed(2),
+        closing: (await remaining(r, dateTo)).times(rate).toFixed(2),
+        opening: inPeriod ? "0" : (await remaining(r, openingDate)).times(rate).toFixed(2),
+        inPeriod,
+        gainAccountId: r.g_gain,
+        assetAccountId: r.g_asset,
+        expenseAccountId: r.g_expense,
+      });
+    }
+    return result;
   }
 
   /** Nilai lapisan persediaan yang diterima `buyerId` dari mitra antar perusahaan `sellerId` dalam jendela. */

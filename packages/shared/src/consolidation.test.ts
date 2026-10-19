@@ -556,3 +556,85 @@ describe("konsolidasi lanjutan", () => {
     );
   });
 });
+
+describe("laba belum terealisasi aset tetap antar perusahaan", () => {
+  const MORE = [
+    ...ACCOUNTS,
+    acc("fixed", "1-2100", "asset_fixed"),
+    acc("disposal", "4-9500", "income_other"),
+    acc("depr", "6-4000", "expense_depreciation"),
+  ];
+  it("penjualan dalam periode: laba penjual dibalik, kelebihan penyusutan pembeli dikoreksi, bagian KNP", () => {
+    const r = consolidate(
+      MORE,
+      [
+        entity({ companyId: "H", isRoot: true, balances: [] }),
+        entity({
+          companyId: "S",
+          effectivePct: 80,
+          links: [{ parentId: "H", pct: 80, consideration: 0, acquiredNetAssets: 0 }],
+          balances: [],
+        }),
+      ],
+      {
+        assetProfits: [
+          {
+            sellerId: "S",
+            buyerId: "H",
+            name: "Mesin",
+            gain: 200,
+            closing: 150,
+            opening: 0,
+            inPeriod: true,
+            gainAccountId: "disposal",
+            assetAccountId: "fixed",
+            expenseAccountId: "depr",
+          },
+        ],
+      },
+    );
+    const e = r.entries.find((x) => x.kind === "unrealized_profit")!;
+    expect(e.lines.map((l) => [l.groupAccountId, l.companyId, l.amount])).toEqual([
+      ["disposal", "S", "200.00"],
+      ["fixed", "H", "-150.00"],
+      ["depr", "H", "-50.00"],
+      ["nci_profit", null, "-30.00"],
+      ["nci", null, "30.00"],
+    ]);
+  });
+  it("penjualan periode lalu: sisa awal ke saldo laba", () => {
+    const r = consolidate(
+      MORE,
+      [
+        entity({ companyId: "H", isRoot: true, balances: [] }),
+        entity({
+          companyId: "A",
+          links: [{ parentId: "H", pct: 100, consideration: 0, acquiredNetAssets: 0 }],
+          balances: [],
+        }),
+      ],
+      {
+        assetProfits: [
+          {
+            sellerId: "H",
+            buyerId: "A",
+            name: "Mobil",
+            gain: 120,
+            closing: 60,
+            opening: 90,
+            inPeriod: false,
+            gainAccountId: "disposal",
+            assetAccountId: "fixed",
+            expenseAccountId: "depr",
+          },
+        ],
+      },
+    );
+    const e = r.entries.find((x) => x.kind === "unrealized_profit")!;
+    expect(e.lines.map((l) => [l.groupAccountId, l.amount])).toEqual([
+      ["re", "90.00"],
+      ["fixed", "-60.00"],
+      ["depr", "-30.00"],
+    ]);
+  });
+});

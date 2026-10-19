@@ -12,6 +12,7 @@ export {
   lt,
   ilike,
   inArray,
+  isNotNull,
   isNull,
   lte,
   ne,
