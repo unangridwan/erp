@@ -372,6 +372,23 @@ export const assetSchema = z.object({
 });
 
 export const depreciateSchema = z.object({ date: z.string().date() });
+
+export const assetDisposeSchema = z
+  .object({
+    date: z.string().date(),
+    kind: z.enum(["sale", "scrap"]),
+    partnerId: z.string().uuid().optional(),
+    price: nonNegative(2).optional(),
+    taxIds: z.array(z.string().uuid()).default([]),
+    /** Penjualan ke perusahaan grup: buat draf aset di buku pembeli. */
+    transferToGroup: z.boolean().default(true),
+  })
+  .refine((v) => v.kind === "scrap" || (v.partnerId && v.price !== undefined), {
+    message: "Penjualan memerlukan pembeli dan harga jual",
+    path: ["partnerId"],
+  });
+
+export const fxRevaluationSchema = z.object({ date: z.string().date() });
 export const closeYearSchema = z.object({ fiscalYear: z.coerce.number().int().min(2000).max(2100) });
 
 export const budgetSchema = z.object({

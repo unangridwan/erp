@@ -14,9 +14,11 @@ import {
 } from "@nestjs/common";
 import { eq, schema } from "@erp/db";
 import {
+  assetDisposeSchema,
   budgetSchema,
   closeYearSchema,
   depreciateSchema,
+  fxRevaluationSchema,
   statementImportSchema,
   statementReconcileSchema,
 } from "@erp/shared";
@@ -30,6 +32,7 @@ import { AssetService } from "./asset.service.js";
 import { BankService } from "./bank.service.js";
 import { BudgetService } from "./budget.service.js";
 import { ClosingService } from "./closing.service.js";
+import { FxRevaluationService } from "./fx-revaluation.service.js";
 import { reportSheet, toXlsx } from "./report-export.js";
 import { reportQuery, ReportService } from "./reports.service.js";
 
@@ -115,6 +118,43 @@ export class AssetActionsController {
   @RequirePermission("accounting.post")
   confirm(@Param("id", ParseUUIDPipe) id: string) {
     return this.tenantDb.run((tx) => this.assets.confirm(tx, id));
+  }
+
+  /** Jual atau hapus buku aset (jurnal pelepasan + faktur penjualan bila dijual). */
+  @Post(":id/dispose")
+  @HttpCode(200)
+  @RequirePermission("accounting.post")
+  dispose(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(assetDisposeSchema, body);
+    return this.tenantDb.run((tx) => this.assets.dispose(tx, id, input));
+  }
+}
+
+@Controller("accounting/fx-revaluations")
+export class FxRevaluationController {
+  constructor(
+    @Inject(TenantDb) private readonly tenantDb: TenantDb,
+    @Inject(FxRevaluationService) private readonly revaluation: FxRevaluationService,
+  ) {}
+
+  @Get()
+  @RequirePermission("accounting.read")
+  list() {
+    return this.tenantDb.run((tx) => this.revaluation.list(tx));
+  }
+
+  @Get("preview")
+  @RequirePermission("accounting.read")
+  preview(@Query() query: unknown) {
+    const { date } = parse(fxRevaluationSchema, query);
+    return this.tenantDb.run((tx) => this.revaluation.preview(tx, date));
+  }
+
+  @Post()
+  @RequirePermission("accounting.post")
+  post(@Body() body: unknown) {
+    const { date } = parse(fxRevaluationSchema, body);
+    return this.tenantDb.run((tx) => this.revaluation.post(tx, date));
   }
 }
 

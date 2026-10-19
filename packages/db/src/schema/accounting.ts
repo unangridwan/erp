@@ -2,6 +2,7 @@ import {
   boolean,
   date,
   integer,
+  jsonb,
   numeric,
   pgTable,
   smallint,
@@ -103,6 +104,9 @@ export const accountingSettings = pgTable("accounting_settings", {
   stockAdjustmentAccountId: uuid("stock_adjustment_account_id"),
   stockJournalId: uuid("stock_journal_id"),
   purchaseApprovalAmount: numeric("purchase_approval_amount", { precision: 20, scale: 2 }),
+  assetDisposalAccountId: uuid("asset_disposal_account_id"),
+  unrealizedFxGainAccountId: uuid("unrealized_fx_gain_account_id"),
+  unrealizedFxLossAccountId: uuid("unrealized_fx_loss_account_id"),
   updatedAt: audit.updatedAt,
 });
 
@@ -232,7 +236,7 @@ export const assets = pgTable("assets", {
   companyId: uuid("company_id").notNull(),
   code: text("code"),
   name: text("name").notNull(),
-  state: text("state", { enum: ["draft", "running", "closed"] })
+  state: text("state", { enum: ["draft", "running", "closed", "disposed"] })
     .notNull()
     .default("draft"),
   method: text("method", { enum: ["straight_line", "declining_balance"] })
@@ -249,6 +253,16 @@ export const assets = pgTable("assets", {
   journalId: uuid("journal_id").notNull(),
   branchId: uuid("branch_id"),
   businessUnitId: uuid("business_unit_id"),
+  disposalDate: date("disposal_date"),
+  disposalKind: text("disposal_kind", { enum: ["sale", "scrap"] }),
+  disposalPrice: numeric("disposal_price", { precision: 20, scale: 2 }),
+  disposalPartnerId: uuid("disposal_partner_id"),
+  disposalMoveId: uuid("disposal_move_id"),
+  disposalInvoiceId: uuid("disposal_invoice_id"),
+  /** Laba (positif) / rugi pelepasan = harga jual − nilai buku. */
+  disposalGain: numeric("disposal_gain", { precision: 20, scale: 2 }),
+  /** Aset perusahaan grup lain yang dijual ke perusahaan ini. */
+  sourceAssetId: uuid("source_asset_id"),
   ...audit,
 });
 
@@ -283,3 +297,30 @@ export const budgetLines = pgTable("budget_lines", {
   branchId: uuid("branch_id"),
   amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
 });
+
+/** Revaluasi selisih kurs akhir bulan per perusahaan per tanggal (jurnal dibalik sehari kemudian). */
+export const fxRevaluations = pgTable("fx_revaluations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  date: date("date").notNull(),
+  moveId: uuid("move_id"),
+  reversalMoveId: uuid("reversal_move_id"),
+  lines: jsonb("lines").$type<FxRevaluationLine[]>().notNull().default([]),
+  createdBy: uuid("created_by"),
+  createdAt: audit.createdAt,
+});
+
+export interface FxRevaluationLine {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  partnerId: string | null;
+  partnerName: string | null;
+  currencyCode: string;
+  amountCurrency: string;
+  bookValue: string;
+  rate: string;
+  revalued: string;
+  difference: string;
+}
