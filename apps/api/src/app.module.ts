@@ -1,4 +1,4 @@
-import { Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
+import { Inject, Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { AccountingModule } from "./accounting/accounting.module.js";
 import { ActivityController, ActivityService } from "./activity/activity.service.js";
@@ -9,13 +9,18 @@ import { DatabaseModule } from "./common/database.js";
 import { DbExceptionFilter } from "./common/db-exception.filter.js";
 import { MailModule } from "./common/mailer.js";
 import { RateLimiter } from "./common/rate-limiter.js";
+import { JsonLogger, requestMiddleware } from "./common/observability.js";
 import { contextMiddleware } from "./common/request-context.js";
+import { CONFIG, type AppConfig } from "./config.js";
 import { CrmModule } from "./crm/crm.module.js";
 import { SalesModule } from "./sales/sales.module.js";
 import { InventoryModule } from "./inventory/inventory.module.js";
 import { PurchaseModule } from "./purchase/purchase.module.js";
 import { HrModule } from "./hr/hr.module.js";
 import { PayrollModule } from "./payroll/payroll.module.js";
+import { TaxModule } from "./tax/tax.module.js";
+import { BillingModule } from "./billing/billing.module.js";
+import { OnboardingModule } from "./onboarding/onboarding.module.js";
 import { HealthController } from "./health/health.controller.js";
 import { MasterModule } from "./master/master.module.js";
 import { SequenceController, SequenceService } from "./sequences/sequence.service.js";
@@ -25,6 +30,7 @@ import { UsersService } from "./users/users.service.js";
 @Module({
   imports: [
     DatabaseModule,
+    BillingModule,
     MailModule,
     MasterModule,
     AccountingModule,
@@ -34,6 +40,8 @@ import { UsersService } from "./users/users.service.js";
     PurchaseModule,
     HrModule,
     PayrollModule,
+    TaxModule,
+    OnboardingModule,
   ],
   controllers: [HealthController, AuthController, ActivityController, SequenceController, UsersController],
   providers: [
@@ -47,7 +55,14 @@ import { UsersService } from "./users/users.service.js";
   ],
 })
 export class AppModule implements NestModule {
+  constructor(@Inject(CONFIG) private readonly config: AppConfig) {}
+
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(contextMiddleware).forRoutes("*");
+    consumer
+      .apply(
+        contextMiddleware,
+        requestMiddleware(new JsonLogger(this.config.logFormat), process.env.NODE_ENV === "production"),
+      )
+      .forRoutes("*");
   }
 }

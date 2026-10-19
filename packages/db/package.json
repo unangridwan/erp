@@ -25,7 +25,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "node dist/bin/migrate.js",
     "test": "vitest run",
-    "seed:regions": "node dist/bin/seed-regions.js"
+    "seed:regions": "node dist/bin/seed-regions.js",
+    "platform:admin": "node dist/bin/platform-admin.js"
   },
   "dependencies": {
     "@erp/shared": "workspace:*",

@@ -268,7 +268,20 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   termasuk pengembalian kelebihan potong), BPJS Kesehatan/JHT/JKK/JKM/JP dengan batas upah, THR/bonus/potongan per slip,
   prorata karyawan baru/keluar, jurnal gaji per cabang/unit bisnis, pembayaran, file transfer bank, rekap PPh 21 & BPJS,
   slip gaji PDF
-- [ ] Fase 4 ditunda: e-Bupot 21 (XML Coretax), jadwal shift & aturan keterlambatan, approval berjenjang, pinjaman
+- [x] Fase 5 (Lokalisasi pajak & go-live): profil pajak perusahaan (PKP, NPWP 16 digit, ID TKU) & identitas pajak
+  pembeli (NPWP/NIK/paspor, kode tempat usaha, kode transaksi); faktur pajak keluaran dari faktur penjualan dengan DPP
+  nilai lain 11/12, kode barang/jasa & satuan Coretax, kode 07/08 dengan cap fasilitas, ekspor XML `TaxInvoiceBulk`,
+  pencatatan/impor nomor faktur; impor faktur masukan Coretax dengan pencocokan otomatis ke tagihan & pengkreditan
+  maks. 3 masa; bukti potong unifikasi (PPh 23/4(2)/22) dari tagihan & BPMP PPh 21 dari payroll dengan ekspor XML;
+  rekap SPT Masa PPN; billing SaaS (paket Starter/Bisnis/Enterprise, uji coba, batas pengguna/perusahaan & modul,
+  baca-saja saat berakhir, tagihan + PPN, Xendit/transfer manual, perpanjangan otomatis, konsol admin platform);
+  panduan awal (profil, saldo awal, checklist); hardening (header keamanan, ID korelasi request, log JSON, metrik
+  Prometheus, readiness, daftar & pencabutan sesi, validasi secret produksi), Dockerfile produksi, compose produksi,
+  backup harian + restore
+- [ ] Fase 5 ditunda: bukti potong A1/A2 (XML), retur/pengganti faktur pajak via XML, faktur uang muka/pelunasan,
+  PPnBM (STLG) per produk, validasi XSD resmi, NSFP lama (pra-Coretax), PITR/WAL archiving terkelola, tracing
+  OpenTelemetry, Sentry
+- [ ] Fase 4 ditunda: jadwal shift & aturan keterlambatan, approval berjenjang, pinjaman
   karyawan dengan cicilan otomatis, pesangon (PP 35/2021), BPJS untuk pekerja harian/borongan
 - [ ] Fase 2–3 ditunda: aturan intercompany SO↔PO & transfer stok antar perusahaan, nota kredit otomatis dari retur,
   selisih harga pembelian (bill vs PO) ke akun tersendiri, konversi satuan beli/jual, dropship, reservasi stok, varian

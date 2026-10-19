@@ -17,6 +17,7 @@ import { TenantDb } from "../common/database.js";
 import { installChart } from "../accounting/chart-template.js";
 import { installInventory } from "../inventory/setup.js";
 import { installPayroll } from "../payroll/setup.js";
+import { assertCompanyLimit } from "../billing/limits.js";
 import { createCrudController } from "../common/crud.js";
 import { FxController, FxService } from "./fx.controller.js";
 import { RegionsController } from "./regions.controller.js";
@@ -58,7 +59,10 @@ const CompaniesController = createCrudController({
   orderBy: schema.companies.code,
   companyColumn: schema.companies.id,
   refs: { parentId: schema.companies },
-  beforeSave: assertNoCompanyCycle,
+  beforeSave: async (tx, values, id) => {
+    if (!id) await assertCompanyLimit(tx);
+    await assertNoCompanyCycle(tx, values, id);
+  },
   afterCreate: async (tx, company) => {
     await createIntercompanyPartner(tx, company);
     await installChart(tx, company.id);

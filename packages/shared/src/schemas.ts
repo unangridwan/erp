@@ -64,6 +64,32 @@ export const currencyRateSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+const email = z
+  .string()
+  .trim()
+  .email()
+  .nullish()
+  .or(z.literal("").transform(() => null));
+
+/** NITKU/ID TKU 22 digit. */
+const nitku = z
+  .string()
+  .nullish()
+  .transform((v) => (v ? v.replace(/[.\-\s]/g, "") : null))
+  .refine((v) => v === null || /^\d{22}$/.test(v), "ID TKU harus 22 digit (NPWP 16 digit + 6 digit)");
+
+/** Profil perusahaan untuk faktur pajak & dokumen. */
+const companyProfile = {
+  pkp: z.boolean().default(false),
+  nitku,
+  street: optionalText,
+  city: optionalText,
+  province: optionalText,
+  postalCode: optionalText,
+  phone: optionalText,
+  email,
+};
+
 export const companySchema = z.object({
   code: z.string().trim().min(1).max(20),
   name: z.string().trim().min(2).max(200),
@@ -72,6 +98,7 @@ export const companySchema = z.object({
   npwp,
   currencyCode: z.string().length(3).toUpperCase().default("IDR"),
   fiscalYearStartMonth: z.coerce.number().int().min(1).max(12).default(1),
+  ...companyProfile,
   active: z.boolean().default(true),
 });
 
@@ -117,6 +144,15 @@ export const partnerSchema = z.object({
   city: optionalText,
   province: optionalText,
   postalCode: optionalText,
+  taxDocumentType: z.enum(["TIN", "National ID", "Passport", "Other ID"]).default("TIN"),
+  taxDocumentNumber: optionalText,
+  tku: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "Kode tempat usaha 6 digit (000000 = pusat)")
+    .default("000000"),
+  countryCode: z.string().trim().length(3).toUpperCase().default("IDN"),
+  taxTrxCode: z.enum(["01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]).default("04"),
   paymentTermId: optionalUuid,
   pricelistId: optionalUuid,
   salespersonId: optionalUuid,
@@ -133,6 +169,12 @@ export const uomSchema = z.object({
   name: z.string().trim().min(1).max(50),
   factor: z.coerce.number().positive().transform(String),
   isReference: z.boolean().default(false),
+  coretaxCode: z
+    .string()
+    .trim()
+    .regex(/^UM\.\d{4}$/, "Kode satuan Coretax, mis. UM.0021")
+    .nullish()
+    .or(z.literal("").transform(() => null)),
   active: z.boolean().default(true),
 });
 
@@ -148,6 +190,12 @@ export const productSchema = z.object({
   barcode: optionalText,
   tracking: z.enum(["none", "lot", "serial"]).default("none"),
   costMethod: z.enum(["average", "fifo"]).default("average"),
+  taxGoodsCode: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "Kode barang/jasa Coretax 6 digit")
+    .nullish()
+    .or(z.literal("").transform(() => null)),
   active: z.boolean().default(true),
 });
 
@@ -222,6 +270,13 @@ export const taxSchema = z.object({
   amount: decimalString(4),
   baseRatio: decimalString(10).default("1"),
   accountId: z.string().uuid(),
+  taxKind: z.enum(["vat", "vat_luxury", "pph23", "pph4_2", "pph22", "other"]).default("other"),
+  taxObjectCode: z
+    .string()
+    .trim()
+    .regex(/^\d{2}-\d{3}-\d{2}$/, "Kode objek pajak, mis. 24-104-14")
+    .nullish()
+    .or(z.literal("").transform(() => null)),
   active: z.boolean().default(true),
 });
 
@@ -859,3 +914,137 @@ export const payslipInputsSchema = z.object({
 });
 
 export const payRunSchema = z.object({ journalId: z.string().uuid(), date: z.string().date() });
+
+// ---- Fase 5: pajak (Coretax) ----
+
+const period = {
+  year: z.coerce.number().int().min(2020).max(2100),
+  month: z.coerce.number().int().min(1).max(12),
+};
+const idList = z.array(z.string().uuid()).min(1, "Pilih minimal satu dokumen").max(1000);
+
+/** Buat draft faktur pajak keluaran dari faktur penjualan posted pada masa pajak. */
+export const taxInvoiceGenerateSchema = z.object(period);
+
+export const taxInvoiceUpdateSchema = z.object({
+  trxCode: z.enum(["01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]).optional(),
+  addInfo: optionalText,
+  facilityStamp: optionalText,
+  customDoc: optionalText,
+});
+
+export const taxDocExportSchema = z.object({ ids: idList });
+
+/** Nomor faktur/bukti potong dari Coretax setelah dokumen disetujui. */
+export const taxDocApproveSchema = z.object({
+  number: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/[.\-\s]/g, ""))
+    .refine((v) => /^[0-9A-Z]{8,20}$/i.test(v), "Nomor tidak valid"),
+});
+
+export const inputTaxImportSchema = z.object({ csv: z.string().min(1).max(5_000_000) });
+
+export const inputTaxUpdateSchema = z.object({
+  moveId: z.string().uuid().nullish(),
+  partnerId: z.string().uuid().nullish(),
+});
+
+export const inputTaxCreditSchema = z.object({
+  ids: idList,
+  /** Kreditkan pada masa ini, atau `credit: false` untuk menandai tidak dikreditkan. */
+  credit: z.boolean().default(true),
+  ...period,
+});
+
+export const withholdingGenerateSchema = z.object({ kind: z.enum(["bppu", "bpmp"]), ...period });
+
+export const withholdingUpdateSchema = z.object({
+  counterpartTin: z
+    .string()
+    .nullish()
+    .transform((v) => (v ? v.replace(/\D/g, "") : null))
+    .refine((v) => v === null || /^\d{16}$/.test(v), "NPWP/NIK 16 digit")
+    .optional(),
+  counterpartIdtku: nitku.optional(),
+  taxObjectCode: z
+    .string()
+    .trim()
+    .regex(/^\d{2}-\d{3}-\d{2}$/, "Kode objek pajak, mis. 24-104-14")
+    .optional(),
+  taxCertificate: z.string().trim().min(1).max(30).optional(),
+  documentType: z.enum(["CommercialInvoice", "Contract", "PaymentProof", "Other"]).optional(),
+});
+
+// ---- Fase 5: onboarding & billing ----
+
+export const onboardingCompanySchema = z.object({
+  name: z.string().trim().min(2).max(200),
+  npwp,
+  ...companyProfile,
+});
+
+export const ONBOARDING_STEPS = [
+  "company",
+  "tax",
+  "opening",
+  "partners",
+  "products",
+  "users",
+  "plan",
+] as const;
+export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
+
+export const onboardingStepSchema = z.object({
+  step: z.enum(ONBOARDING_STEPS),
+  status: z.enum(["done", "skipped"]).default("done"),
+});
+
+/** Saldo awal per akun (kode akun), opsional per partner untuk piutang/utang. */
+export const openingBalanceSchema = z.object({
+  date: z.string().date(),
+  lines: z
+    .array(
+      z.object({
+        accountCode: z.string().trim().min(1).max(20),
+        partnerId: z.string().uuid().nullish(),
+        debit: nonNegative(2).default("0"),
+        credit: nonNegative(2).default("0"),
+        name: z.string().trim().max(200).nullish(),
+      }),
+    )
+    .min(1)
+    .max(5000),
+});
+
+export const subscribeSchema = z.object({
+  planCode: z.string().trim().min(1).max(50),
+  billingCycle: z.enum(["monthly", "yearly"]).default("monthly"),
+});
+
+export const planSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9-]{2,50}$/),
+  name: z.string().trim().min(1).max(100),
+  description: optionalText,
+  priceMonthly: nonNegative(2),
+  priceYearly: nonNegative(2),
+  maxUsers: z.coerce.number().int().positive().nullish(),
+  maxCompanies: z.coerce.number().int().positive().nullish(),
+  modules: z.array(z.enum(["accounting", "crm", "sales", "purchase", "inventory", "tax", "hr", "payroll"])),
+  public: z.boolean().default(true),
+  sort: z.coerce.number().int().default(0),
+  active: z.boolean().default(true),
+});
+
+/** Ubah langganan tenant oleh admin platform. */
+export const adminSubscriptionSchema = z.object({
+  planCode: z.string().trim().min(1).optional(),
+  status: z.enum(["trialing", "active", "cancelled", "suspended"]).optional(),
+  trialEndsAt: z.string().datetime({ offset: true }).nullish(),
+  currentPeriodEnd: z.string().datetime({ offset: true }).nullish(),
+});

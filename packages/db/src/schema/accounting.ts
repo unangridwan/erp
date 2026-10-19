@@ -35,6 +35,9 @@ export const ACCOUNT_TYPES = [
 export const JOURNAL_TYPES = ["sale", "purchase", "bank", "cash", "general"] as const;
 export const MOVE_TYPES = ["entry", "out_invoice", "out_refund", "in_invoice", "in_refund"] as const;
 
+/** Jenis pajak untuk pelaporan Coretax. */
+export const TAX_KINDS = ["vat", "vat_luxury", "pph23", "pph4_2", "pph22", "other"] as const;
+
 export const accounts = pgTable("accounts", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
@@ -57,6 +60,8 @@ export const taxes = pgTable("taxes", {
   amount: numeric("amount", { precision: 9, scale: 4 }).notNull(),
   baseRatio: numeric("base_ratio", { precision: 12, scale: 10 }).notNull().default("1"),
   accountId: uuid("account_id").notNull(),
+  taxKind: text("tax_kind", { enum: TAX_KINDS }).notNull().default("other"),
+  taxObjectCode: text("tax_object_code"),
   active: boolean("active").notNull().default(true),
   ...audit,
 });

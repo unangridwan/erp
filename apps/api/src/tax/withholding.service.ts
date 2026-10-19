@@ -1,0 +1,326 @@
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { and, asc, desc, eq, inArray, schema, sql, type Db, type SQL } from "@erp/db";
+import {
+  PPH21_PERMANENT_OBJECT_CODE,
+  bpmpXml,
+  bppuXml,
+  idtku,
+  tin16,
+  type withholdingUpdateSchema,
+} from "@erp/shared";
+import { Decimal } from "decimal.js";
+import type { z } from "zod";
+import { currentContext } from "../common/request-context.js";
+import { EmployeeService } from "../hr/employee.service.js";
+import { companyTaxIds, periodRange, xmlFileName } from "./company-tax.js";
+
+const W = schema.withholdingSlips;
+type Kind = "bppu" | "bpmp";
+
+@Injectable()
+export class WithholdingService {
+  constructor(@Inject(EmployeeService) private readonly employees: EmployeeService) {}
+
+  async list(tx: Db, query: { kind?: string; year?: string; month?: string; state?: string }) {
+    const filters: (SQL | undefined)[] = [eq(W.companyId, currentContext().companyId)];
+    if (query.kind) filters.push(eq(W.kind, query.kind as Kind));
+    if (query.year) filters.push(eq(W.periodYear, Number(query.year)));
+    if (query.month) filters.push(eq(W.periodMonth, Number(query.month)));
+    if (query.state) filters.push(eq(W.state, query.state as "draft"));
+    const rows = await tx
+      .select()
+      .from(W)
+      .where(and(...filters))
+      .orderBy(desc(W.withholdingDate), asc(W.counterpartName));
+    // NIK/NPWP lawan transaksi hanya utuh untuk tax.manage.
+    return rows.map((r) => this.present(r));
+  }
+
+  async get(tx: Db, id: string) {
+    return this.present(await this.find(tx, id));
+  }
+
+  /** Buat draft bukti potong dari tagihan (BPPU) atau payroll yang sudah diposting (BPMP) pada satu masa. */
+  async generate(tx: Db, input: { kind: Kind; year: number; month: number }) {
+    const companyId = currentContext().companyId;
+    const withholder = await companyTaxIds(tx, companyId);
+    return input.kind === "bppu"
+      ? this.generateBppu(tx, companyId, withholder.idtku, input)
+      : this.generateBpmp(tx, companyId, withholder.idtku, input);
+  }
+
+  private async generateBppu(
+    tx: Db,
+    companyId: string,
+    withholderIdtku: string,
+    input: { year: number; month: number },
+  ) {
+    const { from, to } = periodRange(input.year, input.month);
+    const rows = await tx.execute<{
+      move_id: string;
+      move_name: string;
+      ref: string | null;
+      date: string;
+      currency_rate: string;
+      partner_id: string;
+      partner_name: string;
+      npwp: string | null;
+      tku: string;
+      tax_id: string;
+      tax_amount_rate: string;
+      tax_object_code: string | null;
+      base: string;
+      amount: string;
+    }>(sql`
+      select m.id as move_id, m.name as move_name, m.ref, m.date, m.currency_rate,
+             p.id as partner_id, p.name as partner_name, p.npwp, p.tku,
+             t.id as tax_id, t.amount as tax_amount_rate, t.tax_object_code,
+             sum(l.tax_base_amount) as base, sum(l.credit - l.debit) as amount
+      from account_move_lines l
+      join account_moves m on m.id = l.move_id
+      join taxes t on t.id = l.tax_line_id
+      join partners p on p.id = m.partner_id
+      where m.company_id = ${companyId} and m.state = 'posted' and m.move_type = 'in_invoice'
+        and m.payment_state <> 'reversed' and m.date between ${from} and ${to}
+        and t.type_tax_use = 'purchase' and t.tax_kind in ('pph23', 'pph4_2', 'pph22')
+        and not exists (select 1 from withholding_slips w
+                        where w.move_id = m.id and w.tax_id = t.id and w.state <> 'cancelled')
+      group by m.id, p.id, t.id
+      order by m.date, m.name`);
+    const created: string[] = [];
+    for (const r of rows) {
+      const tin = tin16(r.npwp);
+      const [row] = await tx
+        .insert(W)
+        .values({
+          companyId,
+          kind: "bppu",
+          periodYear: input.year,
+          periodMonth: input.month,
+          partnerId: r.partner_id,
+          moveId: r.move_id,
+          taxId: r.tax_id,
+          counterpartName: r.partner_name,
+          counterpartTin: tin,
+          counterpartIdtku: tin ? idtku(tin, r.tku) : null,
+          taxObjectCode: r.tax_object_code,
+          taxBase: new Decimal(r.base).times(r.currency_rate).toFixed(2),
+          rate: new Decimal(r.tax_amount_rate).abs().toFixed(4),
+          taxAmount: new Decimal(r.amount).toFixed(2),
+          documentType: "CommercialInvoice",
+          documentNumber: r.ref || r.move_name,
+          documentDate: r.date,
+          withholderIdtku,
+          withholdingDate: r.date,
+        })
+        .returning({ id: W.id });
+      created.push(row!.id);
+    }
+    return { created: created.length, ids: created, skipped: [] as { name: string; reason: string }[] };
+  }
+
+  private async generateBpmp(
+    tx: Db,
+    companyId: string,
+    withholderIdtku: string,
+    input: { year: number; month: number },
+  ) {
+    const { from } = periodRange(input.year, input.month);
+    const slips = await tx
+      .select({
+        slip: schema.payslips,
+        run: schema.payrollRuns,
+        employee: schema.employees,
+        position: schema.jobPositions.name,
+      })
+      .from(schema.payslips)
+      .innerJoin(schema.payrollRuns, eq(schema.payrollRuns.id, schema.payslips.runId))
+      .innerJoin(schema.employees, eq(schema.employees.id, schema.payslips.employeeId))
+      .leftJoin(schema.jobPositions, eq(schema.jobPositions.id, schema.employees.jobId))
+      .where(
+        and(
+          eq(schema.payslips.companyId, companyId),
+          eq(schema.payrollRuns.periodStart, from),
+          inArray(schema.payrollRuns.state, ["done", "paid"]),
+          sql`not exists (select 1 from withholding_slips w where w.payslip_id = ${schema.payslips.id} and w.state <> 'cancelled')`,
+        ),
+      )
+      .orderBy(asc(schema.employees.name));
+    const created: string[] = [];
+    const skipped: { name: string; reason: string }[] = [];
+    for (const { slip, run, employee, position } of slips) {
+      if (slip.isFinal) {
+        // Masa pajak terakhir (Desember / bulan keluar) dilaporkan dengan bukti potong A1, bukan BPMP.
+        skipped.push({ name: employee.name, reason: "Masa pajak terakhir — laporkan lewat bukti potong A1" });
+        continue;
+      }
+      const data = this.employees.decrypted(employee);
+      // Sejak 2024 NIK berlaku sebagai NPWP orang pribadi; NPWP 16 digit dipakai bila ada.
+      const tin = tin16(data.npwp) ?? tin16(data.nik);
+      const [row] = await tx
+        .insert(W)
+        .values({
+          companyId,
+          kind: "bpmp",
+          periodYear: input.year,
+          periodMonth: input.month,
+          employeeId: employee.id,
+          payslipId: slip.id,
+          counterpartName: employee.name,
+          counterpartTin: tin,
+          ptkpStatus: slip.ptkpStatus,
+          position: position ?? "Pegawai",
+          taxObjectCode: PPH21_PERMANENT_OBJECT_CODE,
+          taxBase: slip.gross,
+          rate: new Decimal(slip.terRate ?? 0).toFixed(4),
+          taxAmount: slip.pph21,
+          withholderIdtku,
+          withholdingDate: run.paymentDate,
+        })
+        .returning({ id: W.id });
+      created.push(row!.id);
+    }
+    return { created: created.length, ids: created, skipped };
+  }
+
+  async update(tx: Db, id: string, input: z.infer<typeof withholdingUpdateSchema>) {
+    const slip = await this.find(tx, id);
+    if (slip.state !== "draft") throw new BadRequestException("Hanya bukti potong draft yang bisa diubah");
+    const values: Partial<typeof W.$inferInsert> = {};
+    if (input.counterpartTin !== undefined) {
+      values.counterpartTin = input.counterpartTin;
+      if (slip.kind === "bppu" && input.counterpartTin && input.counterpartIdtku === undefined)
+        values.counterpartIdtku = idtku(input.counterpartTin);
+    }
+    if (input.counterpartIdtku !== undefined) values.counterpartIdtku = input.counterpartIdtku;
+    if (input.taxObjectCode !== undefined) values.taxObjectCode = input.taxObjectCode;
+    if (input.taxCertificate !== undefined) values.taxCertificate = input.taxCertificate;
+    if (input.documentType !== undefined) values.documentType = input.documentType;
+    await tx
+      .update(W)
+      .set({ ...values, updatedAt: sql`now()` })
+      .where(eq(W.id, id));
+    return this.get(tx, id);
+  }
+
+  async export(tx: Db, ids: string[]) {
+    const companyId = currentContext().companyId;
+    const withholder = await companyTaxIds(tx, companyId);
+    const slips = await tx
+      .select()
+      .from(W)
+      .where(and(inArray(W.id, ids), eq(W.companyId, companyId)))
+      .orderBy(asc(W.withholdingDate), asc(W.counterpartName));
+    if (slips.length !== new Set(ids).size)
+      throw new NotFoundException("Sebagian bukti potong tidak ditemukan");
+    const kinds = new Set(slips.map((s) => s.kind));
+    if (kinds.size > 1) throw new BadRequestException("Ekspor BPPU dan BPMP dalam berkas terpisah");
+    const kind = slips[0]!.kind;
+    const problems: string[] = [];
+    for (const s of slips) {
+      if (s.state !== "draft" && s.state !== "exported")
+        problems.push(`${s.counterpartName}: status ${s.state}`);
+      if (!s.counterpartTin) problems.push(`${s.counterpartName}: NPWP/NIK belum diisi`);
+      if (!s.taxObjectCode) problems.push(`${s.counterpartName}: kode objek pajak belum diisi`);
+      if (kind === "bppu" && !s.counterpartIdtku) problems.push(`${s.counterpartName}: ID TKU belum diisi`);
+    }
+    if (problems.length)
+      throw new BadRequestException({
+        message: "Bukti potong belum lengkap",
+        errors: problems.map((message) => ({ path: "", message })),
+      });
+
+    const content =
+      kind === "bppu"
+        ? bppuXml(
+            withholder.tin,
+            slips.map((s) => ({
+              periodMonth: s.periodMonth,
+              periodYear: s.periodYear,
+              counterpartTin: s.counterpartTin!,
+              counterpartIdtku: s.counterpartIdtku!,
+              taxCertificate: s.taxCertificate,
+              taxObjectCode: s.taxObjectCode!,
+              taxBase: s.taxBase,
+              rate: s.rate,
+              documentType: s.documentType ?? "CommercialInvoice",
+              documentNumber: s.documentNumber ?? "",
+              documentDate: s.documentDate ?? s.withholdingDate,
+              withholderIdtku: s.withholderIdtku,
+              withholdingDate: s.withholdingDate,
+            })),
+          )
+        : bpmpXml(
+            withholder.tin,
+            slips.map((s) => ({
+              periodMonth: s.periodMonth,
+              periodYear: s.periodYear,
+              counterpartTin: s.counterpartTin!,
+              ptkpStatus: s.ptkpStatus ?? "TK/0",
+              position: s.position ?? "Pegawai",
+              taxCertificate: s.taxCertificate,
+              taxObjectCode: s.taxObjectCode!,
+              gross: s.taxBase,
+              rate: s.rate,
+              withholderIdtku: s.withholderIdtku,
+              withholdingDate: s.withholdingDate,
+            })),
+          );
+    const first = slips[0]!;
+    const fileName = xmlFileName(
+      kind === "bppu" ? "bupot-unifikasi" : "bupot-pph21",
+      first.periodYear,
+      first.periodMonth,
+    );
+    const [batch] = await tx
+      .insert(schema.taxExportBatches)
+      .values({
+        companyId,
+        kind,
+        fileName,
+        content,
+        recordCount: slips.length,
+        createdBy: currentContext().userId,
+      })
+      .returning({ id: schema.taxExportBatches.id });
+    await tx
+      .update(W)
+      .set({ state: "exported", batchId: batch!.id, updatedAt: sql`now()` })
+      .where(inArray(W.id, ids));
+    return { fileName, content };
+  }
+
+  async approve(tx: Db, id: string, number: string) {
+    const slip = await this.find(tx, id);
+    if (slip.state === "cancelled") throw new BadRequestException("Bukti potong sudah dibatalkan");
+    await tx
+      .update(W)
+      .set({ state: "approved", bupotNumber: number, updatedAt: sql`now()` })
+      .where(eq(W.id, id));
+    return this.get(tx, id);
+  }
+
+  async cancel(tx: Db, id: string) {
+    await this.find(tx, id);
+    await tx
+      .update(W)
+      .set({ state: "cancelled", updatedAt: sql`now()` })
+      .where(eq(W.id, id));
+  }
+
+  private async find(tx: Db, id: string) {
+    const [slip] = await tx
+      .select()
+      .from(W)
+      .where(and(eq(W.id, id), eq(W.companyId, currentContext().companyId)));
+    if (!slip) throw new NotFoundException("Bukti potong tidak ditemukan");
+    return slip;
+  }
+
+  /** NIK/NPWP pegawai (BPMP) tersamar tanpa tax.manage; NPWP badan (BPPU) bukan data pribadi sensitif. */
+  private present(slip: typeof W.$inferSelect) {
+    const full = currentContext().permissions.some((p) => p === "*" || p === "tax.manage");
+    if (full || slip.kind === "bppu" || !slip.counterpartTin) return slip;
+    return { ...slip, counterpartTin: `••••${slip.counterpartTin.slice(-4)}` };
+  }
+}

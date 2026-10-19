@@ -102,6 +102,7 @@ const TAXES: {
   amount: string;
   baseRatio: string;
   account: string;
+  kind: (typeof schema.TAX_KINDS)[number];
 }[] = [
   {
     name: "PPN Keluaran 12% (DPP 11/12)",
@@ -109,14 +110,23 @@ const TAXES: {
     amount: "12",
     baseRatio: DPP_11_12,
     account: "vatOut",
+    kind: "vat",
   },
-  { name: "PPN Keluaran 12% (barang mewah)", use: "sale", amount: "12", baseRatio: "1", account: "vatOut" },
+  {
+    name: "PPN Keluaran 12% (barang mewah)",
+    use: "sale",
+    amount: "12",
+    baseRatio: "1",
+    account: "vatOut",
+    kind: "vat_luxury",
+  },
   {
     name: "PPh 23 2% (dipotong pelanggan)",
     use: "sale",
     amount: "-2",
     baseRatio: "1",
     account: "pph23Prepaid",
+    kind: "pph23",
   },
   {
     name: "PPN Masukan 12% (DPP 11/12)",
@@ -124,9 +134,24 @@ const TAXES: {
     amount: "12",
     baseRatio: DPP_11_12,
     account: "vatIn",
+    kind: "vat",
   },
-  { name: "PPN Masukan 12% (barang mewah)", use: "purchase", amount: "12", baseRatio: "1", account: "vatIn" },
-  { name: "PPh 23 2% (dipotong)", use: "purchase", amount: "-2", baseRatio: "1", account: "pph23Payable" },
+  {
+    name: "PPN Masukan 12% (barang mewah)",
+    use: "purchase",
+    amount: "12",
+    baseRatio: "1",
+    account: "vatIn",
+    kind: "vat_luxury",
+  },
+  {
+    name: "PPh 23 2% (dipotong)",
+    use: "purchase",
+    amount: "-2",
+    baseRatio: "1",
+    account: "pph23Payable",
+    kind: "pph23",
+  },
 ];
 
 /**
@@ -180,6 +205,7 @@ export async function installChart(tx: Db, companyId: string): Promise<boolean> 
         amount: t.amount,
         baseRatio: t.baseRatio,
         accountId: account(t.account),
+        taxKind: t.kind,
       })),
     )
     .returning({ id: schema.taxes.id, name: schema.taxes.name });

@@ -11,6 +11,8 @@ export const refreshTokens = pgTable("refresh_tokens", {
   tokenHash: text("token_hash").notNull().unique(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  ip: text("ip"),
+  userAgent: text("user_agent"),
   createdAt: audit.createdAt,
 });
 

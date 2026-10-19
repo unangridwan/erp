@@ -1,0 +1,70 @@
+# Contoh deployment satu server: `docker compose -f infra/docker-compose.prod.yml --env-file .env.prod up -d --build`
+# Taruh reverse proxy TLS (Caddy/nginx/load balancer) di depan web (3000) dan api (3001).
+name: erp-prod
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-erp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib}
+      POSTGRES_DB: ${POSTGRES_DB:-erp}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-erp}"]
+      interval: 5s
+      retries: 10
+
+  # Migrasi dijalankan sekali setiap deploy sebelum API menyala.
+  migrate:
+    build: { context: .., target: api }
+    command: ["node", "packages/db/dist/bin/migrate.js"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-erp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-erp}
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    build: { context: .., target: api }
+    restart: unless-stopped
+    env_file: ../.env.prod
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-erp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-erp}
+      TRUST_PROXY: "1"
+    ports: ["127.0.0.1:3001:3001"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  web:
+    build:
+      context: ..
+      target: web
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL wajib, mis. https://api.erpku.id}
+    restart: unless-stopped
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on: [api]
+
+  # Backup harian pg_dump terkompresi dengan retensi (lihat infra/backup/backup.sh).
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-erp}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-erp}
+      BACKUP_DIR: /backups
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+    volumes:
+      - ./backup:/scripts:ro
+      - ${BACKUP_PATH:-../backups}:/backups
+    entrypoint: ["/bin/sh", "/scripts/loop.sh"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+volumes:
+  pgdata:

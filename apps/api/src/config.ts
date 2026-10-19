@@ -10,6 +10,22 @@ export interface AppConfig {
   /** "smtp://host:port" atau "json" (tidak mengirim, untuk test). */
   mailTransport: string;
   mailFrom: string;
+  billing: {
+    /** Paket untuk masa uji coba tenant baru. */
+    trialPlan: string;
+    trialDays: number;
+    /** Hari toleransi setelah periode berakhir sebelum tenant menjadi baca-saja. */
+    graceDays: number;
+    /** Instruksi transfer manual bila payment gateway belum dikonfigurasi. */
+    bankInfo: string;
+    xenditSecretKey: string | null;
+    xenditCallbackToken: string | null;
+    /** Jalankan penjadwal perpanjangan otomatis (dimatikan saat test). */
+    scheduler: boolean;
+  };
+  /** Token untuk GET /metrics (Prometheus); kosong = endpoint dimatikan. */
+  metricsToken: string | null;
+  logFormat: "json" | "pretty" | "off";
 }
 
 function secret(env: NodeJS.ProcessEnv, name: string): string {
@@ -21,6 +37,7 @@ function secret(env: NodeJS.ProcessEnv, name: string): string {
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const databaseUrl = env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL belum di-set");
+  if (env.NODE_ENV === "production") assertProductionSecrets(env);
   return {
     databaseUrl,
     jwtSecret: new TextEncoder().encode(secret(env, "JWT_SECRET")),
@@ -30,7 +47,29 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigin: env.WEB_ORIGIN ?? "http://localhost:3000",
     mailTransport: env.MAIL_TRANSPORT ?? "smtp://localhost:1025",
     mailFrom: env.MAIL_FROM ?? "ERP <no-reply@erp.local>",
+    billing: {
+      trialPlan: env.TRIAL_PLAN ?? "enterprise",
+      trialDays: Number(env.TRIAL_DAYS ?? 14),
+      graceDays: Number(env.BILLING_GRACE_DAYS ?? 7),
+      bankInfo:
+        env.BILLING_BANK_INFO ??
+        "Transfer ke rekening yang tertera pada tagihan, lalu kirim bukti transfer ke tim kami.",
+      xenditSecretKey: env.XENDIT_SECRET_KEY || null,
+      xenditCallbackToken: env.XENDIT_CALLBACK_TOKEN || null,
+      scheduler: env.BILLING_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
+    },
+    metricsToken: env.METRICS_TOKEN || null,
+    logFormat: (env.LOG_FORMAT as "json" | "pretty" | "off" | undefined) ?? (env.VITEST ? "off" : "pretty"),
   };
+}
+
+/** Produksi: tolak nilai contoh dari .env.example dan secret yang dipakai ulang. */
+function assertProductionSecrets(env: NodeJS.ProcessEnv) {
+  for (const name of ["JWT_SECRET", "ENCRYPTION_KEY"]) {
+    if (env[name]?.startsWith("ganti-dengan")) throw new Error(`${name} masih memakai nilai contoh`);
+  }
+  if (env.JWT_SECRET === env.ENCRYPTION_KEY) throw new Error("JWT_SECRET dan ENCRYPTION_KEY harus berbeda");
+  if (!env.WEB_ORIGIN?.startsWith("https://")) throw new Error("WEB_ORIGIN produksi harus https://");
 }
 
 export const CONFIG = Symbol("CONFIG");

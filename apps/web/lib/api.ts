@@ -137,7 +137,17 @@ export interface Me {
   name: string;
   email: string;
   twoFactorEnabled: boolean;
+  platformAdmin: boolean;
   permissions: string[];
   companies: { id: string; code: string; name: string; isDefault: boolean }[];
   activeCompanyId: string;
+  subscription: {
+    planCode: string;
+    planName: string;
+    status: "trialing" | "active" | "past_due" | "cancelling" | "expired" | "suspended";
+    writable: boolean;
+    modules: string[];
+    maxUsers: number | null;
+    maxCompanies: number | null;
+  };
 }
