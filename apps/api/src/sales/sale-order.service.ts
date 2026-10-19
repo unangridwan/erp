@@ -50,6 +50,7 @@ import {
 } from "../crm/checks.js";
 import { LeadService } from "../crm/lead.service.js";
 import { uomRatio } from "../master/uom.js";
+import { assertNotTemplate } from "../master/variant.service.js";
 import { StockService, type LinkedDocument } from "../inventory/stock.service.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { renderOrderPdf } from "./order-pdf.js";
@@ -958,6 +959,7 @@ export class SaleOrderService implements OnModuleInit {
     for (const [i, l] of input.lines.entries()) {
       const product = l.productId ? products.find((p) => p.id === l.productId) : undefined;
       if (l.productId && !product) throw fieldError(`lines.${i}.productId`, "Produk tidak ditemukan");
+      if (product) assertNotTemplate(product, `lines.${i}.productId`);
       const name = l.name || product?.name;
       if (!name) throw fieldError(`lines.${i}.name`, "Isi deskripsi atau pilih produk");
       // Satuan baris: input → satuan jual produk → satuan produk.

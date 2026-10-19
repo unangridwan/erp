@@ -37,6 +37,13 @@ const group = (id: string, en: string, items: MenuLink[]): MenuGroup => ({ label
 
 const PRODUCTS = link("Produk", "Products", "/products", "product.read");
 const CATEGORIES = link("Kategori Produk", "Product Categories", "/product-categories", "product.read");
+const ATTRIBUTES = link("Atribut Produk", "Product Attributes", "/product-attributes", "product.read");
+const ATTRIBUTE_VALUES = link(
+  "Nilai Atribut",
+  "Attribute Values",
+  "/product-attribute-values",
+  "product.read",
+);
 const UOMS = link("Satuan", "Units of Measure", "/uoms", "uom.read");
 const CUSTOMERS = link("Pelanggan", "Customers", "/partners", "partner.read");
 const VENDORS = link("Pemasok", "Vendors", "/partners", "partner.read");
@@ -90,6 +97,8 @@ export const APPS: App[] = [
         link("Aturan Komisi", "Commission Plans", "/commission-plans", "sales.read"),
         SALES_TEAMS,
         CATEGORIES,
+        ATTRIBUTES,
+        ATTRIBUTE_VALUES,
         UOMS,
       ]),
     ],
@@ -146,6 +155,8 @@ export const APPS: App[] = [
         link("Lokasi", "Locations", "/stock-locations", "inventory.read"),
         link("Aturan Pemesanan Ulang", "Reordering Rules", "/reorder-rules", "inventory.read"),
         CATEGORIES,
+        ATTRIBUTES,
+        ATTRIBUTE_VALUES,
         UOMS,
       ]),
     ],

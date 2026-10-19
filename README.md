@@ -116,6 +116,13 @@ Header opsional `X-Company-Id` memilih perusahaan aktif (harus termasuk perusaha
 | `GET /sale-orders/report?from=&to=&groupBy=product\|partner\|salesperson\|month`              | Analisis penjualan pesanan terkonfirmasi                                       |
 | `GET /users/options`                                                                          | Pilihan user aktif perusahaan aktif (penanggung jawab, penjual)                |
 | `/commission-plans`, `GET /sales/commissions[/export]?dateFrom=&dateTo=`                      | Aturan komisi (penjual → tim → bawaan; dasar faktur/lunas), laporan & Excel    |
+| `/product-attributes`, `/product-attribute-values`, `GET/POST /products/:id/variants`         | Varian produk: atribut & nilai (kode SKU, tambahan harga), buat kombinasi      |
+| `GET /partners/:id/portal`, `POST /partners/:id/{portal-invite,portal-revoke}`                | Akses portal pelanggan: undang (email + tautan), cabut                         |
+
+**Portal pelanggan** (`/portal` di web; token portal terpisah dari token user internal):
+`POST /portal/auth/{login,accept}`, `GET /portal/me`, `GET /portal/orders[/:id[/pdf]]`, `POST /portal/orders/:id/accept`
+(setujui penawaran terkirim; dikonfirmasi atas nama penjualnya), `GET /portal/invoices[/:id[/pdf]]`. Pelanggan hanya
+melihat dokumen partnernya (beserta kontak di bawahnya).
 
 ### Pembelian & Persediaan (Fase 3)
 

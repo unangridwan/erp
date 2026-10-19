@@ -128,7 +128,8 @@ export function PurchaseForm({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const products = useOptions<ProductOption>("/products");
+  // Produk induk varian tidak dipilih langsung; pilih variannya.
+  const products = useOptions<ProductOption>("/products").filter((p) => !p.isVariantTemplate);
   const uoms = useOptions<UomOption>("/uoms");
   const taxes = useOptions<TaxOption>("/taxes").filter((t) => t.typeTaxUse === "purchase");
   const terms = useOptions<{ id: string; name: string }>("/payment-terms");

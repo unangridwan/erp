@@ -66,6 +66,7 @@ interface Product {
   sku: string;
   name: string;
   productType: string;
+  isVariantTemplate: boolean;
 }
 interface Location {
   id: string;
@@ -104,7 +105,9 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
   const [lotOptions, setLotOptions] = useState<
     Record<string, { id: string; name: string; onHand: string }[]>
   >({});
-  const products = useOptions<Product>("/products").filter((p) => p.productType !== "service");
+  const products = useOptions<Product>("/products").filter(
+    (p) => p.productType !== "service" && !p.isVariantTemplate,
+  );
   const warehouses = useOptions<{ id: string; code: string; name: string }>("/warehouses");
   const internal = useOptions<Location>("/stock-locations?usage=internal");
 

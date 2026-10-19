@@ -309,7 +309,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   valuasi dalam satuan produk), reservasi stok untuk transfer keluar (urut jadwal, cek ketersediaan, lepas cadangan,
   stok tercadang tidak bisa dipakai transfer lain), dropship SO → RFQ pemasok utama → transfer pemasok → pelanggan
   (HPP langsung sebesar harga beli)
-- [ ] Fase 2–3 ditunda: varian produk, portal pelanggan
+- [x] Fase 2–3 (tunda, selesai): varian produk (atribut & nilai, kombinasi otomatis dengan SKU/nama/tambahan harga,
+  produk induk tidak bisa dipakai langsung di dokumen) dan portal pelanggan (undangan email, login terpisah, lihat &
+  setujui penawaran, pesanan, faktur & nota kredit, unduh PDF, sisa tagihan)
 - [x] Fase 1 (tunda, selesai): pelepasan aset tetap — dijual (faktur pelanggan + jurnal pelepasan, laba/rugi ke akun
   4-9500, penyusutan sampai bulan sebelum pelepasan) atau dihapusbukukan; penjualan ke perusahaan grup membuat draf aset di
   buku pembeli dan laba belum terealisasinya dieliminasi di konsolidasi (berkurang seiring penyusutan pembeli); revaluasi

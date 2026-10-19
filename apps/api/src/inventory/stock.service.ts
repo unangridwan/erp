@@ -16,6 +16,7 @@ import { MoveService } from "../accounting/move.service.js";
 import { currentContext } from "../common/request-context.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { virtualLocation } from "./setup.js";
+import { assertNotTemplate } from "../master/variant.service.js";
 
 type Picking = typeof schema.stockPickings.$inferSelect;
 type Move = typeof schema.stockMoves.$inferSelect;
@@ -140,6 +141,7 @@ export class StockService {
       const p = products.find((x) => x.id === m.productId);
       if (!p || (p.companyId && p.companyId !== input.companyId))
         throw fieldError("moves", "Produk tidak ditemukan");
+      assertNotTemplate(p, "moves");
       return p.productType !== "service" && d(m.quantity).gt(0);
     });
     if (!stockable.length) return null;

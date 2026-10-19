@@ -157,7 +157,8 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
     null,
   );
 
-  const products = useOptions<ProductOption>("/products");
+  // Produk induk varian tidak dipilih langsung; pilih variannya.
+  const products = useOptions<ProductOption>("/products").filter((p) => !p.isVariantTemplate);
   const uoms = useOptions<UomOption>("/uoms");
   const taxes = useOptions<TaxOption>("/taxes");
   const terms = useOptions<{ id: string; name: string }>("/payment-terms");

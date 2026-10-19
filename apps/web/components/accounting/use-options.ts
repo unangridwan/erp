@@ -44,6 +44,8 @@ export interface ProductOption {
   saleUomId: string | null;
   purchaseUomId: string | null;
   dropship: boolean;
+  /** Produk induk varian: tidak dipilih langsung di dokumen. */
+  isVariantTemplate: boolean;
 }
 export interface UomOption {
   id: string;

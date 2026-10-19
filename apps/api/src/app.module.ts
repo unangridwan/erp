@@ -17,6 +17,7 @@ import { SalesModule } from "./sales/sales.module.js";
 import { InventoryModule } from "./inventory/inventory.module.js";
 import { PurchaseModule } from "./purchase/purchase.module.js";
 import { IntercompanyModule } from "./intercompany/intercompany.module.js";
+import { PortalModule } from "./portal/portal.module.js";
 import { HrModule } from "./hr/hr.module.js";
 import { PayrollModule } from "./payroll/payroll.module.js";
 import { TaxModule } from "./tax/tax.module.js";
@@ -41,6 +42,7 @@ import { UsersService } from "./users/users.service.js";
     InventoryModule,
     PurchaseModule,
     IntercompanyModule,
+    PortalModule,
     HrModule,
     PayrollModule,
     TaxModule,

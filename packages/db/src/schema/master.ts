@@ -8,6 +8,7 @@ import {
   primaryKey,
   smallint,
   text,
+  timestamp,
   uuid,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
@@ -117,6 +118,44 @@ export const uoms = pgTable("uoms", {
   active: boolean("active").notNull().default(true),
 });
 
+export const productAttributes = pgTable("product_attributes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  name: text("name").notNull(),
+  sequence: integer("sequence").notNull().default(10),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const productAttributeValues = pgTable("product_attribute_values", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  attributeId: uuid("attribute_id").notNull(),
+  name: text("name").notNull(),
+  /** Kode pendek untuk SKU varian. */
+  code: text("code"),
+  sequence: integer("sequence").notNull().default(10),
+  priceExtra: numeric("price_extra", { precision: 18, scale: 2 }).notNull().default("0"),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+/** Akun portal pelanggan: login terpisah dari user internal, terbatas pada dokumen partnernya. */
+export const portalUsers = pgTable("portal_users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  partnerId: uuid("partner_id").notNull(),
+  email: text("email").notNull(),
+  name: text("name").notNull(),
+  passwordHash: text("password_hash"),
+  inviteTokenHash: text("invite_token_hash"),
+  inviteExpiresAt: timestamp("invite_expires_at", { withTimezone: true }),
+  invitedBy: uuid("invited_by"),
+  active: boolean("active").notNull().default(true),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  ...audit,
+});
+
 export const productCategories = pgTable("product_categories", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
@@ -153,6 +192,10 @@ export const products = pgTable("products", {
   purchaseUomId: uuid("purchase_uom_id"),
   /** Bawaan baris penjualan: dikirim langsung dari pemasok ke pelanggan. */
   dropship: boolean("dropship").notNull().default(false),
+  /** Produk induk varian: hanya wadah atribut, tidak dipakai di dokumen. */
+  isVariantTemplate: boolean("is_variant_template").notNull().default(false),
+  variantOfId: uuid("variant_of_id").references((): AnyPgColumn => products.id),
+  attributeValueIds: uuid("attribute_value_ids").array().notNull().default([]),
   active: boolean("active").notNull().default(true),
   ...audit,
 });

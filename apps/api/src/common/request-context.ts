@@ -44,3 +44,8 @@ export function withCompany<T>(companyId: string, fn: () => Promise<T>): Promise
   if (!ctx.companyIds.includes(companyId)) throw new Error("Perusahaan di luar akses user");
   return storage.run({ ctx: { ...ctx, companyId } }, fn);
 }
+
+/** Jalankan `fn` dengan konteks lain (mis. aksi portal pelanggan yang dijalankan atas nama staf pemilik dokumen). */
+export function runWithContext<T>(ctx: RequestContext, fn: () => Promise<T>): Promise<T> {
+  return storage.run({ ctx }, fn);
+}
