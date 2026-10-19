@@ -21,6 +21,8 @@ import { MoveService } from "../accounting/move.service.js";
 import { currentContext } from "../common/request-context.js";
 import { EmployeeService } from "../hr/employee.service.js";
 import { holidaysBetween, LeaveService } from "../hr/leave.service.js";
+import { localDate, ScheduleService } from "../hr/schedule.service.js";
+import { LoanService } from "./loan.service.js";
 
 const RUN = schema.payrollRuns;
 const SLIP = schema.payslips;
@@ -39,6 +41,14 @@ const MONTHS = [
   "November",
   "Desember",
 ];
+/** Bulan penuh antara dua tanggal. */
+const monthsBetween = (from: string, to: string) => {
+  const a = new Date(`${from}T00:00:00Z`);
+  const b = new Date(`${to}T00:00:00Z`);
+  let m = (b.getUTCFullYear() - a.getUTCFullYear()) * 12 + (b.getUTCMonth() - a.getUTCMonth());
+  if (b.getUTCDate() < a.getUTCDate()) m -= 1;
+  return Math.max(m, 0);
+};
 const lastDay = (period: string) => {
   const [y, m] = period.split("-").map(Number) as [number, number];
   return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
@@ -51,6 +61,8 @@ export class PayrollService {
     @Inject(ActivityService) private readonly activity: ActivityService,
     @Inject(EmployeeService) private readonly employees: EmployeeService,
     @Inject(LeaveService) private readonly leaves: LeaveService,
+    @Inject(ScheduleService) private readonly schedules: ScheduleService,
+    @Inject(LoanService) private readonly loans: LoanService,
   ) {}
 
   // ---- Pengaturan ----
@@ -76,7 +88,17 @@ export class PayrollService {
       { path: "salaryPayableAccountId", id: input.salaryPayableAccountId },
       { path: "pph21PayableAccountId", id: input.pph21PayableAccountId },
       { path: "bpjsPayableAccountId", id: input.bpjsPayableAccountId },
+      ...(input.employeeLoanAccountId
+        ? [{ path: "employeeLoanAccountId", id: input.employeeLoanAccountId }]
+        : []),
     ]);
+    if (input.timezone) {
+      try {
+        new Intl.DateTimeFormat("en-CA", { timeZone: input.timezone });
+      } catch {
+        throw fieldError("timezone", "Zona waktu tidak dikenal (contoh: Asia/Jakarta)");
+      }
+    }
     await assertCompanyJournal(tx, companyId, input.journalId, ["general"]);
     const [row] = await tx
       .update(schema.payrollSettings)
@@ -261,7 +283,7 @@ export class PayrollService {
       componentId: string,
       amount: string,
       suffix?: string | null,
-    ): PayslipItem & { componentId: string } => {
+    ): PayslipItem & { componentId: string | null; loanId?: string } => {
       const c = comp.get(componentId)!;
       return {
         componentId,
@@ -287,6 +309,14 @@ export class PayrollService {
       ...inputs
         .filter((i) => comp.get(i.componentId)?.kind === "deduction")
         .map((i) => item(i.componentId, i.amount, i.description)),
+      // Cicilan pinjaman karyawan yang sedang berjalan.
+      ...(await this.loans.deductionsFor(tx, employee.id, run.periodStart.slice(0, 7))).map((l) => ({
+        componentId: null,
+        loanId: l.loanId,
+        code: "LOAN",
+        name: l.name,
+        amount: l.amount,
+      })),
     ];
 
     // Hari tidak dibayar: cuti tanpa upah + hari kerja di luar masa kerja/kontrak (masuk/keluar di tengah bulan).
@@ -308,9 +338,85 @@ export class PayrollService {
           eq(schema.overtimes.employeeId, employee.id),
           gte(schema.overtimes.date, run.periodStart),
           lte(schema.overtimes.date, run.periodEnd),
+          eq(schema.overtimes.state, "approved"),
           or(isNull(schema.overtimes.payslipId), eq(schema.overtimes.payslipId, slipId)),
         ),
       );
+    const late =
+      from <= to
+        ? await this.schedules.lateness(tx, {
+            from,
+            to,
+            employeeIds: [employee.id],
+            companyId: run.companyId,
+          })
+        : [];
+
+    // Pekerja harian lepas (hari hadir × upah harian) / borongan (satuan hasil kerja × tarif).
+    let wage = d(contract.wage);
+    let casual: Parameters<typeof computePayslip>[0]["casual"];
+    if (contract.wageType !== "monthly") {
+      let days = 0;
+      if (contract.wageType === "daily") {
+        const rows = await tx
+          .select({ checkIn: schema.attendances.checkIn })
+          .from(schema.attendances)
+          .where(
+            and(
+              eq(schema.attendances.employeeId, employee.id),
+              gte(schema.attendances.checkIn, new Date(`${from}T00:00:00Z`)),
+              lte(schema.attendances.checkIn, new Date(`${to}T23:59:59Z`)),
+            ),
+          );
+        days = new Set(
+          rows.map((r) => localDate(r.checkIn, settings.timezone)).filter((x) => x >= from && x <= to),
+        ).size;
+        wage = d(contract.wage).times(days);
+      } else {
+        const entries = await tx
+          .select()
+          .from(schema.workEntries)
+          .where(
+            and(
+              eq(schema.workEntries.employeeId, employee.id),
+              gte(schema.workEntries.date, from),
+              lte(schema.workEntries.date, to),
+              or(isNull(schema.workEntries.payslipId), eq(schema.workEntries.payslipId, slipId)),
+            ),
+          );
+        days = new Set(entries.map((e) => e.date)).size;
+        wage = d(contract.wage).times(entries.reduce((sum, e) => sum.plus(e.quantity), d(0)));
+      }
+      wage = wage.toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
+      // Dasar BPJS borongan: rata-rata upah 3 bulan terakhir (bulan ini + 2 slip sebelumnya).
+      let bpjsWage = wage;
+      if (contract.wageType === "piece") {
+        const prior = await tx
+          .select({ earnings: SLIP.earnings })
+          .from(SLIP)
+          .innerJoin(RUN, eq(RUN.id, SLIP.runId))
+          .where(
+            and(
+              eq(SLIP.employeeId, employee.id),
+              inArray(RUN.state, ["done", "paid"]),
+              lt(RUN.periodStart, run.periodStart),
+            ),
+          )
+          .orderBy(desc(RUN.periodStart))
+          .limit(2);
+        const all = [wage, ...prior.map((p) => d(p.earnings))];
+        bpjsWage = all
+          .reduce((sum, x) => sum.plus(x), d(0))
+          .div(all.length)
+          .toDecimalPlaces(0);
+      }
+      casual = {
+        kind: contract.wageType,
+        days,
+        bpjsWage: bpjsWage.toFixed(0),
+        onlyJkkJkm: monthsBetween(employee.joinDate, run.periodEnd) < settings.casualFullBpjsMonths,
+      };
+    }
 
     // Akumulasi masa sebelumnya dalam tahun pajak yang sama (payroll yang sudah diposting).
     const year = run.periodStart.slice(0, 4);
@@ -340,7 +446,7 @@ export class PayrollService {
     const hasNpwp = this.employees.hasTaxId(employee);
 
     const result = computePayslip({
-      wage: contract.wage,
+      wage: wage.toFixed(2),
       allowances,
       deductions,
       overtime: overtime.map((o) => ({ hours: o.hours, day: o.dayType })),
@@ -356,12 +462,15 @@ export class PayrollService {
         employeePension: ytd?.pension ?? 0,
         months: ytd?.months ?? 0,
       },
+      latePenalty: late[0]?.penalty ?? 0,
+      casual,
     });
 
     await tx.delete(schema.payslipLines).where(eq(schema.payslipLines.payslipId, slipId));
     const componentByCode = new Map(
       [...allowances, ...deductions].map((x) => [x.code + x.name, x.componentId]),
     );
+    const loanByCode = new Map(deductions.filter((x) => x.loanId).map((x) => [x.code + x.name, x.loanId!]));
     await tx.insert(schema.payslipLines).values(
       result.lines.map((l, i) => ({
         payslipId: slipId,
@@ -371,6 +480,7 @@ export class PayrollService {
         category: l.category,
         amount: l.amount,
         componentId: componentByCode.get(l.code + l.name) ?? null,
+        loanId: loanByCode.get(l.code + l.name) ?? null,
       })),
     );
     await tx
@@ -504,7 +614,11 @@ export class PayrollService {
             add(s.pph21PayableAccountId, amount);
             break;
           case "deduction":
-            add(accountId ?? s.salaryExpenseAccountId, amount);
+            if (line.loanId) {
+              if (!s.employeeLoanAccountId)
+                throw new BadRequestException("Akun piutang karyawan belum diatur di pengaturan payroll");
+              add(s.employeeLoanAccountId, amount);
+            } else add(accountId ?? s.salaryExpenseAccountId, amount);
             break;
         }
       }
@@ -546,10 +660,31 @@ export class PayrollService {
           ),
         ),
       );
+    // Hasil kerja borongan yang dibayar ditandai dengan slipnya.
+    await tx
+      .update(schema.workEntries)
+      .set({
+        payslipId: sql`(select s.id from ${SLIP} s where s.run_id = ${id} and s.employee_id = work_entries.employee_id)`,
+      })
+      .where(
+        and(
+          eq(schema.workEntries.companyId, run.companyId),
+          isNull(schema.workEntries.payslipId),
+          gte(schema.workEntries.date, run.periodStart),
+          lte(schema.workEntries.date, run.periodEnd),
+          inArray(
+            schema.workEntries.employeeId,
+            slips.map((x) => x.employeeId),
+          ),
+        ),
+      );
     await tx
       .update(RUN)
       .set({ state: "done", accountMoveId: moveId, updatedAt: sql`now()` })
       .where(eq(RUN.id, id));
+    await this.loans.closePaid(tx, [
+      ...new Set(lines.map((l) => l.line.loanId).filter((x): x is string => Boolean(x))),
+    ]);
     await this.activity.log(tx, {
       resModel: "payroll_run",
       resId: id,

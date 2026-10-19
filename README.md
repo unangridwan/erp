@@ -171,10 +171,20 @@ Otomatis (tanpa endpoint baru):
 | `GET/POST /payroll-runs`, `GET /payroll-runs/:id`, `POST /payroll-runs/:id/{compute,post,pay,cancel}`                  | Payroll bulanan: hitung, posting jurnal, bayar gaji bersih                        |
 | `GET /payroll-runs/:id/{bank-transfer,recap}?format=csv`                                                               | File transfer bank, rekap PPh 21 & BPJS (NIK/NPWP)                                |
 | `GET /payslips/:id`, `PUT /payslips/:id/inputs`, `GET /payslips/:id/pdf`                                               | Slip gaji, input THR/bonus/potongan, PDF                                          |
+| `/work-schedules`, `/shift-assignments`, `GET /attendance/lateness?from=&to=&employeeId=`                              | Jadwal kerja & shift, toleransi & potongan keterlambatan (otomatis di slip)       |
+| `GET /approvals/pending`, `GET /approvals/:model/:id`, `POST /approvals/overtime/:id/{approve,refuse}`                 | Persetujuan berjenjang cuti & lembur: atasan → atasan dari atasan → HR            |
+| `GET/POST /employee-loans`, `GET /employee-loans/:id`, `POST /employee-loans/:id/{disburse,cancel}`                    | Pinjaman karyawan: cair via kas/bank, cicilan otomatis di slip sampai lunas       |
+| `/work-entries`                                                                                                        | Hasil kerja pekerja borongan (terkunci setelah payroll diposting)                 |
+| `GET/POST /employees/:id/severances`, `POST /employees/:id/severance/preview`                                          | Pesangon, UPMK, UPH, uang pisah/kompensasi PKWT (PP 35/2021) + PPh 21 final       |
 
 PPh 21 dihitung dengan TER (PP 58/2023) per bulan dan tarif Pasal 17 setahun di Desember atau bulan karyawan keluar.
 Tarif TER, PTKP, BPJS, dan lembur ada di `packages/shared/src/payroll.ts` (dengan unit test); batas upah JP perlu
 diperbarui di Pengaturan Payroll setiap Maret.
+
+Kontrak bisa berupah bulanan, harian lepas (hari hadir × upah harian), atau borongan (hasil kerja × upah per satuan).
+Pekerja harian/borongan memakai PPh 21 tarif harian (PMK 168/2023) dan hanya ikut JKK & JKM sampai masa kerja mencapai
+batas di Pengaturan Payroll (bawaan 3 bulan). Lembur yang butuh persetujuan baru dibayar setelah disetujui. Pesangon
+memakai upah sebulan terakhir (harian × 21; borongan rata-rata 3 slip) dan sisa cuti tahunan dari saldo bila tidak diisi.
 
 ### Pajak Coretax, Langganan & Operasional (Fase 5)
 

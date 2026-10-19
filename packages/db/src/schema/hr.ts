@@ -1,4 +1,15 @@
-import { boolean, date, integer, jsonb, numeric, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  date,
+  integer,
+  jsonb,
+  numeric,
+  pgTable,
+  smallint,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { audit, tenantId } from "./core.js";
 
 // FK di database berbentuk komposit (tenant_id, id); di sini cukup dideklarasikan kolomnya.
@@ -50,6 +61,8 @@ export const employees = pgTable("employees", {
   bankAccountName: text("bank_account_name"),
   joinDate: date("join_date").notNull(),
   resignDate: date("resign_date"),
+  /** Jadwal kerja bawaan (dapat diganti per rentang tanggal lewat penugasan shift). */
+  scheduleId: uuid("schedule_id"),
   active: boolean("active").notNull().default(true),
   ...audit,
 });
@@ -80,6 +93,10 @@ export const contracts = pgTable("contracts", {
   dateStart: date("date_start").notNull(),
   dateEnd: date("date_end"),
   wage: numeric("wage", { precision: 20, scale: 2 }).notNull(),
+  /** monthly = gaji bulanan; daily = upah per hari kerja; piece = tarif per satuan hasil kerja (borongan). */
+  wageType: text("wage_type", { enum: ["monthly", "daily", "piece"] })
+    .notNull()
+    .default("monthly"),
   state: text("state", { enum: ["draft", "running", "closed", "cancel"] })
     .notNull()
     .default("draft"),
@@ -141,6 +158,8 @@ export const leaveRequests = pgTable("leave_requests", {
     .default("confirm"),
   approvedBy: uuid("approved_by"),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
+  approvalStep: smallint("approval_step").notNull().default(1),
+  approvalLevels: smallint("approval_levels").notNull().default(1),
   createdBy: uuid("created_by"),
   ...audit,
 });
@@ -172,6 +191,11 @@ export const overtimes = pgTable("overtimes", {
     .default("workday"),
   description: text("description"),
   payslipId: uuid("payslip_id"),
+  state: text("state", { enum: ["confirm", "approved", "refused"] })
+    .notNull()
+    .default("approved"),
+  approvalStep: smallint("approval_step").notNull().default(1),
+  approvalLevels: smallint("approval_levels").notNull().default(0),
   ...audit,
 });
 
@@ -187,6 +211,11 @@ export const payrollSettings = pgTable("payroll_settings", {
   pph21PayableAccountId: uuid("pph21_payable_account_id").notNull(),
   bpjsPayableAccountId: uuid("bpjs_payable_account_id").notNull(),
   journalId: uuid("journal_id").notNull(),
+  timezone: text("timezone").notNull().default("Asia/Jakarta"),
+  employeeLoanAccountId: uuid("employee_loan_account_id"),
+  leaveApprovalLevels: smallint("leave_approval_levels").notNull().default(1),
+  overtimeApprovalLevels: smallint("overtime_approval_levels").notNull().default(0),
+  casualFullBpjsMonths: smallint("casual_full_bpjs_months").notNull().default(3),
   updatedAt: audit.updatedAt,
 });
 
@@ -245,6 +274,7 @@ export const payslipLines = pgTable("payslip_lines", {
   category: text("category").notNull(),
   amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
   componentId: uuid("component_id"),
+  loanId: uuid("loan_id"),
 });
 
 export const payslipInputs = pgTable("payslip_inputs", {
@@ -254,4 +284,98 @@ export const payslipInputs = pgTable("payslip_inputs", {
   componentId: uuid("component_id").notNull(),
   amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
   description: text("description"),
+});
+
+export const workSchedules = pgTable("work_schedules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  toleranceMinutes: integer("tolerance_minutes").notNull().default(0),
+  penaltyPerMinute: numeric("penalty_per_minute", { precision: 18, scale: 2 }).notNull().default("0"),
+  penaltyPerOccurrence: numeric("penalty_per_occurrence", { precision: 18, scale: 2 }).notNull().default("0"),
+  workDays: smallint("work_days").array().notNull().default([1, 2, 3, 4, 5]),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const shiftAssignments = pgTable("shift_assignments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  scheduleId: uuid("schedule_id").notNull(),
+  dateFrom: date("date_from").notNull(),
+  dateTo: date("date_to").notNull(),
+  ...audit,
+});
+
+/** Jejak persetujuan berjenjang (cuti & lembur). */
+export const approvals = pgTable("approvals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  resModel: text("res_model", { enum: ["leave_request", "overtime"] }).notNull(),
+  resId: uuid("res_id").notNull(),
+  step: smallint("step").notNull(),
+  userId: uuid("user_id"),
+  decision: text("decision", { enum: ["approved", "refused"] }).notNull(),
+  note: text("note"),
+  createdAt: audit.createdAt,
+});
+
+export const employeeLoans = pgTable("employee_loans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  name: text("name").notNull(),
+  principal: numeric("principal", { precision: 20, scale: 2 }).notNull(),
+  installment: numeric("installment", { precision: 20, scale: 2 }).notNull(),
+  startPeriod: text("start_period").notNull(),
+  state: text("state", { enum: ["draft", "running", "done", "cancel"] })
+    .notNull()
+    .default("draft"),
+  disbursementDate: date("disbursement_date"),
+  disbursementMoveId: uuid("disbursement_move_id"),
+  note: text("note"),
+  createdBy: uuid("created_by"),
+  ...audit,
+});
+
+/** Hasil kerja borongan (satuan) per tanggal. */
+export const workEntries = pgTable("work_entries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  date: date("date").notNull(),
+  quantity: numeric("quantity", { precision: 18, scale: 4 }).notNull(),
+  description: text("description"),
+  payslipId: uuid("payslip_id"),
+  ...audit,
+});
+
+export const severances = pgTable("severances", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  reason: text("reason").notNull(),
+  endDate: date("end_date").notNull(),
+  monthlyWage: numeric("monthly_wage", { precision: 20, scale: 2 }).notNull(),
+  unusedLeaveDays: numeric("unused_leave_days", { precision: 6, scale: 2 }).notNull().default("0"),
+  otherRights: numeric("other_rights", { precision: 20, scale: 2 }).notNull().default("0"),
+  separationPay: numeric("separation_pay", { precision: 20, scale: 2 }).notNull().default("0"),
+  result: jsonb("result").notNull(),
+  gross: numeric("gross", { precision: 20, scale: 2 }).notNull(),
+  tax: numeric("tax", { precision: 20, scale: 2 }).notNull(),
+  net: numeric("net", { precision: 20, scale: 2 }).notNull(),
+  state: text("state", { enum: ["draft", "posted", "cancel"] })
+    .notNull()
+    .default("draft"),
+  moveId: uuid("move_id"),
+  createdBy: uuid("created_by"),
+  ...audit,
 });

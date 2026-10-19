@@ -250,24 +250,28 @@ export interface BpjsSettings {
 
 export const DEFAULT_BPJS: BpjsSettings = { jkkRate: "0.24", kesWageCap: "12000000", jpWageCap: "10547400" };
 
-/** Iuran BPJS dari upah (gaji pokok + tunjangan tetap). */
-export function bpjsContributions(wage: Decimal.Value, s: BpjsSettings = DEFAULT_BPJS) {
+/**
+ * Iuran BPJS dari upah (gaji pokok + tunjangan tetap). `onlyJkkJkm`: pekerja harian lepas/borongan yang belum memenuhi
+ * masa kerja kepesertaan penuh hanya diikutkan JKK & JKM.
+ */
+export function bpjsContributions(wage: Decimal.Value, s: BpjsSettings = DEFAULT_BPJS, onlyJkkJkm = false) {
   const w = Decimal.max(d(wage), 0);
   const kesBase = Decimal.min(w, s.kesWageCap);
   const jpBase = Decimal.min(w, s.jpWageCap);
   const pct = (base: Decimal, rate: Decimal.Value) => rupiah(base.times(rate).div(100)).toFixed(0);
+  const full = (v: string) => (onlyJkkJkm ? "0" : v);
   return {
     employer: {
-      kes: pct(kesBase, 4),
-      jht: pct(w, 3.7),
+      kes: full(pct(kesBase, 4)),
+      jht: full(pct(w, 3.7)),
       jkk: pct(w, s.jkkRate),
       jkm: pct(w, 0.3),
-      jp: pct(jpBase, 2),
+      jp: full(pct(jpBase, 2)),
     },
     employee: {
-      kes: pct(kesBase, 1),
-      jht: pct(w, 2),
-      jp: pct(jpBase, 1),
+      kes: full(pct(kesBase, 1)),
+      jht: full(pct(w, 2)),
+      jp: full(pct(jpBase, 1)),
     },
   };
 }
@@ -331,6 +335,13 @@ export interface PayslipInput {
   isFinal: boolean;
   /** Akumulasi masa sebelumnya dalam tahun pajak yang sama (untuk masa terakhir). */
   ytd: { gross: Decimal.Value; pph21: Decimal.Value; employeePension: Decimal.Value; months: number };
+  /** Potongan keterlambatan bulan ini (mengurangi upah). */
+  latePenalty?: Decimal.Value;
+  /**
+   * Pekerja harian lepas / borongan: `wage` = upah periode (hari × upah harian, atau satuan × tarif). BPJS dari
+   * `bpjsWage`; PPh 21 memakai tarif harian per hari kerja (bukan TER bulanan).
+   */
+  casual?: { kind: "daily" | "piece"; days: number; bpjsWage: Decimal.Value; onlyJkkJkm: boolean };
 }
 
 export type PayslipCategory =
@@ -353,26 +364,42 @@ export function computePayslip(input: PayslipInput) {
   const fixed = input.allowances.filter((a) => a.fixed).reduce((s, a) => s.plus(a.amount), d(0));
   const baseWage = wage.plus(fixed);
 
-  lines.push({ code: "BASIC", name: "Gaji pokok", category: "basic", amount: rupiah(wage).toFixed(0) });
+  const basicName = !input.casual
+    ? "Gaji pokok"
+    : input.casual.kind === "daily"
+      ? `Upah harian (${input.casual.days} hari)`
+      : "Upah borongan";
+  lines.push({ code: "BASIC", name: basicName, category: "basic", amount: rupiah(wage).toFixed(0) });
   for (const a of input.allowances) {
     lines.push({ code: a.code, name: a.name, category: "allowance", amount: rupiah(d(a.amount)).toFixed(0) });
   }
   const overtime = input.overtime.reduce((s, o) => s.plus(overtimePay(baseWage, o.hours, o.day)), d(0));
   if (overtime.gt(0))
     lines.push({ code: "OT", name: "Lembur", category: "overtime", amount: overtime.toFixed(0) });
-  const unpaid =
-    input.unpaidDays > 0 && input.workingDays > 0
+  const absent =
+    !input.casual && input.unpaidDays > 0 && input.workingDays > 0
       ? rupiah(baseWage.times(Math.min(input.unpaidDays, input.workingDays)).div(input.workingDays))
       : d(0);
-  if (unpaid.gt(0))
+  if (absent.gt(0))
     lines.push({
       code: "UNPAID",
       name: "Potongan hari tidak dibayar",
       category: "unpaid",
-      amount: unpaid.negated().toFixed(0),
+      amount: absent.negated().toFixed(0),
     });
+  const late = rupiah(Decimal.max(d(input.latePenalty ?? 0), 0));
+  if (late.gt(0))
+    lines.push({
+      code: "LATE",
+      name: "Potongan keterlambatan",
+      category: "unpaid",
+      amount: late.negated().toFixed(0),
+    });
+  const unpaid = absent.plus(late);
 
-  const bpjs = bpjsContributions(baseWage, input.bpjs);
+  const bpjs = input.casual
+    ? bpjsContributions(input.casual.bpjsWage, input.bpjs, input.casual.onlyJkkJkm)
+    : bpjsContributions(baseWage, input.bpjs);
   const employer: [string, string, string][] = [
     ["BPJS_KES_ER", "BPJS Kesehatan (perusahaan 4%)", bpjs.employer.kes],
     ["JHT_ER", "BPJS JHT (perusahaan 3,7%)", bpjs.employer.jht],
@@ -407,7 +434,11 @@ export function computePayslip(input: PayslipInput) {
   const monthly = pph21Monthly(gross, input.status, input.hasNpwp);
   let pph21 = d(monthly.tax);
   let annual: ReturnType<typeof pph21Annual> | null = null;
-  if (input.isFinal) {
+  if (input.casual) {
+    // Pegawai tidak tetap: tarif harian atas rata-rata bruto per hari kerja.
+    const days = Math.max(input.casual.days, 1);
+    pph21 = d(pph21Daily(gross.div(days), input.hasNpwp)).times(days);
+  } else if (input.isFinal) {
     annual = pph21Annual({
       annualGross: d(input.ytd.gross).plus(gross),
       months: input.ytd.months + 1,
@@ -438,7 +469,7 @@ export function computePayslip(input: PayslipInput) {
     earnings: rupiah(earnings).toFixed(0),
     gross: gross.toFixed(0),
     terCategory: monthly.category,
-    terRate: input.isFinal ? null : monthly.rate,
+    terRate: input.isFinal || input.casual ? null : monthly.rate,
     pph21: pph21.toFixed(0),
     employeeBpjs: employeeBpjs.toFixed(0),
     employerBpjs: employerBpjs.toFixed(0),
@@ -447,4 +478,263 @@ export function computePayslip(input: PayslipInput) {
     net: rupiah(net).toFixed(0),
     annual,
   };
+}
+
+// ---- Jadwal kerja & keterlambatan ----
+
+export interface WorkSchedule {
+  /** Jam masuk lokal "HH:MM". */
+  start: string;
+  /** Toleransi keterlambatan (menit) sebelum dikenai potongan. */
+  toleranceMinutes: number;
+  /** Potongan per menit terlambat (dihitung dari jam masuk, bukan dari batas toleransi). */
+  penaltyPerMinute: Decimal.Value;
+  /** Potongan tetap per kejadian terlambat. */
+  penaltyPerOccurrence: Decimal.Value;
+  /** Hari kerja (0 = Minggu … 6 = Sabtu). */
+  workDays: number[];
+}
+
+/** Tanggal & menit-sejak-tengah-malam waktu lokal untuk sebuah instan. */
+function localParts(at: Date, timeZone: string) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(at)
+      .map((p) => [p.type, p.value]),
+  );
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    minutes: Number(parts.hour) * 60 + Number(parts.minute),
+  };
+}
+
+/**
+ * Keterlambatan dari absen masuk pertama setiap hari kerja (hari libur & di luar hari kerja jadwal tidak dihitung).
+ * Terlambat bila masuk lewat dari jam masuk + toleransi; menit terlambat dihitung dari jam masuk.
+ */
+export function lateness(
+  checkIns: { checkIn: Date | string; schedule: WorkSchedule }[],
+  timeZone = "Asia/Jakarta",
+  holidays: string[] = [],
+) {
+  const off = new Set(holidays);
+  const first = new Map<string, { minutes: number; schedule: WorkSchedule }>();
+  for (const c of checkIns) {
+    const local = localParts(new Date(c.checkIn), timeZone);
+    const prev = first.get(local.date);
+    if (!prev || local.minutes < prev.minutes)
+      first.set(local.date, { minutes: local.minutes, schedule: c.schedule });
+  }
+  const days: { date: string; minutes: number; penalty: string }[] = [];
+  let total = d(0);
+  for (const [date, { minutes, schedule }] of [...first.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+    if (off.has(date) || !schedule.workDays.includes(weekday)) continue;
+    const [h, m] = schedule.start.split(":").map(Number) as [number, number];
+    const late = minutes - (h * 60 + m);
+    if (late <= schedule.toleranceMinutes) continue;
+    const penalty = rupiah(d(schedule.penaltyPerMinute).times(late).plus(schedule.penaltyPerOccurrence));
+    total = total.plus(penalty);
+    days.push({ date, minutes: late, penalty: penalty.toFixed(0) });
+  }
+  return {
+    occurrences: days.length,
+    minutes: days.reduce((s, x) => s + x.minutes, 0),
+    penalty: total.toFixed(0),
+    days,
+  };
+}
+
+// ---- Pesangon (PP 35/2021) ----
+
+/** Alasan PHK & pengali uang pesangon (UP) / uang penghargaan masa kerja (UPMK) menurut PP 35/2021. */
+export const SEVERANCE_REASONS = {
+  merger_refused: {
+    article: "Pasal 41",
+    label: "Penggabungan/peleburan/pemisahan perusahaan",
+    up: 1,
+    upmk: 1,
+  },
+  takeover: { article: "Pasal 42 ayat (1)", label: "Pengambilalihan perusahaan", up: 1, upmk: 1 },
+  takeover_changed_terms: {
+    article: "Pasal 42 ayat (2)",
+    label: "Pengambilalihan dengan perubahan syarat kerja, pekerja tidak bersedia",
+    up: 0.5,
+    upmk: 1,
+  },
+  efficiency_loss: {
+    article: "Pasal 43 ayat (1)",
+    label: "Efisiensi karena perusahaan merugi",
+    up: 0.5,
+    upmk: 1,
+  },
+  efficiency_prevent_loss: {
+    article: "Pasal 43 ayat (2)",
+    label: "Efisiensi untuk mencegah kerugian",
+    up: 1,
+    upmk: 1,
+  },
+  closure_loss: { article: "Pasal 44 ayat (1)", label: "Perusahaan tutup karena merugi", up: 0.5, upmk: 1 },
+  closure_no_loss: {
+    article: "Pasal 44 ayat (2)",
+    label: "Perusahaan tutup bukan karena merugi",
+    up: 1,
+    upmk: 1,
+  },
+  force_majeure_closure: {
+    article: "Pasal 45 ayat (1)",
+    label: "Keadaan memaksa, perusahaan tutup",
+    up: 0.5,
+    upmk: 1,
+  },
+  force_majeure_no_closure: {
+    article: "Pasal 45 ayat (2)",
+    label: "Keadaan memaksa, perusahaan tidak tutup",
+    up: 0.75,
+    upmk: 1,
+  },
+  pkpu_loss: { article: "Pasal 46 ayat (1)", label: "PKPU karena merugi", up: 0.5, upmk: 1 },
+  pkpu_no_loss: { article: "Pasal 46 ayat (2)", label: "PKPU bukan karena merugi", up: 1, upmk: 1 },
+  bankruptcy: { article: "Pasal 47", label: "Perusahaan pailit", up: 0.5, upmk: 1 },
+  employer_misconduct: {
+    article: "Pasal 48",
+    label: "Permohonan pekerja karena perbuatan pengusaha",
+    up: 1,
+    upmk: 1,
+  },
+  resignation: { article: "Pasal 50", label: "Mengundurkan diri atas kemauan sendiri", up: 0, upmk: 0 },
+  absence: { article: "Pasal 51", label: "Mangkir 5 hari kerja berturut-turut", up: 0, upmk: 0 },
+  violation: {
+    article: "Pasal 52 ayat (1)",
+    label: "Pelanggaran PK/PP/PKB setelah surat peringatan",
+    up: 0.5,
+    upmk: 1,
+  },
+  urgent_violation: { article: "Pasal 52 ayat (2)", label: "Pelanggaran bersifat mendesak", up: 0, upmk: 0 },
+  detention: { article: "Pasal 54", label: "Ditahan pihak berwajib", up: 0, upmk: 1 },
+  long_illness: { article: "Pasal 55", label: "Sakit berkepanjangan lebih dari 12 bulan", up: 2, upmk: 1 },
+  retirement: { article: "Pasal 56", label: "Memasuki usia pensiun", up: 1.75, upmk: 1 },
+  death: { article: "Pasal 57", label: "Meninggal dunia", up: 2, upmk: 1 },
+  pkwt_end: { article: "Pasal 15–16", label: "Berakhirnya PKWT (uang kompensasi)", up: 0, upmk: 0 },
+} as const;
+export type SeveranceReason = keyof typeof SEVERANCE_REASONS;
+
+/** Bulan upah uang pesangon menurut masa kerja (Pasal 40 ayat 2). */
+export function severanceMonths(years: Decimal.Value): number {
+  return Math.min(Math.floor(d(years).toNumber()) + 1, 9);
+}
+
+/** Bulan upah UPMK menurut masa kerja (Pasal 40 ayat 3); di bawah 3 tahun tidak ada. */
+export function longServiceMonths(years: Decimal.Value): number {
+  const y = Math.floor(d(years).toNumber());
+  if (y < 3) return 0;
+  if (y >= 24) return 10;
+  return Math.floor(y / 3) + 1;
+}
+
+/** PPh 21 final atas pesangon (PP 68/2009): 0% s.d. 50 jt, 5% s.d. 100 jt, 15% s.d. 500 jt, 25% di atasnya. */
+export function severanceTax(amount: Decimal.Value): string {
+  const brackets: Bracket[] = [
+    [50_000_000, 0],
+    [100_000_000, 5],
+    [500_000_000, 15],
+    [Infinity, 25],
+  ];
+  let remaining = d(amount);
+  let lower = d(0);
+  let tax = d(0);
+  for (const [upTo, rate] of brackets) {
+    if (remaining.lte(0)) break;
+    const width = upTo === Infinity ? remaining : Decimal.min(remaining, d(upTo).minus(lower));
+    tax = tax.plus(width.times(rate).div(100));
+    remaining = remaining.minus(width);
+    lower = d(upTo === Infinity ? 0 : upTo);
+  }
+  return taxFloor(tax).toFixed(0);
+}
+
+/** Masa kerja dalam tahun (desimal) dari tanggal masuk sampai tanggal berakhir. */
+export function serviceYears(from: string, to: string): string {
+  const a = new Date(`${from}T00:00:00Z`);
+  const b = new Date(`${to}T00:00:00Z`);
+  let months = (b.getUTCFullYear() - a.getUTCFullYear()) * 12 + (b.getUTCMonth() - a.getUTCMonth());
+  if (b.getUTCDate() < a.getUTCDate()) months -= 1;
+  return d(Math.max(months, 0)).div(12).toDecimalPlaces(4).toString();
+}
+
+/**
+ * Hak akhir hubungan kerja (PP 35/2021): UP × pengali alasan, UPMK × pengali, uang penggantian hak (cuti tahunan
+ * yang belum diambil, upah sehari = upah sebulan ÷ hari kerja sebulan) ditambah komponen lain, uang pisah (bila diatur
+ * PK/PP/PKB), atau uang kompensasi PKWT (masa kerja ÷ 12 × upah). Upah = gaji pokok + tunjangan tetap.
+ */
+export function severance(input: {
+  reason: SeveranceReason;
+  joinDate: string;
+  endDate: string;
+  monthlyWage: Decimal.Value;
+  unusedLeaveDays?: Decimal.Value;
+  workDaysPerMonth?: number;
+  otherRights?: Decimal.Value;
+  separationPay?: Decimal.Value;
+}) {
+  const rule = SEVERANCE_REASONS[input.reason];
+  const wage = d(input.monthlyWage);
+  const years = serviceYears(input.joinDate, input.endDate);
+  const upMonths = rule.up ? severanceMonths(years) : 0;
+  const upmkMonths = rule.upmk ? longServiceMonths(years) : 0;
+  const up = rupiah(wage.times(upMonths).times(rule.up));
+  const upmk = rupiah(wage.times(upmkMonths).times(rule.upmk));
+  const leave = rupiah(
+    wage.div(input.workDaysPerMonth ?? 21).times(Decimal.max(d(input.unusedLeaveDays ?? 0), 0)),
+  );
+  const uph = leave.plus(d(input.otherRights ?? 0));
+  const separation = rupiah(d(input.separationPay ?? 0));
+  let pkwt = d(0);
+  if (input.reason === "pkwt_end") {
+    // Kompensasi PKWT: masa kerja ≥ 1 bulan; proporsional masa kerja ÷ 12 bulan.
+    const months = d(years).times(12).toDecimalPlaces(0, Decimal.ROUND_DOWN);
+    pkwt = months.gte(1) ? rupiah(wage.times(months).div(12)) : d(0);
+  }
+  const gross = up.plus(upmk).plus(uph).plus(separation).plus(pkwt);
+  const tax = d(severanceTax(gross));
+  return {
+    reason: input.reason,
+    article: rule.article,
+    label: rule.label,
+    serviceYears: years,
+    upMonths,
+    upFactor: rule.up,
+    up: up.toFixed(0),
+    upmkMonths,
+    upmkFactor: rule.upmk,
+    upmk: upmk.toFixed(0),
+    leaveCompensation: leave.toFixed(0),
+    uph: rupiah(uph).toFixed(0),
+    separationPay: separation.toFixed(0),
+    pkwtCompensation: pkwt.toFixed(0),
+    gross: rupiah(gross).toFixed(0),
+    tax: tax.toFixed(0),
+    net: rupiah(gross.minus(tax)).toFixed(0),
+  };
+}
+
+// ---- Pekerja harian lepas & borongan ----
+
+/**
+ * PPh 21 pegawai tidak tetap per hari (PMK 168/2023): bruto sehari s.d. Rp450.000 → 0%; s.d. Rp2.500.000 → TER
+ * harian 0,5%; di atasnya tarif Pasal 17 atas 50% bruto sehari.
+ */
+export function pph21Daily(dailyGross: Decimal.Value, hasNpwp = true): string {
+  const g = d(dailyGross);
+  let tax = g.lte(450_000) ? d(0) : g.lte(2_500_000) ? g.times(0.005) : d(progressiveTax(g.times(0.5)));
+  if (!hasNpwp) tax = tax.times(1.2);
+  return taxFloor(tax).toFixed(0);
 }

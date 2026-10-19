@@ -224,6 +224,9 @@ export const APPS: App[] = [
       "/leave-types",
       "/overtimes",
       "/public-holidays",
+      "/work-schedules",
+      "/shift-assignments",
+      "/work-entries",
     ],
     menu: [
       group("Karyawan", "Employees", [
@@ -231,13 +234,20 @@ export const APPS: App[] = [
         link("Kontrak Kerja", "Contracts", "/hr/contracts", "hr.manage"),
         link("Departemen", "Departments", "/departments", "hr.read"),
       ]),
-      link("Absensi", "Attendances", "/hr/attendance", "hr.read"),
+      group("Kehadiran", "Attendance", [
+        link("Absensi", "Attendances", "/hr/attendance", "hr.read"),
+        link("Keterlambatan", "Lateness", "/hr/lateness", "hr.read"),
+        link("Penugasan Shift", "Shift Assignments", "/shift-assignments", "hr.read"),
+        link("Hasil Kerja Borongan", "Piece Work", "/work-entries", "hr.read"),
+      ]),
       group("Cuti", "Time Off", [
         link("Pengajuan Cuti", "Requests", "/hr/leaves", "hr.read"),
         link("Jatah Cuti", "Allocations", "/leave-allocations", "hr.read"),
       ]),
       link("Lembur", "Overtime", "/overtimes", "hr.read"),
+      link("Persetujuan", "Approvals", "/hr/approvals", "hr.read"),
       group("Konfigurasi", "Configuration", [
+        link("Jadwal Kerja", "Work Schedules", "/work-schedules", "hr.read"),
         link("Jabatan", "Job Positions", "/job-positions", "hr.read"),
         link("Jenis Cuti", "Time Off Types", "/leave-types", "hr.read"),
         link("Hari Libur", "Public Holidays", "/public-holidays", "hr.read"),
@@ -251,6 +261,7 @@ export const APPS: App[] = [
     prefixes: ["/payroll", "/salary-components"],
     menu: [
       link("Penggajian", "Payslip Batches", "/payroll/runs", "payroll.read"),
+      link("Pinjaman Karyawan", "Employee Loans", "/payroll/loans", "payroll.read"),
       group("Konfigurasi", "Configuration", [
         link("Komponen Gaji", "Salary Rules", "/salary-components", "payroll.read"),
         link("Pengaturan Payroll", "Settings", "/payroll/settings", "payroll.manage"),
@@ -299,7 +310,10 @@ export const APPS: App[] = [
     name: L("Portal Saya", "My Portal"),
     home: "/me",
     prefixes: ["/me"],
-    menu: [link("Portal Saya", "My Portal", "/me", "")],
+    menu: [
+      link("Portal Saya", "My Portal", "/me", ""),
+      link("Persetujuan", "Approvals", "/hr/approvals", ""),
+    ],
   },
   {
     id: "settings",
