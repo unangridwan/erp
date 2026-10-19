@@ -6,7 +6,14 @@ type AccountType = (typeof schema.ACCOUNT_TYPES)[number];
  * Bagan akun standar untuk perusahaan dagang/jasa di Indonesia (mengacu pola SAK EP/EMKM).
  * Kunci (`key`) dipakai untuk menghubungkan akun dengan jurnal, pajak, dan pengaturan bawaan.
  */
-const ACCOUNTS: { key?: string; code: string; name: string; type: AccountType; reconcile?: boolean }[] = [
+const ACCOUNTS: {
+  key?: string;
+  code: string;
+  name: string;
+  type: AccountType;
+  reconcile?: boolean;
+  branchClearing?: boolean;
+}[] = [
   { key: "cash", code: "1-1100", name: "Kas", type: "asset_cash" },
   { key: "bank", code: "1-1200", name: "Bank", type: "asset_cash" },
   { key: "receivable", code: "1-1300", name: "Piutang Usaha", type: "asset_receivable", reconcile: true },
@@ -23,6 +30,12 @@ const ACCOUNTS: { key?: string; code: string; name: string; type: AccountType; r
   { code: "1-1600", name: "Uang Muka Pembelian", type: "asset_current" },
   { code: "1-1700", name: "Biaya Dibayar Dimuka", type: "asset_current" },
   { code: "1-1800", name: "Piutang Karyawan", type: "asset_current" },
+  {
+    code: "1-1900",
+    name: "Rekening Antar Kantor (RK Pusat–Cabang)",
+    type: "asset_current",
+    branchClearing: true,
+  },
   { code: "1-2100", name: "Peralatan Kantor", type: "asset_fixed" },
   { code: "1-2190", name: "Akumulasi Penyusutan Peralatan Kantor", type: "asset_fixed" },
   { code: "1-2200", name: "Kendaraan", type: "asset_fixed" },
@@ -62,6 +75,7 @@ const ACCOUNTS: { key?: string; code: string; name: string; type: AccountType; r
   { code: "4-9000", name: "Pendapatan Lain-lain", type: "income_other" },
   { key: "fxGain", code: "4-9100", name: "Laba Selisih Kurs", type: "income_other" },
   { code: "4-9200", name: "Pendapatan Bunga", type: "income_other" },
+  { code: "4-9400", name: "Laba (Rugi) Pelepasan Investasi", type: "income_other" },
   { key: "cogs", code: "5-1000", name: "Harga Pokok Penjualan", type: "expense_direct_cost" },
   { key: "stockAdjustment", code: "5-1200", name: "Selisih Persediaan", type: "expense_direct_cost" },
   { code: "6-1000", name: "Beban Gaji dan Tunjangan", type: "expense" },
@@ -174,6 +188,7 @@ export async function installChart(tx: Db, companyId: string): Promise<boolean> 
         name: a.name,
         accountType: a.type,
         reconcile: a.reconcile ?? false,
+        branchClearing: a.branchClearing ?? false,
       })),
     )
     .returning({ id: schema.accounts.id, code: schema.accounts.code });

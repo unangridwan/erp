@@ -31,7 +31,9 @@ import { createCrudController } from "../common/crud.js";
 import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
+import { toXlsxBook } from "../accounting/report-export.js";
 import { MasterModule } from "../master/master.module.js";
+import { consolidationSheets } from "./consolidation-export.js";
 import { ConsolidationService } from "./consolidation.service.js";
 
 const GroupAccountsController = createCrudController({
@@ -171,6 +173,31 @@ class ConsolidationController {
   @RequirePermission("consolidation.read")
   report(@Param("id", ParseUUIDPipe) id: string) {
     return this.tenantDb.run((tx) => this.service.report(tx, id));
+  }
+
+  /** Paket laporan konsolidasian (posisi keuangan, laba rugi, perubahan ekuitas, arus kas, kertas kerja, jurnal). */
+  @Get("runs/:id/export")
+  @RequirePermission("consolidation.read")
+  async export(@Param("id", ParseUUIDPipe) id: string, @Res() res: Response) {
+    const { buffer, dateTo } = await this.tenantDb.run(async (tx) => {
+      const run = await this.service.get(tx, id);
+      const [report, ws] = [await this.service.report(tx, id), await this.service.worksheet(tx, id)];
+      const [root] = await tx
+        .select({ name: schema.companies.name })
+        .from(schema.companies)
+        .where(eq(schema.companies.id, run.rootCompanyId));
+      return {
+        buffer: await toXlsxBook(
+          consolidationSheets(run, report, ws),
+          `${root?.name ?? ""} dan entitas anak`,
+        ),
+        dateTo: run.dateTo,
+      };
+    });
+    res
+      .type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+      .attachment(`laporan-konsolidasian-${dateTo}.xlsx`)
+      .send(buffer);
   }
 
   @Get("runs/:id/intercompany")

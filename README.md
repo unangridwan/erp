@@ -183,12 +183,23 @@ melebihi batas pengguna/perusahaan ditolak, dan langganan yang berakhir (lewat `
 | `POST /consolidation/runs/:id/compute`                                                 | Hitung ulang (opsional `rates` per entitas: penutupan, rata-rata, historis)          |
 | `GET /consolidation/runs/:id/{worksheet[?format=csv],report,intercompany}`             | Kertas kerja, neraca & laba rugi konsolidasian (pemilik/KNP), rekonsiliasi IC        |
 | `POST /consolidation/runs/:id/entries`, `DELETE …/entries/:entryId`, `POST …/finalize` | Jurnal penyesuaian manual (top-side), finalisasi (harus seimbang)                    |
+| `GET /consolidation/runs/:id/export`                                                   | Excel: posisi keuangan, laba rugi, perubahan ekuitas, arus kas, kertas kerja, jurnal |
+| `GET /reports/branch-clearing?dateTo=`, `GET /reports/branch-clearing/export`          | Rekonsiliasi RK pusat–cabang (akun bertanda rekening antar kantor)                   |
 
 Translasi: aset/liabilitas kurs penutupan, laba rugi kurs rata-rata, ekuitas kurs historis; selisihnya ke akun selisih
 kurs penjabaran. Entitas dikonsolidasi penuh (>50%), proporsional, atau metode ekuitas (asosiasi) sesuai Kepemilikan;
 isi `consideration` (harga perolehan) dan `acquiredNetAssets` (aset neto saat akuisisi) di Kepemilikan untuk goodwill.
 Eliminasi otomatis: investasi vs ekuitas anak (goodwill/KNP), saldo & transaksi antar perusahaan (baris jurnal dengan
 mitra IC), bagian laba KNP, dan metode ekuitas. Jurnal konsolidasi tidak menyentuh buku besar entitas.
+
+Kepemilikan dicatat per baris bertanggal: entitas yang diakuisisi di tengah periode hanya membawa laba rugi sejak tanggal
+pengendalian; perubahan persentase (baris baru dengan `consideration` = harga beli/hasil jual) dihitung sebagai
+transaksi dengan KNP; relasi yang berakhir (`validTo`) di dalam periode memperlakukan entitas sebagai dilepas.
+Laba belum terealisasi atas persediaan dihitung otomatis dari lapisan valuasi stok pembeli yang berasal dari penerimaan
+dengan partner antar perusahaan. Dividen dicatat di akun Dividen (3-3000) dengan partner perusahaan grup agar
+dieliminasi. Saldo awal laporan perubahan ekuitas & arus kas diambil dari proses final yang berakhir sehari sebelum
+periode (bila ada), selain itu dihitung ulang. Setelah upgrade, klik **Buat bagan akun grup** sekali lagi agar peran
+akun baru (persediaan, HPP, dividen, transaksi KNP, laba pelepasan) terpasang.
 
 Konfirmasi SO membuat pengiriman; barang ditagih sesuai kuantitas terkirim (jasa sesuai kuantitas dipesan). Validasi
 transfer barang stok membuat jurnal di jurnal **STJ**: penerimaan Dr Persediaan / Cr Barang Diterima Belum Ditagih,

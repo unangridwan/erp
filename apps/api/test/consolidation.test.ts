@@ -165,6 +165,11 @@ describe.skipIf(!hasDb)("Fase 5b: konsolidasi grup", () => {
       cta: "3-8100",
       nci_profit: "3-8200",
       associate_income: "4-9300",
+      inventory: "1-1400",
+      cost_of_sales: "5-1000",
+      dividends: "3-3000",
+      equity_transactions: "3-8300",
+      disposal_gain: "4-9400",
     });
     expect((await hq.post("/consolidation/bootstrap").expect(200)).body).toMatchObject({
       created: 0,

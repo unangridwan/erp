@@ -323,6 +323,60 @@ export class ReportService {
     };
   }
 
+  /**
+   * Rekonsiliasi rekening antar kantor (RK pusat–cabang): saldo akun RK per cabang s.d. tanggal. Dalam satu
+   * perusahaan jumlah semua cabang harus nol; selisih menandakan transaksi antar kantor yang belum dicatat pasangannya.
+   */
+  async branchClearing(tx: Db, q: ReportQuery) {
+    const s = await this.scope(tx, { ...q, branchId: undefined });
+    const rows = await tx.execute<{
+      account_id: string;
+      code: string;
+      name: string;
+      branch_id: string | null;
+      branch: string | null;
+      balance: string;
+    }>(sql`
+      select a.id as account_id, a.code, a.name, l.branch_id, b.name as branch, sum(l.balance)::text as balance
+      from account_move_lines l
+      join account_moves m on m.id = l.move_id
+      join accounts a on a.id = l.account_id
+      left join branches b on b.id = l.branch_id
+      where ${s.where} and m.date <= ${q.dateTo} and a.branch_clearing
+      group by a.id, a.code, a.name, l.branch_id, b.name
+      having sum(l.balance) <> 0
+      order by a.code, b.name nulls first`);
+    const accounts = new Map<
+      string,
+      {
+        accountId: string;
+        code: string;
+        name: string;
+        branches: { branchId: string | null; branch: string; balance: string }[];
+        total: Decimal;
+      }
+    >();
+    for (const r of rows) {
+      const a = accounts.get(r.account_id) ?? {
+        accountId: r.account_id,
+        code: r.code,
+        name: r.name,
+        branches: [],
+        total: dec(0),
+      };
+      a.branches.push({
+        branchId: r.branch_id,
+        branch: r.branch ?? "Kantor pusat (tanpa cabang)",
+        balance: fmt(dec(r.balance)),
+      });
+      a.total = a.total.plus(r.balance);
+      accounts.set(r.account_id, a);
+    }
+    const list = [...accounts.values()].map((a) => ({ ...a, total: fmt(a.total) }));
+    const total = list.reduce((sum, a) => sum.plus(a.total), dec(0));
+    return { date: q.dateTo, accounts: list, total: fmt(total), balanced: total.isZero() };
+  }
+
   // ---- Internal ----
 
   private async scope(tx: Db, q: ReportQuery): Promise<Scope> {

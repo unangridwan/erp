@@ -18,6 +18,11 @@ export const GROUP_ACCOUNT_ROLES = [
   "associate_investment",
   "associate_income",
   "ic_difference",
+  "inventory",
+  "cost_of_sales",
+  "dividends",
+  "equity_transactions",
+  "disposal_gain",
 ] as const;
 export type GroupAccountRole = (typeof GROUP_ACCOUNT_ROLES)[number];
 
@@ -29,12 +34,30 @@ export interface GroupAccountInfo {
   role: GroupAccountRole | null;
 }
 
+/** Perubahan kepemilikan langsung setelah pengendalian diperoleh (akuisisi bertahap / penjualan sebagian). */
+export interface OwnershipChange {
+  date: string;
+  /** Kepemilikan langsung sebelum & sesudah (persen). */
+  pctBefore: Decimal.Value;
+  pctAfter: Decimal.Value;
+  /** Harga beli tambahan (bila naik) atau hasil penjualan (bila turun), mata uang penyajian. */
+  consideration: Decimal.Value | null;
+  /** Aset bersih entitas anak pada tanggal perubahan (mata uang penyajian). */
+  netAssets: Decimal.Value;
+  /** Perubahan terjadi di dalam periode laporan. */
+  inPeriod: boolean;
+  /** Laba periode berjalan sebelum tanggal perubahan (mata uang penyajian, laba positif). */
+  periodProfitBefore?: Decimal.Value;
+}
+
 export interface OwnershipInput {
   parentId: string;
-  /** Kepemilikan langsung (persen). */
+  /** Kepemilikan langsung saat ini (persen). */
   pct: Decimal.Value;
+  /** Data akuisisi saat pengendalian diperoleh (mata uang penyajian). */
   consideration: Decimal.Value | null;
   acquiredNetAssets: Decimal.Value | null;
+  changes?: OwnershipChange[];
 }
 
 export interface EntityInput {
@@ -50,14 +73,35 @@ export interface EntityInput {
   historicalRate: Decimal.Value;
   /** Relasi dari induk yang ada dalam lingkup konsolidasi. */
   links: OwnershipInput[];
-  /** Saldo lokal per akun grup: akun neraca kumulatif, akun laba rugi selama periode. */
-  balances: { groupAccountId: string; amount: Decimal.Value }[];
-  /** Laba/rugi sebelum periode yang belum ditutup ke saldo laba (lokal). */
+  /**
+   * Saldo lokal per akun grup: akun neraca kumulatif, akun laba rugi selama periode. `translated` (opsional) adalah
+   * jumlah dalam mata uang penyajian yang sudah dijabarkan (mis. ekuitas dengan kurs per tanggal transaksi).
+   */
+  balances: { groupAccountId: string; amount: Decimal.Value; translated?: Decimal.Value }[];
+  /** Laba/rugi sebelum periode yang belum ditutup ke saldo laba (lokal; terjemahan opsional). */
   priorUnallocated: Decimal.Value;
-  /** Metode ekuitas: laba/rugi sejak akuisisi sampai awal periode (lokal). */
+  priorTranslated?: Decimal.Value;
+  /** Laba/rugi sejak akuisisi sampai awal periode (lokal; metode ekuitas & entitas yang dilepas). */
   postAcquisitionPrior?: Decimal.Value;
+  postAcquisitionPriorTranslated?: Decimal.Value;
   /** Bagian saldo yang berlawanan dengan perusahaan lain dalam grup (subset dari `balances`). */
-  intercompany: { groupAccountId: string; counterpartId: string; amount: Decimal.Value }[];
+  intercompany: {
+    groupAccountId: string;
+    counterpartId: string;
+    amount: Decimal.Value;
+    translated?: Decimal.Value;
+  }[];
+  /** Laba rugi lokal per segmen periode dengan kepemilikan efektif berbeda (bila kepemilikan berubah). */
+  profitSegments?: { effectivePct: Decimal.Value; profit: Decimal.Value }[];
+  /** Pengendalian/pengaruh dilepas dalam periode: hanya laba rugi sampai tanggal ini yang digabung. */
+  disposal?: { date: string };
+}
+
+export interface ConsolidationOptions {
+  /** Laba belum terealisasi atas persediaan antar perusahaan (mata uang penyajian), akhir & awal periode. */
+  unrealizedProfits?: { sellerId: string; buyerId: string; closing: Decimal.Value; opening: Decimal.Value }[];
+  /** Nilai barang yang dibeli `buyerId` dari `sellerId` selama periode (mata uang penyajian). */
+  icGoods?: { sellerId: string; buyerId: string; amount: Decimal.Value }[];
 }
 
 export interface EntryLine {
@@ -66,7 +110,15 @@ export interface EntryLine {
   amount: string;
 }
 export interface ConsolidationEntry {
-  kind: "translation" | "investment" | "nci_profit" | "intercompany" | "equity_method" | "manual";
+  kind:
+    | "translation"
+    | "investment"
+    | "nci_profit"
+    | "intercompany"
+    | "equity_method"
+    | "manual"
+    | "unrealized_profit"
+    | "disposal";
   companyId: string | null;
   description: string;
   lines: EntryLine[];
@@ -86,6 +138,7 @@ const ASSET_LIABILITY_TYPES: readonly string[] = [
   ...BALANCE_SHEET_GROUPS.liability,
 ];
 const isPL = (type: string) => PROFIT_LOSS_TYPES.includes(type);
+const fmt = (v: Decimal) => v.toFixed(2);
 
 /** Kurs translasi per jenis akun: aset/liabilitas kurs penutupan, laba rugi kurs rata-rata, ekuitas kurs historis. */
 function rateFor(type: string, e: EntityInput) {
@@ -94,12 +147,18 @@ function rateFor(type: string, e: EntityInput) {
   return D(e.historicalRate);
 }
 
-export function consolidate(accounts: GroupAccountInfo[], entities: EntityInput[]): ConsolidationResult {
+export function consolidate(
+  accounts: GroupAccountInfo[],
+  entities: EntityInput[],
+  options: ConsolidationOptions = {},
+): ConsolidationResult {
   const byId = new Map(accounts.map((a) => [a.id, a]));
   const role = (r: GroupAccountRole) => {
     const account = accounts.find((a) => a.role === r);
     if (!account)
-      throw new Error(`Akun grup dengan peran "${r}" belum ada — buat bagan akun grup terlebih dahulu`);
+      throw new Error(
+        `Akun grup dengan peran "${r}" belum ada — klik "Buat bagan akun grup" di Pemetaan Akun untuk melengkapinya`,
+      );
     return account.id;
   };
   const typeOf = (id: string) => {
@@ -112,13 +171,25 @@ export function consolidate(accounts: GroupAccountInfo[], entities: EntityInput[
   const balances: ConsolidationResult["balances"] = [];
   const aggregated = entities.filter((e) => e.method !== "equity");
   const inScope = new Set(aggregated.map((e) => e.companyId));
+  const disposed = new Set(entities.filter((e) => e.disposal).map((e) => e.companyId));
+  const names = new Map(entities.map((e) => [e.companyId, e.name]));
   const retained = role("retained_earnings");
+  const factorOf = (e: EntityInput) => (e.method === "proportional" ? D(e.effectivePct).div(100) : D(1));
+  const translate = (
+    e: EntityInput,
+    item: { groupAccountId: string; amount: Decimal.Value; translated?: Decimal.Value },
+  ) =>
+    item.translated !== undefined && item.translated !== null
+      ? D(item.translated)
+      : D(item.amount).times(rateFor(typeOf(item.groupAccountId), e));
 
   /** Saldo terjemahan per entitas (setelah faktor metode), dipakai eliminasi. */
   const translated = new Map<string, Map<string, Decimal>>();
+  /** Laba periode terjemahan per entitas (laba positif), sebelum penyeimbang pelepasan. */
+  const profitOf = new Map<string, Decimal>();
 
   for (const e of entities) {
-    const factor = e.method === "proportional" ? D(e.effectivePct).div(100) : D(1);
+    const factor = factorOf(e);
     const rows = new Map<string, { local: Decimal; amount: Decimal }>();
     const add = (accountId: string, local: Decimal, amount: Decimal) => {
       const row = rows.get(accountId) ?? { local: D(0), amount: D(0) };
@@ -126,22 +197,30 @@ export function consolidate(accounts: GroupAccountInfo[], entities: EntityInput[
       row.amount = row.amount.plus(amount);
       rows.set(accountId, row);
     };
-    for (const b of e.balances) {
-      add(
-        b.groupAccountId,
-        D(b.amount),
-        r2(
-          D(b.amount)
-            .times(rateFor(typeOf(b.groupAccountId), e))
-            .times(factor),
-        ),
-      );
-    }
+    for (const b of e.balances) add(b.groupAccountId, D(b.amount), r2(translate(e, b).times(factor)));
     const prior = D(e.priorUnallocated);
-    if (!prior.isZero()) add(retained, prior, r2(prior.times(e.historicalRate).times(factor)));
-    // Selisih kurs penjabaran menyeimbangkan neraca saldo terjemahan (bagian dari ekuitas entitas).
+    if (!prior.isZero() || e.priorTranslated !== undefined) {
+      const amount = e.priorTranslated !== undefined ? D(e.priorTranslated) : prior.times(e.historicalRate);
+      add(retained, prior, r2(amount.times(factor)));
+    }
+    const pl = [...rows].filter(([id]) => isPL(typeOf(id)));
+    profitOf.set(
+      e.companyId,
+      pl.reduce((s, [, r]) => s.minus(r.amount), D(0)),
+    );
     const total = [...rows.values()].reduce((s, r) => s.plus(r.amount), D(0));
-    if (!total.isZero()) add(role("cta"), D(0), total.negated());
+    if (e.disposal) {
+      // Entitas yang dilepas hanya membawa laba ruginya; aset neto yang dilepas menyeimbangkan kolomnya.
+      const local = pl.reduce((s, [, r]) => s.minus(r.local), D(0));
+      if (!total.isZero()) add(role("disposal_gain"), local, total.negated());
+      if (e.method !== "equity" && !D(e.closingRate).eq(1))
+        warnings.push(
+          `${e.name}: selisih kurs penjabaran kumulatif entitas yang dilepas belum direklasifikasi ke laba rugi — buat jurnal manual bila material`,
+        );
+    } else if (!total.isZero()) {
+      // Selisih kurs penjabaran menyeimbangkan neraca saldo terjemahan (bagian dari ekuitas entitas).
+      add(role("cta"), D(0), total.negated());
+    }
 
     const map = new Map([...rows].map(([id, r]) => [id, r.amount]));
     translated.set(e.companyId, map);
@@ -151,25 +230,66 @@ export function consolidate(accounts: GroupAccountInfo[], entities: EntityInput[
       balances.push({
         companyId: e.companyId,
         groupAccountId,
-        localAmount: r.local.toFixed(2),
-        amount: r.amount.toFixed(2),
+        localAmount: fmt(r.local),
+        amount: fmt(r.amount),
       });
     }
   }
 
-  const sumWhere = (rows: Map<string, Decimal>, pred: (type: string) => boolean) =>
-    [...rows].filter(([id]) => pred(typeOf(id))).reduce((s, [, v]) => s.plus(v), D(0));
   const line = (groupAccountId: string, companyId: string | null, amount: Decimal): EntryLine => ({
     groupAccountId,
     companyId,
-    amount: r2(amount).toFixed(2),
+    amount: fmt(r2(amount)),
   });
   const nonZero = (lines: EntryLine[]) => lines.filter((l) => !D(l.amount).isZero());
+  const priorProfit = (e: EntityInput) =>
+    (e.postAcquisitionPriorTranslated !== undefined
+      ? D(e.postAcquisitionPriorTranslated)
+      : D(e.postAcquisitionPrior).times(e.historicalRate)
+    ).negated();
 
-  // ---- Eliminasi investasi vs ekuitas entitas anak (metode penuh) & bagian laba KNP ----
+  // ---- Eliminasi investasi vs ekuitas entitas anak (metode penuh), bagian laba KNP, pelepasan ----
   for (const e of entities.filter((x) => x.method === "full" && !x.isRoot)) {
     const rows = translated.get(e.companyId)!;
     const pEff = D(e.effectivePct).div(100);
+    const profit = profitOf.get(e.companyId)!;
+    const nciShare = e.profitSegments
+      ? e.profitSegments.reduce(
+          (s, seg) =>
+            s.plus(
+              r2(
+                D(1).minus(D(seg.effectivePct).div(100)).times(D(seg.profit).negated().times(e.averageRate)),
+              ),
+            ),
+          D(0),
+        )
+      : r2(D(1).minus(pEff).times(profit));
+    if (!nciShare.isZero())
+      entries.push({
+        kind: "nci_profit",
+        companyId: e.companyId,
+        description: `Bagian laba ${e.name} untuk kepentingan non-pengendali`,
+        lines: [line(role("nci_profit"), null, nciShare), line(role("nci_equity"), null, nciShare.negated())],
+      });
+
+    if (e.disposal) {
+      // Laba pelepasan grup = laba di buku induk − bagian induk atas kenaikan aset neto sejak akuisisi.
+      const prior = r2(priorProfit(e));
+      const lines = nonZero([
+        line(role("disposal_gain"), null, pEff.times(prior).minus(nciShare)),
+        line(retained, null, pEff.times(prior).negated()),
+        line(role("nci_equity"), null, nciShare),
+      ]);
+      if (lines.length)
+        entries.push({
+          kind: "disposal",
+          companyId: e.companyId,
+          description: `Pelepasan ${e.name} per ${e.disposal.date}: penyesuaian laba pelepasan & aset neto yang dilepas`,
+          lines,
+        });
+      continue;
+    }
+
     const links = e.links.filter((l) => inScope.has(l.parentId));
     if (!links.length) {
       warnings.push(`${e.name}: tidak ada induk dalam lingkup konsolidasi`);
@@ -187,19 +307,53 @@ export function consolidate(accounts: GroupAccountInfo[], entities: EntityInput[
         `${e.name}: data akuisisi (harga perolehan & aset bersih) belum diisi di Kepemilikan — investasi dianggap sebesar bagian ekuitas saat ini tanpa goodwill`,
       );
     const acquired = links[0]!.acquiredNetAssets === null ? otherEquity : D(links[0]!.acquiredNetAssets);
+    const pct = (v: Decimal.Value) => D(v).div(100);
+    const pNow = links.reduce((s, l) => s.plus(pct(l.pct)), D(0));
+    const pControl = links.reduce((s, l) => s.plus(pct(l.changes?.[0]?.pctBefore ?? l.pct)), D(0));
+    // Kepemilikan efektif per satu satuan kepemilikan langsung (sama dengan 1 bila dimiliki langsung oleh induk utama).
+    const scale = pNow.isZero() ? D(0) : pEff.div(pNow);
 
     const lines: EntryLine[] = equityRows.map(([id, v]) => line(id, e.companyId, v.negated()));
     let goodwillTotal = D(0);
+    // Bagian induk atas perubahan ekuitas sejak akuisisi, ditimbang per tahap kepemilikan.
+    let ownersBase = pEff.times(otherEquity).minus(scale.times(pControl).times(acquired));
     for (const l of links) {
-      const p = D(l.pct).div(100);
-      const cost = l.consideration === null || missing ? r2(p.times(acquired)) : D(l.consideration);
-      lines.push(line(role("investment"), l.parentId, cost.negated()));
-      goodwillTotal = goodwillTotal.plus(cost.minus(p.times(acquired)));
+      const pK = pct(l.changes?.[0]?.pctBefore ?? l.pct);
+      const cost = l.consideration === null || missing ? r2(pK.times(acquired)) : D(l.consideration);
+      let carrying = cost;
+      goodwillTotal = goodwillTotal.plus(cost.minus(pK.times(acquired)));
+      for (const c of l.changes ?? []) {
+        const before = pct(c.pctBefore);
+        const delta = pct(c.pctAfter).minus(before);
+        const netAssets = D(c.netAssets);
+        if (c.consideration === null)
+          warnings.push(
+            `${e.name}: harga transaksi perubahan kepemilikan ${c.date} belum diisi — dianggap sebesar nilai buku`,
+          );
+        const price = c.consideration === null ? delta.abs().times(netAssets) : D(c.consideration);
+        if (delta.gt(0)) {
+          carrying = carrying.plus(price);
+          // Pembelian dari KNP: selisih harga dengan bagian aset neto yang dibeli langsung ke ekuitas.
+          lines.push(line(role("equity_transactions"), null, price.minus(delta.times(netAssets))));
+        } else if (delta.lt(0)) {
+          // Penjualan sebagian tanpa kehilangan pengendalian: biaya investasi dihentikan proporsional, laba di buku
+          // induk dibalik dan selisih harga dengan bagian aset neto yang dijual masuk ekuitas.
+          const derecognized = before.isZero() ? D(0) : carrying.times(delta.abs()).div(before);
+          carrying = carrying.minus(derecognized);
+          lines.push(
+            line(c.inPeriod ? role("disposal_gain") : retained, l.parentId, price.minus(derecognized)),
+          );
+          lines.push(line(role("equity_transactions"), null, price.negated().minus(delta.times(netAssets))));
+        }
+        const base = netAssets.minus(c.inPeriod ? D(c.periodProfitBefore) : D(0));
+        ownersBase = ownersBase.minus(scale.times(delta).times(base));
+      }
+      lines.push(line(role("investment"), l.parentId, r2(carrying).negated()));
     }
     // Goodwill negatif (pembelian dengan diskon) langsung diakui di saldo laba.
     if (goodwillTotal.gte(0)) lines.push(line(role("goodwill"), null, goodwillTotal));
     else lines.push(line(retained, null, goodwillTotal));
-    lines.push(line(retained, null, pEff.times(otherEquity.minus(acquired)).negated()));
+    lines.push(line(retained, null, ownersBase.negated()));
     lines.push(line(ctaId, null, pEff.times(ctaEquity).negated()));
     // KNP = (1 − p_efektif)·E − (Σp_langsung − p_efektif)·A; dihitung sebagai penyeimbang agar entri tepat nol
     // (sekaligus menyerap selisih pembulatan).
@@ -211,29 +365,26 @@ export function consolidate(accounts: GroupAccountInfo[], entities: EntityInput[
       description: `Eliminasi investasi & ekuitas ${e.name} (kepemilikan efektif ${pEff.times(100).toFixed(2)}%)`,
       lines: nonZero(lines),
     });
-
-    const profit = sumWhere(rows, isPL).negated();
-    const nciShare = r2(D(1).minus(pEff).times(profit));
-    if (!nciShare.isZero())
-      entries.push({
-        kind: "nci_profit",
-        companyId: e.companyId,
-        description: `Bagian laba ${e.name} untuk kepentingan non-pengendali`,
-        lines: [line(role("nci_profit"), null, nciShare), line(role("nci_equity"), null, nciShare.negated())],
-      });
   }
 
   // ---- Metode ekuitas (asosiasi / ventura bersama) ----
   for (const e of entities.filter((x) => x.method === "equity")) {
-    const rows = translated.get(e.companyId)!;
     const share = D(e.effectivePct).div(100);
-    const profit = r2(share.times(sumWhere(rows, isPL).negated()));
-    const prior = r2(share.times(D(e.postAcquisitionPrior).negated()).times(e.historicalRate));
-    const lines = nonZero([
-      line(role("associate_investment"), null, profit.plus(prior)),
-      line(role("associate_income"), null, profit.negated()),
-      line(retained, null, prior.negated()),
-    ]);
+    const profit = r2(share.times(profitOf.get(e.companyId)!));
+    const prior = r2(share.times(priorProfit(e)));
+    const lines = nonZero(
+      e.disposal
+        ? [
+            line(role("associate_income"), null, profit.negated()),
+            line(role("disposal_gain"), null, profit.plus(prior)),
+            line(retained, null, prior.negated()),
+          ]
+        : [
+            line(role("associate_investment"), null, profit.plus(prior)),
+            line(role("associate_income"), null, profit.negated()),
+            line(retained, null, prior.negated()),
+          ],
+    );
     if (lines.length)
       entries.push({
         kind: "equity_method",
@@ -241,38 +392,152 @@ export function consolidate(accounts: GroupAccountInfo[], entities: EntityInput[
         description: `Bagian laba ${e.name} (metode ekuitas ${share.times(100).toFixed(2)}%)`,
         lines,
       });
+
+    // Dividen dari asosiasi mengurangi nilai investasi, bukan pendapatan grup.
+    const declared = e.intercompany
+      .filter((i) => inScope.has(i.counterpartId) && EQUITY_TYPES.includes(typeOf(i.groupAccountId)))
+      .reduce((s, i) => s.plus(r2(translate(e, i))), D(0));
+    if (declared.gt(0) && !e.disposal) {
+      const received = aggregated.flatMap((p) =>
+        p.intercompany
+          .filter((i) => i.counterpartId === e.companyId && isPL(typeOf(i.groupAccountId)))
+          .map((i) => ({
+            companyId: p.companyId,
+            groupAccountId: i.groupAccountId,
+            amount: r2(translate(p, i)),
+          }))
+          .filter((i) => i.amount.lt(0)),
+      );
+      let remaining = Decimal.min(
+        declared,
+        received.reduce((s, i) => s.minus(i.amount), D(0)),
+      );
+      const total = remaining;
+      const divLines: EntryLine[] = [];
+      for (const r of received) {
+        if (remaining.lte(0)) break;
+        const take = Decimal.min(remaining, r.amount.negated());
+        divLines.push(line(r.groupAccountId, r.companyId, take));
+        remaining = remaining.minus(take);
+      }
+      if (total.gt(0)) {
+        divLines.push(line(role("associate_investment"), null, total.negated()));
+        entries.push({
+          kind: "equity_method",
+          companyId: e.companyId,
+          description: `Dividen dari ${e.name} mengurangi investasi pada entitas asosiasi`,
+          lines: divLines,
+        });
+      }
+    }
   }
 
-  // ---- Eliminasi saldo & transaksi antar perusahaan dalam lingkup ----
+  // ---- Eliminasi saldo, transaksi & dividen antar perusahaan dalam lingkup ----
+  type Side = { residual: Decimal; atClosing: Decimal };
+  const pairs = new Map<string, { a: string; b: string; balance: Side; result: Side }>();
   const icLines: EntryLine[] = [];
   for (const e of aggregated) {
-    const factor = e.method === "proportional" ? D(e.effectivePct).div(100) : D(1);
+    const factor = factorOf(e);
     const byAccount = new Map<string, Decimal>();
     for (const ic of e.intercompany) {
-      if (!inScope.has(ic.counterpartId) || ic.counterpartId === e.companyId) continue;
-      const amount = r2(
-        D(ic.amount)
-          .times(rateFor(typeOf(ic.groupAccountId), e))
-          .times(factor),
-      );
-      byAccount.set(ic.groupAccountId, (byAccount.get(ic.groupAccountId) ?? D(0)).plus(amount));
+      const cp = ic.counterpartId;
+      if (!inScope.has(cp) || cp === e.companyId) continue;
+      const type = typeOf(ic.groupAccountId);
+      // Dividen (ekuitas) dipasangkan dengan pendapatan dividen induk di sisi transaksi.
+      const side = isPL(type) || EQUITY_TYPES.includes(type) ? "result" : "balance";
+      // Saldo dengan entitas yang sudah dilepas bukan lagi saldo antar perusahaan.
+      if (side === "balance" && (e.disposal || disposed.has(cp))) continue;
+      const amount = r2(translate(e, ic).times(factor));
+      // Dividen entitas anak metode penuh: akun dividennya sudah tereliminasi bersama ekuitas, jadi pasangan
+      // pendapatan dividen induk dieliminasi terhadap saldo laba (bagian induk atas laba yang dibagikan).
+      const target =
+        EQUITY_TYPES.includes(type) && e.method === "full" && !e.isRoot ? retained : ic.groupAccountId;
+      byAccount.set(target, (byAccount.get(target) ?? D(0)).plus(amount));
+      const [a, b] = [e.companyId, cp].sort() as [string, string];
+      const key = `${a}:${b}`;
+      const pair = pairs.get(key) ?? {
+        a,
+        b,
+        balance: { residual: D(0), atClosing: D(0) },
+        result: { residual: D(0), atClosing: D(0) },
+      };
+      pair[side].residual = pair[side].residual.minus(amount);
+      pair[side].atClosing = pair[side].atClosing.minus(D(ic.amount).times(e.closingRate).times(factor));
+      pairs.set(key, pair);
     }
     for (const [id, amount] of byAccount) icLines.push(line(id, e.companyId, amount.negated()));
   }
-  const icResidual = icLines.reduce((s, l) => s.plus(l.amount), D(0));
-  if (!icResidual.isZero()) {
-    icLines.push(line(role("ic_difference"), null, icResidual.negated()));
-    warnings.push(
-      `Saldo antar perusahaan tidak saling hapus, selisih ${icResidual.negated().toFixed(2)} dipindah ke akun selisih eliminasi — periksa rekonsiliasi antar perusahaan`,
-    );
+  const goods = (a: string, b: string) =>
+    (options.icGoods ?? [])
+      .filter((g) => (g.sellerId === a && g.buyerId === b) || (g.sellerId === b && g.buyerId === a))
+      .reduce((s, g) => s.plus(g.amount), D(0));
+  for (const pair of pairs.values()) {
+    for (const kind of ["balance", "result"] as const) {
+      let residual = r2(pair[kind].residual);
+      let atClosing = pair[kind].atClosing;
+      if (residual.isZero()) continue;
+      // Penjualan barang antar perusahaan: pembeli mencatat persediaan/HPP tanpa pasangan IC, jadi pendapatan
+      // penjual dieliminasi terhadap harga pokok penjualan grup.
+      const g = kind === "result" ? goods(pair.a, pair.b) : D(0);
+      if (g.gt(0) && residual.gt(0)) {
+        const take = Decimal.min(residual, g);
+        icLines.push(line(role("cost_of_sales"), null, take.negated()));
+        residual = residual.minus(take);
+        atClosing = atClosing.minus(take);
+      }
+      if (residual.isZero()) continue;
+      if (atClosing.abs().lt(1)) {
+        // Saldo cocok dalam mata uang asal; selisihnya hanya akibat kurs penjabaran.
+        icLines.push(line(role("cta"), null, residual.negated()));
+      } else {
+        icLines.push(line(role("ic_difference"), null, residual.negated()));
+        warnings.push(
+          `${names.get(pair.a)} – ${names.get(pair.b)}: ${kind === "balance" ? "saldo" : "transaksi"} antar perusahaan tidak saling hapus, selisih ${fmt(residual.negated())} dipindah ke akun selisih eliminasi — periksa rekonsiliasi antar perusahaan`,
+        );
+      }
+    }
   }
   if (nonZero(icLines).length)
     entries.push({
       kind: "intercompany",
       companyId: null,
-      description: "Eliminasi saldo & transaksi antar perusahaan",
+      description: "Eliminasi saldo, transaksi & dividen antar perusahaan",
       lines: nonZero(icLines),
     });
+
+  // ---- Laba belum terealisasi atas persediaan antar perusahaan ----
+  const entityById = new Map(entities.map((e) => [e.companyId, e]));
+  for (const u of options.unrealizedProfits ?? []) {
+    const seller = entityById.get(u.sellerId);
+    const buyer = entityById.get(u.buyerId);
+    if (!seller || !buyer || !inScope.has(u.sellerId) || !inScope.has(u.buyerId)) continue;
+    if (seller.disposal || buyer.disposal) continue;
+    const closing = r2(D(u.closing));
+    const opening = r2(D(u.opening));
+    if (closing.isZero() && opening.isZero()) continue;
+    // Penjualan dari entitas anak (upstream): KNP ikut menanggung bagiannya.
+    const pSeller = seller.isRoot || seller.method !== "full" ? D(1) : D(seller.effectivePct).div(100);
+    const nci = D(1).minus(pSeller);
+    const lines = [
+      line(role("inventory"), u.buyerId, closing.negated()),
+      line(role("cost_of_sales"), null, closing.minus(opening)),
+      line(retained, null, opening),
+    ];
+    if (nci.gt(0))
+      lines.push(
+        line(role("nci_profit"), null, nci.times(closing.minus(opening)).negated()),
+        line(role("nci_equity"), null, nci.times(closing)),
+        line(retained, null, nci.times(opening).negated()),
+      );
+    const rest = lines.reduce((s, l) => s.plus(l.amount), D(0));
+    if (!rest.isZero()) lines.push(line(retained, null, rest.negated()));
+    entries.push({
+      kind: "unrealized_profit",
+      companyId: u.sellerId,
+      description: `Laba belum terealisasi atas persediaan ${buyer.name} yang dibeli dari ${seller.name}`,
+      lines: nonZero(lines),
+    });
+  }
 
   return { balances, entries, warnings };
 }
@@ -397,6 +662,200 @@ export function consolidatedStatements(rows: WorksheetRow[]) {
       // Nol bila kertas kerja seimbang.
       difference: D(assets.total).minus(liabilities.total).minus(totalEquity).toFixed(2),
     },
+  };
+}
+
+type PositionRow = { groupAccountId: string; amount: Decimal.Value };
+
+/**
+ * Posisi keuangan konsolidasian dengan laba rugi ditutup ke saldo laba: laba rugi periode dan bagian KNP-nya
+ * (yang sudah dikreditkan ke KNP) dipindah ke akun saldo laba. Dipakai sebagai saldo awal periode berikutnya.
+ */
+export function closingPosition(
+  accounts: GroupAccountInfo[],
+  rows: { groupAccountId: string; consolidated: Decimal.Value }[],
+): { groupAccountId: string; amount: string }[] {
+  const byId = new Map(accounts.map((a) => [a.id, a]));
+  const retained = accounts.find((a) => a.role === "retained_earnings");
+  if (!retained) throw new Error('Akun grup dengan peran "retained_earnings" belum ada');
+  const position = new Map<string, Decimal>();
+  for (const r of rows) {
+    const account = byId.get(r.groupAccountId);
+    if (!account) continue;
+    const target = isPL(account.accountType) || account.role === "nci_profit" ? retained.id : account.id;
+    position.set(target, (position.get(target) ?? D(0)).plus(r.consolidated));
+  }
+  return [...position]
+    .filter(([, v]) => !v.isZero())
+    .map(([groupAccountId, v]) => ({ groupAccountId, amount: fmt(v) }));
+}
+
+const EQUITY_COLUMNS = ["capital", "retained", "cta", "transactions", "owners", "nci", "total"] as const;
+type EquityColumn = (typeof EQUITY_COLUMNS)[number];
+
+/** Laporan perubahan ekuitas konsolidasian (jumlah kredit positif) dari saldo awal dan kertas kerja akhir. */
+export function equityChanges(accounts: GroupAccountInfo[], opening: PositionRow[], rows: WorksheetRow[]) {
+  const byId = new Map(accounts.map((a) => [a.id, a]));
+  const column = (id: string): Exclude<EquityColumn, "owners" | "total"> | null => {
+    const a = byId.get(id);
+    if (!a || !EQUITY_TYPES.includes(a.accountType)) return null;
+    if (a.role === "retained_earnings" || a.role === "dividends") return "retained";
+    if (a.role === "cta") return "cta";
+    if (a.role === "equity_transactions") return "transactions";
+    if (a.role === "nci_equity") return "nci";
+    return "capital";
+  };
+  const totals = (position: PositionRow[]) => {
+    const t = { capital: D(0), retained: D(0), cta: D(0), transactions: D(0), nci: D(0) };
+    for (const p of position) {
+      const c = column(p.groupAccountId);
+      if (c) t[c] = t[c].minus(p.amount);
+    }
+    return t;
+  };
+  const closePosition = closingPosition(accounts, rows);
+  const open = totals(opening);
+  const close = totals(closePosition);
+  const sumRole = (position: PositionRow[], r: GroupAccountRole) =>
+    position.filter((p) => byId.get(p.groupAccountId)?.role === r).reduce((s, p) => s.plus(p.amount), D(0));
+  const statements = consolidatedStatements(rows);
+  const zero = { capital: D(0), retained: D(0), cta: D(0), transactions: D(0), nci: D(0) };
+  const movements: { key: string; label: string; values: typeof zero }[] = [
+    {
+      key: "profit",
+      label: "Laba tahun berjalan",
+      values: {
+        ...zero,
+        retained: D(statements.profitLoss.attributableToOwners),
+        nci: D(statements.profitLoss.attributableToNci),
+      },
+    },
+    {
+      key: "translation",
+      label: "Selisih kurs penjabaran laporan keuangan (penghasilan komprehensif lain)",
+      values: { ...zero, cta: close.cta.minus(open.cta) },
+    },
+    {
+      key: "dividends",
+      label: "Dividen",
+      values: {
+        ...zero,
+        retained: sumRole(closePosition, "dividends").minus(sumRole(opening, "dividends")).negated(),
+      },
+    },
+    {
+      key: "transactions",
+      label: "Transaksi dengan kepentingan non-pengendali",
+      values: { ...zero, transactions: close.transactions.minus(open.transactions) },
+    },
+  ];
+  const other = { ...zero };
+  for (const c of ["capital", "retained", "cta", "transactions", "nci"] as const) {
+    other[c] = movements.reduce((s, m) => s.minus(m.values[c]), close[c].minus(open[c]));
+  }
+  movements.push({
+    key: "other",
+    label: "Setoran modal, perubahan lingkup & lain-lain",
+    values: other,
+  });
+  const render = (key: string, label: string, v: typeof zero) => {
+    const owners = v.capital.plus(v.retained).plus(v.cta).plus(v.transactions);
+    return {
+      key,
+      label,
+      values: {
+        capital: fmt(v.capital),
+        retained: fmt(v.retained),
+        cta: fmt(v.cta),
+        transactions: fmt(v.transactions),
+        owners: fmt(owners),
+        nci: fmt(v.nci),
+        total: fmt(owners.plus(v.nci)),
+      } as Record<EquityColumn, string>,
+    };
+  };
+  return {
+    columns: EQUITY_COLUMNS,
+    rows: [
+      render("opening", "Saldo awal", open),
+      ...movements.map((m) => render(m.key, m.label, m.values)),
+      render("closing", "Saldo akhir", close),
+    ],
+  };
+}
+
+/**
+ * Laporan arus kas konsolidasian metode tidak langsung, disusun dari perubahan posisi keuangan awal–akhir.
+ * Pengaruh selisih kurs penjabaran disajikan terpisah agar arus kas bersih sama dengan perubahan kas.
+ */
+export function consolidatedCashFlow(
+  accounts: GroupAccountInfo[],
+  opening: PositionRow[],
+  rows: WorksheetRow[],
+) {
+  const byId = new Map(accounts.map((a) => [a.id, a]));
+  const close = new Map(closingPosition(accounts, rows).map((p) => [p.groupAccountId, D(p.amount)]));
+  const open = new Map(opening.map((p) => [p.groupAccountId, D(p.amount)]));
+  const delta = (pred: (a: GroupAccountInfo) => boolean) =>
+    [...new Set([...close.keys(), ...open.keys()])]
+      .filter((id) => byId.has(id) && pred(byId.get(id)!))
+      .reduce((s, id) => s.plus(close.get(id) ?? 0).minus(open.get(id) ?? 0), D(0));
+  const plSum = (pred: (r: WorksheetRow) => boolean) =>
+    rows.filter(pred).reduce((s, r) => s.plus(r.consolidated), D(0));
+  const typeIs =
+    (...types: string[]) =>
+    (a: GroupAccountInfo) =>
+      types.includes(a.accountType);
+
+  const netProfit = D(consolidatedStatements(rows).profitLoss.netProfit);
+  const depreciation = plSum((r) => r.accountType === "expense_depreciation");
+  const associateShare = plSum((r) => r.role === "associate_income");
+  const cashOpening = [...open].filter(([id]) => byId.get(id)?.accountType === "asset_cash");
+  const cashClosing = [...close].filter(([id]) => byId.get(id)?.accountType === "asset_cash");
+  const sum = (list: [string, Decimal][]) => list.reduce((s, [, v]) => s.plus(v), D(0));
+
+  const item = (label: string, amount: Decimal) => ({ label, amount: fmt(amount) });
+  const section = (items: ReturnType<typeof item>[]) => ({
+    items: items.filter((i) => !D(i.amount).isZero() || i.label === items[0]!.label),
+    total: fmt(items.reduce((s, i) => s.plus(i.amount), D(0))),
+  });
+  const operating = section([
+    item("Laba bersih", netProfit),
+    item("Penyusutan", depreciation),
+    item("Bagian laba entitas asosiasi", associateShare),
+    item("Perubahan piutang", delta(typeIs("asset_receivable")).negated()),
+    item("Perubahan persediaan & aset lancar lain", delta(typeIs("asset_current")).negated()),
+    item("Perubahan utang usaha", delta(typeIs("liability_payable")).negated()),
+    item("Perubahan liabilitas lancar lain", delta(typeIs("liability_current")).negated()),
+  ]);
+  const investing = section([
+    item("Perolehan aset tetap (neto)", delta(typeIs("asset_fixed")).plus(depreciation).negated()),
+    item(
+      "Investasi, goodwill & aset tidak lancar lain",
+      delta(typeIs("asset_non_current")).plus(associateShare).negated(),
+    ),
+  ]);
+  const financing = section([
+    item("Pinjaman & liabilitas jangka panjang", delta(typeIs("liability_non_current")).negated()),
+    item(
+      "Setoran modal, dividen & transaksi dengan KNP",
+      delta((a) => EQUITY_TYPES.includes(a.accountType) && a.role !== "cta")
+        .negated()
+        .minus(netProfit),
+    ),
+  ]);
+  const translation = delta((a) => a.role === "cta").negated();
+  const netChange = D(operating.total).plus(investing.total).plus(financing.total).plus(translation);
+  return {
+    operating,
+    investing,
+    financing,
+    translationEffect: fmt(translation),
+    netChange: fmt(netChange),
+    cashOpening: fmt(sum(cashOpening)),
+    cashClosing: fmt(sum(cashClosing)),
+    // Nol bila semua perubahan posisi keuangan terklasifikasi.
+    difference: fmt(sum(cashClosing).minus(sum(cashOpening)).minus(netChange)),
   };
 }
 

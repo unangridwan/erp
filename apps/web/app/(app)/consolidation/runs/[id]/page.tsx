@@ -21,6 +21,9 @@ interface Entity {
   closingRate: string;
   averageRate: string;
   historicalRate: string;
+  historicalRateManual: boolean;
+  acquisitionDate: string | null;
+  disposalDate: string | null;
 }
 interface EntryLine {
   groupAccountId: string;
@@ -45,6 +48,7 @@ interface Run {
   currencyCode: string;
   warnings: string[];
   computedAt: string | null;
+  openingSource: "previous_run" | "computed" | null;
   entities: Entity[];
   entries: Entry[];
 }
@@ -87,6 +91,25 @@ interface Report {
     totalLiabilitiesEquity: string;
     difference: string;
   };
+  equityChanges: {
+    columns: EquityColumn[];
+    rows: { key: string; label: string; values: Record<EquityColumn, string> }[];
+  } | null;
+  cashFlow: {
+    operating: CashSection;
+    investing: CashSection;
+    financing: CashSection;
+    translationEffect: string;
+    netChange: string;
+    cashOpening: string;
+    cashClosing: string;
+    difference: string;
+  } | null;
+}
+type EquityColumn = "capital" | "retained" | "cta" | "transactions" | "owners" | "nci" | "total";
+interface CashSection {
+  items: { label: string; amount: string }[];
+  total: string;
 }
 interface IcPair {
   companyAName: string;
@@ -96,7 +119,7 @@ interface IcPair {
   difference: string;
 }
 
-const TABS = ["report", "worksheet", "entries", "intercompany", "entities"] as const;
+const TABS = ["report", "equity", "cashflow", "worksheet", "entries", "intercompany", "entities"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function ConsolidationRunPage() {
@@ -110,7 +133,7 @@ export default function ConsolidationRunPage() {
   const [ws, setWs] = useState<Worksheet | null>(null);
   const [ic, setIc] = useState<{ balances: IcPair[]; transactions: IcPair[] } | null>(null);
   const [rates, setRates] = useState<
-    Record<string, { closingRate: string; averageRate: string; historicalRate: string }>
+    Record<string, { closingRate: string; averageRate: string; historicalRate: string; byDate: boolean }>
   >({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -134,6 +157,7 @@ export default function ConsolidationRunPage() {
             closingRate: String(Number(e.closingRate)),
             averageRate: String(Number(e.averageRate)),
             historicalRate: String(Number(e.historicalRate)),
+            byDate: !e.historicalRateManual,
           },
         ]),
       ),
@@ -174,8 +198,27 @@ export default function ConsolidationRunPage() {
     intercompany: l("Antar perusahaan", "Intercompany"),
     equity_method: l("Metode ekuitas", "Equity method"),
     translation: l("Translasi", "Translation"),
+    unrealized_profit: l("Laba belum terealisasi", "Unrealized profit"),
+    disposal: l("Pelepasan entitas anak", "Disposal of subsidiary"),
     manual: l("Manual", "Manual"),
   };
+  const EQUITY_HEAD: Record<EquityColumn, string> = {
+    capital: l("Modal & cadangan lain", "Capital & other reserves"),
+    retained: l("Saldo laba", "Retained earnings"),
+    cta: l("Selisih kurs penjabaran", "Translation reserve"),
+    transactions: l("Transaksi dengan KNP", "Transactions with NCI"),
+    owners: l("Pemilik entitas induk", "Owners of the parent"),
+    nci: l("Kepentingan non-pengendali", "Non-controlling interests"),
+    total: l("Total ekuitas", "Total equity"),
+  };
+  const noOpening = (
+    <p className="muted">
+      {l(
+        "Saldo awal tidak tersedia — lihat peringatan di atas.",
+        "Opening balances are not available — see the warnings above.",
+      )}
+    </p>
+  );
 
   return (
     <>
@@ -190,7 +233,16 @@ export default function ConsolidationRunPage() {
             {run.state === "final" ? l("Final", "Final") : l("Draft", "Draft")}
           </span>
         </div>
-        <div className="cp-right">
+        <div className="cp-right no-print">
+          <button
+            onClick={() =>
+              download(`/consolidation/runs/${id}/export`, undefined, "laporan-konsolidasian.xlsx").catch(
+                (e: Error) => setError(e.message),
+              )
+            }
+          >
+            {l("Unduh Excel", "Download Excel")}
+          </button>
           <button
             onClick={() =>
               download(`/consolidation/runs/${id}/worksheet?format=csv`, undefined, "kertas-kerja.csv").catch(
@@ -198,8 +250,9 @@ export default function ConsolidationRunPage() {
               )
             }
           >
-            {l("Unduh kertas kerja (CSV)", "Download worksheet (CSV)")}
+            CSV
           </button>
+          <button onClick={() => window.print()}>{l("Cetak / PDF", "Print / PDF")}</button>
           {manage && (
             <>
               <button
@@ -208,7 +261,21 @@ export default function ConsolidationRunPage() {
                   run_(() =>
                     api(`/consolidation/runs/${id}/compute`, {
                       method: "POST",
-                      body: { rates: Object.entries(rates).map(([companyId, r]) => ({ companyId, ...r })) },
+                      body: {
+                        rates: run.entities
+                          .filter((e) => e.currencyCode !== run.currencyCode && rates[e.companyId])
+                          .map((e) => {
+                            const r = rates[e.companyId]!;
+                            return {
+                              companyId: e.companyId,
+                              closingRate: r.closingRate,
+                              averageRate: r.averageRate,
+                              ...(r.byDate
+                                ? { historicalByDate: true }
+                                : { historicalRate: r.historicalRate }),
+                            };
+                          }),
+                      },
                     }),
                   )
                 }
@@ -247,6 +314,21 @@ export default function ConsolidationRunPage() {
         {l("Periode laba rugi", "P&L period")} {formatDate(run.dateFrom, locale)} –{" "}
         {formatDate(run.dateTo, locale)} · {l("mata uang penyajian", "presentation currency")}{" "}
         {run.currencyCode}
+        {run.openingSource && (
+          <>
+            {" "}
+            ·{" "}
+            {run.openingSource === "previous_run"
+              ? l(
+                  "saldo awal dari proses final periode sebelumnya",
+                  "opening balances from the previous final run",
+                )
+              : l(
+                  "saldo awal dihitung ulang (tanpa jurnal manual periode lalu)",
+                  "opening balances recomputed (without prior-period manual entries)",
+                )}
+          </>
+        )}
       </p>
       {error && <p className="error">{error}</p>}
       {run.warnings.map((w) => (
@@ -254,12 +336,14 @@ export default function ConsolidationRunPage() {
           ⚠ {w}
         </div>
       ))}
-      <div className="tabs">
+      <div className="tabs no-print">
         {TABS.map((t) => (
           <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
             {
               {
                 report: l("Laporan konsolidasian", "Consolidated statements"),
+                equity: l("Perubahan ekuitas", "Changes in equity"),
+                cashflow: l("Arus kas", "Cash flows"),
                 worksheet: l("Kertas kerja", "Worksheet"),
                 entries: l("Jurnal eliminasi", "Elimination entries"),
                 intercompany: l("Rekonsiliasi antar perusahaan", "Intercompany reconciliation"),
@@ -376,6 +460,122 @@ export default function ConsolidationRunPage() {
           </section>
         </div>
       )}
+
+      {tab === "equity" &&
+        report &&
+        (report.equityChanges ? (
+          <div className="table-wrap report">
+            <table>
+              <caption>
+                {l("Laporan perubahan ekuitas konsolidasian", "Consolidated statement of changes in equity")}
+              </caption>
+              <thead>
+                <tr>
+                  <th />
+                  {report.equityChanges.columns.map((c) => (
+                    <th key={c} className="num">
+                      {EQUITY_HEAD[c]}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {report.equityChanges.rows.map((r) => (
+                  <tr key={r.key} className={r.key === "opening" || r.key === "closing" ? "subtotal" : ""}>
+                    <td>
+                      {{
+                        opening: l("Saldo awal", "Opening balance"),
+                        profit: l("Laba tahun berjalan", "Profit for the period"),
+                        translation: l(
+                          "Selisih kurs penjabaran (penghasilan komprehensif lain)",
+                          "Translation differences (other comprehensive income)",
+                        ),
+                        dividends: l("Dividen", "Dividends"),
+                        transactions: l("Transaksi dengan KNP", "Transactions with NCI"),
+                        other: l(
+                          "Setoran modal, perubahan lingkup & lain-lain",
+                          "Capital, scope changes & other",
+                        ),
+                        closing: l("Saldo akhir", "Closing balance"),
+                      }[r.key] ?? r.label}
+                    </td>
+                    {report.equityChanges!.columns.map((c) => (
+                      <td key={c} className="num">
+                        {m(r.values[c])}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          noOpening
+        ))}
+
+      {tab === "cashflow" &&
+        report &&
+        (report.cashFlow ? (
+          <section className="table-wrap report">
+            <table>
+              <caption>
+                {l(
+                  "Laporan arus kas konsolidasian (metode tidak langsung)",
+                  "Consolidated statement of cash flows (indirect method)",
+                )}
+              </caption>
+              <tbody>
+                <CashFlowSection
+                  title={l("Arus kas dari aktivitas operasi", "Cash flows from operating activities")}
+                  section={report.cashFlow.operating}
+                  m={m}
+                />
+                <CashFlowSection
+                  title={l("Arus kas dari aktivitas investasi", "Cash flows from investing activities")}
+                  section={report.cashFlow.investing}
+                  m={m}
+                />
+                <CashFlowSection
+                  title={l("Arus kas dari aktivitas pendanaan", "Cash flows from financing activities")}
+                  section={report.cashFlow.financing}
+                  m={m}
+                />
+                <tr>
+                  <td>{l("Pengaruh selisih kurs penjabaran", "Effect of translation differences")}</td>
+                  <td className="num">{m(report.cashFlow.translationEffect)}</td>
+                </tr>
+                <tr className="subtotal">
+                  <td>{l("Kenaikan (penurunan) kas bersih", "Net increase (decrease) in cash")}</td>
+                  <td className="num">{m(report.cashFlow.netChange)}</td>
+                </tr>
+                <tr>
+                  <td>{l("Kas awal periode", "Cash at beginning of period")}</td>
+                  <td className="num">{m(report.cashFlow.cashOpening)}</td>
+                </tr>
+                <tr className="grand">
+                  <td>{l("Kas akhir periode", "Cash at end of period")}</td>
+                  <td className="num">{m(report.cashFlow.cashClosing)}</td>
+                </tr>
+                {Number(report.cashFlow.difference) !== 0 && (
+                  <tr>
+                    <td className="error">
+                      {l("Selisih rekonsiliasi kas", "Cash reconciliation difference")}
+                    </td>
+                    <td className="num error">{m(report.cashFlow.difference)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+            <p className="muted small" style={{ padding: "0 12px" }}>
+              {l(
+                "Disusun dari perubahan posisi keuangan konsolidasian awal–akhir periode.",
+                "Derived from the change in the consolidated financial position over the period.",
+              )}
+            </p>
+          </section>
+        ) : (
+          noOpening
+        ))}
 
       {tab === "worksheet" && ws && (
         <div className="table-wrap">
@@ -528,6 +728,7 @@ export default function ConsolidationRunPage() {
                 <th>{l("Metode", "Method")}</th>
                 <th className="num">{l("Langsung %", "Direct %")}</th>
                 <th className="num">{l("Efektif %", "Effective %")}</th>
+                <th>{l("Diperoleh / dilepas", "Acquired / disposed")}</th>
                 <th>{l("Mata uang", "Currency")}</th>
                 <th className="num">{l("Kurs penutupan", "Closing rate")}</th>
                 <th className="num">{l("Kurs rata-rata", "Average rate")}</th>
@@ -568,10 +769,45 @@ export default function ConsolidationRunPage() {
                     </td>
                     <td className="num">{Number(e.directPct)}</td>
                     <td className="num">{Number(e.effectivePct)}</td>
+                    <td>
+                      {e.acquisitionDate ? formatDate(e.acquisitionDate, locale) : "—"}
+                      {e.disposalDate && (
+                        <span className="badge state-cancel">
+                          {" "}
+                          {l("dilepas", "disposed")} {formatDate(e.disposalDate, locale)}
+                        </span>
+                      )}
+                    </td>
                     <td>{e.currencyCode}</td>
                     <td className="num">{rate("closingRate")}</td>
                     <td className="num">{rate("averageRate")}</td>
-                    <td className="num">{rate("historicalRate")}</td>
+                    <td className="num">
+                      {!foreign ? (
+                        "1"
+                      ) : manage ? (
+                        <span className="field inline">
+                          <select
+                            value={rates[e.companyId]?.byDate ? "dated" : "manual"}
+                            onChange={(ev) =>
+                              setRates((r) => ({
+                                ...r,
+                                [e.companyId]: { ...r[e.companyId]!, byDate: ev.target.value === "dated" },
+                              }))
+                            }
+                          >
+                            <option value="dated">
+                              {l("Per tanggal transaksi", "Transaction-date rates")}
+                            </option>
+                            <option value="manual">{l("Manual", "Manual")}</option>
+                          </select>
+                          {!rates[e.companyId]?.byDate && rate("historicalRate")}
+                        </span>
+                      ) : e.historicalRateManual ? (
+                        Number(e.historicalRate).toString()
+                      ) : (
+                        l("per tanggal transaksi", "transaction-date rates")
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -579,7 +815,10 @@ export default function ConsolidationRunPage() {
           </table>
           {manage && (
             <p className="muted small" style={{ padding: "0 12px" }}>
-              {l("Ubah kurs lalu klik Hitung ulang.", "Edit rates, then click Recompute.")}
+              {l(
+                "Ubah kurs lalu klik Hitung ulang. Kurs historis “per tanggal transaksi” menjabarkan setiap mutasi ekuitas dengan Kurs Harian pada tanggalnya (atau tanggal akuisisi bila lebih awal).",
+                "Edit rates, then click Recompute. “Transaction-date” historical rates translate each equity movement at the daily rate on its date (or the acquisition date if earlier).",
+              )}
             </p>
           )}
         </div>
@@ -618,7 +857,64 @@ function StatementSection({
   );
 }
 
-/** Jurnal penyesuaian konsolidasi manual (mis. laba belum terealisasi atas persediaan antar perusahaan). */
+function CashFlowSection({
+  title,
+  section,
+  m,
+}: {
+  title: string;
+  section: CashSection;
+  m: (v: string) => string;
+}) {
+  const { l } = useI18n();
+  const LABEL: Record<string, string> = {
+    "Laba bersih": l("Laba bersih", "Net profit"),
+    Penyusutan: l("Penyusutan", "Depreciation"),
+    "Bagian laba entitas asosiasi": l("Bagian laba entitas asosiasi", "Share of associates' profit"),
+    "Perubahan piutang": l("Perubahan piutang", "Change in receivables"),
+    "Perubahan persediaan & aset lancar lain": l(
+      "Perubahan persediaan & aset lancar lain",
+      "Change in inventories & other current assets",
+    ),
+    "Perubahan utang usaha": l("Perubahan utang usaha", "Change in trade payables"),
+    "Perubahan liabilitas lancar lain": l(
+      "Perubahan liabilitas lancar lain",
+      "Change in other current liabilities",
+    ),
+    "Perolehan aset tetap (neto)": l("Perolehan aset tetap (neto)", "Purchase of fixed assets (net)"),
+    "Investasi, goodwill & aset tidak lancar lain": l(
+      "Investasi, goodwill & aset tidak lancar lain",
+      "Investments, goodwill & other non-current assets",
+    ),
+    "Pinjaman & liabilitas jangka panjang": l(
+      "Pinjaman & liabilitas jangka panjang",
+      "Borrowings & long-term liabilities",
+    ),
+    "Setoran modal, dividen & transaksi dengan KNP": l(
+      "Setoran modal, dividen & transaksi dengan KNP",
+      "Capital, dividends & transactions with NCI",
+    ),
+  };
+  return (
+    <>
+      <tr className="section">
+        <th colSpan={2}>{title}</th>
+      </tr>
+      {section.items.map((i) => (
+        <tr key={i.label}>
+          <td>{LABEL[i.label] ?? i.label}</td>
+          <td className="num">{m(i.amount)}</td>
+        </tr>
+      ))}
+      <tr className="subtotal">
+        <td>{l("Kas bersih", "Net cash")}</td>
+        <td className="num">{m(section.total)}</td>
+      </tr>
+    </>
+  );
+}
+
+/** Jurnal penyesuaian konsolidasi manual (mis. laba belum terealisasi atas aset tetap antar perusahaan). */
 function ManualEntry({
   runId,
   entities,

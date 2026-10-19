@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  closingPosition,
   consolidate,
+  consolidatedCashFlow,
   consolidatedStatements,
+  equityChanges,
   intercompanyReconciliation,
   worksheet,
   type EntityInput,
@@ -247,5 +250,309 @@ describe("konsolidasi", () => {
         ENTITIES,
       ),
     ).toThrow(/peran "cta"/);
+  });
+});
+
+describe("konsolidasi lanjutan", () => {
+  const MORE = [
+    ...ACCOUNTS,
+    acc("inventory", "1-1400", "asset_current", "inventory"),
+    acc("fixed", "1-2100", "asset_fixed"),
+    acc("dividends", "3-3000", "equity", "dividends"),
+    acc("eq_tx", "3-8300", "equity", "equity_transactions"),
+    acc("cogs", "5-1000", "expense_direct_cost", "cost_of_sales"),
+    acc("disposal", "4-9400", "income_other", "disposal_gain"),
+    acc("div_income", "4-9000", "income_other"),
+    acc("depr", "6-4000", "expense_depreciation"),
+  ];
+  const holding = (balances: EntityInput["balances"], intercompany: EntityInput["intercompany"] = []) =>
+    entity({ companyId: "H", isRoot: true, balances, intercompany });
+  const run = (entities: EntityInput[], options = {}) => {
+    const r = consolidate(MORE, entities, options);
+    const rows = worksheet(MORE, r.balances, r.entries);
+    return { r, rows, s: consolidatedStatements(rows) };
+  };
+  const lineOf = (
+    e: { lines: { groupAccountId: string; companyId: string | null; amount: string }[] } | undefined,
+    id: string,
+    company?: string | null,
+  ) =>
+    e?.lines
+      .filter((l) => l.groupAccountId === id && (company === undefined || l.companyId === company))
+      .reduce((s, l) => s + Number(l.amount), 0);
+
+  it("akuisisi bertahap: selisih harga ke ekuitas, saldo laba & KNP ditimbang per tahap", () => {
+    const { r, s } = run([
+      holding([
+        { groupAccountId: "cash", amount: 1000 },
+        { groupAccountId: "investment", amount: 1000 },
+        { groupAccountId: "capital", amount: -2000 },
+      ]),
+      entity({
+        companyId: "S",
+        effectivePct: 80,
+        links: [
+          {
+            parentId: "H",
+            pct: 80,
+            consideration: 700,
+            acquiredNetAssets: 1000,
+            changes: [
+              {
+                date: "2026-07-01",
+                pctBefore: 60,
+                pctAfter: 80,
+                consideration: 300,
+                netAssets: 1200,
+                inPeriod: true,
+                periodProfitBefore: 100,
+              },
+            ],
+          },
+        ],
+        balances: [
+          { groupAccountId: "cash", amount: 1400 },
+          { groupAccountId: "capital", amount: -1000 },
+          { groupAccountId: "re", amount: -100 },
+          { groupAccountId: "revenue", amount: -300 },
+        ],
+        profitSegments: [
+          { effectivePct: 60, profit: -100 },
+          { effectivePct: 80, profit: -200 },
+        ],
+      }),
+    ]);
+    const inv = r.entries.find((e) => e.kind === "investment")!;
+    expect(lineOf(inv, "goodwill")).toBe(100); // 700 − 60% × 1.000
+    expect(lineOf(inv, "eq_tx")).toBe(60); // 300 − 20% × 1.200
+    expect(lineOf(inv, "investment")).toBe(-1000);
+    expect(lineOf(inv, "re", null)).toBe(-60); // 60% × (1.100 − 1.000)
+    expect(lineOf(inv, "nci")).toBe(-200);
+    expect(s.profitLoss).toMatchObject({ attributableToNci: "80.00", attributableToOwners: "220.00" });
+    expect(s.balanceSheet).toMatchObject({ nonControllingInterest: "280.00", difference: "0.00" });
+  });
+
+  it("penjualan sebagian tanpa kehilangan pengendalian: laba induk dibalik ke ekuitas", () => {
+    const { r, s } = run([
+      holding([
+        { groupAccountId: "cash", amount: 1350 },
+        { groupAccountId: "investment", amount: 700 },
+        { groupAccountId: "capital", amount: -2000 },
+        { groupAccountId: "disposal", amount: -50 },
+      ]),
+      entity({
+        companyId: "S",
+        effectivePct: 70,
+        links: [
+          {
+            parentId: "H",
+            pct: 70,
+            consideration: 900,
+            acquiredNetAssets: 1000,
+            changes: [
+              {
+                date: "2026-07-01",
+                pctBefore: 90,
+                pctAfter: 70,
+                consideration: 250,
+                netAssets: 1100,
+                inPeriod: true,
+                periodProfitBefore: 100,
+              },
+            ],
+          },
+        ],
+        balances: [
+          { groupAccountId: "cash", amount: 1200 },
+          { groupAccountId: "capital", amount: -1000 },
+          { groupAccountId: "revenue", amount: -200 },
+        ],
+        profitSegments: [
+          { effectivePct: 90, profit: -100 },
+          { effectivePct: 70, profit: -100 },
+        ],
+      }),
+    ]);
+    const inv = r.entries.find((e) => e.kind === "investment")!;
+    expect(lineOf(inv, "investment")).toBe(-700); // 900 − 900 × 20/90
+    expect(lineOf(inv, "disposal")).toBe(50); // laba 250 − 200 di buku induk dibalik
+    expect(lineOf(inv, "eq_tx")).toBe(-30); // 250 − 20% × 1.100
+    expect(s.profitLoss).toMatchObject({ attributableToNci: "40.00", attributableToOwners: "160.00" });
+    expect(s.balanceSheet).toMatchObject({ nonControllingInterest: "360.00", difference: "0.00" });
+  });
+
+  it("pelepasan entitas anak di tengah periode: laba rugi sampai tanggal lepas, laba pelepasan grup", () => {
+    const { r, s } = run([
+      holding([
+        { groupAccountId: "cash", amount: 2300 },
+        { groupAccountId: "capital", amount: -2000 },
+        { groupAccountId: "disposal", amount: -300 },
+      ]),
+      entity({
+        companyId: "S",
+        effectivePct: 80,
+        disposal: { date: "2026-06-30" },
+        postAcquisitionPrior: -100,
+        links: [{ parentId: "H", pct: 80, consideration: 800, acquiredNetAssets: 1000 }],
+        balances: [{ groupAccountId: "revenue", amount: -150 }],
+      }),
+    ]);
+    expect(r.entries.some((e) => e.kind === "investment")).toBe(false);
+    expect(
+      r.entries.find((e) => e.kind === "disposal")!.lines.reduce((t, l) => t + Number(l.amount), 0),
+    ).toBe(0);
+    // Laba grup = laba S 150 + laba pelepasan grup (1.100 − 80% × 1.250) 100.
+    expect(s.profitLoss).toMatchObject({
+      netProfit: "250.00",
+      attributableToNci: "30.00",
+      attributableToOwners: "220.00",
+    });
+    expect(s.balanceSheet).toMatchObject({
+      nonControllingInterest: "0.00",
+      totalEquity: "2300.00",
+      difference: "0.00",
+    });
+  });
+
+  it("laba belum terealisasi persediaan (upstream) & eliminasi penjualan barang ke HPP", () => {
+    const { r, s, rows } = run(
+      [
+        holding(
+          [
+            { groupAccountId: "cash", amount: 1210 },
+            { groupAccountId: "investment", amount: 240 },
+            { groupAccountId: "inventory", amount: 200 },
+            { groupAccountId: "ap_ic", amount: -500 },
+            { groupAccountId: "capital", amount: -1000 },
+            { groupAccountId: "revenue", amount: -450 },
+            { groupAccountId: "cogs", amount: 300 },
+          ],
+          [{ groupAccountId: "ap_ic", counterpartId: "S", amount: -500 }],
+        ),
+        entity({
+          companyId: "S",
+          effectivePct: 80,
+          links: [{ parentId: "H", pct: 80, consideration: 240, acquiredNetAssets: 300 }],
+          balances: [
+            { groupAccountId: "ar_ic", amount: 500 },
+            { groupAccountId: "capital", amount: -300 },
+            { groupAccountId: "ic_revenue", amount: -500 },
+            { groupAccountId: "cogs", amount: 300 },
+          ],
+          intercompany: [
+            { groupAccountId: "ar_ic", counterpartId: "H", amount: 500 },
+            { groupAccountId: "ic_revenue", counterpartId: "H", amount: -500 },
+          ],
+        }),
+      ],
+      {
+        icGoods: [{ sellerId: "S", buyerId: "H", amount: 500 }],
+        unrealizedProfits: [{ sellerId: "S", buyerId: "H", closing: 80, opening: 0 }],
+      },
+    );
+    expect(r.warnings).toEqual([]);
+    expect(consolidated(rows, "cogs")).toBe("180.00"); // 60% × 300 harga pokok grup
+    expect(consolidated(rows, "inventory")).toBe("120.00"); // 40% × 300
+    expect(s.profitLoss).toMatchObject({ netProfit: "270.00", attributableToNci: "24.00" });
+    expect(s.balanceSheet.difference).toBe("0.00");
+  });
+
+  it("dividen antar perusahaan & dari asosiasi; selisih kurs IC ke CTA tanpa peringatan", () => {
+    const { r, s, rows } = run([
+      holding(
+        [
+          { groupAccountId: "cash", amount: 330 },
+          { groupAccountId: "investment", amount: 800 },
+          { groupAccountId: "assoc_inv", amount: 300 },
+          { groupAccountId: "capital", amount: -1300 },
+          { groupAccountId: "div_income", amount: -130 },
+        ],
+        [
+          { groupAccountId: "div_income", counterpartId: "S", amount: -80 },
+          { groupAccountId: "div_income", counterpartId: "C", amount: -50 },
+        ],
+      ),
+      entity({
+        companyId: "S",
+        effectivePct: 80,
+        links: [{ parentId: "H", pct: 80, consideration: 800, acquiredNetAssets: 1000 }],
+        balances: [
+          { groupAccountId: "cash", amount: 900 },
+          { groupAccountId: "capital", amount: -1000 },
+          { groupAccountId: "dividends", amount: 100 },
+        ],
+        intercompany: [{ groupAccountId: "dividends", counterpartId: "H", amount: 80 }],
+      }),
+      entity({
+        companyId: "C",
+        method: "equity",
+        effectivePct: 30,
+        balances: [
+          { groupAccountId: "cash", amount: 950 },
+          { groupAccountId: "capital", amount: -1000 },
+          { groupAccountId: "dividends", amount: 50 },
+        ],
+        intercompany: [{ groupAccountId: "dividends", counterpartId: "H", amount: 50 }],
+      }),
+    ]);
+    expect(r.warnings).toEqual([]);
+    expect(consolidated(rows, "div_income")).toBe("0.00");
+    expect(consolidated(rows, "assoc_inv")).toBe("250.00");
+    // Akun dividen konsolidasian hanya berisi dividen induk (S sudah tereliminasi seluruhnya).
+    expect(consolidated(rows, "dividends")).toBe("0.00");
+    expect(consolidated(rows, "re")).toBe("0.00");
+    expect(s.balanceSheet).toMatchObject({ nonControllingInterest: "180.00", difference: "0.00" });
+
+    const fx = consolidate(ACCOUNTS, [
+      entity({
+        companyId: "A",
+        isRoot: true,
+        balances: [
+          { groupAccountId: "cash", amount: -200 },
+          { groupAccountId: "capital", amount: 400 },
+          { groupAccountId: "ic_revenue", amount: -200 },
+        ],
+        intercompany: [{ groupAccountId: "ic_revenue", counterpartId: "B", amount: -200 }],
+      }),
+      entity({
+        companyId: "B",
+        closingRate: 2,
+        averageRate: 1.9,
+        links: [{ parentId: "A", pct: 100, consideration: 0, acquiredNetAssets: 0 }],
+        balances: [
+          { groupAccountId: "cash", amount: -100 },
+          { groupAccountId: "ic_expense", amount: 100 },
+        ],
+        intercompany: [{ groupAccountId: "ic_expense", counterpartId: "A", amount: 100 }],
+      }),
+    ]);
+    expect(fx.warnings).toEqual([]);
+    const ic = fx.entries.find((e) => e.kind === "intercompany")!;
+    expect(ic.lines.at(-1)).toEqual({ groupAccountId: "cta", companyId: null, amount: "-10.00" });
+  });
+
+  it("laporan perubahan ekuitas & arus kas konsolidasian rekonsiliasi dengan neraca", () => {
+    const result = consolidate(ACCOUNTS, ENTITIES);
+    const rows = worksheet(ACCOUNTS, result.balances, result.entries);
+    const opening = [
+      { groupAccountId: "cash", amount: "3000.00" },
+      { groupAccountId: "capital", amount: "-3000.00" },
+    ];
+    const eq = equityChanges(ACCOUNTS, opening, rows);
+    const total = (key: string) => eq.rows.find((r) => r.key === key)!.values;
+    expect(total("opening").total).toBe("3000.00");
+    expect(total("profit")).toMatchObject({ retained: "938.00", nci: "80.00" });
+    expect(total("closing")).toMatchObject({ owners: "5024.00", nci: "280.00", total: "5304.00" });
+    const cf = consolidatedCashFlow(ACCOUNTS, opening, rows);
+    expect(cf.cashOpening).toBe("3000.00");
+    expect(cf.cashClosing).toBe("4900.00");
+    expect(cf.operating.items[0]).toEqual({ label: "Laba bersih", amount: "1018.00" });
+    expect(cf.difference).toBe("0.00");
+    // Posisi akhir terlipat: laba ditutup ke saldo laba, tetap seimbang.
+    const position = closingPosition(ACCOUNTS, rows);
+    expect(position.reduce((t, p) => t + Number(p.amount), 0)).toBe(0);
+    expect(position.some((p) => p.groupAccountId === "revenue" || p.groupAccountId === "nci_profit")).toBe(
+      false,
+    );
   });
 });

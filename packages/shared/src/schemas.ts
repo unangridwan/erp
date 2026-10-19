@@ -252,6 +252,7 @@ export const accountSchema = z.object({
   name: z.string().trim().min(1).max(200),
   accountType: z.enum(ACCOUNT_TYPE_VALUES),
   reconcile: z.boolean().default(false),
+  branchClearing: z.boolean().default(false),
   currencyCode: z.string().length(3).toUpperCase().nullish(),
   active: z.boolean().default(true),
 });
@@ -1070,6 +1071,11 @@ export const groupAccountSchema = z.object({
       "associate_investment",
       "associate_income",
       "ic_difference",
+      "inventory",
+      "cost_of_sales",
+      "dividends",
+      "equity_transactions",
+      "disposal_gain",
     ])
     .nullish(),
   active: z.boolean().default(true),
@@ -1094,6 +1100,8 @@ export const consolidationRatesSchema = z
       closingRate: positiveRate.optional(),
       averageRate: positiveRate.optional(),
       historicalRate: positiveRate.optional(),
+      /** true: ekuitas dijabarkan dengan kurs pada tanggal transaksi (abaikan kurs historis manual). */
+      historicalByDate: z.boolean().optional(),
     }),
   )
   .default([]);
