@@ -6,3 +6,5 @@ export * from "./sales.js";
 export * from "./inventory.js";
 export * from "./purchase.js";
 export * from "./hr.js";
+export * from "./tax.js";
+export * from "./saas.js";

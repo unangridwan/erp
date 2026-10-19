@@ -4,6 +4,7 @@ import { inviteSchema, userCreateSchema } from "@erp/shared";
 import { ActivityService } from "../activity/activity.service.js";
 import { RequirePermission } from "../auth/decorators.js";
 import { hashPassword } from "../auth/password.js";
+import { assertUserLimit } from "../billing/limits.js";
 import { assertRefsVisible } from "../common/crud.js";
 import { issueTenantToken } from "../common/crypto.js";
 import { TenantDb } from "../common/database.js";
@@ -82,6 +83,7 @@ export class UsersController {
     const { tenantId, userId } = currentContext();
     const { token, hash } = issueTenantToken(tenantId);
     const invitation = await this.tenantDb.run(async (tx) => {
+      await assertUserLimit(tx);
       for (const roleId of input.roleIds) await assertRefsVisible(tx, { roleId: schema.roles }, { roleId });
       for (const companyId of input.companyIds) {
         await assertRefsVisible(tx, { companyId: schema.companies }, { companyId });

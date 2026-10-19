@@ -1,7 +1,7 @@
 "use client";
 
 import QRCode from "qrcode";
-import { useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
@@ -81,6 +81,76 @@ export default function SecurityPage() {
         </form>
       )}
       {error && <p className="error">{error}</p>}
+      <Sessions />
     </div>
+  );
+}
+
+interface LoginSession {
+  id: string;
+  startedAt: string;
+  lastUsedAt: string;
+  ip: string | null;
+  userAgent: string | null;
+}
+
+/** Perangkat yang sedang login; bisa dicabut satu per satu atau semuanya. */
+function Sessions() {
+  const { l, locale } = useI18n();
+  const [sessions, setSessions] = useState<LoginSession[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => {
+    api<LoginSession[]>("/auth/sessions")
+      .then(setSessions)
+      .catch((e: Error) => setError(e.message));
+  }, []);
+  useEffect(load, [load]);
+  const when = (v: string) =>
+    new Intl.DateTimeFormat(locale === "id" ? "id-ID" : "en-GB", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(v));
+  async function revoke(path: string) {
+    setError(null);
+    try {
+      await api(path, { method: "DELETE" });
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  return (
+    <section>
+      <h2>{l("Sesi login aktif", "Active sessions")}</h2>
+      <p className="muted small">
+        {l(
+          "Cabut sesi yang tidak Anda kenali. Perangkat tersebut harus login ulang (paling lambat saat token aksesnya habis).",
+          "Revoke sessions you don't recognise. That device must sign in again (at the latest when its access token expires).",
+        )}
+      </p>
+      {error && <p className="error">{error}</p>}
+      <ul className="steps">
+        {(sessions ?? []).map((s) => (
+          <li key={s.id}>
+            <span className="grow">
+              {s.userAgent ?? l("Perangkat tidak dikenal", "Unknown device")}
+              <div className="muted small">
+                {s.ip ?? ""} · {l("terakhir", "last")} {when(s.lastUsedAt)} · {l("mulai", "since")}{" "}
+                {when(s.startedAt)}
+              </div>
+            </span>
+            <button className="link danger" onClick={() => revoke(`/auth/sessions/${s.id}`)}>
+              {l("Cabut", "Revoke")}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {sessions && sessions.length > 1 && (
+        <button className="danger" onClick={() => revoke("/auth/sessions")}>
+          {l("Keluar dari semua perangkat", "Sign out everywhere")}
+        </button>
+      )}
+    </section>
   );
 }

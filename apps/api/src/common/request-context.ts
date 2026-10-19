@@ -29,3 +29,8 @@ export function currentContext(): RequestContext {
   if (!ctx) throw new Error("Tidak ada konteks request yang terautentikasi");
   return ctx;
 }
+
+/** Slot konteks request saat ini (untuk dibaca setelah request selesai, mis. log akses). */
+export function contextSlot(): { ctx?: RequestContext } | undefined {
+  return storage.getStore();
+}

@@ -38,6 +38,12 @@ export const PERMISSIONS = [
   "payroll.write",
   /** Posting & pembayaran payroll, pengaturan payroll. */
   "payroll.manage",
+  "tax.read",
+  "tax.write",
+  /** Ekspor XML Coretax (memuat NIK/NPWP), pengaturan pajak perusahaan. */
+  "tax.manage",
+  /** Paket langganan & tagihan SaaS tenant. */
+  "billing.manage",
   "currency.read",
   "currency.write",
   "user.read",
@@ -49,4 +55,23 @@ export const ALL_PERMISSIONS = "*";
 
 export function hasPermission(granted: readonly string[], required: Permission): boolean {
   return granted.includes(ALL_PERMISSIONS) || granted.includes(required);
+}
+
+/** Modul yang dapat diaktifkan per paket langganan; permission berawalan nama modul ikut terkunci. */
+export const PLAN_MODULES = [
+  "accounting",
+  "crm",
+  "sales",
+  "purchase",
+  "inventory",
+  "tax",
+  "hr",
+  "payroll",
+] as const;
+export type PlanModule = (typeof PLAN_MODULES)[number];
+
+/** Modul yang dibutuhkan sebuah permission, atau null bila termasuk fitur inti. */
+export function permissionModule(permission: string): PlanModule | null {
+  const prefix = permission.split(".")[0] as PlanModule;
+  return (PLAN_MODULES as readonly string[]).includes(prefix) ? prefix : null;
 }

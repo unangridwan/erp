@@ -16,6 +16,7 @@ import { decrypt, encrypt, issueTenantToken, parseTenantToken } from "../common/
 import { OWNER_DB, TenantDb } from "../common/database.js";
 import { RateLimiter } from "../common/rate-limiter.js";
 import { seedTenant } from "../tenancy/tenant-setup.js";
+import { BillingService } from "../billing/billing.service.js";
 import { UsersService } from "../users/users.service.js";
 import { hashPassword, verifyPassword } from "./password.js";
 import { generateSecret, otpauthUrl, verifyTotp } from "./totp.js";
@@ -23,6 +24,12 @@ import { generateSecret, otpauthUrl, verifyTotp } from "./totp.js";
 export interface TokenClaims {
   sub: string;
   tid: string;
+}
+
+/** Asal permintaan login, dicatat untuk daftar sesi aktif. */
+export interface ClientMeta {
+  ip: string;
+  userAgent: string | null;
 }
 
 export interface Session {
@@ -37,6 +44,7 @@ export interface Principal {
   name: string;
   email: string;
   twoFactorEnabled: boolean;
+  platformAdmin: boolean;
   permissions: string[];
   companies: { id: string; code: string; name: string; isDefault: boolean }[];
 }
@@ -51,11 +59,12 @@ export class AuthService {
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(RateLimiter) private readonly limiter: RateLimiter,
     @Inject(UsersService) private readonly users: UsersService,
+    @Inject(BillingService) private readonly billing: BillingService,
   ) {}
 
   /** Daftarkan tenant baru beserta perusahaan holding dan user admin pertama. */
-  async signup(input: SignupInput, ip: string): Promise<Session> {
-    this.limiter.consume(`signup:${ip}`, 10, 60 * MINUTE);
+  async signup(input: SignupInput, meta: ClientMeta): Promise<Session> {
+    this.limiter.consume(`signup:${meta.ip}`, 10, 60 * MINUTE);
     const passwordHash = await hashPassword(input.password);
     const { tenantId, userId } = await this.ownerDb.transaction(async (tx) => {
       const [tenant] = await tx
@@ -64,6 +73,7 @@ export class AuthService {
         .onConflictDoNothing()
         .returning({ id: schema.tenants.id });
       if (!tenant) throw new ConflictException("Slug tenant sudah dipakai");
+      await this.billing.startTrial(tx as unknown as Db, tenant.id);
 
       await tx.execute(sql`set local role app_user`);
       await tx.execute(sql`select set_config('app.tenant_id', ${tenant.id}, true)`);
@@ -77,10 +87,11 @@ export class AuthService {
       });
       return { tenantId: tenant.id, userId: user.id };
     });
-    return this.tenantDb.runAs(tenantId, (tx) => this.issueSession(tx, { sub: userId, tid: tenantId }));
+    return this.tenantDb.runAs(tenantId, (tx) => this.issueSession(tx, { sub: userId, tid: tenantId }, meta));
   }
 
-  async login(input: LoginInput, ip: string): Promise<Session> {
+  async login(input: LoginInput, meta: ClientMeta): Promise<Session> {
+    const ip = meta.ip;
     // Batas per akun mencegah tebak password terarah; batas per IP mencegah penyisiran banyak akun.
     const accountKey = `login:${input.tenantSlug}:${input.email}`;
     this.limiter.consume(`login-ip:${ip}`, 50, 15 * MINUTE);
@@ -107,15 +118,19 @@ export class AuthService {
         }
         await this.consumeTotp(tx, user, input.code);
       }
-      return this.issueSession(tx, { sub: user.id, tid: tenantId });
+      await tx
+        .update(schema.users)
+        .set({ lastLoginAt: sql`now()` })
+        .where(eq(schema.users.id, user.id));
+      return this.issueSession(tx, { sub: user.id, tid: tenantId }, meta);
     });
     this.limiter.reset(accountKey);
     return session;
   }
 
   /** Tukar refresh token dengan sesi baru (rotasi). Token lama yang dipakai ulang mencabut seluruh keluarganya. */
-  async refresh(refreshToken: string, ip: string): Promise<Session> {
-    this.limiter.consume(`refresh:${ip}`, 60, 15 * MINUTE);
+  async refresh(refreshToken: string, meta: ClientMeta): Promise<Session> {
+    this.limiter.consume(`refresh:${meta.ip}`, 60, 15 * MINUTE);
     const invalid = new UnauthorizedException("Sesi berakhir, silakan masuk lagi");
     const parsed = parseTenantToken(refreshToken);
     if (!parsed) throw invalid;
@@ -142,7 +157,7 @@ export class AuthService {
         .update(schema.refreshTokens)
         .set({ revokedAt: sql`now()` })
         .where(eq(schema.refreshTokens.id, row.id));
-      return this.issueSession(tx, { sub: row.userId, tid: parsed.tenantId }, row.familyId);
+      return this.issueSession(tx, { sub: row.userId, tid: parsed.tenantId }, meta, row.familyId);
     });
     // Pencabutan keluarga token harus tetap tersimpan, jadi error dilempar di luar transaksi.
     if (!result || result === "reused") throw invalid;
@@ -219,8 +234,8 @@ export class AuthService {
     };
   }
 
-  async acceptInvitation(input: z.infer<typeof acceptInviteSchema>, ip: string): Promise<Session> {
-    this.limiter.consume(`invite:${ip}`, 20, 15 * MINUTE);
+  async acceptInvitation(input: z.infer<typeof acceptInviteSchema>, meta: ClientMeta): Promise<Session> {
+    this.limiter.consume(`invite:${meta.ip}`, 20, 15 * MINUTE);
     const parsed = parseTenantToken(input.token);
     if (!parsed) throw new GoneException("Undangan tidak valid atau sudah kedaluwarsa");
     const passwordHash = await hashPassword(input.password);
@@ -238,8 +253,57 @@ export class AuthService {
         .update(schema.invitations)
         .set({ acceptedAt: sql`now()` })
         .where(eq(schema.invitations.id, invitation.id));
-      return this.issueSession(tx, { sub: user.id, tid: parsed.tenantId });
+      return this.issueSession(tx, { sub: user.id, tid: parsed.tenantId }, meta);
     });
+  }
+
+  // ---- Sesi aktif ----
+
+  /** Sesi login (keluarga refresh token) user yang masih berlaku, terbaru dulu. */
+  async sessions(userId: string) {
+    return this.tenantDb
+      .run((tx) =>
+        tx.execute<{
+          id: string;
+          started_at: string;
+          last_used_at: string;
+          ip: string | null;
+          user_agent: string | null;
+        }>(sql`
+        select family_id as id, min(created_at) as started_at, max(created_at) as last_used_at,
+               (array_agg(ip order by created_at desc))[1] as ip,
+               (array_agg(user_agent order by created_at desc))[1] as user_agent
+        from refresh_tokens
+        where user_id = ${userId}
+        group by family_id
+        having bool_or(revoked_at is null and expires_at > now())
+        order by max(created_at) desc`),
+      )
+      .then((rows) =>
+        rows.map((r) => ({
+          id: r.id,
+          startedAt: r.started_at,
+          lastUsedAt: r.last_used_at,
+          ip: r.ip,
+          userAgent: r.user_agent,
+        })),
+      );
+  }
+
+  /** Cabut satu sesi (atau semua bila `familyId` kosong) milik user. */
+  async revokeSessions(userId: string, familyId?: string) {
+    await this.tenantDb.run((tx) =>
+      tx
+        .update(schema.refreshTokens)
+        .set({ revokedAt: sql`now()` })
+        .where(
+          and(
+            eq(schema.refreshTokens.userId, userId),
+            isNull(schema.refreshTokens.revokedAt),
+            familyId ? eq(schema.refreshTokens.familyId, familyId) : undefined,
+          ),
+        ),
+    );
   }
 
   // ---- Token & principal ----
@@ -264,6 +328,7 @@ export class AuthService {
           name: schema.users.name,
           email: schema.users.email,
           totpEnabled: schema.users.totpEnabled,
+          platformAdmin: schema.users.platformAdmin,
         })
         .from(schema.users)
         .where(and(eq(schema.users.id, claims.sub), eq(schema.users.active, true)));
@@ -300,13 +365,19 @@ export class AuthService {
         name: user.name,
         email: user.email,
         twoFactorEnabled: user.totpEnabled,
+        platformAdmin: user.platformAdmin,
         permissions,
         companies,
       };
     });
   }
 
-  private async issueSession(tx: Db, claims: TokenClaims, familyId: string = randomUUID()): Promise<Session> {
+  private async issueSession(
+    tx: Db,
+    claims: TokenClaims,
+    meta: ClientMeta,
+    familyId: string = randomUUID(),
+  ): Promise<Session> {
     const token = await new SignJWT({ tid: claims.tid })
       .setProtectedHeader({ alg: "HS256" })
       .setSubject(claims.sub)
@@ -318,6 +389,8 @@ export class AuthService {
       userId: claims.sub,
       familyId,
       tokenHash: refresh.hash,
+      ip: meta.ip,
+      userAgent: meta.userAgent?.slice(0, 300) ?? null,
       expiresAt: new Date(Date.now() + this.config.refreshTtlDays * 24 * 60 * MINUTE),
     });
     return { token, refreshToken: refresh.token, expiresIn: this.config.accessTtl };

@@ -1,3 +1,4 @@
+import { CORETAX_UOM_CODES, TRX_CODES as CORETAX_TRX_CODES } from "@erp/shared";
 import { L, type Text } from "./i18n";
 
 /** Definisi tampilan list & form per resource — mirip "view" di Odoo. */
@@ -43,6 +44,7 @@ export const PURCHASE = L("Pembelian", "Purchase");
 export const HR = L("SDM", "Employees");
 export const PAYROLL = L("Payroll", "Payroll");
 export const ME = L("Saya", "Me");
+export const TAX = L("Pajak", "Tax");
 
 const name = (required = true): Field => ({ name: "name", label: L("Nama", "Name"), type: "text", required });
 const code: Field = { name: "code", label: L("Kode", "Code"), type: "text", required: true };
@@ -59,6 +61,26 @@ const ENTITY_TYPES: [string, Text][] = [
   ["subsidiary", L("Anak perusahaan", "Subsidiary")],
   ["associate", L("Asosiasi", "Associate")],
   ["joint_venture", L("Ventura bersama", "Joint venture")],
+  ["other", L("Lainnya", "Other")],
+];
+
+const TAX_DOCUMENTS: [string, Text][] = [
+  ["TIN", L("NPWP", "NPWP (TIN)")],
+  ["National ID", L("NIK", "National ID (NIK)")],
+  ["Passport", L("Paspor", "Passport")],
+  ["Other ID", L("Lainnya", "Other")],
+];
+export const TRX_CODES: [string, Text][] = Object.entries(CORETAX_TRX_CODES).map(([k, v]) => [k, L(v, v)]);
+const UOM_CODES: [string, Text][] = Object.entries(CORETAX_UOM_CODES).map(([k, v]) => [
+  k,
+  L(`${k} ${v}`, `${k} ${v}`),
+]);
+const TAX_KINDS: [string, Text][] = [
+  ["vat", L("PPN (DPP nilai lain)", "VAT (other tax base)")],
+  ["vat_luxury", L("PPN barang mewah", "VAT luxury goods")],
+  ["pph23", L("PPh 23", "Income tax art. 23")],
+  ["pph4_2", L("PPh 4 ayat 2", "Final income tax 4(2)")],
+  ["pph22", L("PPh 22", "Income tax art. 22")],
   ["other", L("Lainnya", "Other")],
 ];
 
@@ -104,6 +126,33 @@ export const RESOURCES: Resource[] = [
         valueKey: "name",
       },
       { name: "postalCode", label: L("Kode pos", "Postal code"), type: "text" },
+      {
+        name: "taxDocumentType",
+        label: L("Identitas pajak pembeli", "Buyer tax identity"),
+        type: "select",
+        options: TAX_DOCUMENTS,
+      },
+      {
+        name: "taxDocumentNumber",
+        label: L("Nomor NIK/paspor (bila bukan NPWP)", "ID/passport number (if not NPWP)"),
+        type: "text",
+      },
+      {
+        name: "tku",
+        label: L("Kode tempat usaha (000000 = pusat)", "Branch code (000000 = HQ)"),
+        type: "text",
+      },
+      {
+        name: "countryCode",
+        label: L("Negara (ISO-3, mis. IDN)", "Country (ISO-3, e.g. IDN)"),
+        type: "text",
+      },
+      {
+        name: "taxTrxCode",
+        label: L("Kode transaksi faktur", "Tax invoice code"),
+        type: "select",
+        options: TRX_CODES,
+      },
       {
         name: "paymentTermId",
         label: L("Termin pembayaran", "Payment terms"),
@@ -174,6 +223,11 @@ export const RESOURCES: Resource[] = [
       { name: "cost", label: L("Biaya", "Cost"), type: "number" },
       { name: "barcode", label: L("Barcode", "Barcode"), type: "text" },
       {
+        name: "taxGoodsCode",
+        label: L("Kode barang/jasa Coretax (6 digit)", "Coretax goods/service code (6 digits)"),
+        type: "text",
+      },
+      {
         name: "tracking",
         label: L("Pelacakan", "Tracking"),
         type: "select",
@@ -243,6 +297,12 @@ export const RESOURCES: Resource[] = [
         required: true,
       },
       { name: "isReference", label: L("Satuan referensi", "Reference unit"), type: "boolean" },
+      {
+        name: "coretaxCode",
+        label: L("Kode satuan Coretax", "Coretax unit code"),
+        type: "select",
+        options: UOM_CODES,
+      },
     ],
   },
   {
@@ -265,6 +325,14 @@ export const RESOURCES: Resource[] = [
       { name: "entityType", label: L("Jenis entitas", "Entity type"), type: "select", options: ENTITY_TYPES },
       { name: "parentId", label: L("Induk", "Parent"), type: "ref", resource: "companies", display: "name" },
       { name: "npwp", label: L("NPWP", "Tax ID (NPWP)"), type: "text" },
+      { name: "pkp", label: L("Pengusaha Kena Pajak (PKP)", "VAT-registered (PKP)"), type: "boolean" },
+      { name: "nitku", label: L("ID TKU (22 digit)", "Branch tax ID (22 digits)"), type: "text" },
+      { name: "street", label: L("Alamat", "Street"), type: "text" },
+      { name: "city", label: L("Kota", "City"), type: "text" },
+      { name: "province", label: L("Provinsi", "Province"), type: "text" },
+      { name: "postalCode", label: L("Kode pos", "Postal code"), type: "text" },
+      { name: "phone", label: L("Telepon", "Phone"), type: "text" },
+      { name: "email", label: L("Email", "Email"), type: "email" },
       {
         name: "currencyCode",
         label: L("Mata uang", "Currency"),
@@ -534,6 +602,17 @@ RESOURCES.push(
         name: "baseRatio",
         label: L("Rasio DPP (mis. 0.9166666667 = 11/12)", "Tax base ratio (e.g. 11/12)"),
         type: "number",
+      },
+      {
+        name: "taxKind",
+        label: L("Jenis pajak (Coretax)", "Tax kind (Coretax)"),
+        type: "select",
+        options: TAX_KINDS,
+      },
+      {
+        name: "taxObjectCode",
+        label: L("Kode objek pajak (PPh potong, mis. 24-104-14)", "Tax object code (withholding)"),
+        type: "text",
       },
       {
         name: "accountId",
@@ -1068,6 +1147,25 @@ export interface Page {
 }
 
 export const PAGES: Page[] = [
+  {
+    href: "/tax/invoices",
+    label: L("Faktur Pajak Keluaran", "Output Tax Invoices"),
+    group: TAX,
+    permission: "tax.read",
+  },
+  {
+    href: "/tax/input",
+    label: L("Faktur Pajak Masukan", "Input Tax Invoices"),
+    group: TAX,
+    permission: "tax.read",
+  },
+  {
+    href: "/tax/withholding",
+    label: L("Bukti Potong", "Withholding Slips"),
+    group: TAX,
+    permission: "tax.read",
+  },
+  { href: "/tax/vat", label: L("Rekap PPN", "VAT Summary"), group: TAX, permission: "tax.read" },
   { href: "/me", label: L("Portal Saya", "My Portal"), group: ME, permission: "" },
   { href: "/hr/contracts", label: L("Kontrak Kerja", "Contracts"), group: HR, permission: "hr.manage" },
   { href: "/hr/leaves", label: L("Pengajuan Cuti", "Time Off"), group: HR, permission: "hr.read" },
@@ -1412,4 +1510,26 @@ export const CONTRACT_STATE_LABEL: Record<string, Text> = {
   running: L("Berjalan", "Running"),
   closed: L("Berakhir", "Expired"),
   cancel: L("Batal", "Cancelled"),
+};
+
+export const TAX_DOC_STATE_LABEL: Record<string, Text> = {
+  draft: L("Draft", "Draft"),
+  exported: L("Diekspor", "Exported"),
+  approved: L("Terbit", "Approved"),
+  cancelled: L("Batal", "Cancelled"),
+};
+
+export const INPUT_TAX_STATE_LABEL: Record<string, Text> = {
+  new: L("Baru", "New"),
+  credited: L("Dikreditkan", "Credited"),
+  not_credited: L("Tidak dikreditkan", "Not credited"),
+};
+
+export const SUBSCRIPTION_STATUS_LABEL: Record<string, Text> = {
+  trialing: L("Masa uji coba", "Trial"),
+  active: L("Aktif", "Active"),
+  past_due: L("Lewat jatuh tempo", "Past due"),
+  cancelling: L("Berakhir di akhir periode", "Ends at period end"),
+  expired: L("Berakhir", "Expired"),
+  suspended: L("Ditangguhkan", "Suspended"),
 };

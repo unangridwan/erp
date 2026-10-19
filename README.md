@@ -145,6 +145,32 @@ PPh 21 dihitung dengan TER (PP 58/2023) per bulan dan tarif Pasal 17 setahun di 
 Tarif TER, PTKP, BPJS, dan lembur ada di `packages/shared/src/payroll.ts` (dengan unit test); batas upah JP perlu
 diperbarui di Pengaturan Payroll setiap Maret.
 
+### Pajak Coretax, Langganan & Operasional (Fase 5)
+
+| Endpoint                                                                                                    | Keterangan                                                                                    |
+| ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `GET /tax-invoices?year=&month=&state=`, `POST /tax-invoices/generate`                                      | Faktur pajak keluaran: draft dari faktur penjualan ber-PPN yang sudah diposting               |
+| `PATCH /tax-invoices/:id`, `POST /tax-invoices/export`, `POST /tax-invoices/:id/{approve,cancel}`           | Kode transaksi/fasilitas, ekspor XML `TaxInvoiceBulk` (tax.manage), catat nomor faktur terbit |
+| `POST /tax-invoices/import-numbers`                                                                         | Impor CSV daftar faktur Coretax (Referensi → Nomor Faktur Pajak)                              |
+| `GET /input-tax-invoices`, `POST /input-tax-invoices/{import,credit}`, `PATCH /input-tax-invoices/:id`      | Faktur masukan dari CSV Coretax, cocok otomatis ke tagihan, kreditkan maks. 3 masa            |
+| `GET /withholding-slips?kind=bppu\|bpmp`, `POST /withholding-slips/{generate,export}`                       | Bukti potong PPh 23/4(2)/22 dari tagihan (BPPU) & PPh 21 bulanan dari payroll (BPMP), XML     |
+| `GET /tax/vat-report?year=&month=`, `GET /tax/exports`, `GET /tax/exports/:id`                              | Rekap SPT Masa PPN, riwayat berkas XML yang diekspor                                          |
+| `GET /onboarding`, `PUT /onboarding/company`, `POST /onboarding/{opening-balance,steps,complete}`           | Panduan awal: profil & PKP, saldo awal (selisih → 3-9900), checklist                          |
+| `GET /billing`, `POST /billing/{subscribe,cancel,resume}`, `POST /billing/invoices/:id/pay`                 | Paket, tagihan + PPN, pembayaran (Xendit atau transfer manual)                                |
+| `POST /billing/webhooks/xendit`                                                                             | Callback Xendit (header `x-callback-token` = `XENDIT_CALLBACK_TOKEN`)                         |
+| `/platform/{tenants,plans,invoices}`, `POST /platform/invoices/:id/mark-paid`, `POST /platform/billing/run` | Admin platform (operator SaaS; `pnpm platform:admin <slug> <email>`)                          |
+| `GET /auth/sessions`, `DELETE /auth/sessions[/:id]`                                                         | Sesi login aktif per perangkat, cabut satu/semua                                              |
+| `GET /health/ready`, `GET /metrics`                                                                         | Readiness (DB & migrasi), metrik Prometheus (`Authorization: Bearer $METRICS_TOKEN`)          |
+
+Format XML mengikuti template impor Coretax: faktur keluaran (`TaxInvoiceBulk`, dicocokkan dengan contoh referensi
+Odoo `l10n_id_efaktur_coretax`), BPMP (`MmPayrollBulk`), dan BPPU (`BpuBulk`). **Uji dulu satu berkas di Coretax**
+(menu impor → XML Monitoring) sebelum dipakai rutin, terutama BPPU yang strukturnya belum bisa dicocokkan dengan
+template resmi DJP. Bukti potong A1 (Desember/karyawan keluar) belum dibuat — laporkan langsung di Coretax.
+
+Paket langganan: tenant baru mendapat uji coba (`TRIAL_PLAN`, `TRIAL_DAYS`). Modul di luar paket ditolak (403),
+melebihi batas pengguna/perusahaan ditolak, dan langganan yang berakhir (lewat `BILLING_GRACE_DAYS`) menjadi baca saja
+(402) kecuali halaman langganan. Lihat `docs/operations.md` untuk deployment produksi, backup, dan monitoring.
+
 Konfirmasi SO membuat pengiriman; barang ditagih sesuai kuantitas terkirim (jasa sesuai kuantitas dipesan). Validasi
 transfer barang stok membuat jurnal di jurnal **STJ**: penerimaan Dr Persediaan / Cr Barang Diterima Belum Ditagih,
 pengiriman Dr HPP / Cr Persediaan, opname ke Selisih Persediaan. Tagihan dari PO mendebit Barang Diterima Belum Ditagih.

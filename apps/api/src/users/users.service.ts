@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { schema, type Db } from "@erp/db";
+import { assertUserLimit } from "../billing/limits.js";
 import { assertRefsVisible } from "../common/crud.js";
 
 export interface NewUser {
@@ -14,6 +15,7 @@ export interface NewUser {
 export class UsersService {
   /** Buat user beserta role dan akses perusahaan. Perusahaan pertama menjadi default. */
   async create(tx: Db, input: NewUser) {
+    await assertUserLimit(tx);
     for (const roleId of input.roleIds) await assertRefsVisible(tx, { roleId: schema.roles }, { roleId });
     for (const companyId of input.companyIds)
       await assertRefsVisible(tx, { companyId: schema.companies }, { companyId });

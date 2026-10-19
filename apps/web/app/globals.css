@@ -560,3 +560,90 @@ tr.detail td {
 .split td {
   white-space: normal;
 }
+
+/* ---- Fase 5: pajak, langganan, onboarding ---- */
+.success {
+  color: #1a7f37;
+}
+.small {
+  font-size: 12px;
+}
+.field.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+td.actions button {
+  display: inline-block;
+  padding: 2px 4px;
+}
+.form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.banner {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.banner.warn {
+  border-left-color: #d4a017;
+}
+.banner.bad {
+  border-left-color: var(--danger);
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+.card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.card.current {
+  border-color: var(--accent);
+}
+.card .price {
+  font-size: 20px;
+  font-weight: 600;
+}
+.steps {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.steps li {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.steps li .grow {
+  flex: 1;
+  min-width: 200px;
+}
+label.check {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 6px 0;
+}

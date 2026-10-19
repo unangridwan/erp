@@ -84,6 +84,13 @@ export const partners = pgTable("partners", {
   province: text("province"),
   postalCode: text("postal_code"),
   icCompanyId: uuid("ic_company_id").references(() => companies.id),
+  taxDocumentType: text("tax_document_type", { enum: ["TIN", "National ID", "Passport", "Other ID"] })
+    .notNull()
+    .default("TIN"),
+  taxDocumentNumber: text("tax_document_number"),
+  tku: text("tku").notNull().default("000000"),
+  countryCode: text("country_code").notNull().default("IDN"),
+  taxTrxCode: text("tax_trx_code").notNull().default("04"),
   paymentTermId: uuid("payment_term_id"),
   pricelistId: uuid("pricelist_id"),
   salespersonId: uuid("salesperson_id"),
@@ -106,6 +113,7 @@ export const uoms = pgTable("uoms", {
   name: text("name").notNull(),
   factor: numeric("factor", { precision: 18, scale: 6 }).notNull().default("1"),
   isReference: boolean("is_reference").notNull().default(false),
+  coretaxCode: text("coretax_code"),
   active: boolean("active").notNull().default(true),
 });
 
@@ -139,6 +147,7 @@ export const products = pgTable("products", {
   costMethod: text("cost_method", { enum: ["average", "fifo"] })
     .notNull()
     .default("average"),
+  taxGoodsCode: text("tax_goods_code"),
   active: boolean("active").notNull().default(true),
   ...audit,
 });

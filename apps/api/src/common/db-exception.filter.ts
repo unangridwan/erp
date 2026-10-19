@@ -1,5 +1,10 @@
 import { Catch, HttpException, HttpStatus, type ArgumentsHost, type ExceptionFilter } from "@nestjs/common";
 import type { Response } from "express";
+import { JsonLogger, type LogFormat } from "./observability.js";
+
+const logger = new JsonLogger(
+  (process.env.LOG_FORMAT as LogFormat | undefined) ?? (process.env.VITEST ? "off" : "pretty"),
+);
 
 /** Error Postgres → HTTP: unik (23505) → 409, FK (23503) → 400, RLS/hak akses (42501) → 403. */
 @Catch()
@@ -18,7 +23,12 @@ export class DbExceptionFilter implements ExceptionFilter {
       res.status(mapped.status).json({ statusCode: mapped.status, message, detail: pg.detail });
       return;
     }
-    console.error(error);
+    const req = host.switchToHttp().getRequest<{ id?: string }>();
+    logger.error(
+      { msg: "unhandled error", reqId: req.id, error: String(error) },
+      (error as Error)?.stack,
+      "exception",
+    );
     res.status(500).json({ statusCode: 500, message: "Terjadi kesalahan pada server" });
   }
 }

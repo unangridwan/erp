@@ -7,13 +7,15 @@ import {
   type ExecutionContext,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { hasPermission, type Permission } from "@erp/shared";
+import { hasPermission, permissionModule, type Permission } from "@erp/shared";
 import type { Request } from "express";
 import { setContext } from "../common/request-context.js";
+import { BillingService } from "../billing/billing.service.js";
 import { AuthService, type Principal } from "./auth.service.js";
-import { IS_PUBLIC, REQUIRED_PERMISSION } from "./decorators.js";
+import { ALLOW_INACTIVE, IS_PUBLIC, PLATFORM_ADMIN, REQUIRED_PERMISSION } from "./decorators.js";
 
 export const COMPANY_HEADER = "x-company-id";
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /** Guard global: verifikasi JWT, muat principal, tetapkan perusahaan aktif, cek permission. */
 @Injectable()
@@ -21,6 +23,7 @@ export class AuthGuard implements CanActivate {
   constructor(
     @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(AuthService) private readonly auth: AuthService,
+    @Inject(BillingService) private readonly billing: BillingService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -57,6 +60,17 @@ export class AuthGuard implements CanActivate {
     if (required && !hasPermission(principal.permissions, required)) {
       throw new ForbiddenException(`Butuh permission ${required}`);
     }
+    if (this.reflector.getAllAndOverride<boolean>(PLATFORM_ADMIN, targets)) {
+      if (!principal.platformAdmin) throw new ForbiddenException("Khusus admin platform");
+      return true;
+    }
+
+    // Paket langganan: modul yang tidak termasuk paket terkunci; langganan berakhir = baca saja.
+    const access = await this.billing.access(principal.tenantId);
+    const module = required && permissionModule(required);
+    if (module) this.billing.assertModule(access, module);
+    if (!SAFE_METHODS.has(req.method) && !this.reflector.getAllAndOverride<boolean>(ALLOW_INACTIVE, targets))
+      this.billing.assertWritable(access);
     return true;
   }
 }

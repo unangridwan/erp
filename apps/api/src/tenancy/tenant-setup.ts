@@ -4,30 +4,30 @@ import { installChart } from "../accounting/chart-template.js";
 import { installInventory } from "../inventory/setup.js";
 import { DEFAULT_LEAVE_TYPES, installPayroll } from "../payroll/setup.js";
 
-/** Satuan bawaan per kategori: [nama, faktor terhadap satuan referensi]. Referensi = entri pertama. */
-const DEFAULT_UOMS: Record<string, [string, number][]> = {
+/** Satuan bawaan per kategori: [nama, faktor terhadap satuan referensi, kode satuan Coretax]. Referensi = entri pertama. */
+const DEFAULT_UOMS: Record<string, [string, number, string | null][]> = {
   Unit: [
-    ["Pcs", 1],
-    ["Lusin", 12],
-    ["Kodi", 20],
-    ["Gross", 144],
+    ["Pcs", 1, "UM.0021"],
+    ["Lusin", 12, "UM.0017"],
+    ["Kodi", 20, null],
+    ["Gross", 144, null],
   ],
   Berat: [
-    ["kg", 1],
-    ["g", 0.001],
-    ["ton", 1000],
+    ["kg", 1, "UM.0003"],
+    ["g", 0.001, "UM.0004"],
+    ["ton", 1000, "UM.0001"],
   ],
   Volume: [
-    ["L", 1],
-    ["mL", 0.001],
+    ["L", 1, "UM.0007"],
+    ["mL", 0.001, null],
   ],
   Panjang: [
-    ["m", 1],
-    ["cm", 0.01],
+    ["m", 1, "UM.0013"],
+    ["cm", 0.01, "UM.0015"],
   ],
   Waktu: [
-    ["Jam", 1],
-    ["Hari", 8],
+    ["Jam", 1, "UM.0027"],
+    ["Hari", 8, "UM.0026"],
   ],
 };
 
@@ -94,11 +94,12 @@ export async function seedTenant(tx: Db, companyName: string): Promise<SeedResul
       .values({ name: categoryName })
       .returning({ id: schema.uomCategories.id });
     await tx.insert(schema.uoms).values(
-      units.map(([name, factor], i) => ({
+      units.map(([name, factor, coretaxCode], i) => ({
         categoryId: category!.id,
         name,
         factor: String(factor),
         isReference: i === 0,
+        coretaxCode,
       })),
     );
   }
