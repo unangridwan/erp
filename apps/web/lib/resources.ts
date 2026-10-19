@@ -397,12 +397,18 @@ export const RESOURCES: Resource[] = [
       { name: "validTo", label: L("Berlaku sampai", "Valid to"), type: "date" },
       {
         name: "consideration",
-        label: L("Harga perolehan investasi (mata uang grup)", "Investment cost (group currency)"),
+        label: L(
+          "Harga perolehan (atau hasil penjualan bila % turun), mata uang grup",
+          "Cost paid (or proceeds if % decreases), group currency",
+        ),
         type: "number",
       },
       {
         name: "acquiredNetAssets",
-        label: L("Nilai wajar aset bersih saat akuisisi", "Fair value of net assets acquired"),
+        label: L(
+          "Nilai wajar aset bersih entitas anak pada tanggal ini (kosong = nilai buku)",
+          "Fair value of subsidiary net assets at this date (empty = book value)",
+        ),
         type: "number",
       },
     ],
@@ -548,6 +554,11 @@ RESOURCES.push(
           ["associate_investment", L("Investasi pada asosiasi", "Investment in associates")],
           ["associate_income", L("Bagian laba asosiasi", "Share of associates' profit")],
           ["ic_difference", L("Selisih eliminasi antar perusahaan", "Intercompany elimination difference")],
+          ["inventory", L("Persediaan (laba belum terealisasi)", "Inventory (unrealized profit)")],
+          ["cost_of_sales", L("Harga pokok penjualan", "Cost of sales")],
+          ["dividends", L("Dividen", "Dividends")],
+          ["equity_transactions", L("Selisih transaksi dengan KNP", "Transactions with NCI")],
+          ["disposal_gain", L("Laba/rugi pelepasan investasi", "Gain/loss on disposal of investments")],
         ],
       },
     ],
@@ -579,6 +590,11 @@ RESOURCES.push(
       {
         name: "reconcile",
         label: L("Dapat direkonsiliasi (piutang/utang)", "Allow reconciliation"),
+        type: "boolean",
+      },
+      {
+        name: "branchClearing",
+        label: L("Rekening antar kantor (RK pusat–cabang)", "Inter-office account (branch clearing)"),
         type: "boolean",
       },
     ],

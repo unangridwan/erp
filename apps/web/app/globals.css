@@ -182,6 +182,7 @@ button:disabled {
 }
 .control-panel .cp-right {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   margin-left: auto;

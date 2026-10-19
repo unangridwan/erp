@@ -284,9 +284,19 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   pembelian murah, KNP atas ekuitas & laba, eliminasi saldo & transaksi antar perusahaan (selisih ke akun selisih IC
   dengan peringatan), jurnal penyesuaian manual, kertas kerja (CSV), neraca & laba rugi konsolidasian dengan atribusi
   pemilik/KNP, rekonsiliasi IC, proses draft/final
-- [ ] Fase 5b ditunda: laba belum terealisasi otomatis (persediaan/aset tetap antar perusahaan; sementara via jurnal
-  manual), riwayat ekuitas historis multi-kurs, akuisisi bertahap/divestasi di tengah periode, dividen IC otomatis,
-  arus kas & perubahan ekuitas konsolidasian, ekspor Excel/PDF, RK pusat–cabang
+- [x] Fase 5b (lanjutan): laba belum terealisasi atas persediaan antar perusahaan otomatis dari lapisan valuasi (FIFO
+  stok akhir, termasuk realisasi saldo awal & bagian KNP untuk penjualan upstream) dan eliminasi penjualan barang
+  antar perusahaan ke HPP; ekuitas dijabarkan dengan kurs per tanggal transaksi (atau kurs historis manual); entitas
+  diakuisisi di tengah periode (laba rugi sejak tanggal pengendalian), akuisisi bertahap & penjualan sebagian tanpa
+  kehilangan pengendalian (selisih ke ekuitas, KNP ditimbang per tahap), pelepasan entitas anak/asosiasi di tengah
+  periode (laba rugi sampai tanggal lepas, penyesuaian laba pelepasan grup); dividen antar perusahaan & dari asosiasi
+  dieliminasi otomatis; selisih IC akibat kurs ke selisih kurs penjabaran; saldo awal dari proses final periode
+  sebelumnya atau dihitung ulang; laporan perubahan ekuitas & arus kas (tidak langsung) konsolidasian; ekspor Excel
+  multi-lembar & cetak/PDF; akun & laporan RK pusat–cabang dengan peringatan di konsolidasi
+- [ ] Fase 5b ditunda: laba belum terealisasi atas aset tetap antar perusahaan (menunggu fitur pelepasan aset; sementara
+  via jurnal manual), reklasifikasi selisih kurs penjabaran saat entitas asing dilepas, pengukuran ulang nilai wajar
+  kepemilikan sebelumnya pada akuisisi bertahap, goodwill entitas asing dijabarkan kurs penutupan, laba belum
+  terealisasi pada transaksi dengan asosiasi, laporan per sub-grup/segmen
 - [ ] Fase 5 ditunda: bukti potong A1/A2 (XML), retur/pengganti faktur pajak via XML, faktur uang muka/pelunasan,
   PPnBM (STLG) per produk, validasi XSD resmi, NSFP lama (pra-Coretax), PITR/WAL archiving terkelola, tracing
   OpenTelemetry, Sentry

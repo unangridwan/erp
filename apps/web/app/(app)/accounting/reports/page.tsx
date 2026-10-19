@@ -9,12 +9,14 @@ import { api } from "../../../../lib/api";
 import { formatDate, money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 
-type Tab = "trial-balance" | "profit-loss" | "balance-sheet" | "general-ledger" | "aged";
+type Tab = "trial-balance" | "profit-loss" | "balance-sheet" | "general-ledger" | "aged" | "branch-clearing";
 interface Section {
   accounts: { accountId: string; code: string; name: string; amount: string }[];
   total: string;
 }
 
+/** Laporan per tanggal (tanpa tanggal awal). */
+const POINT_IN_TIME: Tab[] = ["balance-sheet", "aged", "branch-clearing"];
 const yearStart = () => `${new Date().getFullYear()}-01-01`;
 
 export default function ReportsPage() {
@@ -41,7 +43,7 @@ export default function ReportsPage() {
 
   const queryString = () => {
     const params = new URLSearchParams({ dateTo: filters.dateTo, companyIds: filters.companyIds.join(",") });
-    if (tab !== "balance-sheet" && tab !== "aged") params.set("dateFrom", filters.dateFrom);
+    if (!POINT_IN_TIME.includes(tab)) params.set("dateFrom", filters.dateFrom);
     if (filters.branchId) params.set("branchId", filters.branchId);
     if (filters.businessUnitId) params.set("businessUnitId", filters.businessUnitId);
     if (tab === "general-ledger") params.set("accountId", filters.accountId);
@@ -55,7 +57,7 @@ export default function ReportsPage() {
       return;
     }
     const params = new URLSearchParams({ dateTo: filters.dateTo, companyIds: filters.companyIds.join(",") });
-    if (tab !== "balance-sheet" && tab !== "aged") params.set("dateFrom", filters.dateFrom);
+    if (!POINT_IN_TIME.includes(tab)) params.set("dateFrom", filters.dateFrom);
     if (filters.branchId) params.set("branchId", filters.branchId);
     if (filters.businessUnitId) params.set("businessUnitId", filters.businessUnitId);
     if (tab === "general-ledger") params.set("accountId", filters.accountId);
@@ -77,6 +79,7 @@ export default function ReportsPage() {
     ["trial-balance", l("Neraca Saldo", "Trial Balance")],
     ["general-ledger", l("Buku Besar", "General Ledger")],
     ["aged", l("Umur Piutang/Utang", "Aged Balances")],
+    ["branch-clearing", l("RK Pusat–Cabang", "Branch Clearing")],
   ];
 
   const section = (title: string, s: Section) => (
@@ -136,9 +139,7 @@ export default function ReportsPage() {
           .map((c) => c.name)
           .join(", ")}{" "}
         · {tabs.find(([k]) => k === tab)?.[1]} ·{" "}
-        {tab === "balance-sheet" || tab === "aged"
-          ? filters.dateTo
-          : `${filters.dateFrom} – ${filters.dateTo}`}
+        {POINT_IN_TIME.includes(tab) ? filters.dateTo : `${filters.dateFrom} – ${filters.dateTo}`}
       </p>
       <nav className="tabs no-print">
         {tabs.map(([key, label]) => (
@@ -148,16 +149,14 @@ export default function ReportsPage() {
         ))}
       </nav>
       <div className="panel filters no-print">
-        {tab !== "balance-sheet" && tab !== "aged" && (
+        {!POINT_IN_TIME.includes(tab) && (
           <label className="field">
             <span>{l("Dari", "From")}</span>
             <input type="date" value={filters.dateFrom} onChange={(e) => set({ dateFrom: e.target.value })} />
           </label>
         )}
         <label className="field">
-          <span>
-            {tab === "balance-sheet" || tab === "aged" ? l("Per tanggal", "As of") : l("Sampai", "To")}
-          </span>
+          <span>{POINT_IN_TIME.includes(tab) ? l("Per tanggal", "As of") : l("Sampai", "To")}</span>
           <input type="date" value={filters.dateTo} onChange={(e) => set({ dateTo: e.target.value })} />
         </label>
         {tab === "general-ledger" && (
@@ -182,17 +181,19 @@ export default function ReportsPage() {
             </select>
           </label>
         )}
-        <label className="field">
-          <span>{l("Cabang", "Branch")}</span>
-          <select value={filters.branchId} onChange={(e) => set({ branchId: e.target.value })}>
-            <option value="">{l("Semua", "All")}</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {tab !== "branch-clearing" && (
+          <label className="field">
+            <span>{l("Cabang", "Branch")}</span>
+            <select value={filters.branchId} onChange={(e) => set({ branchId: e.target.value })}>
+              <option value="">{l("Semua", "All")}</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="field">
           <span>{l("Unit bisnis", "Business unit")}</span>
           <select value={filters.businessUnitId} onChange={(e) => set({ businessUnitId: e.target.value })}>
@@ -378,6 +379,75 @@ export default function ReportsPage() {
                     <td className="num">{m(x.balance)}</td>
                   </tr>
                 ),
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {data && tab === "branch-clearing" && (
+        <div className="table-wrap report">
+          <table>
+            <caption>
+              {data.balanced ? (
+                <span className="success">
+                  {l("Semua rekening antar kantor saling hapus.", "All inter-office accounts net to zero.")}
+                </span>
+              ) : (
+                <span className="error">
+                  {l(
+                    "Rekening antar kantor belum saling hapus — ada transaksi pusat/cabang yang belum dicatat pasangannya.",
+                    "Inter-office accounts do not net to zero — some head office/branch entries lack their counterpart.",
+                  )}
+                </span>
+              )}
+            </caption>
+            <thead>
+              <tr>
+                <th>{l("Akun", "Account")}</th>
+                <th>{l("Cabang", "Branch")}</th>
+                <th className="num">{l("Saldo", "Balance")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.accounts.map(
+                (a: {
+                  accountId: string;
+                  code: string;
+                  name: string;
+                  total: string;
+                  branches: { branchId: string | null; branch: string; balance: string }[];
+                }) => (
+                  <Fragment key={a.accountId}>
+                    {a.branches.map((b) => (
+                      <tr key={b.branchId ?? "hq"}>
+                        <td>
+                          <span className="muted">{a.code}</span> {a.name}
+                        </td>
+                        <td>
+                          {b.branchId
+                            ? b.branch
+                            : l("Kantor pusat (tanpa cabang)", "Head office (no branch)")}
+                        </td>
+                        <td className="num">{m(b.balance)}</td>
+                      </tr>
+                    ))}
+                    <tr className="subtotal">
+                      <td colSpan={2}>{l("Selisih (harus nol)", "Difference (should be zero)")}</td>
+                      <td className={`num ${Number(a.total) ? "error" : ""}`}>{m(a.total)}</td>
+                    </tr>
+                  </Fragment>
+                ),
+              )}
+              {data.accounts.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="muted">
+                    {l(
+                      "Belum ada saldo pada akun RK (tandai akun sebagai rekening antar kantor di Bagan Akun).",
+                      "No balances on inter-office accounts (flag accounts as branch clearing in the Chart of Accounts).",
+                    )}
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>

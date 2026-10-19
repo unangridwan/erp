@@ -166,6 +166,7 @@ const REPORTS = [
   "balance-sheet",
   "profit-loss",
   "aged",
+  "branch-clearing",
   "budget",
 ] as const;
 
@@ -232,6 +233,8 @@ export class ClosingAndExportController {
         return this.reports.profitLoss(tx, q);
       case "aged":
         return this.reports.aged(tx, q);
+      case "branch-clearing":
+        return this.reports.branchClearing(tx, q);
     }
   }
 }

@@ -11,6 +11,11 @@ export const GROUP_ACCOUNT_ROLES = [
   "associate_investment",
   "associate_income",
   "ic_difference",
+  "inventory",
+  "cost_of_sales",
+  "dividends",
+  "equity_transactions",
+  "disposal_gain",
 ] as const;
 
 export const CONSOLIDATION_ENTRY_KINDS = [
@@ -20,6 +25,8 @@ export const CONSOLIDATION_ENTRY_KINDS = [
   "intercompany",
   "equity_method",
   "manual",
+  "unrealized_profit",
+  "disposal",
 ] as const;
 
 /** Bagan akun grup: tujuan pemetaan akun lokal semua perusahaan. */
@@ -54,6 +61,8 @@ export const consolidationRuns = pgTable("consolidation_runs", {
     .default("draft"),
   warnings: jsonb("warnings").$type<string[]>().notNull().default([]),
   computedAt: timestamp("computed_at", { withTimezone: true }),
+  openingSource: text("opening_source", { enum: ["previous_run", "computed"] }),
+  openingRunId: uuid("opening_run_id"),
   finalizedAt: timestamp("finalized_at", { withTimezone: true }),
   createdBy: uuid("created_by"),
   ...audit,
@@ -71,6 +80,9 @@ export const consolidationEntities = pgTable("consolidation_entities", {
   closingRate: numeric("closing_rate", { precision: 20, scale: 10 }).notNull().default("1"),
   averageRate: numeric("average_rate", { precision: 20, scale: 10 }).notNull().default("1"),
   historicalRate: numeric("historical_rate", { precision: 20, scale: 10 }).notNull().default("1"),
+  historicalRateManual: boolean("historical_rate_manual").notNull().default(false),
+  acquisitionDate: date("acquisition_date"),
+  disposalDate: date("disposal_date"),
 });
 
 export const consolidationBalances = pgTable("consolidation_balances", {
@@ -99,5 +111,13 @@ export const consolidationEntryLines = pgTable("consolidation_entry_lines", {
   entryId: uuid("entry_id").notNull(),
   groupAccountId: uuid("group_account_id").notNull(),
   companyId: uuid("company_id"),
+  amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
+});
+
+/** Posisi keuangan konsolidasian awal periode (laba rugi sudah ditutup ke saldo laba). */
+export const consolidationOpeningBalances = pgTable("consolidation_opening_balances", {
+  tenantId: tenantId(),
+  runId: uuid("run_id").notNull(),
+  groupAccountId: uuid("group_account_id").notNull(),
   amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
 });

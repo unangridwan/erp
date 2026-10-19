@@ -5,17 +5,23 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { and, asc, desc, eq, inArray, isNull, lte, or, gte, schema, sql, type Db } from "@erp/db";
+import { and, asc, desc, eq, inArray, isNull, lte, schema, sql, type Db, type SQL } from "@erp/db";
 import {
+  BALANCE_SHEET_GROUPS,
   BASE_CURRENCY,
   PROFIT_LOSS_TYPES,
+  closingPosition,
   consolidate,
+  consolidatedCashFlow,
   consolidatedStatements,
   effectiveOwnership,
+  equityChanges,
   intercompanyReconciliation,
   worksheet,
+  type ConsolidationOptions,
   type EntityInput,
   type GroupAccountInfo,
+  type OwnershipInput,
   type consolidationManualEntrySchema,
   type consolidationRatesSchema,
   type consolidationRunSchema,
@@ -34,6 +40,29 @@ const list = (values: readonly string[]) =>
     sql`, `,
   );
 const D = (v: Decimal.Value | null | undefined) => new Decimal(v ?? 0);
+const EQUITY_TYPES: readonly string[] = BALANCE_SHEET_GROUPS.equity;
+const dayBefore = (date: string) => {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+};
+/** Penjabaran per tanggal transaksi (kurs tanggal transaksi, atau tanggal akuisisi bila lebih awal). */
+interface Translation {
+  currency: string;
+  presentation: string;
+  since: string | null;
+  /** Dipakai bila Kurs Harian belum ada pada/sebelum tanggal itu. */
+  fallback: string;
+}
+const rateAt = (code: string, date: SQL) =>
+  code === BASE_CURRENCY
+    ? sql`1::numeric`
+    : sql`(select cr.rate from currency_rates cr where cr.currency_code = ${code} and cr.rate_date <= ${date}
+          order by cr.rate_date desc limit 1)`;
+const datedRate = (t: Translation, date: SQL) => {
+  const at = t.since ? sql`greatest(${date}, ${t.since}::date)` : date;
+  return sql`coalesce(${rateAt(t.currency, at)} / nullif(${rateAt(t.presentation, at)}, 0), ${t.fallback}::numeric)`;
+};
 const RANK: Record<Method, number> = { equity: 1, proportional: 2, full: 3 };
 /** Jenis akun yang ikut eliminasi antar perusahaan (bukan kas, pajak, atau investasi). */
 const IC_TYPES = [
@@ -44,6 +73,8 @@ const IC_TYPES = [
   "expense",
   "expense_direct_cost",
   "expense_other",
+  // Dividen yang diumumkan kepada perusahaan grup.
+  "equity",
 ];
 
 /** Akun grup khusus yang dibuat bersama bagan akun grup. */
@@ -57,6 +88,12 @@ const ROLE_ACCOUNTS = [
   },
   { code: "3-8000", name: "Kepentingan Non-Pengendali", accountType: "equity", role: "nci_equity" },
   { code: "3-8100", name: "Selisih Kurs Penjabaran Laporan Keuangan", accountType: "equity", role: "cta" },
+  {
+    code: "3-8300",
+    name: "Selisih Transaksi dengan Kepentingan Non-Pengendali",
+    accountType: "equity",
+    role: "equity_transactions",
+  },
   {
     code: "3-8200",
     name: "Laba Diatribusikan ke Kepentingan Non-Pengendali",
@@ -75,6 +112,10 @@ const ROLE_BY_CODE: Record<string, (typeof schema.GROUP_ACCOUNT_ROLES)[number]> 
   "1-3100": "investment",
   "1-3200": "associate_investment",
   "3-2000": "retained_earnings",
+  "1-1400": "inventory",
+  "5-1000": "cost_of_sales",
+  "3-3000": "dividends",
+  "4-9400": "disposal_gain",
 };
 
 @Injectable()
@@ -111,6 +152,21 @@ export class ConsolidationService {
       .values(rows)
       .onConflictDoNothing({ target: [schema.groupAccounts.tenantId, schema.groupAccounts.code] })
       .returning({ id: schema.groupAccounts.id });
+    // Bagan akun grup lama: lengkapi peran yang belum ada pada akun berkode standar.
+    const roleByCode = new Map<string, (typeof schema.GROUP_ACCOUNT_ROLES)[number]>([
+      ...Object.entries(ROLE_BY_CODE),
+      ...ROLE_ACCOUNTS.map((a) => [a.code, a.role] as const),
+    ]);
+    const assigned = new Set(
+      (await tx.select({ role: schema.groupAccounts.role }).from(schema.groupAccounts)).map((r) => r.role),
+    );
+    for (const [code, role] of roleByCode) {
+      if (assigned.has(role)) continue;
+      await tx
+        .update(schema.groupAccounts)
+        .set({ role, updatedAt: sql`now()` })
+        .where(and(eq(schema.groupAccounts.code, code), isNull(schema.groupAccounts.role)));
+    }
     const mapped = await this.autoMap(tx);
     return { created: created.length, ...mapped };
   }
@@ -217,7 +273,10 @@ export class ConsolidationService {
 
   // ---- Struktur & kurs ----
 
-  /** Entitas dalam lingkup konsolidasi `rootId` per tanggal: metode, kepemilikan langsung & efektif, kurs bawaan. */
+  /**
+   * Entitas dalam lingkup konsolidasi `rootId`: yang dikendalikan/dipengaruhi per `dateTo` (metode, kepemilikan
+   * langsung & efektif, tanggal akuisisi, perubahan kepemilikan) dan yang dilepas di dalam periode.
+   */
   async structure(tx: Db, rootId: string, dateFrom: string, dateTo: string) {
     const companies = await tx
       .select({
@@ -229,64 +288,156 @@ export class ConsolidationService {
     const byId = new Map(companies.map((c) => [c.id, c]));
     const root = byId.get(rootId);
     if (!root) throw new NotFoundException("Perusahaan induk tidak ditemukan");
-    const links = await tx
-      .select()
-      .from(schema.ownershipHistory)
-      .where(
-        and(
-          lte(schema.ownershipHistory.validFrom, dateTo),
-          or(isNull(schema.ownershipHistory.validTo), gte(schema.ownershipHistory.validTo, dateTo)),
-        ),
-      );
+    const history = (
+      await tx
+        .select()
+        .from(schema.ownershipHistory)
+        .where(lte(schema.ownershipHistory.validFrom, dateTo))
+        .orderBy(asc(schema.ownershipHistory.validFrom))
+    ).filter((l) => l.method !== "none");
+    type Link = (typeof history)[number];
+    const validAt = (date: string) =>
+      history.filter((l) => l.validFrom <= date && (l.validTo === null || l.validTo >= date));
 
     // Telusuri dari induk: anak metode penuh/proporsional ditelusuri lebih lanjut, asosiasi berhenti di situ.
-    const method = new Map<string, Method>([[rootId, "full"]]);
-    const queue = [rootId];
-    while (queue.length) {
-      const parent = queue.shift()!;
-      for (const link of links.filter((l) => l.parentCompanyId === parent && l.method !== "none")) {
-        const m = link.method as Method;
-        const current = method.get(link.childCompanyId);
-        if (link.childCompanyId === rootId || (current && RANK[current] >= RANK[m])) continue;
-        method.set(link.childCompanyId, m);
-        if (m !== "equity") queue.push(link.childCompanyId);
+    const scopeAt = (date: string) => {
+      const links = validAt(date);
+      const method = new Map<string, Method>([[rootId, "full"]]);
+      const queue = [rootId];
+      while (queue.length) {
+        const parent = queue.shift()!;
+        for (const link of links.filter((l) => l.parentCompanyId === parent)) {
+          const m = link.method as Method;
+          const current = method.get(link.childCompanyId);
+          if (link.childCompanyId === rootId || (current && RANK[current] >= RANK[m])) continue;
+          method.set(link.childCompanyId, m);
+          if (m !== "equity") queue.push(link.childCompanyId);
+        }
       }
-    }
-    const scopeLinks = links.filter(
-      (l) =>
-        method.has(l.parentCompanyId) && method.get(l.parentCompanyId) !== "equity" && l.method !== "none",
-    );
-    const ownership = scopeLinks.map((l) => ({
-      parentId: l.parentCompanyId,
-      childId: l.childCompanyId,
-      pct: l.pct,
-    }));
-
-    const entities = [];
-    for (const [companyId, m] of method) {
-      const company = byId.get(companyId)!;
+      const scopeLinks = links.filter(
+        (l) => method.has(l.parentCompanyId) && method.get(l.parentCompanyId) !== "equity",
+      );
+      return { method, scopeLinks };
+    };
+    /** Rangkaian baris kepemilikan berurutan (tanpa jeda) untuk pasangan induk–anak yang berakhir di `last`. */
+    const chainOf = (last: Link) => {
+      const rows = history.filter(
+        (l) => l.parentCompanyId === last.parentCompanyId && l.childCompanyId === last.childCompanyId,
+      );
+      const chain = [last];
+      for (;;) {
+        const first = chain[0]!;
+        const before = rows.find(
+          (r) =>
+            r !== first &&
+            r.validFrom < first.validFrom &&
+            r.validTo !== null &&
+            r.validTo >= dayBefore(first.validFrom),
+        );
+        if (!before) break;
+        chain.unshift(before);
+      }
+      return chain;
+    };
+    const describe = (
+      companyId: string,
+      m: Method,
+      parents: Link[],
+      ownership: { parentId: string; childId: string; pct: string }[],
+    ) => {
       const isRoot = companyId === rootId;
-      const parents = scopeLinks.filter((l) => l.childCompanyId === companyId);
-      const rate = await this.defaultRates(tx, company.currency, root.currency, dateFrom, dateTo);
-      entities.push({
+      let acquisitionDate: string | null = null;
+      const links = parents.map((l) => {
+        const chain = chainOf(l);
+        // Pengendalian (atau pengaruh signifikan) diperoleh pada baris pertama dengan metode yang berlaku sekarang;
+        // biaya kepemilikan sebelumnya ikut menjadi harga perolehan (tanpa pengukuran ulang nilai wajar).
+        const k = Math.max(
+          0,
+          chain.findIndex((r) => m === "equity" || r.method === "full" || r.method === "proportional"),
+        );
+        const control = chain[k]!;
+        if (!acquisitionDate || control.validFrom < acquisitionDate) acquisitionDate = control.validFrom;
+        const costs = chain.slice(0, k + 1).filter((r) => r.consideration !== null);
+        const changes = chain.slice(k + 1).flatMap((r, i) => {
+          const prev = chain[k + i]!;
+          if (D(prev.pct).eq(r.pct)) return [];
+          return [
+            {
+              date: r.validFrom,
+              pctBefore: prev.pct,
+              pctAfter: r.pct,
+              consideration: r.consideration,
+              netAssets: r.acquiredNetAssets,
+              inPeriod: r.validFrom >= dateFrom,
+            },
+          ];
+        });
+        return {
+          parentId: l.parentCompanyId,
+          pct: l.pct,
+          controlPct: changes[0]?.pctBefore ?? l.pct,
+          consideration: costs.length
+            ? costs.reduce((s, r) => s.plus(r.consideration!), D(0)).toFixed(2)
+            : null,
+          acquiredNetAssets: control.acquiredNetAssets,
+          validFrom: control.validFrom,
+          changes,
+        };
+      });
+      return {
         companyId,
-        name: company.name,
+        name: byId.get(companyId)!.name,
         isRoot,
         method: m,
-        currencyCode: company.currency,
+        currencyCode: byId.get(companyId)!.currency,
         directPct: isRoot ? "100" : parents.reduce((s, l) => s.plus(l.pct), D(0)).toString(),
         effectivePct: isRoot
           ? "100"
           : effectiveOwnership(ownership, rootId, companyId).toDecimalPlaces(4).toString(),
-        links: parents.map((l) => ({
-          parentId: l.parentCompanyId,
-          pct: l.pct,
-          consideration: l.consideration,
-          acquiredNetAssets: l.acquiredNetAssets,
-          validFrom: l.validFrom,
-        })),
-        ...rate,
-      });
+        links,
+        acquisitionDate: isRoot ? null : (acquisitionDate as string | null),
+        disposalDate: null as string | null,
+      };
+    };
+    const toOwnership = (links: Link[]) =>
+      links.map((l) => ({ parentId: l.parentCompanyId, childId: l.childCompanyId, pct: l.pct }));
+
+    const end = scopeAt(dateTo);
+    const described = [...end.method].map(([companyId, m]) =>
+      describe(
+        companyId,
+        m,
+        end.scopeLinks.filter((l) => l.childCompanyId === companyId),
+        toOwnership(end.scopeLinks),
+      ),
+    );
+    // Dilepas di dalam periode: relasi berakhir sebelum `dateTo` dan entitas tidak lagi dalam lingkup.
+    for (const l of history) {
+      if (!l.validTo || l.validTo < dateFrom || l.validTo >= dateTo) continue;
+      if (described.some((d) => d.companyId === l.childCompanyId)) continue;
+      const at = scopeAt(l.validTo);
+      const m = at.method.get(l.childCompanyId);
+      if (!m || !at.method.has(l.parentCompanyId)) continue;
+      const entity = describe(
+        l.childCompanyId,
+        m,
+        at.scopeLinks.filter((x) => x.childCompanyId === l.childCompanyId),
+        toOwnership(at.scopeLinks),
+      );
+      entity.disposalDate = l.validTo;
+      described.push(entity);
+    }
+
+    const entities = [];
+    for (const e of described) {
+      const rate = await this.defaultRates(
+        tx,
+        e.currencyCode,
+        root.currency,
+        dateFrom,
+        e.disposalDate ?? dateTo,
+      );
+      entities.push({ ...e, ...rate, historicalRateManual: false });
     }
     return { root, entities };
   }
@@ -355,7 +506,7 @@ export class ConsolidationService {
     return this.get(tx, run!.id);
   }
 
-  /** Hitung ulang saldo & jurnal otomatis (draft); jurnal manual dipertahankan. */
+  /** Hitung ulang saldo, jurnal otomatis, dan saldo awal (draft); jurnal manual dipertahankan. */
   async compute(tx: Db, runId: string, rates: Rates = []) {
     const run = await this.find(tx, runId);
     if (run.state === "final") throw new BadRequestException("Konsolidasi final tidak bisa dihitung ulang");
@@ -363,58 +514,23 @@ export class ConsolidationService {
       .select()
       .from(schema.consolidationEntities)
       .where(eq(schema.consolidationEntities.runId, runId));
-    const { entities } = await this.structure(tx, run.rootCompanyId, run.dateFrom, run.dateTo);
-    for (const e of entities) this.assertCompany(e.companyId);
-    // Kurs manual: dari permintaan ini, atau yang tersimpan pada perhitungan sebelumnya.
-    for (const e of entities) {
-      const prev = previous.find((p) => p.companyId === e.companyId);
-      const override = rates.find((r) => r.companyId === e.companyId);
-      if (e.currencyCode === run.currencyCode) continue;
-      e.closingRate = override?.closingRate ?? prev?.closingRate ?? e.closingRate;
-      e.averageRate = override?.averageRate ?? prev?.averageRate ?? e.averageRate;
-      e.historicalRate = override?.historicalRate ?? prev?.historicalRate ?? e.historicalRate;
-    }
-
-    const companyIds = entities.map((e) => e.companyId);
-    const data = await this.loadBalances(tx, companyIds, run.dateFrom, run.dateTo);
-    if (data.unmapped.length)
-      throw new BadRequestException({
-        message: "Ada akun bersaldo yang belum dipetakan ke bagan akun grup",
-        errors: data.unmapped.map((u) => ({ path: u.companyName, message: `${u.code} ${u.name}` })),
-      });
-    const accounts = await this.groupAccounts(tx);
-
-    const inputs: EntityInput[] = [];
-    for (const e of entities) {
-      const prior =
-        e.method === "equity" && e.links[0]
-          ? await this.postAcquisitionPrior(tx, e.companyId, e.links[0].validFrom, run.dateFrom)
-          : "0";
-      inputs.push({
-        companyId: e.companyId,
-        name: e.name,
-        isRoot: e.isRoot,
-        method: e.method,
-        effectivePct: e.effectivePct,
-        closingRate: e.closingRate,
-        averageRate: e.averageRate,
-        historicalRate: e.historicalRate,
-        links: e.links,
-        balances: data.balances.filter((b) => b.companyId === e.companyId),
-        priorUnallocated: data.prior.get(e.companyId) ?? "0",
-        postAcquisitionPrior: prior,
-        intercompany: data.intercompany.filter((i) => i.companyId === e.companyId),
-      });
-    }
-    let result: ReturnType<typeof consolidate>;
-    try {
-      result = consolidate(accounts, inputs);
-    } catch (err) {
-      throw new BadRequestException((err as Error).message);
-    }
+    const { entities, result } = await this.calculate(tx, {
+      rootId: run.rootCompanyId,
+      dateFrom: run.dateFrom,
+      dateTo: run.dateTo,
+      currency: run.currencyCode,
+      rates,
+      previous,
+      withOpening: true,
+    });
+    const opening = await this.opening(tx, run);
+    if (opening.warning) result.warnings.push(opening.warning);
 
     await tx.delete(schema.consolidationEntities).where(eq(schema.consolidationEntities.runId, runId));
     await tx.delete(schema.consolidationBalances).where(eq(schema.consolidationBalances.runId, runId));
+    await tx
+      .delete(schema.consolidationOpeningBalances)
+      .where(eq(schema.consolidationOpeningBalances.runId, runId));
     await tx
       .delete(schema.consolidationEntries)
       .where(
@@ -434,10 +550,17 @@ export class ConsolidationService {
         closingRate: e.closingRate,
         averageRate: e.averageRate,
         historicalRate: e.historicalRate,
+        historicalRateManual: e.historicalRateManual,
+        acquisitionDate: e.acquisitionDate,
+        disposalDate: e.disposalDate,
       })),
     );
     if (result.balances.length)
       await tx.insert(schema.consolidationBalances).values(result.balances.map((b) => ({ ...b, runId })));
+    if (opening.position.length)
+      await tx
+        .insert(schema.consolidationOpeningBalances)
+        .values(opening.position.map((p) => ({ ...p, runId })));
     for (const entry of result.entries) {
       const [row] = await tx
         .insert(schema.consolidationEntries)
@@ -449,103 +572,512 @@ export class ConsolidationService {
     }
     await tx
       .update(schema.consolidationRuns)
-      .set({ warnings: result.warnings, computedAt: sql`now()`, updatedAt: sql`now()` })
+      .set({
+        warnings: result.warnings,
+        openingSource: opening.source,
+        openingRunId: opening.runId,
+        computedAt: sql`now()`,
+        updatedAt: sql`now()`,
+      })
       .where(eq(schema.consolidationRuns.id, runId));
     return this.get(tx, runId);
   }
 
+  /** Susun masukan mesin konsolidasi dari buku besar, persediaan & kepemilikan, lalu hitung (tanpa menyimpan). */
+  private async calculate(
+    tx: Db,
+    p: {
+      rootId: string;
+      dateFrom: string;
+      dateTo: string;
+      currency: string;
+      rates: Rates;
+      previous: (typeof schema.consolidationEntities.$inferSelect)[];
+      withOpening: boolean;
+    },
+  ) {
+    const { entities } = await this.structure(tx, p.rootId, p.dateFrom, p.dateTo);
+    for (const e of entities) this.assertCompany(e.companyId);
+    // Kurs manual: dari permintaan ini, atau yang tersimpan pada perhitungan sebelumnya.
+    for (const e of entities) {
+      if (e.currencyCode === p.currency) continue;
+      const prev = p.previous.find((x) => x.companyId === e.companyId);
+      const override = p.rates.find((r) => r.companyId === e.companyId);
+      e.closingRate = override?.closingRate ?? prev?.closingRate ?? e.closingRate;
+      e.averageRate = override?.averageRate ?? prev?.averageRate ?? e.averageRate;
+      if (override?.historicalByDate) e.historicalRateManual = false;
+      else if (override?.historicalRate) {
+        e.historicalRate = override.historicalRate;
+        e.historicalRateManual = true;
+      } else if (prev?.historicalRateManual) {
+        e.historicalRate = prev.historicalRate;
+        e.historicalRateManual = true;
+      }
+    }
+    const accounts = await this.groupAccounts(tx);
+    const types = new Map(accounts.map((a) => [a.id, a.accountType]));
+    const isEquity = (id: string) => EQUITY_TYPES.includes(types.get(id) ?? "");
+    const disposedCutoffs = new Map(
+      entities.filter((e) => e.disposalDate).map((e) => [e.companyId, e.disposalDate!]),
+    );
+
+    const warnings: string[] = [];
+    const unmapped: { companyName: string; code: string; name: string }[] = [];
+    const inputs: EntityInput[] = [];
+    const windows = new Map<string, { from: string; to: string }>();
+    for (const e of entities) {
+      const from = e.acquisitionDate && e.acquisitionDate > p.dateFrom ? e.acquisitionDate : p.dateFrom;
+      const to = e.disposalDate ?? p.dateTo;
+      windows.set(e.companyId, { from, to });
+      const translation: Translation | null =
+        e.currencyCode !== p.currency && !e.historicalRateManual
+          ? {
+              currency: e.currencyCode,
+              presentation: p.currency,
+              since: e.acquisitionDate,
+              fallback: e.historicalRate,
+            }
+          : null;
+      const dated = translation !== null;
+      const data = await this.loadEntity(tx, {
+        companyId: e.companyId,
+        companyName: e.name,
+        runFrom: p.dateFrom,
+        from,
+        to,
+        profitLossOnly: Boolean(e.disposalDate),
+        translation,
+        icCutoffs: disposedCutoffs,
+      });
+      unmapped.push(...data.unmapped);
+      if (!data.branchClearing.isZero())
+        warnings.push(
+          `${e.name}: saldo rekening antar kantor (RK pusat–cabang) tidak nol (${data.branchClearing.toFixed(2)}) — periksa laporan RK Pusat–Cabang`,
+        );
+
+      // Laba rugi sejak akuisisi sebelum periode: metode ekuitas & entitas yang dilepas.
+      let prior: { local: string; translated: string | null } = { local: "0", translated: null };
+      if ((e.method === "equity" || e.disposalDate) && e.acquisitionDate && e.acquisitionDate < p.dateFrom)
+        prior = await this.profitBetween(
+          tx,
+          e.companyId,
+          e.acquisitionDate,
+          dayBefore(p.dateFrom),
+          translation,
+        );
+
+      // Perubahan kepemilikan: aset neto pada tanggal perubahan & laba periode sebelum tanggal itu.
+      const links: OwnershipInput[] = [];
+      for (const l of e.links) {
+        const changes = [];
+        for (const c of l.changes) {
+          const before =
+            c.inPeriod && c.date > from
+              ? await this.profitBetween(tx, e.companyId, from, dayBefore(c.date), null)
+              : null;
+          const netAssets =
+            c.netAssets ?? (await this.bookNetAssets(tx, e.companyId, c.date, e.currencyCode, p.currency));
+          changes.push({
+            ...c,
+            netAssets,
+            periodProfitBefore: before ? D(before.local).negated().times(e.averageRate).toFixed(2) : "0",
+          });
+        }
+        links.push({
+          parentId: l.parentId,
+          pct: l.pct,
+          consideration: l.consideration,
+          acquiredNetAssets: l.acquiredNetAssets,
+          changes,
+        });
+      }
+      // Laba per segmen kepemilikan bila kepemilikan berubah di dalam periode.
+      let profitSegments: EntityInput["profitSegments"];
+      const boundaries = [
+        ...new Set(
+          e.links.flatMap((l) => l.changes.filter((c) => c.inPeriod && c.date > from).map((c) => c.date)),
+        ),
+      ].sort();
+      if (boundaries.length && e.method === "full") {
+        const pNow = e.links.reduce((s, l) => s.plus(l.pct), D(0));
+        const starts = [from, ...boundaries];
+        profitSegments = [];
+        for (let i = 0; i < starts.length; i++) {
+          const segFrom = starts[i]!;
+          const segTo = i + 1 < starts.length ? dayBefore(starts[i + 1]!) : to;
+          const direct = e.links.reduce((s, l) => {
+            const last = [...l.changes].reverse().find((c) => c.date <= segFrom);
+            return s.plus(last ? last.pctAfter : l.controlPct);
+          }, D(0));
+          const profit = await this.profitBetween(tx, e.companyId, segFrom, segTo, null);
+          profitSegments.push({
+            effectivePct: pNow.isZero() ? "0" : D(e.effectivePct).times(direct).div(pNow).toString(),
+            profit: profit.local,
+          });
+        }
+      }
+
+      inputs.push({
+        companyId: e.companyId,
+        name: e.name,
+        isRoot: e.isRoot,
+        method: e.method,
+        effectivePct: e.effectivePct,
+        closingRate: e.closingRate,
+        averageRate: e.averageRate,
+        historicalRate: e.historicalRate,
+        links,
+        balances: data.balances.map((b) => ({
+          groupAccountId: b.groupAccountId,
+          amount: b.amount,
+          ...(dated && isEquity(b.groupAccountId) ? { translated: b.translated } : {}),
+        })),
+        // Entitas yang dilepas tidak membawa posisi keuangan, termasuk saldo laba sebelum periode.
+        priorUnallocated: e.disposalDate ? "0" : data.prior.local,
+        ...(data.prior.translated !== null && !e.disposalDate
+          ? { priorTranslated: data.prior.translated }
+          : {}),
+        postAcquisitionPrior: prior.local,
+        ...(prior.translated !== null ? { postAcquisitionPriorTranslated: prior.translated } : {}),
+        intercompany: data.intercompany.map((i) => ({
+          groupAccountId: i.groupAccountId,
+          counterpartId: i.counterpartId,
+          amount: i.amount,
+          ...(dated && isEquity(i.groupAccountId) ? { translated: i.translated } : {}),
+        })),
+        ...(profitSegments ? { profitSegments } : {}),
+        ...(e.disposalDate ? { disposal: { date: e.disposalDate } } : {}),
+      });
+    }
+    if (unmapped.length)
+      throw new BadRequestException({
+        message: "Ada akun bersaldo yang belum dipetakan ke bagan akun grup",
+        errors: unmapped.map((u) => ({ path: u.companyName, message: `${u.code} ${u.name}` })),
+      });
+
+    // Persediaan antar perusahaan: nilai pembelian dalam periode & laba belum terealisasi akhir/awal.
+    const options: ConsolidationOptions = { icGoods: [], unrealizedProfits: [] };
+    const trading = entities.filter((e) => e.method !== "equity" && !e.disposalDate);
+    const openingDate = dayBefore(p.dateFrom);
+    for (const buyer of trading) {
+      for (const seller of trading) {
+        if (buyer.companyId === seller.companyId) continue;
+        const w = windows.get(buyer.companyId)!;
+        const goods = await this.icGoodsValue(tx, buyer.companyId, seller.companyId, w.from, w.to);
+        if (!goods.isZero())
+          options.icGoods!.push({
+            sellerId: seller.companyId,
+            buyerId: buyer.companyId,
+            amount: goods.times(buyer.averageRate).toFixed(2),
+          });
+        const closing = await this.unrealizedProfit(tx, buyer, seller, p.dateTo);
+        const bothBefore = [buyer, seller].every(
+          (x) => !x.acquisitionDate || x.acquisitionDate <= openingDate,
+        );
+        const opening =
+          p.withOpening && bothBefore ? await this.unrealizedProfit(tx, buyer, seller, openingDate) : D(0);
+        if (!closing.isZero() || !opening.isZero())
+          options.unrealizedProfits!.push({
+            sellerId: seller.companyId,
+            buyerId: buyer.companyId,
+            closing: closing.toFixed(2),
+            opening: opening.toFixed(2),
+          });
+      }
+    }
+
+    let result: ReturnType<typeof consolidate>;
+    try {
+      result = consolidate(accounts, inputs, options);
+    } catch (err) {
+      throw new BadRequestException((err as Error).message);
+    }
+    result.warnings.unshift(...warnings);
+    return { entities, result };
+  }
+
   /**
-   * Saldo per perusahaan per akun grup: akun neraca kumulatif s.d. tanggal akhir (tanpa jurnal tutup buku
-   * dalam periode), akun laba rugi selama periode (tanpa jurnal tutup buku), dan laba/rugi sebelum periode
-   * yang belum ditutup. Ketiganya bersama-sama seimbang.
+   * Saldo awal: posisi akhir proses final periode sebelumnya (per hari sebelum `dateFrom`), atau dihitung ulang
+   * per tanggal itu tanpa jurnal manual.
    */
-  private async loadBalances(tx: Db, companyIds: string[], from: string, to: string) {
+  private async opening(tx: Db, run: typeof schema.consolidationRuns.$inferSelect) {
+    const date = dayBefore(run.dateFrom);
+    const [prev] = await tx
+      .select({ id: schema.consolidationRuns.id })
+      .from(schema.consolidationRuns)
+      .where(
+        and(
+          eq(schema.consolidationRuns.rootCompanyId, run.rootCompanyId),
+          eq(schema.consolidationRuns.state, "final"),
+          eq(schema.consolidationRuns.dateTo, date),
+        ),
+      )
+      .orderBy(desc(schema.consolidationRuns.finalizedAt))
+      .limit(1);
+    const accounts = await this.groupAccounts(tx);
+    if (prev) {
+      const ws = await this.worksheet(tx, prev.id);
+      return {
+        source: "previous_run" as const,
+        runId: prev.id,
+        position: closingPosition(accounts, ws.rows),
+        warning: null,
+      };
+    }
+    try {
+      const { result } = await this.calculate(tx, {
+        rootId: run.rootCompanyId,
+        dateFrom: date,
+        dateTo: date,
+        currency: run.currencyCode,
+        rates: [],
+        previous: [],
+        withOpening: false,
+      });
+      const rows = worksheet(accounts, result.balances, result.entries);
+      return {
+        source: "computed" as const,
+        runId: null,
+        position: closingPosition(accounts, rows),
+        warning: null,
+      };
+    } catch (err) {
+      const response = err instanceof BadRequestException ? err.getResponse() : null;
+      const message =
+        response && typeof response === "object" && "message" in response
+          ? String((response as { message: unknown }).message)
+          : (err as Error).message;
+      return {
+        source: null,
+        runId: null,
+        position: [] as { groupAccountId: string; amount: string }[],
+        warning: `Saldo awal per ${date} tidak dapat dihitung (${message}) — laporan perubahan ekuitas & arus kas tidak tersedia`,
+      };
+    }
+  }
+
+  /**
+   * Saldo satu perusahaan per akun grup: akun neraca kumulatif s.d. `to` (tanpa jurnal tutup buku dalam periode),
+   * akun laba rugi dalam jendela `from`–`to`, laba/rugi sebelum `from` yang belum ditutup, dan bagian saldo antar
+   * perusahaan. Bila `translation` diisi, setiap baris juga dijabarkan dengan kurs pada tanggal transaksinya.
+   */
+  private async loadEntity(
+    tx: Db,
+    w: {
+      companyId: string;
+      companyName: string;
+      runFrom: string;
+      from: string;
+      to: string;
+      profitLossOnly: boolean;
+      translation: Translation | null;
+      icCutoffs: Map<string, string>;
+    },
+  ) {
     const pl = list(PROFIT_LOSS_TYPES);
+    const rate = w.translation ? datedRate(w.translation, sql`m.date`) : sql`1::numeric`;
+    const window = sql`((a.account_type not in (${pl}) and ${!w.profitLossOnly}
+          and not (m.closing_year is not null and m.date >= ${w.runFrom}))
+        or (a.account_type in (${pl}) and m.date >= ${w.from} and m.closing_year is null))`;
     const rows = await tx.execute<{
-      company_id: string;
-      company_name: string;
-      account_id: string;
       code: string;
       name: string;
       group_account_id: string | null;
       amount: string;
+      translated: string;
+      clearing: boolean;
     }>(sql`
-      select l.company_id, c.name as company_name, a.id as account_id, a.code, a.name, map.group_account_id,
-             sum(l.balance)::text as amount
+      select a.code, a.name, a.branch_clearing as clearing, map.group_account_id,
+             sum(l.balance)::text as amount, sum(l.balance * ${rate})::text as translated
       from account_move_lines l
       join account_moves m on m.id = l.move_id
       join accounts a on a.id = l.account_id
-      join companies c on c.id = l.company_id
       left join consolidation_account_map map on map.account_id = a.id
-      where m.state = 'posted' and l.company_id in (${list(companyIds)}) and m.date <= ${to}
-        and ((a.account_type not in (${pl}) and not (m.closing_year is not null and m.date >= ${from}))
-          or (a.account_type in (${pl}) and m.date >= ${from} and m.closing_year is null))
-      group by l.company_id, c.name, a.id, a.code, a.name, map.group_account_id
+      where m.state = 'posted' and l.company_id = ${w.companyId} and m.date <= ${w.to} and ${window}
+      group by a.id, a.code, a.name, a.branch_clearing, map.group_account_id
       having sum(l.balance) <> 0`);
-    const priorRows = await tx.execute<{ company_id: string; amount: string }>(sql`
-      select l.company_id, sum(l.balance)::text as amount
+    const [priorRow] = await tx.execute<{ amount: string | null; translated: string | null }>(sql`
+      select sum(l.balance)::text as amount, sum(l.balance * ${rate})::text as translated
       from account_move_lines l
       join account_moves m on m.id = l.move_id
       join accounts a on a.id = l.account_id
-      where m.state = 'posted' and l.company_id in (${list(companyIds)}) and m.date < ${from}
-        and a.account_type in (${pl})
-      group by l.company_id`);
+      where m.state = 'posted' and l.company_id = ${w.companyId} and m.date < ${w.from}
+        and a.account_type in (${pl})`);
+    const cutoffs = [...w.icCutoffs];
+    const cutoff = cutoffs.length
+      ? sql`and m.date <= (case l.ic_company_id ${sql.join(
+          cutoffs.map(([id, d]) => sql`when ${id}::uuid then ${d}::date`),
+          sql` `,
+        )} else ${w.to}::date end)`
+      : sql``;
     const icRows = await tx.execute<{
-      company_id: string;
       group_account_id: string;
       ic_company_id: string;
       amount: string;
+      translated: string;
     }>(sql`
-      select l.company_id, map.group_account_id, l.ic_company_id, sum(l.balance)::text as amount
+      select map.group_account_id, l.ic_company_id, sum(l.balance)::text as amount,
+             sum(l.balance * ${rate})::text as translated
       from account_move_lines l
       join account_moves m on m.id = l.move_id
       join accounts a on a.id = l.account_id
       join consolidation_account_map map on map.account_id = a.id
-      where m.state = 'posted' and l.company_id in (${list(companyIds)}) and m.date <= ${to}
+      where m.state = 'posted' and l.company_id = ${w.companyId} and m.date <= ${w.to}
         and l.ic_company_id is not null and l.display_type <> 'tax'
-        and a.account_type in (${list(IC_TYPES)})
-        and ((a.account_type not in (${pl}) and not (m.closing_year is not null and m.date >= ${from}))
-          or (a.account_type in (${pl}) and m.date >= ${from} and m.closing_year is null))
-      group by l.company_id, map.group_account_id, l.ic_company_id
+        and a.account_type in (${list(IC_TYPES)}) and ${window} ${cutoff}
+      group by map.group_account_id, l.ic_company_id
       having sum(l.balance) <> 0`);
     // Saldo per akun grup (beberapa akun lokal bisa dipetakan ke akun grup yang sama).
-    const balances = new Map<string, { companyId: string; groupAccountId: string; amount: Decimal }>();
+    const balances = new Map<string, { groupAccountId: string; amount: Decimal; translated: Decimal }>();
     for (const r of rows) {
       if (!r.group_account_id) continue;
-      const key = `${r.company_id}:${r.group_account_id}`;
-      const b = balances.get(key) ?? {
-        companyId: r.company_id,
+      const b = balances.get(r.group_account_id) ?? {
         groupAccountId: r.group_account_id,
         amount: D(0),
+        translated: D(0),
       };
       b.amount = b.amount.plus(r.amount);
-      balances.set(key, b);
+      b.translated = b.translated.plus(r.translated);
+      balances.set(r.group_account_id, b);
     }
     return {
-      balances: [...balances.values()].map((b) => ({ ...b, amount: b.amount.toFixed(2) })),
+      balances: [...balances.values()].map((b) => ({
+        groupAccountId: b.groupAccountId,
+        amount: b.amount.toFixed(2),
+        translated: b.translated.toFixed(2),
+      })),
       unmapped: rows
         .filter((r) => !r.group_account_id)
-        .map((r) => ({ companyName: r.company_name, code: r.code, name: r.name })),
-      prior: new Map(priorRows.map((r) => [r.company_id, r.amount])),
+        .map((r) => ({ companyName: w.companyName, code: r.code, name: r.name })),
+      branchClearing: rows.filter((r) => r.clearing).reduce((s, r) => s.plus(r.amount), D(0)),
+      prior: {
+        local: priorRow?.amount ?? "0",
+        translated: w.translation ? D(priorRow?.translated ?? 0).toFixed(2) : null,
+      },
       intercompany: icRows.map((r) => ({
-        companyId: r.company_id,
         groupAccountId: r.group_account_id,
         counterpartId: r.ic_company_id,
         amount: r.amount,
+        translated: D(r.translated).toFixed(2),
       })),
     };
   }
 
-  /** Metode ekuitas: laba/rugi asosiasi sejak tanggal kepemilikan sampai sebelum periode (tanpa tutup buku). */
-  private async postAcquisitionPrior(tx: Db, companyId: string, since: string, from: string) {
+  /** Laba rugi (debit positif) antara dua tanggal tanpa jurnal tutup buku; opsional dijabarkan per tanggal. */
+  private async profitBetween(
+    tx: Db,
+    companyId: string,
+    from: string,
+    to: string,
+    translation: Translation | null,
+  ) {
+    const rate = translation ? datedRate(translation, sql`m.date`) : sql`1::numeric`;
+    const [row] = await tx.execute<{ amount: string | null; translated: string | null }>(sql`
+      select sum(l.balance)::text as amount, sum(l.balance * ${rate})::text as translated
+      from account_move_lines l
+      join account_moves m on m.id = l.move_id
+      join accounts a on a.id = l.account_id
+      where m.state = 'posted' and l.company_id = ${companyId} and m.closing_year is null
+        and m.date >= ${from} and m.date <= ${to} and a.account_type in (${list(PROFIT_LOSS_TYPES)})`);
+    return {
+      local: row?.amount ?? "0",
+      translated: translation ? D(row?.translated ?? 0).toFixed(2) : null,
+    };
+  }
+
+  /** Nilai buku aset neto (ekuitas + laba rugi) sebelum `date`, dijabarkan dengan kurs tanggal itu. */
+  private async bookNetAssets(
+    tx: Db,
+    companyId: string,
+    date: string,
+    currency: string,
+    presentation: string,
+  ) {
     const [row] = await tx.execute<{ amount: string | null }>(sql`
       select sum(l.balance)::text as amount
       from account_move_lines l
       join account_moves m on m.id = l.move_id
       join accounts a on a.id = l.account_id
-      where m.state = 'posted' and l.company_id = ${companyId} and m.closing_year is null
-        and m.date >= ${since} and m.date < ${from} and a.account_type in (${list(PROFIT_LOSS_TYPES)})`);
-    return row?.amount ?? "0";
+      where m.state = 'posted' and l.company_id = ${companyId} and m.date < ${date}
+        and a.account_type in (${list([...EQUITY_TYPES, ...PROFIT_LOSS_TYPES])})`);
+    const local = D(row?.amount).negated();
+    if (currency === presentation) return local.toFixed(2);
+    const rate = D((await this.fx.rateOn(tx, currency, date)).rate).div(
+      (await this.fx.rateOn(tx, presentation, date)).rate,
+    );
+    return local.times(rate).toFixed(2);
+  }
+
+  /** Nilai lapisan persediaan yang diterima `buyerId` dari mitra antar perusahaan `sellerId` dalam jendela. */
+  private async icGoodsValue(tx: Db, buyerId: string, sellerId: string, from: string, to: string) {
+    const [row] = await tx.execute<{ value: string | null }>(sql`
+      select sum(v.value)::text as value
+      from stock_valuation_layers v
+      join stock_moves sm on sm.id = v.stock_move_id
+      join stock_pickings pk on pk.id = sm.picking_id
+      join partners pa on pa.id = pk.partner_id
+      where v.company_id = ${buyerId} and v.quantity > 0 and pa.ic_company_id = ${sellerId}
+        and v.created_at >= ${from}::date and v.created_at < ${to}::date + 1`);
+    return D(row?.value);
+  }
+
+  /**
+   * Laba belum terealisasi atas persediaan `buyer` per `date` yang berasal dari `seller` (mata uang penyajian).
+   * Stok akhir dialokasikan ke penerimaan terakhir (FIFO); biaya penjual = rata-rata HPP pengirimannya ke pembeli.
+   */
+  private async unrealizedProfit(
+    tx: Db,
+    buyer: { companyId: string; closingRate: string },
+    seller: { companyId: string; closingRate: string },
+    date: string,
+  ) {
+    const layers = await tx.execute<{
+      product_id: string;
+      quantity: string;
+      unit_cost: string;
+      source: string | null;
+    }>(sql`
+      select v.product_id, v.quantity::text as quantity, v.unit_cost::text as unit_cost,
+             pa.ic_company_id as source
+      from stock_valuation_layers v
+      left join stock_moves sm on sm.id = v.stock_move_id
+      left join stock_pickings pk on pk.id = sm.picking_id
+      left join partners pa on pa.id = pk.partner_id
+      where v.company_id = ${buyer.companyId} and v.created_at < ${date}::date + 1
+      order by v.product_id, v.created_at desc, v.id desc`);
+    if (!layers.some((l) => l.source === seller.companyId && D(l.quantity).gt(0))) return D(0);
+    const costs = await tx.execute<{ product_id: string; value: string; quantity: string }>(sql`
+      select v.product_id, sum(-v.value)::text as value, sum(-v.quantity)::text as quantity
+      from stock_valuation_layers v
+      join stock_moves sm on sm.id = v.stock_move_id
+      join stock_pickings pk on pk.id = sm.picking_id
+      join partners pa on pa.id = pk.partner_id
+      where v.company_id = ${seller.companyId} and v.quantity < 0 and pa.ic_company_id = ${buyer.companyId}
+        and v.created_at < ${date}::date + 1
+      group by v.product_id`);
+    const sellerCost = new Map(
+      costs.filter((c) => D(c.quantity).gt(0)).map((c) => [c.product_id, D(c.value).div(c.quantity)]),
+    );
+    type Layer = (typeof layers)[number];
+    const products = new Map<string, Layer[]>();
+    for (const l of layers) products.set(l.product_id, [...(products.get(l.product_id) ?? []), l]);
+    let total = D(0);
+    for (const [productId, productLayers] of products) {
+      const cost = sellerCost.get(productId);
+      if (!cost) continue;
+      let remaining = productLayers.reduce((s, l) => s.plus(l.quantity), D(0));
+      for (const l of productLayers) {
+        if (remaining.lte(0)) break;
+        if (D(l.quantity).lte(0)) continue;
+        const take = Decimal.min(remaining, l.quantity);
+        remaining = remaining.minus(take);
+        if (l.source !== seller.companyId) continue;
+        total = total.plus(
+          take.times(l.unit_cost).times(buyer.closingRate).minus(take.times(cost).times(seller.closingRate)),
+        );
+      }
+    }
+    return total.toDecimalPlaces(2);
   }
 
   private async groupAccounts(tx: Db): Promise<GroupAccountInfo[]> {
@@ -639,41 +1171,72 @@ export class ConsolidationService {
 
   async report(tx: Db, runId: string) {
     const ws = await this.worksheet(tx, runId);
-    return { run: ws.run, ...consolidatedStatements(ws.rows) };
+    const [run] = await tx
+      .select({ openingSource: schema.consolidationRuns.openingSource })
+      .from(schema.consolidationRuns)
+      .where(eq(schema.consolidationRuns.id, runId));
+    const opening = run?.openingSource
+      ? await tx
+          .select({
+            groupAccountId: schema.consolidationOpeningBalances.groupAccountId,
+            amount: schema.consolidationOpeningBalances.amount,
+          })
+          .from(schema.consolidationOpeningBalances)
+          .where(eq(schema.consolidationOpeningBalances.runId, runId))
+      : null;
+    const accounts = await this.groupAccounts(tx);
+    return {
+      run: { ...ws.run, openingSource: run?.openingSource ?? null },
+      ...consolidatedStatements(ws.rows),
+      equityChanges: opening ? equityChanges(accounts, opening, ws.rows) : null,
+      cashFlow: opening ? consolidatedCashFlow(accounts, opening, ws.rows) : null,
+    };
   }
 
   /** Rekonsiliasi saldo antar perusahaan (dalam mata uang penyajian, kurs proses). */
   async icReconciliation(tx: Db, runId: string) {
     const run = await this.get(tx, runId);
     const aggregated = run.entities.filter((e) => e.method !== "equity");
-    const data = await this.loadBalances(
-      tx,
-      aggregated.map((e) => e.companyId),
-      run.dateFrom,
-      run.dateTo,
-    );
     const accounts = new Map((await this.groupAccounts(tx)).map((a) => [a.id, a]));
     const pl = new Set(PROFIT_LOSS_TYPES);
-    const rate = (e: (typeof aggregated)[number], groupAccountId: string) =>
-      pl.has(accounts.get(groupAccountId)!.accountType) ? e.averageRate : e.closingRate;
-    const side = (kind: "balance" | "result") =>
+    const cutoffs = new Map(
+      aggregated.filter((e) => e.disposalDate).map((e) => [e.companyId, e.disposalDate!]),
+    );
+    const lines: { companyId: string; counterpartId: string; result: boolean; amount: Decimal }[] = [];
+    for (const e of aggregated) {
+      const from = e.acquisitionDate && e.acquisitionDate > run.dateFrom ? e.acquisitionDate : run.dateFrom;
+      const data = await this.loadEntity(tx, {
+        companyId: e.companyId,
+        companyName: e.name,
+        runFrom: run.dateFrom,
+        from,
+        to: e.disposalDate ?? run.dateTo,
+        profitLossOnly: Boolean(e.disposalDate),
+        translation: null,
+        icCutoffs: cutoffs,
+      });
+      for (const i of data.intercompany) {
+        const type = accounts.get(i.groupAccountId)!.accountType;
+        const result = pl.has(type) || EQUITY_TYPES.includes(type);
+        lines.push({
+          companyId: e.companyId,
+          counterpartId: i.counterpartId,
+          result,
+          amount: D(i.amount).times(
+            pl.has(type) ? e.averageRate : EQUITY_TYPES.includes(type) ? e.historicalRate : e.closingRate,
+          ),
+        });
+      }
+    }
+    const side = (result: boolean) =>
       intercompanyReconciliation(
         aggregated.map((e) => ({
           companyId: e.companyId,
           name: e.name,
-          intercompany: data.intercompany
-            .filter(
-              (i) =>
-                i.companyId === e.companyId &&
-                pl.has(accounts.get(i.groupAccountId)!.accountType) === (kind === "result"),
-            )
-            .map((i) => ({
-              counterpartId: i.counterpartId,
-              amount: D(i.amount).times(rate(e, i.groupAccountId)),
-            })),
+          intercompany: lines.filter((l) => l.companyId === e.companyId && l.result === result),
         })),
       );
-    return { balances: side("balance"), transactions: side("result") };
+    return { balances: side(false), transactions: side(true) };
   }
 
   async addManualEntry(tx: Db, runId: string, input: z.infer<typeof consolidationManualEntrySchema>) {

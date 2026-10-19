@@ -46,6 +46,8 @@ export const accounts = pgTable("accounts", {
   name: text("name").notNull(),
   accountType: text("account_type", { enum: ACCOUNT_TYPES }).notNull(),
   reconcile: boolean("reconcile").notNull().default(false),
+  /** Rekening antar kantor (RK pusat–cabang): saldo semua cabang harus saling hapus. */
+  branchClearing: boolean("branch_clearing").notNull().default(false),
   currencyCode: text("currency_code").references(() => currencies.code),
   active: boolean("active").notNull().default(true),
   ...audit,

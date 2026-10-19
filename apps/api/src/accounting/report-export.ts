@@ -1,20 +1,20 @@
 import ExcelJS from "exceljs";
 
-type Cell = string | number | null;
-interface Sheet {
+export type Cell = string | number | null;
+export interface Sheet {
   title: string;
   subtitle: string;
   columns: { header: string; width: number; numeric?: boolean }[];
   rows: { cells: Cell[]; bold?: boolean }[];
 }
 
-const num = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number(v));
+export const num = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number(v));
 interface SectionData {
   accounts: { code: string; name: string; amount: string }[];
   total: string;
 }
 
-function sectionRows(title: string, s: SectionData): Sheet["rows"] {
+export function sectionRows(title: string, s: SectionData): Sheet["rows"] {
   return [
     { cells: [title, null], bold: true },
     ...s.accounts.map((a) => ({
@@ -139,6 +139,32 @@ export function reportSheet(name: string, data: any): Sheet {
           }),
         ),
       };
+    case "branch-clearing":
+      return {
+        title: "Rekonsiliasi RK Pusat–Cabang",
+        subtitle: `Per ${data.date}`,
+        columns: [
+          { header: "Akun", width: 40 },
+          { header: "Cabang", width: 35 },
+          { header: "Saldo", width: 20, numeric: true },
+        ],
+        rows: [
+          ...data.accounts.flatMap(
+            (a: {
+              code: string;
+              name: string;
+              total: string;
+              branches: { branch: string; balance: string }[];
+            }) => [
+              ...a.branches.map((b) => ({
+                cells: [`${a.code} ${a.name}`, b.branch, num(b.balance)] as Cell[],
+              })),
+              { cells: [`${a.code} ${a.name}`, "Selisih (harus nol)", num(a.total)] as Cell[], bold: true },
+            ],
+          ),
+          { cells: ["Total selisih", "", num(data.total)], bold: true },
+        ],
+      };
     case "budget":
       return {
         title: `Anggaran vs Realisasi — ${data.budget.name}`,
@@ -168,25 +194,32 @@ export function reportSheet(name: string, data: any): Sheet {
 }
 
 export async function toXlsx(sheet: Sheet, company: string): Promise<Buffer> {
+  return toXlsxBook([sheet], company);
+}
+
+/** Satu workbook dengan beberapa lembar (mis. paket laporan konsolidasian). */
+export async function toXlsxBook(sheets: Sheet[], company: string): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "ERP";
-  const ws = wb.addWorksheet(sheet.title.slice(0, 31));
-  ws.addRow([company]).font = { bold: true, size: 13 };
-  ws.addRow([sheet.title]).font = { bold: true, size: 12 };
-  ws.addRow([sheet.subtitle]);
-  ws.addRow([]);
-  const header = ws.addRow(sheet.columns.map((c) => c.header));
-  header.font = { bold: true };
-  header.eachCell((cell) => (cell.border = { bottom: { style: "thin" } }));
-  sheet.columns.forEach((c, i) => {
-    const col = ws.getColumn(i + 1);
-    col.width = c.width;
-    if (c.numeric) col.numFmt = "#,##0.00;[Red]-#,##0.00";
-  });
-  for (const row of sheet.rows) {
-    const r = ws.addRow(row.cells);
-    if (row.bold) r.font = { bold: true };
+  for (const sheet of sheets) {
+    const ws = wb.addWorksheet(sheet.title.replace(/[\\/?*[\]:]/g, " ").slice(0, 31));
+    ws.addRow([company]).font = { bold: true, size: 13 };
+    ws.addRow([sheet.title]).font = { bold: true, size: 12 };
+    ws.addRow([sheet.subtitle]);
+    ws.addRow([]);
+    const header = ws.addRow(sheet.columns.map((c) => c.header));
+    header.font = { bold: true };
+    header.eachCell((cell) => (cell.border = { bottom: { style: "thin" } }));
+    sheet.columns.forEach((c, i) => {
+      const col = ws.getColumn(i + 1);
+      col.width = c.width;
+      if (c.numeric) col.numFmt = "#,##0.00;[Red]-#,##0.00";
+    });
+    for (const row of sheet.rows) {
+      const r = ws.addRow(row.cells);
+      if (row.bold) r.font = { bold: true };
+    }
+    ws.views = [{ state: "frozen", ySplit: 5 }];
   }
-  ws.views = [{ state: "frozen", ySplit: 5 }];
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
