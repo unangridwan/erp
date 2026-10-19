@@ -84,6 +84,10 @@ export const ownershipHistory = pgTable("ownership_history", {
   method: consolidationMethod("method").notNull(),
   validFrom: date("valid_from").notNull(),
   validTo: date("valid_to"),
+  /** Harga perolehan investasi (mata uang penyajian grup). */
+  consideration: numeric("consideration", { precision: 20, scale: 2 }),
+  /** Nilai wajar aset bersih entitas anak saat akuisisi (mata uang penyajian grup). */
+  acquiredNetAssets: numeric("acquired_net_assets", { precision: 20, scale: 2 }),
   ...audit,
 });
 

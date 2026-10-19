@@ -81,6 +81,16 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M32 20v20M14 40v-8h36v8" stroke="#875a7b" strokeWidth="3" fill="none" />
     </>
   ),
+  consolidation: (
+    <>
+      <rect x="6" y="8" width="20" height="14" rx="3" fill="#1ab7a6" />
+      <rect x="38" y="8" width="20" height="14" rx="3" fill="#f0a033" />
+      <path d="M16 22v8h32v-8M32 30v8" stroke="#875a7b" strokeWidth="3" fill="none" />
+      <rect x="16" y="38" width="32" height="18" rx="4" fill="#875a7b" />
+      <rect x="22" y="44" width="20" height="3" rx="1.5" fill="#fff" />
+      <rect x="22" y="49" width="12" height="3" rx="1.5" fill="#fff" />
+    </>
+  ),
   me: (
     <>
       <circle cx="32" cy="32" r="24" fill="#1ab7a6" />

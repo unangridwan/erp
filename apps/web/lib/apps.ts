@@ -265,6 +265,21 @@ export const APPS: App[] = [
     ],
   },
   {
+    id: "consolidation",
+    name: L("Konsolidasi", "Consolidation"),
+    home: "/consolidation/runs",
+    prefixes: ["/consolidation", "/group-accounts"],
+    menu: [
+      link("Proses Konsolidasi", "Consolidation Runs", "/consolidation/runs", "consolidation.read"),
+      group("Konfigurasi", "Configuration", [
+        link("Bagan Akun Grup", "Group Accounts", "/group-accounts", "consolidation.read"),
+        link("Pemetaan Akun", "Account Mapping", "/consolidation/mapping", "consolidation.read"),
+        link("Kepemilikan", "Ownership", "/ownerships", "company.read"),
+        link("Perusahaan", "Companies", "/companies", "company.read"),
+      ]),
+    ],
+  },
+  {
     id: "me",
     name: L("Portal Saya", "My Portal"),
     home: "/me",
@@ -294,7 +309,17 @@ export const APPS: App[] = [
 ];
 
 /** Modul paket langganan dari permission (mis. "hr.read" → "hr"); null = fitur inti. */
-const PLAN_MODULES = new Set(["accounting", "crm", "sales", "purchase", "inventory", "tax", "hr", "payroll"]);
+const PLAN_MODULES = new Set([
+  "accounting",
+  "crm",
+  "sales",
+  "purchase",
+  "inventory",
+  "tax",
+  "hr",
+  "payroll",
+  "consolidation",
+]);
 function planModule(permission: string) {
   const prefix = permission.split(".")[0] ?? "";
   return PLAN_MODULES.has(prefix) ? prefix : null;

@@ -11,3 +11,4 @@ export * from "./inventory.js";
 export * from "./payroll.js";
 export * from "./coretax.js";
 export * from "./billing.js";
+export * from "./consolidation.js";

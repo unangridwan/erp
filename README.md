@@ -171,6 +171,25 @@ Paket langganan: tenant baru mendapat uji coba (`TRIAL_PLAN`, `TRIAL_DAYS`). Mod
 melebihi batas pengguna/perusahaan ditolak, dan langganan yang berakhir (lewat `BILLING_GRACE_DAYS`) menjadi baca saja
 (402) kecuali halaman langganan. Lihat `docs/operations.md` untuk deployment produksi, backup, dan monitoring.
 
+### Konsolidasi Grup (Fase 5b)
+
+| Endpoint                                                                               | Keterangan                                                                           |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `/group-accounts`                                                                      | Bagan akun grup (peran khusus: investasi, goodwill, KNP, selisih kurs penjabaran, …) |
+| `POST /consolidation/bootstrap`, `POST /consolidation/mapping/auto`                    | Salin bagan akun perusahaan aktif + akun peran khusus; petakan akun berkode sama     |
+| `GET/PUT /consolidation/mapping?companyId=`                                            | Pemetaan akun perusahaan → akun grup                                                 |
+| `GET /consolidation/structure?rootCompanyId=&dateTo=`                                  | Pratinjau entitas, metode, kepemilikan langsung/efektif, kurs bawaan                 |
+| `GET/POST /consolidation/runs`, `GET/DELETE /consolidation/runs/:id`                   | Proses konsolidasi (draft/final) per induk & tanggal                                 |
+| `POST /consolidation/runs/:id/compute`                                                 | Hitung ulang (opsional `rates` per entitas: penutupan, rata-rata, historis)          |
+| `GET /consolidation/runs/:id/{worksheet[?format=csv],report,intercompany}`             | Kertas kerja, neraca & laba rugi konsolidasian (pemilik/KNP), rekonsiliasi IC        |
+| `POST /consolidation/runs/:id/entries`, `DELETE …/entries/:entryId`, `POST …/finalize` | Jurnal penyesuaian manual (top-side), finalisasi (harus seimbang)                    |
+
+Translasi: aset/liabilitas kurs penutupan, laba rugi kurs rata-rata, ekuitas kurs historis; selisihnya ke akun selisih
+kurs penjabaran. Entitas dikonsolidasi penuh (>50%), proporsional, atau metode ekuitas (asosiasi) sesuai Kepemilikan;
+isi `consideration` (harga perolehan) dan `acquiredNetAssets` (aset neto saat akuisisi) di Kepemilikan untuk goodwill.
+Eliminasi otomatis: investasi vs ekuitas anak (goodwill/KNP), saldo & transaksi antar perusahaan (baris jurnal dengan
+mitra IC), bagian laba KNP, dan metode ekuitas. Jurnal konsolidasi tidak menyentuh buku besar entitas.
+
 Konfirmasi SO membuat pengiriman; barang ditagih sesuai kuantitas terkirim (jasa sesuai kuantitas dipesan). Validasi
 transfer barang stok membuat jurnal di jurnal **STJ**: penerimaan Dr Persediaan / Cr Barang Diterima Belum Ditagih,
 pengiriman Dr HPP / Cr Persediaan, opname ke Selisih Persediaan. Tagihan dari PO mendebit Barang Diterima Belum Ditagih.

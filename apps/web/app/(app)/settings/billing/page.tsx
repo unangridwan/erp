@@ -55,6 +55,7 @@ const MODULE_LABEL: Record<string, string> = {
   tax: "Pajak Coretax",
   hr: "SDM",
   payroll: "Payroll",
+  consolidation: "Konsolidasi",
 };
 
 const date = (v: string | null, locale: "id" | "en") => (v ? formatDate(v.slice(0, 10), locale) : "—");

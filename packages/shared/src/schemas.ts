@@ -109,6 +109,8 @@ export const ownershipSchema = z.object({
   method: z.enum(CONSOLIDATION_METHODS),
   validFrom: z.string().date(),
   validTo: z.string().date().nullish(),
+  consideration: money.nullish(),
+  acquiredNetAssets: money.nullish(),
 });
 
 export const businessUnitSchema = z.object({
@@ -1035,7 +1037,9 @@ export const planSchema = z.object({
   priceYearly: nonNegative(2),
   maxUsers: z.coerce.number().int().positive().nullish(),
   maxCompanies: z.coerce.number().int().positive().nullish(),
-  modules: z.array(z.enum(["accounting", "crm", "sales", "purchase", "inventory", "tax", "hr", "payroll"])),
+  modules: z.array(
+    z.enum(["accounting", "crm", "sales", "purchase", "inventory", "tax", "hr", "payroll", "consolidation"]),
+  ),
   public: z.boolean().default(true),
   sort: z.coerce.number().int().default(0),
   active: z.boolean().default(true),
@@ -1047,4 +1051,73 @@ export const adminSubscriptionSchema = z.object({
   status: z.enum(["trialing", "active", "cancelled", "suspended"]).optional(),
   trialEndsAt: z.string().datetime({ offset: true }).nullish(),
   currentPeriodEnd: z.string().datetime({ offset: true }).nullish(),
+});
+
+// ---- Fase 5b: konsolidasi ----
+
+export const groupAccountSchema = z.object({
+  code: z.string().trim().min(1).max(20),
+  name: z.string().trim().min(1).max(200),
+  accountType: z.enum(ACCOUNT_TYPE_VALUES),
+  role: z
+    .enum([
+      "investment",
+      "goodwill",
+      "nci_equity",
+      "nci_profit",
+      "cta",
+      "retained_earnings",
+      "associate_investment",
+      "associate_income",
+      "ic_difference",
+    ])
+    .nullish(),
+  active: z.boolean().default(true),
+});
+
+export const accountMappingSchema = z.object({
+  companyId: z.string().uuid(),
+  items: z
+    .array(z.object({ accountId: z.string().uuid(), groupAccountId: z.string().uuid().nullable() }))
+    .max(2000),
+});
+
+const positiveRate = z
+  .union([z.number(), z.string()])
+  .transform(String)
+  .pipe(z.string().regex(/^\d+(\.\d{1,10})?$/));
+
+export const consolidationRatesSchema = z
+  .array(
+    z.object({
+      companyId: z.string().uuid(),
+      closingRate: positiveRate.optional(),
+      averageRate: positiveRate.optional(),
+      historicalRate: positiveRate.optional(),
+    }),
+  )
+  .default([]);
+
+export const consolidationRunSchema = z.object({
+  name: z.string().trim().max(200).nullish(),
+  rootCompanyId: z.string().uuid(),
+  dateTo: z.string().date(),
+  dateFrom: z.string().date().nullish(),
+  rates: consolidationRatesSchema,
+});
+
+export const consolidationComputeSchema = z.object({ rates: consolidationRatesSchema });
+
+export const consolidationManualEntrySchema = z.object({
+  description: z.string().trim().min(1).max(500),
+  lines: z
+    .array(
+      z.object({
+        groupAccountId: z.string().uuid(),
+        companyId: z.string().uuid().nullish(),
+        debit: nonNegative(2).default("0"),
+        credit: nonNegative(2).default("0"),
+      }),
+    )
+    .min(2, "Minimal dua baris"),
 });
