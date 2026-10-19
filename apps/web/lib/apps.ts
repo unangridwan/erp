@@ -203,11 +203,13 @@ export const APPS: App[] = [
     menu: [
       link("Faktur Keluaran", "Output Invoices", "/tax/invoices", "tax.read"),
       link("Faktur Masukan", "Input Invoices", "/tax/input", "tax.read"),
+      link("Nota Retur", "Returns", "/tax/returns", "tax.read"),
       link("Bukti Potong", "Withholding", "/tax/withholding", "tax.read"),
       group("Laporan", "Reporting", [link("Rekap PPN", "VAT Summary", "/tax/vat", "tax.read")]),
       group("Konfigurasi", "Configuration", [
         link("Pajak", "Taxes", "/taxes", "accounting.read"),
         link("Profil pajak perusahaan", "Company tax profile", "/onboarding", "company.write"),
+        link("NSFP e-Faktur lama", "Legacy e-Faktur serials", "/tax/nsfp", "tax.read"),
       ]),
     ],
   },

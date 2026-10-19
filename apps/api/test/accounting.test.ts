@@ -62,7 +62,8 @@ describe.skipIf(!hasDb)("Fase 1: akuntansi inti", () => {
         expect.arrayContaining(["1-1100", "1-1300", "2-1100", "2-1200", "4-1000", "6-5000"]),
       );
       expect(Object.keys(jr).sort()).toEqual(["BILL", "BNK1", "CSH1", "INV", "MISC", "SAL", "STJ"]);
-      expect(Object.keys(tax)).toHaveLength(6);
+      // PPN 11/12 & mewah (keluaran/masukan), PPnBM 10%/20%, PPh 23 (dipotong/dipotong pelanggan).
+      expect(Object.keys(tax)).toHaveLength(8);
       const settings = (await a.get("/accounting/settings").expect(200)).body;
       expect(settings).toMatchObject({
         receivableAccountId: acc["1-1300"],

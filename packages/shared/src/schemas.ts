@@ -213,6 +213,16 @@ export const productSchema = z.object({
     .regex(/^\d{6}$/, "Kode barang/jasa Coretax 6 digit")
     .nullish()
     .or(z.literal("").transform(() => null)),
+  /** Tarif PPnBM (%) untuk barang mewah; kosong = bukan barang kena PPnBM. */
+  luxuryTaxRate: z.preprocess(
+    (v) => (v === "" || v === undefined ? null : v),
+    z.coerce
+      .number()
+      .positive()
+      .max(200)
+      .transform((v) => v.toFixed(2))
+      .nullable(),
+  ),
   /** Satuan bawaan penjualan/pembelian (kosong = satuan produk). */
   saleUomId: optionalUuid,
   purchaseUomId: optionalUuid,
@@ -319,7 +329,7 @@ export const taxSchema = z.object({
   amount: decimalString(4),
   baseRatio: decimalString(10).default("1"),
   accountId: z.string().uuid(),
-  taxKind: z.enum(["vat", "vat_luxury", "pph23", "pph4_2", "pph22", "other"]).default("other"),
+  taxKind: z.enum(["vat", "vat_luxury", "ppnbm", "pph23", "pph4_2", "pph22", "other"]).default("other"),
   taxObjectCode: z
     .string()
     .trim()
@@ -1132,7 +1142,17 @@ export const inputTaxCreditSchema = z.object({
   ...period,
 });
 
-export const withholdingGenerateSchema = z.object({ kind: z.enum(["bppu", "bpmp"]), ...period });
+export const withholdingGenerateSchema = z.object({ kind: z.enum(["bppu", "bpmp", "bpa1"]), ...period });
+
+/** Rentang NSFP e-Faktur 3.x (13 digit, tanda baca boleh). */
+export const nsfpRangeSchema = z.object({
+  start: z.string().trim().min(13).max(20),
+  end: z.string().trim().min(13).max(20),
+  note: optionalText,
+});
+
+export const taxReturnGenerateSchema = z.object({ ...period });
+export const taxReturnUpdateSchema = z.object({ inputTaxInvoiceId: z.string().uuid().nullable() });
 
 export const withholdingUpdateSchema = z.object({
   counterpartTin: z

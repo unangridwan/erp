@@ -1,7 +1,8 @@
-import { date, integer, numeric, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { date, integer, jsonb, numeric, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { audit, tenantId } from "./core.js";
 
 export const TAX_DOC_STATES = ["draft", "exported", "approved", "cancelled"] as const;
+export const TAX_INVOICE_STATES = ["draft", "exported", "approved", "replaced", "cancelled"] as const;
 
 /** Faktur pajak keluaran: salinan data faktur saat dibuat, siap diekspor ke XML Coretax. */
 export const taxInvoices = pgTable("tax_invoices", {
@@ -9,7 +10,7 @@ export const taxInvoices = pgTable("tax_invoices", {
   tenantId: tenantId(),
   companyId: uuid("company_id").notNull(),
   moveId: uuid("move_id").notNull(),
-  state: text("state", { enum: TAX_DOC_STATES }).notNull().default("draft"),
+  state: text("state", { enum: TAX_INVOICE_STATES }).notNull().default("draft"),
   trxCode: text("trx_code").notNull(),
   addInfo: text("add_info"),
   facilityStamp: text("facility_stamp"),
@@ -34,6 +35,15 @@ export const taxInvoices = pgTable("tax_invoices", {
   efakturNumber: text("efaktur_number"),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   batchId: uuid("batch_id"),
+  /** 0 = normal, 1 = uang muka, 2 = pelunasan. */
+  downPayment: smallint("down_payment").notNull().default(0),
+  downPaymentTaxBase: numeric("down_payment_tax_base", { precision: 20, scale: 2 }).notNull().default("0"),
+  downPaymentVat: numeric("down_payment_vat", { precision: 20, scale: 2 }).notNull().default("0"),
+  downPaymentStlg: numeric("down_payment_stlg", { precision: 20, scale: 2 }).notNull().default("0"),
+  replacesId: uuid("replaces_id"),
+  replacedNumber: text("replaced_number"),
+  /** NSFP 13 digit e-Faktur 3.x (pra-Coretax). */
+  nsfp: text("nsfp"),
   ...audit,
 });
 
@@ -61,7 +71,9 @@ export const taxExportBatches = pgTable("tax_export_batches", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
   companyId: uuid("company_id").notNull(),
-  kind: text("kind", { enum: ["efaktur", "bppu", "bpmp"] }).notNull(),
+  kind: text("kind", {
+    enum: ["efaktur", "bppu", "bpmp", "bpa1", "efaktur_legacy", "retur_legacy"],
+  }).notNull(),
   fileName: text("file_name").notNull(),
   content: text("content").notNull(),
   recordCount: integer("record_count").notNull(),
@@ -96,7 +108,7 @@ export const withholdingSlips = pgTable("withholding_slips", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
   companyId: uuid("company_id").notNull(),
-  kind: text("kind", { enum: ["bppu", "bpmp"] }).notNull(),
+  kind: text("kind", { enum: ["bppu", "bpmp", "bpa1"] }).notNull(),
   state: text("state", { enum: TAX_DOC_STATES }).notNull().default("draft"),
   periodMonth: smallint("period_month").notNull(),
   periodYear: smallint("period_year").notNull(),
@@ -122,5 +134,51 @@ export const withholdingSlips = pgTable("withholding_slips", {
   withholdingDate: date("withholding_date").notNull(),
   bupotNumber: text("bupot_number"),
   batchId: uuid("batch_id"),
+  /** BPA1: masa awal–akhir dan rincian penghasilan setahun. */
+  monthStart: smallint("month_start"),
+  monthEnd: smallint("month_end"),
+  details: jsonb("details").$type<{
+    salary: string;
+    otherBenefit: string;
+    insurance: string;
+    bonus: string;
+    pensionContribution: string;
+  }>(),
+  ...audit,
+});
+
+/** Rentang NSFP e-Faktur 3.x yang diberikan DJP. */
+export const nsfpRanges = pgTable("nsfp_ranges", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  prefix: text("prefix").notNull(),
+  serialFrom: integer("serial_from").notNull(),
+  serialTo: integer("serial_to").notNull(),
+  nextSerial: integer("next_serial").notNull(),
+  note: text("note"),
+  createdBy: uuid("created_by"),
+  createdAt: audit.createdAt,
+  updatedAt: audit.updatedAt,
+});
+
+/** Nota retur pajak masukan (dari nota debit atas tagihan ber-faktur pajak). */
+export const taxReturns = pgTable("tax_returns", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  moveId: uuid("move_id").notNull(),
+  inputTaxInvoiceId: uuid("input_tax_invoice_id"),
+  state: text("state", { enum: TAX_DOC_STATES }).notNull().default("draft"),
+  returnNumber: text("return_number").notNull(),
+  returnDate: date("return_date").notNull(),
+  periodMonth: smallint("period_month").notNull(),
+  periodYear: smallint("period_year").notNull(),
+  taxBase: numeric("tax_base", { precision: 20, scale: 2 }).notNull().default("0"),
+  vat: numeric("vat", { precision: 20, scale: 2 }).notNull().default("0"),
+  stlg: numeric("stlg", { precision: 20, scale: 2 }).notNull().default("0"),
+  coretaxNumber: text("coretax_number"),
+  batchId: uuid("batch_id"),
+  createdBy: uuid("created_by"),
   ...audit,
 });

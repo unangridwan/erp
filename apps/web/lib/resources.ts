@@ -78,6 +78,7 @@ const UOM_CODES: [string, Text][] = Object.entries(CORETAX_UOM_CODES).map(([k, v
 const TAX_KINDS: [string, Text][] = [
   ["vat", L("PPN (DPP nilai lain)", "VAT (other tax base)")],
   ["vat_luxury", L("PPN barang mewah", "VAT luxury goods")],
+  ["ppnbm", L("PPnBM (pajak penjualan barang mewah)", "Luxury goods sales tax (PPnBM)")],
   ["pph23", L("PPh 23", "Income tax art. 23")],
   ["pph4_2", L("PPh 4 ayat 2", "Final income tax 4(2)")],
   ["pph22", L("PPh 22", "Income tax art. 22")],
@@ -254,6 +255,14 @@ export const RESOURCES: Resource[] = [
         name: "taxGoodsCode",
         label: L("Kode barang/jasa Coretax (6 digit)", "Coretax goods/service code (6 digits)"),
         type: "text",
+      },
+      {
+        name: "luxuryTaxRate",
+        label: L(
+          "Tarif PPnBM % (barang mewah; kosong = tidak kena)",
+          "PPnBM rate % (luxury goods; empty = none)",
+        ),
+        type: "number",
       },
       {
         name: "tracking",
@@ -1612,6 +1621,7 @@ export const TAX_DOC_STATE_LABEL: Record<string, Text> = {
   draft: L("Draft", "Draft"),
   exported: L("Diekspor", "Exported"),
   approved: L("Terbit", "Approved"),
+  replaced: L("Diganti", "Replaced"),
   cancelled: L("Batal", "Cancelled"),
 };
 

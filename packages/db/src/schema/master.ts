@@ -187,6 +187,8 @@ export const products = pgTable("products", {
     .notNull()
     .default("average"),
   taxGoodsCode: text("tax_goods_code"),
+  /** Tarif PPnBM (%); baris penjualan memakai PPN barang mewah + pajak PPnBM perusahaan bertarif ini. */
+  luxuryTaxRate: numeric("luxury_tax_rate", { precision: 5, scale: 2 }),
   /** Satuan bawaan baris penjualan/pembelian (kosong = satuan produk), sekategori dengan `uomId`. */
   saleUomId: uuid("sale_uom_id"),
   purchaseUomId: uuid("purchase_uom_id"),

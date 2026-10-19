@@ -53,6 +53,7 @@ const ACCOUNTS: {
     reconcile: true,
   },
   { key: "vatOut", code: "2-1200", name: "PPN Keluaran", type: "liability_current" },
+  { key: "ppnbmOut", code: "2-1210", name: "Utang PPnBM", type: "liability_current" },
   { code: "2-1300", name: "Utang PPh 21", type: "liability_current" },
   { key: "pph23Payable", code: "2-1310", name: "Utang PPh 23", type: "liability_current" },
   { code: "2-1320", name: "Utang PPh 4 Ayat 2", type: "liability_current" },
@@ -148,6 +149,14 @@ const TAXES: {
     account: "vatOut",
     kind: "vat_luxury",
   },
+  ...[10, 20].map((rate) => ({
+    name: `PPnBM ${rate}%`,
+    use: "sale" as const,
+    amount: String(rate),
+    baseRatio: "1",
+    account: "ppnbmOut",
+    kind: "ppnbm" as const,
+  })),
   {
     name: "PPh 23 2% (dipotong pelanggan)",
     use: "sale",

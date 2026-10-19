@@ -1,7 +1,9 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { and, asc, desc, eq, inArray, schema, sql, type Db, type SQL } from "@erp/db";
 import {
+  PPH21_A1_OBJECT_CODE,
   PPH21_PERMANENT_OBJECT_CODE,
+  bpa1Xml,
   bpmpXml,
   bppuXml,
   idtku,
@@ -15,7 +17,7 @@ import { EmployeeService } from "../hr/employee.service.js";
 import { companyTaxIds, periodRange, xmlFileName } from "./company-tax.js";
 
 const W = schema.withholdingSlips;
-type Kind = "bppu" | "bpmp";
+type Kind = "bppu" | "bpmp" | "bpa1";
 
 @Injectable()
 export class WithholdingService {
@@ -44,9 +46,115 @@ export class WithholdingService {
   async generate(tx: Db, input: { kind: Kind; year: number; month: number }) {
     const companyId = currentContext().companyId;
     const withholder = await companyTaxIds(tx, companyId);
-    return input.kind === "bppu"
-      ? this.generateBppu(tx, companyId, withholder.idtku, input)
-      : this.generateBpmp(tx, companyId, withholder.idtku, input);
+    if (input.kind === "bppu") return this.generateBppu(tx, companyId, withholder.idtku, input);
+    if (input.kind === "bpa1") return this.generateBpa1(tx, companyId, withholder.idtku, input);
+    return this.generateBpmp(tx, companyId, withholder.idtku, input);
+  }
+
+  /**
+   * BPA1 untuk slip masa pajak terakhir (Desember atau bulan karyawan keluar) pada masa itu: penghasilan setahun dari
+   * slip-slip yang diposting di tahun yang sama, PPh 21 terutang setahun dari perhitungan tahunan slip terakhir.
+   */
+  private async generateBpa1(
+    tx: Db,
+    companyId: string,
+    withholderIdtku: string,
+    input: { year: number; month: number },
+  ) {
+    const { from } = periodRange(input.year, input.month);
+    const finals = await tx
+      .select({
+        slip: schema.payslips,
+        run: schema.payrollRuns,
+        employee: schema.employees,
+        position: schema.jobPositions.name,
+      })
+      .from(schema.payslips)
+      .innerJoin(schema.payrollRuns, eq(schema.payrollRuns.id, schema.payslips.runId))
+      .innerJoin(schema.employees, eq(schema.employees.id, schema.payslips.employeeId))
+      .leftJoin(schema.jobPositions, eq(schema.jobPositions.id, schema.employees.jobId))
+      .where(
+        and(
+          eq(schema.payslips.companyId, companyId),
+          eq(schema.payslips.isFinal, true),
+          eq(schema.payrollRuns.periodStart, from),
+          inArray(schema.payrollRuns.state, ["done", "paid"]),
+          sql`not exists (select 1 from withholding_slips w where w.payslip_id = ${schema.payslips.id}
+                          and w.kind = 'bpa1' and w.state <> 'cancelled')`,
+        ),
+      )
+      .orderBy(asc(schema.employees.name));
+    const created: string[] = [];
+    const skipped: { name: string; reason: string }[] = [];
+    for (const { slip, run, employee, position } of finals) {
+      const annual = slip.annual as { tax?: string } | null;
+      if (!annual?.tax) {
+        skipped.push({ name: employee.name, reason: "Slip terakhir tanpa perhitungan PPh 21 setahun" });
+        continue;
+      }
+      const [t] = await tx.execute<{
+        month_start: number;
+        salary: string;
+        other: string;
+        bonus: string;
+        insurance: string;
+        pension: string;
+      }>(sql`
+        select min(extract(month from r.period_start))::int as month_start,
+          coalesce(sum(pl.amount) filter (where pl.category in ('basic', 'unpaid')), 0)::text as salary,
+          coalesce(sum(pl.amount) filter (where (pl.category = 'allowance' and coalesce(c.taxable, true)
+            and not (pl.code ~* '^(THR|BONUS|TANTIEM)' or pl.name ~* '(THR|bonus|tantiem|gratifikasi)'))
+            or pl.category = 'overtime'), 0)::text as other,
+          coalesce(sum(pl.amount) filter (where pl.category = 'allowance' and coalesce(c.taxable, true)
+            and (pl.code ~* '^(THR|BONUS|TANTIEM)' or pl.name ~* '(THR|bonus|tantiem|gratifikasi)')), 0)::text as bonus,
+          coalesce(sum(pl.amount) filter (where pl.category = 'bpjs_employer' and pl.code in ('JKK', 'JKM', 'BPJS_KES_ER')), 0)::text as insurance,
+          coalesce(-sum(pl.amount) filter (where pl.category = 'bpjs_employee' and pl.code in ('JHT_EE', 'JP_EE')), 0)::text as pension
+        from payslip_lines pl
+        join payslips s on s.id = pl.payslip_id
+        join payroll_runs r on r.id = s.run_id
+        left join salary_components c on c.id = pl.component_id
+        where s.employee_id = ${employee.id} and s.company_id = ${companyId}
+          and r.state in ('done', 'paid')
+          and r.period_start between ${`${input.year}-01-01`} and ${from}`);
+      const data = this.employees.decrypted(employee);
+      const tin = tin16(data.npwp) ?? tin16(data.nik);
+      const details = {
+        salary: new Decimal(t!.salary).toFixed(0),
+        otherBenefit: new Decimal(t!.other).toFixed(0),
+        insurance: new Decimal(t!.insurance).toFixed(0),
+        bonus: new Decimal(t!.bonus).toFixed(0),
+        pensionContribution: new Decimal(t!.pension).toFixed(0),
+      };
+      const gross = Object.entries(details)
+        .filter(([k]) => k !== "pensionContribution")
+        .reduce((s, [, v]) => s.plus(v), new Decimal(0));
+      const [row] = await tx
+        .insert(W)
+        .values({
+          companyId,
+          kind: "bpa1",
+          periodYear: input.year,
+          periodMonth: input.month,
+          monthStart: t!.month_start,
+          monthEnd: input.month,
+          details,
+          employeeId: employee.id,
+          payslipId: slip.id,
+          counterpartName: employee.name,
+          counterpartTin: tin,
+          ptkpStatus: slip.ptkpStatus,
+          position: position ?? "Pegawai",
+          taxObjectCode: PPH21_A1_OBJECT_CODE,
+          taxBase: gross.toFixed(2),
+          rate: "0",
+          taxAmount: new Decimal(annual.tax).toFixed(2),
+          withholderIdtku,
+          withholdingDate: run.paymentDate,
+        })
+        .returning({ id: W.id });
+      created.push(row!.id);
+    }
+    return { created: created.length, ids: created, skipped };
   }
 
   private async generateBppu(
@@ -214,7 +322,7 @@ export class WithholdingService {
     if (slips.length !== new Set(ids).size)
       throw new NotFoundException("Sebagian bukti potong tidak ditemukan");
     const kinds = new Set(slips.map((s) => s.kind));
-    if (kinds.size > 1) throw new BadRequestException("Ekspor BPPU dan BPMP dalam berkas terpisah");
+    if (kinds.size > 1) throw new BadRequestException("Ekspor BPPU, BPMP, dan BPA1 dalam berkas terpisah");
     const kind = slips[0]!.kind;
     const problems: string[] = [];
     for (const s of slips) {
@@ -231,44 +339,66 @@ export class WithholdingService {
       });
 
     const content =
-      kind === "bppu"
-        ? bppuXml(
+      kind === "bpa1"
+        ? bpa1Xml(
             withholder.tin,
             slips.map((s) => ({
-              periodMonth: s.periodMonth,
               periodYear: s.periodYear,
+              monthStart: s.monthStart ?? 1,
+              monthEnd: s.monthEnd ?? s.periodMonth,
               counterpartTin: s.counterpartTin!,
-              counterpartIdtku: s.counterpartIdtku!,
-              taxCertificate: s.taxCertificate,
+              ptkpStatus: s.ptkpStatus ?? "TK/0",
+              position: s.position ?? "Pegawai",
               taxObjectCode: s.taxObjectCode!,
-              taxBase: s.taxBase,
-              rate: s.rate,
-              documentType: s.documentType ?? "CommercialInvoice",
-              documentNumber: s.documentNumber ?? "",
-              documentDate: s.documentDate ?? s.withholdingDate,
+              salary: s.details?.salary ?? 0,
+              otherBenefit: s.details?.otherBenefit ?? 0,
+              insurance: s.details?.insurance ?? 0,
+              bonus: s.details?.bonus ?? 0,
+              pensionContribution: s.details?.pensionContribution ?? 0,
+              pph21: s.taxAmount,
+              taxCertificate: s.taxCertificate,
               withholderIdtku: s.withholderIdtku,
               withholdingDate: s.withholdingDate,
             })),
           )
-        : bpmpXml(
-            withholder.tin,
-            slips.map((s) => ({
-              periodMonth: s.periodMonth,
-              periodYear: s.periodYear,
-              counterpartTin: s.counterpartTin!,
-              ptkpStatus: s.ptkpStatus ?? "TK/0",
-              position: s.position ?? "Pegawai",
-              taxCertificate: s.taxCertificate,
-              taxObjectCode: s.taxObjectCode!,
-              gross: s.taxBase,
-              rate: s.rate,
-              withholderIdtku: s.withholderIdtku,
-              withholdingDate: s.withholdingDate,
-            })),
-          );
+        : kind === "bppu"
+          ? bppuXml(
+              withholder.tin,
+              slips.map((s) => ({
+                periodMonth: s.periodMonth,
+                periodYear: s.periodYear,
+                counterpartTin: s.counterpartTin!,
+                counterpartIdtku: s.counterpartIdtku!,
+                taxCertificate: s.taxCertificate,
+                taxObjectCode: s.taxObjectCode!,
+                taxBase: s.taxBase,
+                rate: s.rate,
+                documentType: s.documentType ?? "CommercialInvoice",
+                documentNumber: s.documentNumber ?? "",
+                documentDate: s.documentDate ?? s.withholdingDate,
+                withholderIdtku: s.withholderIdtku,
+                withholdingDate: s.withholdingDate,
+              })),
+            )
+          : bpmpXml(
+              withholder.tin,
+              slips.map((s) => ({
+                periodMonth: s.periodMonth,
+                periodYear: s.periodYear,
+                counterpartTin: s.counterpartTin!,
+                ptkpStatus: s.ptkpStatus ?? "TK/0",
+                position: s.position ?? "Pegawai",
+                taxCertificate: s.taxCertificate,
+                taxObjectCode: s.taxObjectCode!,
+                gross: s.taxBase,
+                rate: s.rate,
+                withholderIdtku: s.withholderIdtku,
+                withholdingDate: s.withholdingDate,
+              })),
+            );
     const first = slips[0]!;
     const fileName = xmlFileName(
-      kind === "bppu" ? "bupot-unifikasi" : "bupot-pph21",
+      kind === "bppu" ? "bupot-unifikasi" : kind === "bpa1" ? "bupot-a1" : "bupot-pph21",
       first.periodYear,
       first.periodMonth,
     );

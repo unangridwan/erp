@@ -34,6 +34,7 @@ export const taxStateClass = (state: string) =>
     exported: "state-sent",
     approved: "state-posted",
     cancelled: "state-cancel",
+    replaced: "state-cancel",
     credited: "state-posted",
     not_credited: "state-cancel",
     new: "state-draft",

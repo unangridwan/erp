@@ -7,18 +7,27 @@ import {
 } from "@nestjs/common";
 import { and, asc, desc, eq, inArray, schema, sql, type Db, type SQL } from "@erp/db";
 import {
+  allocateDeductions,
   efakturXml,
   idtku,
   isApprovedStatus,
+  legacyEfakturCsv,
+  legacyTrxCode,
+  npwp15,
+  nsfpAt,
+  nsfpRange,
   parseCoretaxNumbers,
   parseCsv,
   parseInputTaxInvoices,
   taxInvoiceLine,
   taxInvoiceTotals,
   tin16,
+  validateTaxInvoiceDoc,
   vatPosition,
   type BuyerDocument,
+  type TaxInvoiceDoc,
   type TrxCode,
+  type nsfpRangeSchema,
   type taxInvoiceUpdateSchema,
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
@@ -34,6 +43,8 @@ const VAT_KINDS = ["vat", "vat_luxury"] as const;
 
 type Header = Omit<typeof TI.$inferInsert, "companyId" | "moveId">;
 type LineRow = Omit<typeof TIL.$inferInsert, "taxInvoiceId">;
+
+const validateDocs = (docs: TaxInvoiceDoc[]) => docs.flatMap((d) => validateTaxInvoiceDoc(d));
 
 @Injectable()
 export class TaxInvoiceService {
@@ -132,55 +143,15 @@ export class TaxInvoiceService {
       throw new NotFoundException("Sebagian faktur pajak tidak ditemukan");
     const bad = docs.find((d) => d.state !== "draft" && d.state !== "exported");
     if (bad) throw new BadRequestException(`Faktur pajak ${bad.ref} berstatus ${bad.state}`);
-    const facility = docs.find(
-      (d) => (d.trxCode === "07" || d.trxCode === "08") && (!d.addInfo || !d.facilityStamp),
-    );
-    if (facility)
+    const replacement = docs.find((d) => d.replacesId);
+    if (replacement)
       throw new BadRequestException(
-        `Faktur pajak ${facility.ref} (kode ${facility.trxCode}) butuh keterangan tambahan & cap fasilitas`,
+        `Faktur pajak ${replacement.ref} adalah faktur pengganti: buat lewat Coretax (Faktur Keluaran → pilih faktur ` +
+          `${replacement.replacedNumber ?? ""} → Ganti), lalu catat nomornya di sini. Impor XML Coretax hanya untuk faktur normal.`,
       );
-    const lines = await tx
-      .select()
-      .from(TIL)
-      .where(inArray(TIL.taxInvoiceId, ids))
-      .orderBy(asc(TIL.sequence));
-    const content = efakturXml(
-      seller.tin,
-      docs.map((d) => ({
-        invoiceDate: d.invoiceDate,
-        trxCode: d.trxCode as TrxCode,
-        addInfo: d.addInfo,
-        customDoc: d.customDoc,
-        facilityStamp: d.facilityStamp,
-        ref: d.ref,
-        sellerIdtku: d.sellerIdtku,
-        buyerTin: d.buyerTin,
-        buyerDocument: d.buyerDocument as BuyerDocument,
-        buyerDocumentNumber: d.buyerDocumentNumber,
-        buyerCountry: d.buyerCountry,
-        buyerName: d.buyerName,
-        buyerAddress: d.buyerAddress,
-        buyerEmail: d.buyerEmail,
-        buyerIdtku: d.buyerIdtku,
-        lines: lines
-          .filter((l) => l.taxInvoiceId === d.id)
-          .map((l) => ({
-            opt: l.opt,
-            code: l.code,
-            name: l.name,
-            unit: l.unit,
-            price: l.price,
-            qty: new Decimal(l.qty).toString(),
-            totalDiscount: l.totalDiscount,
-            taxBase: l.taxBase,
-            otherTaxBase: l.otherTaxBase,
-            vatRate: new Decimal(l.vatRate).toString(),
-            vat: l.vat,
-            stlgRate: new Decimal(l.stlgRate).toString(),
-            stlg: l.stlg,
-          })),
-      })),
-    );
+    const xmlDocs = await this.toDocs(tx, docs);
+    this.assertValid(xmlDocs);
+    const content = efakturXml(seller.tin, xmlDocs);
     const first = docs[0]!;
     const fileName = xmlFileName("faktur-keluaran", first.periodYear, first.periodMonth);
     const [batch] = await tx
@@ -214,6 +185,11 @@ export class TaxInvoiceService {
       .update(TI)
       .set({ state: "approved", efakturNumber: number, approvedAt: sql`now()`, updatedAt: sql`now()` })
       .where(eq(TI.id, id));
+    if (doc.replacesId)
+      await tx
+        .update(TI)
+        .set({ state: "replaced", updatedAt: sql`now()` })
+        .where(eq(TI.id, doc.replacesId));
     await this.activity.log(tx, {
       resModel: "account_move",
       resId: doc.moveId,
@@ -250,6 +226,297 @@ export class TaxInvoiceService {
       approved++;
     }
     return { approved, unmatched };
+  }
+
+  /** Periksa isi faktur sebelum diunggah (aturan template impor Coretax) tanpa mengekspor. */
+  async check(tx: Db, ids: string[]) {
+    const docs = await tx
+      .select()
+      .from(TI)
+      .where(and(inArray(TI.id, ids), eq(TI.companyId, currentContext().companyId)));
+    const errors = validateDocs(await this.toDocs(tx, docs));
+    return { checked: docs.length, errors };
+  }
+
+  /**
+   * Faktur pengganti atas faktur yang sudah terbit (data faktur penjualan berubah): draft baru dihitung ulang dari
+   * faktur penjualan, menunjuk faktur lama. Saat nomor pengganti dicatat, faktur lama berstatus "diganti".
+   */
+  async replace(tx: Db, id: string) {
+    const doc = await this.find(tx, id);
+    if (doc.state !== "approved" || !doc.efakturNumber)
+      throw new BadRequestException("Hanya faktur pajak yang sudah terbit (bernomor) yang bisa diganti");
+    const [pending] = await tx
+      .select({ id: TI.id })
+      .from(TI)
+      .where(and(eq(TI.replacesId, id), inArray(TI.state, ["draft", "exported"])));
+    if (pending) throw new ConflictException("Faktur pengganti untuk faktur ini sudah ada");
+    const seller = await companyTaxIds(tx, doc.companyId);
+    const snapshot = await this.snapshot(tx, doc.moveId, seller.idtku, {
+      trxCode: doc.trxCode as TrxCode,
+      addInfo: doc.addInfo,
+      facilityStamp: doc.facilityStamp,
+      customDoc: doc.customDoc,
+    });
+    const [row] = await tx
+      .insert(TI)
+      .values({
+        ...snapshot.header,
+        companyId: doc.companyId,
+        moveId: doc.moveId,
+        replacesId: doc.id,
+        replacedNumber: doc.efakturNumber,
+        // e-Faktur lama: faktur pengganti memakai NSFP yang sama (FG_PENGGANTI = 1).
+        nsfp: doc.nsfp,
+      })
+      .returning({ id: TI.id });
+    await tx.insert(TIL).values(snapshot.lines.map((l) => ({ ...l, taxInvoiceId: row!.id })));
+    await this.activity.log(tx, {
+      resModel: "account_move",
+      resId: doc.moveId,
+      action: "update",
+      message: `Draft faktur pajak pengganti atas ${doc.efakturNumber} dibuat`,
+    });
+    return this.get(tx, row!.id);
+  }
+
+  // ---- e-Faktur 3.x (pra-Coretax) ----
+
+  async listNsfp(tx: Db) {
+    const R = schema.nsfpRanges;
+    const rows = await tx
+      .select()
+      .from(R)
+      .where(eq(R.companyId, currentContext().companyId))
+      .orderBy(asc(R.prefix), asc(R.serialFrom));
+    return rows.map((r) => ({
+      ...r,
+      start: nsfpAt(r.prefix, r.serialFrom),
+      end: nsfpAt(r.prefix, r.serialTo),
+      used: r.nextSerial - r.serialFrom,
+      remaining: r.serialTo - r.nextSerial + 1,
+    }));
+  }
+
+  async createNsfp(tx: Db, input: z.infer<typeof nsfpRangeSchema>) {
+    let range: ReturnType<typeof nsfpRange>;
+    try {
+      range = nsfpRange(input.start, input.end);
+    } catch (e) {
+      throw new BadRequestException((e as Error).message);
+    }
+    const companyId = currentContext().companyId;
+    const R = schema.nsfpRanges;
+    const [overlap] = await tx
+      .select({ id: R.id })
+      .from(R)
+      .where(
+        and(
+          eq(R.companyId, companyId),
+          eq(R.prefix, range.prefix),
+          sql`${R.serialFrom} <= ${range.to} and ${R.serialTo} >= ${range.from}`,
+        ),
+      );
+    if (overlap) throw new ConflictException("Rentang NSFP bertumpang tindih dengan rentang yang sudah ada");
+    await tx.insert(R).values({
+      companyId,
+      prefix: range.prefix,
+      serialFrom: range.from,
+      serialTo: range.to,
+      nextSerial: range.from,
+      note: input.note ?? null,
+      createdBy: currentContext().userId,
+    });
+    return this.listNsfp(tx);
+  }
+
+  async deleteNsfp(tx: Db, id: string) {
+    const R = schema.nsfpRanges;
+    const [r] = await tx
+      .select()
+      .from(R)
+      .where(and(eq(R.id, id), eq(R.companyId, currentContext().companyId)));
+    if (!r) throw new NotFoundException("Rentang NSFP tidak ditemukan");
+    if (r.nextSerial > r.serialFrom) throw new BadRequestException("Rentang NSFP sudah terpakai");
+    await tx.delete(R).where(eq(R.id, id));
+  }
+
+  /**
+   * Ekspor CSV impor e-Faktur 3.x untuk PKP yang masih memakai aplikasi e-Faktur (mis. ditetapkan DJP) atau untuk
+   * faktur masa pra-Coretax. NSFP diambil berurutan dari rentang tahun faktur; faktur pengganti memakai NSFP faktur
+   * yang diganti dengan FG_PENGGANTI 1.
+   */
+  async exportLegacy(tx: Db, ids: string[]) {
+    const companyId = currentContext().companyId;
+    const docs = await tx
+      .select()
+      .from(TI)
+      .where(and(inArray(TI.id, ids), eq(TI.companyId, companyId)))
+      .orderBy(asc(TI.invoiceDate), asc(TI.ref));
+    if (docs.length !== new Set(ids).size)
+      throw new NotFoundException("Sebagian faktur pajak tidak ditemukan");
+    const bad = docs.find((d) => d.state !== "draft" && d.state !== "exported");
+    if (bad) throw new BadRequestException(`Faktur pajak ${bad.ref} berstatus ${bad.state}`);
+    this.assertValid(await this.toDocs(tx, docs));
+    for (const d of docs) {
+      if (d.nsfp) continue;
+      if (d.replacesId)
+        throw new BadRequestException(
+          `Faktur yang diganti oleh ${d.ref} tidak punya NSFP (bukan e-Faktur lama) — buat penggantinya di Coretax`,
+        );
+      d.nsfp = await this.nextNsfp(tx, companyId, d.periodYear);
+      await tx.update(TI).set({ nsfp: d.nsfp }).where(eq(TI.id, d.id));
+    }
+    const lines = await tx
+      .select()
+      .from(TIL)
+      .where(inArray(TIL.taxInvoiceId, ids))
+      .orderBy(asc(TIL.sequence));
+    const content = legacyEfakturCsv(
+      docs.map((d) => {
+        const own = lines.filter((l) => l.taxInvoiceId === d.id);
+        return {
+          trxCode: legacyTrxCode(
+            d.trxCode as TrxCode,
+            own.some((l) => !new Decimal(l.otherTaxBase).eq(l.taxBase)),
+          ),
+          replacement: !!d.replacesId,
+          nsfp: d.nsfp!,
+          periodMonth: d.periodMonth,
+          periodYear: d.periodYear,
+          invoiceDate: d.invoiceDate,
+          buyerNpwp15: d.buyerDocument === "TIN" ? npwp15(d.buyerTin) : null,
+          buyerNik: d.buyerDocument === "National ID" ? d.buyerDocumentNumber : null,
+          buyerName: d.buyerName,
+          buyerAddress: d.buyerAddress,
+          downPayment: d.downPayment as 0 | 1 | 2,
+          downPaymentAmounts:
+            d.downPayment === 2
+              ? { dpp: d.downPaymentTaxBase, ppn: d.downPaymentVat, ppnbm: d.downPaymentStlg }
+              : undefined,
+          ref: d.ref,
+          // e-Faktur lama melaporkan DPP nilai lain sebagai DPP (kode 04).
+          lines: own.map((l) => ({
+            code: l.code,
+            name: l.name,
+            price: l.price,
+            qty: l.qty,
+            discount: l.totalDiscount,
+            dpp: l.otherTaxBase,
+            ppn: l.vat,
+            stlgRate: l.stlgRate,
+            stlg: l.stlg,
+          })),
+        };
+      }),
+    );
+    const first = docs[0]!;
+    const fileName = `efaktur-lama-${first.periodYear}-${String(first.periodMonth).padStart(2, "0")}.csv`;
+    const [batch] = await tx
+      .insert(schema.taxExportBatches)
+      .values({
+        companyId,
+        kind: "efaktur_legacy",
+        fileName,
+        content,
+        recordCount: docs.length,
+        createdBy: currentContext().userId,
+      })
+      .returning({ id: schema.taxExportBatches.id });
+    await tx
+      .update(TI)
+      .set({ state: "exported", batchId: batch!.id, updatedAt: sql`now()` })
+      .where(inArray(TI.id, ids));
+    return { fileName, content };
+  }
+
+  /** NSFP berikutnya dari rentang tahun faktur (kunci baris agar tidak dobel). */
+  private async nextNsfp(tx: Db, companyId: string, year: number) {
+    const R = schema.nsfpRanges;
+    const yy = String(year % 100).padStart(2, "0");
+    const [range] = await tx
+      .select()
+      .from(R)
+      .where(
+        and(
+          eq(R.companyId, companyId),
+          sql`substr(${R.prefix}, 4, 2) = ${yy}`,
+          sql`${R.nextSerial} <= ${R.serialTo}`,
+        ),
+      )
+      .orderBy(asc(R.prefix), asc(R.serialFrom))
+      .limit(1)
+      .for("update");
+    if (!range) throw new BadRequestException(`NSFP tahun ${year} habis atau belum didaftarkan`);
+    await tx
+      .update(R)
+      .set({ nextSerial: range.nextSerial + 1, updatedAt: sql`now()` })
+      .where(eq(R.id, range.id));
+    return nsfpAt(range.prefix, range.nextSerial);
+  }
+
+  /** Data faktur tersimpan dalam bentuk dokumen Coretax (untuk XML & pemeriksaan). */
+  private async toDocs(
+    tx: Db,
+    docs: (typeof TI.$inferSelect)[],
+  ): Promise<(TaxInvoiceDoc & { id: string })[]> {
+    if (!docs.length) return [];
+    const lines = await tx
+      .select()
+      .from(TIL)
+      .where(
+        inArray(
+          TIL.taxInvoiceId,
+          docs.map((d) => d.id),
+        ),
+      )
+      .orderBy(asc(TIL.sequence));
+    return docs.map((d) => ({
+      id: d.id,
+      invoiceDate: d.invoiceDate,
+      trxCode: d.trxCode as TrxCode,
+      addInfo: d.addInfo,
+      customDoc: d.customDoc,
+      facilityStamp: d.facilityStamp,
+      ref: d.ref,
+      sellerIdtku: d.sellerIdtku,
+      buyerTin: d.buyerTin,
+      buyerDocument: d.buyerDocument as BuyerDocument,
+      buyerDocumentNumber: d.buyerDocumentNumber,
+      buyerCountry: d.buyerCountry,
+      buyerName: d.buyerName,
+      buyerAddress: d.buyerAddress,
+      buyerEmail: d.buyerEmail,
+      buyerIdtku: d.buyerIdtku,
+      lines: lines
+        .filter((l) => l.taxInvoiceId === d.id)
+        .map((l) => ({
+          opt: l.opt,
+          code: l.code,
+          name: l.name,
+          unit: l.unit,
+          price: l.price,
+          qty: new Decimal(l.qty).toString(),
+          totalDiscount: l.totalDiscount,
+          taxBase: l.taxBase,
+          otherTaxBase: l.otherTaxBase,
+          vatRate: new Decimal(l.vatRate).toString(),
+          vat: l.vat,
+          stlgRate: new Decimal(l.stlgRate).toString(),
+          stlg: l.stlg,
+        })),
+    }));
+  }
+
+  private assertValid(docs: TaxInvoiceDoc[]) {
+    const errors = validateDocs(docs);
+    if (errors.length)
+      throw new BadRequestException({
+        message: `Faktur pajak belum memenuhi ketentuan impor Coretax — ${errors[0]}${
+          errors.length > 1 ? ` (dan ${errors.length - 1} lainnya)` : ""
+        }`,
+        errors: errors.map((message) => ({ path: "", message })),
+      });
   }
 
   async cancel(tx: Db, id: string) {
@@ -349,35 +616,87 @@ export class TaxInvoiceService {
           .where(inArray(schema.taxes.id, taxIds))
       : [];
 
-    const lines: LineRow[] = [];
-    for (const { line, productType, goodsCode, unitCode } of sourceLines) {
+    type Source = (typeof sourceLines)[number] & {
+      group: string;
+      taxBase: Decimal;
+      vat: (typeof taxes)[number];
+      ppnbm: (typeof taxes)[number] | undefined;
+    };
+    const positive: Source[] = [];
+    const negative: Source[] = [];
+    for (const src of sourceLines) {
+      const { line } = src;
       const vat = taxes.find(
         (t) => line.taxIds.includes(t.id) && (VAT_KINDS as readonly string[]).includes(t.kind),
       );
       if (!vat) continue;
+      const ppnbm = taxes.find((t) => line.taxIds.includes(t.id) && t.kind === "ppnbm");
       // DPP = nilai buku baris (sudah Rupiah); harga satuan dikonversi dengan kurs faktur.
       const taxBase = new Decimal(line.credit).minus(line.debit);
-      if (taxBase.lt(0))
-        throw fail(
-          `Faktur ${move.move.name} punya baris negatif "${line.name ?? ""}" (mis. potongan uang muka) — buat faktur pajaknya langsung di Coretax`,
-        );
-      const computed = taxInvoiceLine(
+      const row = { ...src, group: `${vat.id}|${ppnbm?.id ?? ""}`, taxBase, vat, ppnbm };
+      (taxBase.lt(0) ? negative : positive).push(row);
+    }
+    if (!positive.length) throw fail(`Faktur ${move.move.name} tidak punya baris ber-PPN`);
+    // Faktur pelunasan: potongan uang muka (baris negatif) dikurangkan dari DPP baris berpajak sama.
+    let allocation: ReturnType<typeof allocateDeductions<Source>>;
+    try {
+      allocation = allocateDeductions(
+        positive,
+        negative.map((n) => ({ group: n.group, amount: n.taxBase })),
+      );
+    } catch (e) {
+      throw fail(`Faktur ${move.move.name}: ${(e as Error).message}`);
+    }
+    const unmatched = negative.find((n) => !positive.some((p) => p.group === n.group));
+    if (unmatched)
+      throw fail(
+        `Faktur ${move.move.name}: potongan "${unmatched.line.name ?? ""}" tidak punya baris dengan pajak yang sama`,
+      );
+    const toLine = (src: Source, taxBase: Decimal.Value, extraDiscount: Decimal.Value = 0) =>
+      taxInvoiceLine(
         {
-          name: line.name || "Barang/Jasa",
-          isService: productType === "service",
-          goodsCode,
-          unitCode,
-          price: new Decimal(line.priceUnit ?? 0).times(rate),
-          qty: line.quantity ?? 1,
-          discount: line.discount,
+          name: src.line.name || "Barang/Jasa",
+          isService: src.productType === "service",
+          goodsCode: src.goodsCode,
+          unitCode: src.unitCode,
+          price: new Decimal(src.line.priceUnit ?? 0).times(rate),
+          qty: src.line.quantity ?? 1,
+          discount: src.line.discount,
+          extraDiscount,
           taxBase,
-          vat: { rate: vat.amount, baseRatio: vat.baseRatio },
+          vat: { rate: src.vat.amount, baseRatio: src.vat.baseRatio },
+          stlgRate: src.ppnbm?.amount ?? null,
         },
         trxCode,
       );
-      lines.push({ ...computed, sequence: lines.length });
-    }
-    if (!lines.length) throw fail(`Faktur ${move.move.name} tidak punya baris ber-PPN`);
+    const lines: LineRow[] = allocation.map(({ line: src, deduction }, i) => ({
+      ...toLine(src, src.taxBase.minus(deduction), deduction),
+      sequence: i,
+    }));
+    // Nilai uang muka yang sudah difakturkan (dicantumkan di faktur pelunasan).
+    const dpLines = negative.map((n) =>
+      taxInvoiceLine(
+        {
+          name: n.line.name || "Uang muka",
+          isService: true,
+          price: n.taxBase.abs(),
+          qty: 1,
+          discount: 0,
+          taxBase: n.taxBase.abs(),
+          vat: { rate: n.vat.amount, baseRatio: n.vat.baseRatio },
+          stlgRate: n.ppnbm?.amount ?? null,
+        },
+        trxCode,
+      ),
+    );
+    const dpSum = (k: "taxBase" | "vat" | "stlg") =>
+      dpLines.reduce((t, l) => t.plus(l[k]), new Decimal(0)).toFixed(2);
+    // Faktur uang muka: semua baris berasal dari baris uang muka pesanan penjualan.
+    const [dp] = await tx.execute<{ total: number; dp: number }>(sql`
+      select count(*)::int as total, count(*) filter (where sol.is_downpayment)::int as dp
+      from account_move_lines l left join sale_order_lines sol on sol.id = l.sale_line_id
+      where l.move_id = ${moveId} and l.display_type = 'product'`);
+    const downPayment = negative.length ? 2 : dp && dp.total > 0 && dp.dp === dp.total ? 1 : 0;
     const totals = taxInvoiceTotals(
       lines.map((l) => ({
         ...l,
@@ -409,6 +728,10 @@ export class TaxInvoiceService {
         buyerEmail: partner.email,
         buyerIdtku,
         ...totals,
+        downPayment,
+        downPaymentTaxBase: dpSum("taxBase"),
+        downPaymentVat: dpSum("vat"),
+        downPaymentStlg: dpSum("stlg"),
       },
       lines,
     };
@@ -608,16 +931,35 @@ export class TaxInvoiceService {
       })
       .from(ITI)
       .where(and(eq(ITI.companyId, companyId), eq(ITI.creditYear, year), eq(ITI.creditMonth, month)));
-    // Faktur keluaran yang sah: disetujui/diekspor (draft belum dilaporkan).
+    // Nota retur pajak masukan pada masa ini mengurangi pajak masukan yang dapat dikreditkan.
+    const R = schema.taxReturns;
+    const [returns] = await tx
+      .select({
+        count: sql<number>`count(*)::int`,
+        taxBase: sql<string>`coalesce(sum(${R.taxBase}), 0)::text`,
+        vat: sql<string>`coalesce(sum(${R.vat}), 0)::text`,
+      })
+      .from(R)
+      .where(
+        and(
+          eq(R.companyId, companyId),
+          eq(R.periodYear, year),
+          eq(R.periodMonth, month),
+          inArray(R.state, ["exported", "approved"]),
+        ),
+      );
+    // Faktur keluaran yang sah: disetujui/diekspor (draft belum dilaporkan; yang sudah diganti tidak dihitung).
     const issuedVat = outputDocs
       .filter((d) => d.state === "approved" || d.state === "exported")
       .reduce((s, d) => s.plus(d.vat ?? 0), new Decimal(0));
+    const creditable = new Decimal(credited?.vat ?? 0).minus(returns?.vat ?? 0);
     return {
       period: { year, month },
       ledger: { outputVat: gl?.output ?? "0", inputVat: gl?.input ?? "0" },
       outputInvoices: outputDocs,
       inputCredited: credited ?? { count: 0, taxBase: "0", vat: "0" },
-      position: vatPosition(issuedVat, credited?.vat ?? 0),
+      inputReturns: returns ?? { count: 0, taxBase: "0", vat: "0" },
+      position: vatPosition(issuedVat, creditable),
     };
   }
 }

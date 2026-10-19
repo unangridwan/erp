@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Inject,
@@ -17,10 +18,13 @@ import {
   inputTaxCreditSchema,
   inputTaxImportSchema,
   inputTaxUpdateSchema,
+  nsfpRangeSchema,
   taxDocApproveSchema,
   taxDocExportSchema,
   taxInvoiceGenerateSchema,
   taxInvoiceUpdateSchema,
+  taxReturnGenerateSchema,
+  taxReturnUpdateSchema,
   withholdingGenerateSchema,
   withholdingUpdateSchema,
 } from "@erp/shared";
@@ -33,10 +37,13 @@ import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { HrModule } from "../hr/hr.module.js";
 import { TaxInvoiceService } from "./tax-invoice.service.js";
+import { TaxReturnService } from "./tax-return.service.js";
 import { WithholdingService } from "./withholding.service.js";
 
 const sendXml = (res: Response, file: { fileName: string; content: string }) =>
   res.type("application/xml; charset=utf-8").attachment(file.fileName).send(file.content);
+const sendCsv = (res: Response, file: { fileName: string; content: string }) =>
+  res.type("text/csv; charset=utf-8").attachment(file.fileName).send(file.content);
 
 const periodQuery = z.object({
   year: z.coerce.number().int().min(2020).max(2100),
@@ -49,6 +56,7 @@ class TaxController {
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(TaxInvoiceService) private readonly invoices: TaxInvoiceService,
     @Inject(WithholdingService) private readonly withholding: WithholdingService,
+    @Inject(TaxReturnService) private readonly returns: TaxReturnService,
   ) {}
 
   // ---- Faktur pajak keluaran ----
@@ -73,6 +81,43 @@ class TaxController {
   async export(@Body() body: unknown, @Res() res: Response) {
     const { ids } = parse(taxDocExportSchema, body);
     sendXml(res, await this.tenantDb.run((tx) => this.invoices.export(tx, ids)));
+  }
+
+  /** Periksa faktur terhadap ketentuan template impor Coretax (DJP tidak menerbitkan XSD). */
+  @Post("tax-invoices/check")
+  @HttpCode(200)
+  @RequirePermission("tax.read")
+  check(@Body() body: unknown) {
+    const { ids } = parse(taxDocExportSchema, body);
+    return this.tenantDb.run((tx) => this.invoices.check(tx, ids));
+  }
+
+  /** CSV impor e-Faktur 3.x (pra-Coretax); NSFP diambil dari rentang terdaftar. */
+  @Post("tax-invoices/export-legacy")
+  @RequirePermission("tax.manage")
+  async exportLegacy(@Body() body: unknown, @Res() res: Response) {
+    const { ids } = parse(taxDocExportSchema, body);
+    sendCsv(res, await this.tenantDb.run((tx) => this.invoices.exportLegacy(tx, ids)));
+  }
+
+  @Get("tax/nsfp-ranges")
+  @RequirePermission("tax.read")
+  listNsfp() {
+    return this.tenantDb.run((tx) => this.invoices.listNsfp(tx));
+  }
+
+  @Post("tax/nsfp-ranges")
+  @RequirePermission("tax.manage")
+  createNsfp(@Body() body: unknown) {
+    const input = parse(nsfpRangeSchema, body);
+    return this.tenantDb.run((tx) => this.invoices.createNsfp(tx, input));
+  }
+
+  @Delete("tax/nsfp-ranges/:id")
+  @RequirePermission("tax.manage")
+  async deleteNsfp(@Param("id", ParseUUIDPipe) id: string) {
+    await this.tenantDb.run((tx) => this.invoices.deleteNsfp(tx, id));
+    return { ok: true };
   }
 
   @Post("tax-invoices/import-numbers")
@@ -102,6 +147,13 @@ class TaxController {
   approve(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
     const { number } = parse(taxDocApproveSchema, body);
     return this.tenantDb.run((tx) => this.invoices.approve(tx, id, number));
+  }
+
+  @Post("tax-invoices/:id/replace")
+  @HttpCode(200)
+  @RequirePermission("tax.write")
+  replace(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.invoices.replace(tx, id));
   }
 
   @Post("tax-invoices/:id/cancel")
@@ -141,6 +193,52 @@ class TaxController {
   updateInput(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
     const input = parse(inputTaxUpdateSchema, body);
     return this.tenantDb.run((tx) => this.invoices.updateInput(tx, id, input));
+  }
+
+  // ---- Nota retur pajak masukan ----
+
+  @Get("tax-returns")
+  @RequirePermission("tax.read")
+  listReturns(@Query() query: Record<string, string>) {
+    return this.tenantDb.run((tx) => this.returns.list(tx, query));
+  }
+
+  @Post("tax-returns/generate")
+  @HttpCode(200)
+  @RequirePermission("tax.write")
+  generateReturns(@Body() body: unknown) {
+    const input = parse(taxReturnGenerateSchema, body);
+    return this.tenantDb.run((tx) => this.returns.generate(tx, input));
+  }
+
+  @Post("tax-returns/export-legacy")
+  @RequirePermission("tax.manage")
+  async exportReturns(@Body() body: unknown, @Res() res: Response) {
+    const { ids } = parse(taxDocExportSchema, body);
+    sendCsv(res, await this.tenantDb.run((tx) => this.returns.exportLegacy(tx, ids)));
+  }
+
+  @Patch("tax-returns/:id")
+  @RequirePermission("tax.write")
+  updateReturn(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const { inputTaxInvoiceId } = parse(taxReturnUpdateSchema, body);
+    return this.tenantDb.run((tx) => this.returns.update(tx, id, inputTaxInvoiceId));
+  }
+
+  @Post("tax-returns/:id/approve")
+  @HttpCode(200)
+  @RequirePermission("tax.write")
+  approveReturn(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const { number } = parse(taxDocApproveSchema, body);
+    return this.tenantDb.run((tx) => this.returns.approve(tx, id, number));
+  }
+
+  @Post("tax-returns/:id/cancel")
+  @HttpCode(200)
+  @RequirePermission("tax.write")
+  async cancelReturn(@Param("id", ParseUUIDPipe) id: string) {
+    await this.tenantDb.run((tx) => this.returns.cancel(tx, id));
+    return { ok: true };
   }
 
   // ---- Bukti potong ----
@@ -235,13 +333,13 @@ class TaxController {
         .where(and(eq(B.id, id), eq(B.companyId, currentContext().companyId))),
     );
     if (!file) return res.status(404).json({ statusCode: 404, message: "Berkas tidak ditemukan" });
-    sendXml(res, file);
+    (file.fileName.endsWith(".csv") ? sendCsv : sendXml)(res, file);
   }
 }
 
 @Module({
   imports: [HrModule],
   controllers: [TaxController],
-  providers: [ActivityService, TaxInvoiceService, WithholdingService],
+  providers: [ActivityService, TaxInvoiceService, WithholdingService, TaxReturnService],
 })
 export class TaxModule {}

@@ -10,8 +10,10 @@ import { can, TAX_DOC_STATE_LABEL } from "../../../../lib/resources";
 
 interface Slip {
   id: string;
-  kind: "bppu" | "bpmp";
+  kind: "bppu" | "bpmp" | "bpa1";
   state: string;
+  monthStart: number | null;
+  monthEnd: number | null;
   counterpartName: string;
   counterpartTin: string | null;
   counterpartIdtku: string | null;
@@ -28,7 +30,7 @@ interface Slip {
 export default function WithholdingPage() {
   const me = useMe();
   const { l, tx, locale } = useI18n();
-  const [kind, setKind] = useState<"bppu" | "bpmp">("bppu");
+  const [kind, setKind] = useState<"bppu" | "bpmp" | "bpa1">("bppu");
   const [period, setPeriod] = useState(today().slice(0, 7));
   const [slips, setSlips] = useState<Slip[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -78,6 +80,9 @@ export default function WithholdingPage() {
           <button className={kind === "bpmp" ? "primary" : ""} onClick={() => setKind("bpmp")}>
             {l("PPh 21 bulanan", "Monthly PPh 21")}
           </button>
+          <button className={kind === "bpa1" ? "primary" : ""} onClick={() => setKind("bpa1")}>
+            {l("A1 tahunan", "Annual A1")}
+          </button>
         </div>
         <label className="field inline">
           <span>{l("Masa pajak", "Tax period")}</span>
@@ -85,15 +90,20 @@ export default function WithholdingPage() {
         </label>
       </header>
       <p className="muted">
-        {kind === "bppu"
+        {kind === "bpa1"
           ? l(
-              "Dibuat dari tagihan pemasok yang memakai pajak PPh potong (mis. PPh 23). Isi kode objek pajak di master pajak agar terisi otomatis.",
-              "Built from vendor bills with withholding taxes (e.g. art. 23). Set the tax object code on the tax to prefill it.",
+              "Dibuat dari slip masa pajak terakhir (Desember atau bulan karyawan keluar): penghasilan setahun dari slip yang diposting dan PPh 21 terutang setahun. Susunan XML mengikuti template konverter BPA1 DJP (DJP tidak menerbitkan XSD); impor di e-Bupot PPh 21/26 → BP A1.",
+              "Built from the final-period payslip (December or the resignation month): yearly income from posted payslips and yearly PPh 21. The XML follows DJP's BPA1 converter template (no official XSD); import in e-Bupot PPh 21/26 → BP A1.",
             )
-          : l(
-              "Dibuat dari payroll yang sudah diposting (pegawai tetap, kode 21-100-01). Masa pajak terakhir (Desember/keluar) dilaporkan dengan bukti potong A1 di Coretax.",
-              "Built from posted payroll (permanent employees, code 21-100-01). The final period (December/resignation) uses the A1 slip in Coretax.",
-            )}
+          : kind === "bppu"
+            ? l(
+                "Dibuat dari tagihan pemasok yang memakai pajak PPh potong (mis. PPh 23). Isi kode objek pajak di master pajak agar terisi otomatis.",
+                "Built from vendor bills with withholding taxes (e.g. art. 23). Set the tax object code on the tax to prefill it.",
+              )
+            : l(
+                "Dibuat dari payroll yang sudah diposting (pegawai tetap, kode 21-100-01). Masa pajak terakhir (Desember/keluar) dilaporkan dengan bukti potong A1 di Coretax.",
+                "Built from posted payroll (permanent employees, code 21-100-01). The final period (December/resignation) uses the A1 slip in Coretax.",
+              )}
       </p>
       {error && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}
@@ -156,7 +166,7 @@ export default function WithholdingPage() {
                 <th>{l("NPWP/NIK", "Tax ID")}</th>
                 <th>{l("Kode objek", "Object code")}</th>
                 <th className="num">{kind === "bppu" ? "DPP" : l("Bruto", "Gross")}</th>
-                <th className="num">{l("Tarif %", "Rate %")}</th>
+                <th className="num">{kind === "bpa1" ? l("Masa", "Months") : l("Tarif %", "Rate %")}</th>
                 <th className="num">{l("PPh", "Tax")}</th>
                 <th>{l("Tanggal", "Date")}</th>
                 <th>{l("Status", "Status")}</th>
@@ -190,7 +200,9 @@ export default function WithholdingPage() {
                   <td>{s.counterpartTin ?? <span className="error">{l("belum ada", "missing")}</span>}</td>
                   <td>{s.taxObjectCode ?? <span className="error">{l("belum ada", "missing")}</span>}</td>
                   <td className="num">{money(s.taxBase, locale)}</td>
-                  <td className="num">{Number(s.rate)}</td>
+                  <td className="num">
+                    {s.kind === "bpa1" ? `${s.monthStart}–${s.monthEnd}` : Number(s.rate)}
+                  </td>
                   <td className="num">{money(s.taxAmount, locale)}</td>
                   <td>{formatDate(s.withholdingDate, locale)}</td>
                   <td>

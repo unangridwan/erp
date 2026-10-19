@@ -10,6 +10,7 @@ interface VatReport {
   ledger: { outputVat: string; inputVat: string };
   outputInvoices: { state: string; count: number; taxBase: string; vat: string }[];
   inputCredited: { count: number; taxBase: string; vat: string };
+  inputReturns: { count: number; taxBase: string; vat: string };
   position: { payable: string; status: "kurang_bayar" | "lebih_bayar" | "nihil" };
 }
 
@@ -69,6 +70,15 @@ export default function VatReportPage() {
                 {report.inputCredited.count} {l("faktur", "invoices")}
               </span>
             </div>
+            {report.inputReturns.count > 0 && (
+              <div className="card">
+                <span className="muted">{l("Retur pajak masukan", "Input VAT returns")}</span>
+                <span className="price">−{money(report.inputReturns.vat, locale)}</span>
+                <span className="muted small">
+                  {report.inputReturns.count} {l("nota retur", "return notes")}
+                </span>
+              </div>
+            )}
             <div className="card current">
               <span className="muted">{status[report.position.status]}</span>
               <span className="price">{money(Math.abs(Number(report.position.payable)), locale)}</span>
