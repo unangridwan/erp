@@ -278,6 +278,15 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   panduan awal (profil, saldo awal, checklist); hardening (header keamanan, ID korelasi request, log JSON, metrik
   Prometheus, readiness, daftar & pencabutan sesi, validasi secret produksi), Dockerfile produksi, compose produksi,
   backup harian + restore
+- [x] Fase 5b (Konsolidasi grup): bagan akun grup dengan akun peran khusus, pemetaan akun per perusahaan (otomatis
+  berdasarkan kode), struktur grup bertingkat dari riwayat kepemilikan (kepemilikan efektif), metode penuh/proporsional/
+  ekuitas, translasi kurs (penutupan/rata-rata/historis, selisih ke OCI), eliminasi investasi dengan goodwill & keuntungan
+  pembelian murah, KNP atas ekuitas & laba, eliminasi saldo & transaksi antar perusahaan (selisih ke akun selisih IC
+  dengan peringatan), jurnal penyesuaian manual, kertas kerja (CSV), neraca & laba rugi konsolidasian dengan atribusi
+  pemilik/KNP, rekonsiliasi IC, proses draft/final
+- [ ] Fase 5b ditunda: laba belum terealisasi otomatis (persediaan/aset tetap antar perusahaan; sementara via jurnal
+  manual), riwayat ekuitas historis multi-kurs, akuisisi bertahap/divestasi di tengah periode, dividen IC otomatis,
+  arus kas & perubahan ekuitas konsolidasian, ekspor Excel/PDF, RK pusat–cabang
 - [ ] Fase 5 ditunda: bukti potong A1/A2 (XML), retur/pengganti faktur pajak via XML, faktur uang muka/pelunasan,
   PPnBM (STLG) per produk, validasi XSD resmi, NSFP lama (pra-Coretax), PITR/WAL archiving terkelola, tracing
   OpenTelemetry, Sentry

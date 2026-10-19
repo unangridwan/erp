@@ -395,6 +395,16 @@ export const RESOURCES: Resource[] = [
       },
       { name: "validFrom", label: L("Berlaku sejak", "Valid from"), type: "date", required: true },
       { name: "validTo", label: L("Berlaku sampai", "Valid to"), type: "date" },
+      {
+        name: "consideration",
+        label: L("Harga perolehan investasi (mata uang grup)", "Investment cost (group currency)"),
+        type: "number",
+      },
+      {
+        name: "acquiredNetAssets",
+        label: L("Nilai wajar aset bersih saat akuisisi", "Fair value of net assets acquired"),
+        type: "number",
+      },
     ],
   },
   {
@@ -500,6 +510,48 @@ const ACCOUNT_TYPES: [string, Text][] = [
 ];
 
 RESOURCES.push(
+  {
+    path: "group-accounts",
+    model: "group_account",
+    title: L("Bagan Akun Grup", "Group Chart of Accounts"),
+    singular: L("Akun Grup", "Group Account"),
+    permission: "consolidation",
+    writePermission: "consolidation.manage",
+    group: GROUP,
+    columns: [
+      { name: "code", label: L("Kode", "Code") },
+      { name: "name", label: L("Nama", "Name") },
+      { name: "accountType", label: L("Jenis", "Type") },
+      { name: "role", label: L("Peran konsolidasi", "Consolidation role") },
+    ],
+    fields: [
+      code,
+      name(),
+      {
+        name: "accountType",
+        label: L("Jenis", "Type"),
+        type: "select",
+        required: true,
+        options: ACCOUNT_TYPES,
+      },
+      {
+        name: "role",
+        label: L("Peran konsolidasi", "Consolidation role"),
+        type: "select",
+        options: [
+          ["investment", L("Investasi pada entitas anak", "Investment in subsidiaries")],
+          ["goodwill", L("Goodwill", "Goodwill")],
+          ["nci_equity", L("Kepentingan non-pengendali", "Non-controlling interest")],
+          ["nci_profit", L("Laba diatribusikan ke KNP", "Profit attributable to NCI")],
+          ["cta", L("Selisih kurs penjabaran", "Translation reserve")],
+          ["retained_earnings", L("Saldo laba", "Retained earnings")],
+          ["associate_investment", L("Investasi pada asosiasi", "Investment in associates")],
+          ["associate_income", L("Bagian laba asosiasi", "Share of associates' profit")],
+          ["ic_difference", L("Selisih eliminasi antar perusahaan", "Intercompany elimination difference")],
+        ],
+      },
+    ],
+  },
   {
     path: "accounts",
     model: "account",

@@ -21,6 +21,7 @@ import { PayrollModule } from "./payroll/payroll.module.js";
 import { TaxModule } from "./tax/tax.module.js";
 import { BillingModule } from "./billing/billing.module.js";
 import { OnboardingModule } from "./onboarding/onboarding.module.js";
+import { ConsolidationModule } from "./consolidation/consolidation.module.js";
 import { HealthController } from "./health/health.controller.js";
 import { MasterModule } from "./master/master.module.js";
 import { SequenceController, SequenceService } from "./sequences/sequence.service.js";
@@ -42,6 +43,7 @@ import { UsersService } from "./users/users.service.js";
     PayrollModule,
     TaxModule,
     OnboardingModule,
+    ConsolidationModule,
   ],
   controllers: [HealthController, AuthController, ActivityController, SequenceController, UsersController],
   providers: [

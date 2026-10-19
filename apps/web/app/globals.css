@@ -170,6 +170,8 @@ button:disabled {
   align-items: center;
   gap: 10px;
   margin-right: auto;
+  min-width: 0;
+  max-width: 100%;
 }
 .control-panel .cp-search {
   flex: 0 1 420px;
@@ -827,6 +829,14 @@ label.check {
   }
   .nav-company-name {
     display: none;
+  }
+  .nav-right {
+    min-width: 0;
+    gap: 6px;
+  }
+  .nav-company {
+    min-width: 0;
+    max-width: 130px;
   }
 }
 .app.home {
