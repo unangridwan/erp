@@ -99,6 +99,7 @@ export const companySchema = z.object({
   currencyCode: z.string().length(3).toUpperCase().default("IDR"),
   fiscalYearStartMonth: z.coerce.number().int().min(1).max(12).default(1),
   ...companyProfile,
+  icAutoDocuments: z.boolean().default(false),
   active: z.boolean().default(true),
 });
 
@@ -470,6 +471,23 @@ export const salesTeamSchema = z.object({
   leaderId: z.string().uuid().nullish(),
   memberIds: z.array(z.string().uuid()).default([]),
   active: z.boolean().default(true),
+});
+
+/** Aturan komisi penjual: `rate` persen dari penjualan bersih (DPP) per faktur; `paid` = hanya faktur lunas. */
+export const commissionPlanSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  rate: z.coerce.number().min(0).max(100).transform(String),
+  basis: z.enum(["invoiced", "paid"]).default("invoiced"),
+  /** Isi salah satu (penjual atau tim), atau kosongkan keduanya untuk aturan bawaan perusahaan. */
+  userId: z.string().uuid().nullish(),
+  teamId: z.string().uuid().nullish(),
+  active: z.boolean().default(true),
+});
+
+export const commissionReportSchema = z.object({
+  dateFrom: z.string().date(),
+  dateTo: z.string().date(),
+  userId: z.string().uuid().optional(),
 });
 
 export const paymentTermSchema = z.object({

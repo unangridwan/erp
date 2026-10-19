@@ -1,4 +1,10 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  type OnModuleInit,
+} from "@nestjs/common";
 import {
   and,
   asc,
@@ -43,14 +49,16 @@ import {
   ownedScope,
 } from "../crm/checks.js";
 import { LeadService } from "../crm/lead.service.js";
-import { StockService } from "../inventory/stock.service.js";
+import { StockService, type LinkedDocument } from "../inventory/stock.service.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { renderOrderPdf } from "./order-pdf.js";
 import { PricelistService } from "./pricelist.service.js";
 
 export type OrderInput = z.infer<typeof saleOrderSchema>;
 export type InvoiceFromOrderInput = z.infer<typeof createInvoiceFromOrderSchema>;
-type Order = typeof schema.saleOrders.$inferSelect;
+export type Order = typeof schema.saleOrders.$inferSelect;
+/** Dipanggil setelah pesanan dikonfirmasi, dalam transaksi yang sama (mis. PO antar perusahaan). */
+export type ConfirmHook = (tx: Db, order: Order) => Promise<void>;
 
 const O = schema.saleOrders;
 const OL = schema.saleOrderLines;
@@ -115,7 +123,9 @@ export interface OrderQuery {
 }
 
 @Injectable()
-export class SaleOrderService {
+export class SaleOrderService implements OnModuleInit {
+  readonly confirmHooks: ConfirmHook[] = [];
+
   constructor(
     @Inject(MoveService) private readonly moves: MoveService,
     @Inject(SequenceService) private readonly sequences: SequenceService,
@@ -125,6 +135,10 @@ export class SaleOrderService {
     @Inject(Mailer) private readonly mailer: Mailer,
     @Inject(StockService) private readonly stock: StockService,
   ) {}
+
+  onModuleInit() {
+    this.stock.validateHooks.push((tx, picking) => this.refundFromReturn(tx, picking));
+  }
 
   // ---- Baca ----
 
@@ -378,6 +392,7 @@ export class SaleOrderService {
       });
     }
     if (order.leadId) await this.leads.winFromOrder(tx, order.leadId, order.name);
+    for (const hook of this.confirmHooks) await hook(tx, { ...order, state: "sale" });
     await this.activity.log(tx, {
       resModel: "sale_order",
       resId: id,
@@ -605,6 +620,64 @@ export class SaleOrderService {
       message: input.method === "regular" ? "Faktur dibuat" : "Faktur uang muka dibuat",
     });
     return { moveId };
+  }
+
+  /**
+   * Retur pelanggan atas barang yang sudah ditagih: draft nota kredit sebanyak kelebihan tagihan
+   * (kuantitas tertagih − terkirim setelah retur), dengan harga pesanan.
+   */
+  private async refundFromReturn(
+    tx: Db,
+    picking: typeof schema.stockPickings.$inferSelect,
+  ): Promise<LinkedDocument | null> {
+    if (!picking.saleOrderId || !picking.returnOfId) return null;
+    const [order] = await tx.select().from(O).where(eq(O.id, picking.saleOrderId));
+    if (!order) return null;
+    const returned = await tx
+      .select({ saleLineId: schema.stockMoves.saleLineId, qty: schema.stockMoves.quantityDone })
+      .from(schema.stockMoves)
+      .where(and(eq(schema.stockMoves.pickingId, picking.id), eq(schema.stockMoves.state, "done")));
+    const lines = await this.lines(tx, order.id);
+    const refund = lines.flatMap((l) => {
+      const qty = returned.filter((r) => r.saleLineId === l.id).reduce((sum, r) => sum.plus(r.qty), dec(0));
+      const over = Decimal.min(qty, dec(l.qtyInvoiced).minus(l.qtyDelivered));
+      return qty.gt(0) && over.gt(0) ? [{ l, qty: over }] : [];
+    });
+    if (!refund.length) return null;
+    const date = today();
+    const moveId = await this.moves.createInvoice(
+      tx,
+      {
+        moveType: "out_refund",
+        partnerId: order.partnerId,
+        date,
+        dueDate: date,
+        ref: `Retur ${picking.name}`,
+        narration: null,
+        currencyCode: order.currencyCode,
+        lines: refund.map(({ l, qty }) => ({
+          productId: l.productId,
+          accountId: null,
+          name: l.name,
+          quantity: qty.toFixed(4),
+          priceUnit: l.priceUnit,
+          discount: l.discount,
+          taxIds: l.taxIds,
+          businessUnitId: order.businessUnitId,
+          branchId: order.branchId,
+        })),
+      },
+      order.companyId,
+      { invoiceOrigin: order.name, saleLineIds: refund.map(({ l }) => l.id) },
+    );
+    await this.refreshInvoiceStatus(tx, order);
+    await this.activity.log(tx, {
+      resModel: "sale_order",
+      resId: order.id,
+      action: "comment",
+      message: `Draft nota kredit dibuat dari retur ${picking.name}`,
+    });
+    return { model: "account_move", id: moveId, moveType: "out_refund", label: "Draft nota kredit" };
   }
 
   /** PDF penawaran/pesanan. */

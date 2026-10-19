@@ -16,6 +16,7 @@ import { CrmModule } from "./crm/crm.module.js";
 import { SalesModule } from "./sales/sales.module.js";
 import { InventoryModule } from "./inventory/inventory.module.js";
 import { PurchaseModule } from "./purchase/purchase.module.js";
+import { IntercompanyModule } from "./intercompany/intercompany.module.js";
 import { HrModule } from "./hr/hr.module.js";
 import { PayrollModule } from "./payroll/payroll.module.js";
 import { TaxModule } from "./tax/tax.module.js";
@@ -39,6 +40,7 @@ import { UsersService } from "./users/users.service.js";
     SalesModule,
     InventoryModule,
     PurchaseModule,
+    IntercompanyModule,
     HrModule,
     PayrollModule,
     TaxModule,

@@ -41,6 +41,7 @@ export const purchaseOrders = pgTable("purchase_orders", {
   approvedBy: uuid("approved_by"),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  icSaleOrderId: uuid("ic_sale_order_id"),
   createdBy: uuid("created_by"),
   ...audit,
 });

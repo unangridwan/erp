@@ -69,7 +69,7 @@ export const APPS: App[] = [
     id: "sales",
     name: L("Penjualan", "Sales"),
     home: "/sales/quotations",
-    prefixes: ["/sales", "/payment-terms"],
+    prefixes: ["/sales", "/payment-terms", "/commission-plans"],
     menu: [
       group("Pesanan", "Orders", [
         link("Penawaran", "Quotations", "/sales/quotations", "sales.read"),
@@ -83,9 +83,11 @@ export const APPS: App[] = [
       ]),
       group("Laporan", "Reporting", [
         link("Analisis Penjualan", "Sales Analysis", "/sales/reports", "sales.read"),
+        link("Komisi Penjual", "Commissions", "/sales/commissions", "sales.read"),
       ]),
       group("Konfigurasi", "Configuration", [
         link("Termin Pembayaran", "Payment Terms", "/payment-terms", "sales.read"),
+        link("Aturan Komisi", "Commission Plans", "/commission-plans", "sales.read"),
         SALES_TEAMS,
         CATEGORIES,
         UOMS,

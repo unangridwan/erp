@@ -219,5 +219,6 @@ class ReplenishmentController {
   imports: [MasterModule, AccountingModule, InventoryModule],
   controllers: [ProductSuppliersController, PurchaseOrdersController, ReplenishmentController],
   providers: [ActivityService, SequenceService, PurchaseOrderService, ReplenishmentService],
+  exports: [PurchaseOrderService],
 })
 export class PurchaseModule {}

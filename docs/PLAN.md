@@ -301,9 +301,11 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   OpenTelemetry, Sentry
 - [ ] Fase 4 ditunda: jadwal shift & aturan keterlambatan, approval berjenjang, pinjaman
   karyawan dengan cicilan otomatis, pesangon (PP 35/2021), BPJS untuk pekerja harian/borongan
-- [ ] Fase 2–3 ditunda: aturan intercompany SO↔PO & transfer stok antar perusahaan, nota kredit otomatis dari retur,
-  selisih harga pembelian (bill vs PO) ke akun tersendiri, konversi satuan beli/jual, dropship, reservasi stok, varian
-  produk, komisi penjual, portal pelanggan
+- [x] Fase 2–3 (tunda, selesai sebagian): aturan antar perusahaan — SO → draft RFQ, PO → draft penawaran, faktur/nota
+  kredit → draft tagihan/nota debit terhubung baris PO (transfer stok antar perusahaan lewat pasangan SO/PO); draft nota
+  kredit/debit otomatis dari retur barang yang sudah ditagih; selisih harga tagihan vs PO ke akun 5-1100; aturan komisi
+  (per penjual/tim/bawaan, dasar faktur atau lunas) dan laporan komisi + Excel
+- [ ] Fase 2–3 ditunda: konversi satuan beli/jual, dropship, reservasi stok, varian produk, portal pelanggan
 - [x] Fase 1 (tunda, selesai): pelepasan aset tetap — dijual (faktur pelanggan + jurnal pelepasan, laba/rugi ke akun
   4-9500, penyusutan sampai bulan sebelum pelepasan) atau dihapusbukukan; penjualan ke perusahaan grup membuat draf aset di
   buku pembeli dan laba belum terealisasinya dieliminasi di konsolidasi (berkurang seiring penyusutan pembeli); revaluasi

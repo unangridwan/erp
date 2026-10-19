@@ -34,3 +34,13 @@ export function currentContext(): RequestContext {
 export function contextSlot(): { ctx?: RequestContext } | undefined {
   return storage.getStore();
 }
+
+/**
+ * Jalankan `fn` dengan perusahaan aktif lain (mis. membuat dokumen pasangan di perusahaan grup). Pemanggil wajib
+ * memastikan user memang punya akses ke perusahaan itu.
+ */
+export function withCompany<T>(companyId: string, fn: () => Promise<T>): Promise<T> {
+  const ctx = currentContext();
+  if (!ctx.companyIds.includes(companyId)) throw new Error("Perusahaan di luar akses user");
+  return storage.run({ ctx: { ...ctx, companyId } }, fn);
+}

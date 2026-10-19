@@ -84,6 +84,7 @@ const ACCOUNTS: {
   { code: "4-9400", name: "Laba (Rugi) Pelepasan Investasi", type: "income_other" },
   { key: "assetDisposal", code: "4-9500", name: "Laba (Rugi) Pelepasan Aset Tetap", type: "income_other" },
   { key: "cogs", code: "5-1000", name: "Harga Pokok Penjualan", type: "expense_direct_cost" },
+  { key: "priceDifference", code: "5-1100", name: "Selisih Harga Pembelian", type: "expense_direct_cost" },
   { key: "stockAdjustment", code: "5-1200", name: "Selisih Persediaan", type: "expense_direct_cost" },
   { code: "6-1000", name: "Beban Gaji dan Tunjangan", type: "expense" },
   { code: "6-1100", name: "Beban BPJS", type: "expense" },
@@ -261,6 +262,7 @@ export async function installChart(tx: Db, companyId: string): Promise<boolean> 
     stockInputAccountId: account("stockInput"),
     cogsAccountId: account("cogs"),
     stockAdjustmentAccountId: account("stockAdjustment"),
+    priceDifferenceAccountId: account("priceDifference"),
     stockJournalId: journal("stock"),
   });
   return true;

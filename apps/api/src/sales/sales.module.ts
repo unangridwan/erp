@@ -15,8 +15,10 @@ import {
   Query,
   Res,
 } from "@nestjs/common";
-import { schema } from "@erp/db";
+import { eq, schema } from "@erp/db";
 import {
+  commissionPlanSchema,
+  commissionReportSchema,
   createInvoiceFromOrderSchema,
   hasPermission,
   paymentTermSchema,
@@ -26,6 +28,8 @@ import {
 import type { Response } from "express";
 import { z } from "zod";
 import { AccountingModule } from "../accounting/accounting.module.js";
+import { fieldError } from "../accounting/context.js";
+import { toXlsxBook } from "../accounting/report-export.js";
 import { ActivityService } from "../activity/activity.service.js";
 import { RequirePermission } from "../auth/decorators.js";
 import { createCrudController } from "../common/crud.js";
@@ -36,6 +40,7 @@ import { CrmModule } from "../crm/crm.module.js";
 import { InventoryModule } from "../inventory/inventory.module.js";
 import { MasterModule } from "../master/master.module.js";
 import { SequenceService } from "../sequences/sequence.service.js";
+import { CommissionService } from "./commission.service.js";
 import { PricelistService } from "./pricelist.service.js";
 import { SaleOrderService, type OrderQuery } from "./sale-order.service.js";
 
@@ -49,6 +54,56 @@ const PaymentTermsController = createCrudController({
   searchColumns: [schema.paymentTerms.name],
   orderBy: schema.paymentTerms.days,
 });
+
+const CommissionPlansController = createCrudController({
+  path: "commission-plans",
+  model: "commission_plan",
+  table: schema.commissionPlans,
+  schema: commissionPlanSchema,
+  read: "sales.read",
+  write: "sales.manage",
+  searchColumns: [schema.commissionPlans.name],
+  orderBy: schema.commissionPlans.name,
+  companyColumn: schema.commissionPlans.companyId,
+  perCompany: true,
+  refs: { userId: schema.users, teamId: schema.salesTeams },
+  beforeSave: async (_tx, values) => {
+    if (values.userId && values.teamId) throw fieldError("teamId", "Pilih penjual atau tim, tidak keduanya");
+  },
+});
+
+@Controller("sales/commissions")
+class CommissionsController {
+  constructor(
+    @Inject(TenantDb) private readonly tenantDb: TenantDb,
+    @Inject(CommissionService) private readonly commissions: CommissionService,
+  ) {}
+
+  @Get()
+  @RequirePermission("sales.read")
+  report(@Query() query: unknown) {
+    const input = parse(commissionReportSchema, query);
+    return this.tenantDb.run((tx) => this.commissions.report(tx, input));
+  }
+
+  @Get("export")
+  @RequirePermission("sales.read")
+  async export(@Query() query: unknown, @Res() res: Response) {
+    const input = parse(commissionReportSchema, query);
+    const buffer = await this.tenantDb.run(async (tx) => {
+      const data = await this.commissions.report(tx, input);
+      const [company] = await tx
+        .select({ name: schema.companies.name })
+        .from(schema.companies)
+        .where(eq(schema.companies.id, currentContext().companyId));
+      return toXlsxBook(this.commissions.sheets(data), company?.name ?? "");
+    });
+    res
+      .type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+      .attachment(`komisi-${input.dateFrom}-${input.dateTo}.xlsx`)
+      .send(buffer);
+  }
+}
 
 @Controller("pricelists")
 class PricelistsController {
@@ -216,7 +271,14 @@ class SaleOrdersController {
 
 @Module({
   imports: [MasterModule, AccountingModule, CrmModule, InventoryModule],
-  controllers: [PaymentTermsController, PricelistsController, SaleOrdersController],
-  providers: [ActivityService, SequenceService, PricelistService, SaleOrderService],
+  controllers: [
+    PaymentTermsController,
+    PricelistsController,
+    SaleOrdersController,
+    CommissionPlansController,
+    CommissionsController,
+  ],
+  providers: [ActivityService, SequenceService, PricelistService, SaleOrderService, CommissionService],
+  exports: [SaleOrderService],
 })
 export class SalesModule {}

@@ -115,6 +115,7 @@ Header opsional `X-Company-Id` memilih perusahaan aktif (harus termasuk perusaha
 | `POST /sale-orders/:id/invoice` (`method`: `regular` / `percentage` / `fixed`)                | Draft faktur dari pesanan (sisa kuantitas atau uang muka)                      |
 | `GET /sale-orders/report?from=&to=&groupBy=product\|partner\|salesperson\|month`              | Analisis penjualan pesanan terkonfirmasi                                       |
 | `GET /users/options`                                                                          | Pilihan user aktif perusahaan aktif (penanggung jawab, penjual)                |
+| `/commission-plans`, `GET /sales/commissions[/export]?dateFrom=&dateTo=`                      | Aturan komisi (penjual → tim → bawaan; dasar faktur/lunas), laporan & Excel    |
 
 ### Pembelian & Persediaan (Fase 3)
 
@@ -128,6 +129,17 @@ Header opsional `X-Company-Id` memilih perusahaan aktif (harus termasuk perusaha
 | `GET/POST /purchase-orders`, `GET/PUT/DELETE /purchase-orders/:id`, `POST /purchase-orders/compute` | RFQ/PO; `compute` = pratinjau harga pemasok, pajak, total                                             |
 | `POST /purchase-orders/:id/{send,confirm,approve,cancel,draft,bill}`, `GET …/pdf`                   | Kirim RFQ, konfirmasi (dengan persetujuan), tagihan dari barang diterima, PDF                         |
 | `GET /purchase-orders/matching`, `GET /purchase-orders/report?from=&to=&groupBy=`                   | Pencocokan 3 arah, analisis pembelian                                                                 |
+
+Otomatis (tanpa endpoint baru):
+
+- **Retur setelah ditagih**: validasi retur pelanggan/ke pemasok membuat draft nota kredit/nota debit sebanyak
+  kelebihan tagihan, dengan harga pesanan; respons `validate` memuat `documents`.
+- **Selisih harga pembelian**: saat tagihan PO diposting, selisih nilai tagihan vs nilai penerimaan (harga PO × kurs
+  tanggal PO) dipindahkan dari Barang Diterima Belum Ditagih (2-1800) ke **5-1100 Selisih Harga Pembelian**.
+- **Dokumen antar perusahaan** (aktifkan `icAutoDocuments` di perusahaan sumber): SO terkonfirmasi ke perusahaan grup →
+  draft RFQ di perusahaan itu; PO terkonfirmasi → draft penawaran; faktur/nota kredit penjualan diposting → draft
+  tagihan/nota debit yang terhubung ke baris PO pasangan (`icSourceMoveId`). Transfer stok antar perusahaan berjalan
+  lewat pasangan SO/PO ini (pengiriman di penjual, penerimaan di pembeli).
 
 ### SDM & Payroll (Fase 4)
 

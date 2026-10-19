@@ -62,6 +62,8 @@ export const companies = pgTable(
     postalCode: text("postal_code"),
     phone: text("phone"),
     email: text("email"),
+    /** SO/PO/faktur ke perusahaan grup otomatis membuat dokumen pasangannya (draf) di perusahaan itu. */
+    icAutoDocuments: boolean("ic_auto_documents").notNull().default(false),
     onboarding: jsonb("onboarding").$type<Record<string, "done" | "skipped">>().notNull().default({}),
     onboardingCompletedAt: timestamp("onboarding_completed_at", { withTimezone: true }),
     active: boolean("active").notNull().default(true),

@@ -41,6 +41,16 @@ export interface NewMove {
   originReturnMoveId?: string | null;
 }
 
+/** Dokumen yang dibuat otomatis oleh kait validasi (mis. nota kredit retur). */
+export interface LinkedDocument {
+  model: "account_move";
+  id: string;
+  moveType: "out_refund" | "in_refund";
+  label: string;
+}
+/** Dipanggil setelah transfer divalidasi, dalam transaksi yang sama. */
+export type ValidateHook = (tx: Db, picking: Picking) => Promise<LinkedDocument | null>;
+
 /** Pergerakan yang siap diterapkan beserta rincian lot. */
 interface DoneMove {
   move: Move;
@@ -50,6 +60,9 @@ interface DoneMove {
 
 @Injectable()
 export class StockService {
+  /** Kait pasca-validasi transfer (didaftarkan modul penjualan/pembelian). */
+  readonly validateHooks: ValidateHook[] = [];
+
   constructor(
     @Inject(SequenceService) private readonly sequences: SequenceService,
     @Inject(MoveService) private readonly moves: MoveService,
@@ -349,7 +362,12 @@ export class StockService {
       action: "update",
       message: backorderId ? "Divalidasi sebagian; sisa dibuat sebagai backorder" : "Divalidasi",
     });
-    return { backorderId };
+    const documents: LinkedDocument[] = [];
+    for (const hook of this.validateHooks) {
+      const doc = await hook(tx, { ...picking, state: "done" });
+      if (doc) documents.push(doc);
+    }
+    return { backorderId, documents };
   }
 
   /** Retur transfer selesai: barang kembali ke lokasi asal, dinilai dengan biaya pergerakan aslinya. */

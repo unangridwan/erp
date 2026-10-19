@@ -16,6 +16,8 @@ export function ownedScope(companyColumn: PgColumn, userColumn: PgColumn, allPer
 
 /** User yang ditugaskan harus aktif dan punya akses ke perusahaan aktif. */
 export async function assertCompanyUser(tx: Db, userId: string, path = "userId") {
+  // Pemanggil sendiri sudah terbukti punya akses ke perusahaan aktif (termasuk admin berakses penuh).
+  if (userId === currentContext().userId) return;
   const [user] = await tx
     .select({ id: schema.users.id })
     .from(schema.users)

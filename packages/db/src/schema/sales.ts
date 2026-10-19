@@ -159,6 +159,7 @@ export const saleOrders = pgTable("sale_orders", {
     .notNull()
     .default("no"),
   confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  icPurchaseOrderId: uuid("ic_purchase_order_id"),
   createdBy: uuid("created_by"),
   ...audit,
 });
@@ -177,4 +178,20 @@ export const saleOrderLines = pgTable("sale_order_lines", {
   priceSubtotal: numeric("price_subtotal", { precision: 20, scale: 2 }).notNull().default("0"),
   isDownpayment: boolean("is_downpayment").notNull().default(false),
   createdAt: audit.createdAt,
+});
+
+/** Aturan komisi: khusus penjual, lalu tim penjualan, lalu bawaan perusahaan (penjual & tim kosong). */
+export const commissionPlans = pgTable("commission_plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  rate: numeric("rate", { precision: 7, scale: 4 }).notNull(),
+  basis: text("basis", { enum: ["invoiced", "paid"] })
+    .notNull()
+    .default("invoiced"),
+  userId: uuid("user_id"),
+  teamId: uuid("team_id"),
+  active: boolean("active").notNull().default(true),
+  ...audit,
 });
