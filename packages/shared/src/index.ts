@@ -10,6 +10,14 @@ export * from "./sales.js";
 export * from "./inventory.js";
 export * from "./payroll.js";
 export * from "./payroll-advanced.js";
+export {
+  daysBetween,
+  expiryStatus,
+  DEFAULT_CHECKLISTS,
+  APPLICANT_FLOW,
+  type ChecklistItem,
+  type ChecklistResponsible,
+} from "./hr.js";
 export * from "./coretax.js";
 export * from "./coretax-extra.js";
 export * from "./billing.js";

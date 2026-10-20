@@ -1041,17 +1041,24 @@ export const expenseCategorySchema = z.object({
   active: z.boolean().default(true),
 });
 
+/** Berkas unggahan base64 (PDF/JPG/PNG) dengan batas ukuran. */
+const fileUpload = (maxMb: number) =>
+  z.object({
+    name: z.string().trim().min(1).max(200),
+    type: z.enum(["application/pdf", "image/jpeg", "image/png"], {
+      message: "Berkas harus PDF, JPG, atau PNG",
+    }),
+    data: z
+      .string()
+      .regex(/^[A-Za-z0-9+/=\s]+$/, "Berkas tidak valid")
+      .refine(
+        (v) => (v.replace(/\s/g, "").length * 3) / 4 <= maxMb * 1024 * 1024,
+        `Berkas maksimal ${maxMb} MB`,
+      ),
+  });
+
 /** Bukti klaim (struk/nota): PDF/JPG/PNG maks. 2 MB, dikirim base64. */
-export const claimAttachmentSchema = z.object({
-  name: z.string().trim().min(1).max(200),
-  type: z.enum(["application/pdf", "image/jpeg", "image/png"], {
-    message: "Bukti harus PDF, JPG, atau PNG",
-  }),
-  data: z
-    .string()
-    .regex(/^[A-Za-z0-9+/=\s]+$/, "Berkas tidak valid")
-    .refine((v) => (v.replace(/\s/g, "").length * 3) / 4 <= 2 * 1024 * 1024, "Berkas maksimal 2 MB"),
-});
+export const claimAttachmentSchema = fileUpload(2);
 
 export const expenseClaimSchema = z.object({
   /** Kosong = karyawan user yang login (portal). */
@@ -1117,6 +1124,124 @@ export const employeeChangeSchema = z
   .refine((c) => EMPLOYEE_CHANGE_FIELDS.some((f) => c[f] !== undefined), {
     message: "Isi minimal satu data yang diubah",
   });
+
+// ---- Rekrutmen, dokumen, checklist ----
+
+export const HR_DOCUMENT_KIND_VALUES = [
+  "ktp",
+  "npwp",
+  "kk",
+  "ijazah",
+  "cv",
+  "contract",
+  "decree",
+  "certificate",
+  "other",
+] as const;
+
+export const hrDocumentSchema = z
+  .object({
+    employeeId: z.string().uuid().nullish(),
+    applicantId: z.string().uuid().nullish(),
+    kind: z.enum(HR_DOCUMENT_KIND_VALUES),
+    name: z.string().trim().min(1).max(200),
+    issuedDate: z.string().date().nullish(),
+    expiryDate: z.string().date().nullish(),
+    note: z.string().trim().max(500).nullish(),
+    file: fileUpload(5),
+  })
+  .refine((d) => d.employeeId || d.applicantId, {
+    message: "Pilih karyawan atau pelamar",
+    path: ["employeeId"],
+  })
+  .refine((d) => !d.issuedDate || !d.expiryDate || d.expiryDate >= d.issuedDate, {
+    message: "Tanggal kedaluwarsa sebelum tanggal terbit",
+    path: ["expiryDate"],
+  });
+
+export const jobOpeningSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  jobId: optionalUuid,
+  departmentId: optionalUuid,
+  description: z.string().trim().max(5000).nullish(),
+  quota: z.coerce.number().int().min(1).max(1000).default(1),
+  state: z.enum(["open", "closed"]).default("open"),
+  dateOpen: z.string().date().optional(),
+  dateClose: z.string().date().nullish(),
+});
+
+export const applicantSchema = z.object({
+  openingId: z.string().uuid(),
+  name: z.string().trim().min(1).max(200),
+  email: z
+    .string()
+    .trim()
+    .email()
+    .nullish()
+    .or(z.literal("").transform(() => null)),
+  phone: optionalText,
+  source: z.enum(["referral", "jobportal", "website", "walkin", "other"]).default("other"),
+  expectedWage: nonNegative(2).nullish(),
+  notes: z.string().trim().max(5000).nullish(),
+});
+
+export const applicantStageSchema = z
+  .object({
+    stage: z.enum(["new", "screening", "interview", "offer", "refused"]),
+    refuseReason: z.string().trim().max(500).nullish(),
+  })
+  .refine((s) => s.stage !== "refused" || s.refuseReason, {
+    message: "Isi alasan penolakan",
+    path: ["refuseReason"],
+  });
+
+export const interviewSchema = z.object({
+  scheduledAt: z.string().datetime({ offset: true }),
+  interviewerId: optionalUuid,
+  location: optionalText,
+  result: z.string().trim().max(2000).nullish(),
+  score: z.coerce.number().int().min(1).max(5).nullish(),
+  done: z.boolean().default(false),
+});
+
+export const hireSchema = z
+  .object({
+    joinDate: z.string().date(),
+    wage: nonNegative(2),
+    contractType: z.enum(["pkwt", "pkwtt"]).default("pkwtt"),
+    dateEnd: z.string().date().nullish(),
+    ptkpStatus: z.enum(PTKP_STATUS_VALUES).default("TK/0"),
+  })
+  .refine((h) => h.contractType !== "pkwt" || h.dateEnd, {
+    message: "PKWT wajib punya tanggal berakhir",
+    path: ["dateEnd"],
+  });
+
+export const checklistTemplateSchema = z.object({
+  kind: z.enum(["onboarding", "offboarding"]),
+  name: z.string().trim().min(1).max(200),
+  isDefault: z.boolean().default(false),
+  active: z.boolean().default(true),
+  items: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(200),
+        responsible: z.enum(["hr", "manager", "employee", "it"]).default("hr"),
+        dueDays: z.coerce.number().int().min(-365).max(365).default(0),
+        action: z.enum(["severance", "deactivate_user"]).nullish(),
+      }),
+    )
+    .min(1, "Minimal satu tugas")
+    .max(100),
+});
+
+export const checklistStartSchema = z.object({
+  employeeId: z.string().uuid(),
+  kind: z.enum(["onboarding", "offboarding"]),
+  templateId: z.string().uuid().nullish(),
+  /** Kosong = tanggal masuk (onboarding) / tanggal keluar (offboarding). */
+  baseDate: z.string().date().nullish(),
+});
 
 export const thrComputeSchema = z.object({
   /** Tanggal hari raya keagamaan (masa kerja dihitung sampai tanggal ini). */

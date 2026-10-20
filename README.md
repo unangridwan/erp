@@ -203,6 +203,9 @@ Otomatis (tanpa endpoint baru):
 | `/expense-categories`, `GET/POST /expense-claims`, `GET/PUT/DELETE /expense-claims/:id`, `POST /expense-claims/:id/{submit,approve,refuse,cancel,pay}` | Klaim biaya: plafon tahunan per kategori, persetujuan berjenjang, bayar via slip/kas-bank, bukti PDF/JPG/PNG |
 | `GET /employee-change-requests`, `POST /employee-change-requests/:id/{approve,refuse}`                                                                 | Perubahan data pribadi dari portal, disetujui HR lalu diterapkan                                             |
 | `GET /me/{expense-categories,overtimes,loans,change-requests,withholding-slips}`, `POST /me/{overtimes,change-requests}`, `GET /expense-claims?mine=1` | Portal karyawan: lembur, klaim, pinjaman, perubahan data, bukti potong A1                                    |
+| `/job-openings`, `GET/POST /applicants`, `GET/PUT/DELETE /applicants/:id`, `POST /applicants/:id/{stage,interviews,hire}`                              | Rekrutmen: lowongan, kanban pelamar, wawancara (skor), terima → karyawan + kontrak draft + onboarding        |
+| `GET/POST /hr-documents`, `GET /hr-documents/:id/file`, `GET /hr-documents/expiring`, `GET /hr/reminders`                                              | Dokumen karyawan/pelamar (PDF/JPG/PNG ≤ 5 MB) & pengingat kedaluwarsa, kontrak PKWT berakhir                 |
+| `/hr-checklist-templates`, `GET/POST /hr-checklists`, `POST /hr-checklists/tasks/:taskId`, `GET /me/checklist-tasks`                                   | Checklist onboarding/offboarding (otomatis saat karyawan baru/tanggal keluar diisi)                          |
 
 PPh 21 dihitung dengan TER (PP 58/2023) per bulan dan tarif Pasal 17 setahun di Desember atau bulan karyawan keluar.
 Tarif TER, PTKP, BPJS, dan lembur ada di `packages/shared/src/payroll.ts` (dengan unit test); batas upah JP perlu
@@ -225,6 +228,12 @@ Klaim biaya yang disetujui dengan metode "slip gaji" otomatis masuk slip payroll
 PPh 21 kecuali kategori ditandai objek PPh 21) dan saat posting mendebit akun beban kategori klaim; klaim yang berubah
 setelah payroll dihitung membuat posting ditolak sampai payroll dihitung ulang. Lembur yang diajukan dari portal selalu
 menunggu persetujuan (minimal atasan langsung). Nomor rekening pada pengajuan perubahan data disimpan terenkripsi.
+
+Checklist onboarding dibuat otomatis untuk karyawan baru (tanggal masuk ≤ 30 hari lalu) dan saat pelamar diterima;
+offboarding saat tanggal keluar diisi. Tanpa template bawaan perusahaan dipakai checklist standar; tugas "nonaktifkan
+akun" menonaktifkan login karyawan saat dicentang. Email pengingat HR harian (dokumen kedaluwarsa, kontrak PKWT
+berakhir ≤ 30 hari, tugas checklist lewat tenggat) dikirim ke pengguna `hr.manage`; matikan dengan
+`HR_REMINDER_SCHEDULER=off`.
 
 ### Pajak Coretax, Langganan & Operasional (Fase 5)
 

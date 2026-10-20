@@ -351,8 +351,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] HR & Payroll (2/4) Reimbursement & portal: kategori klaim (akun beban, plafon tahunan, objek PPh 21), klaim
   dengan bukti, persetujuan berjenjang, pembayaran via slip gaji atau kas/bank; portal: ajukan lembur & klaim, pinjaman,
   bukti potong A1, pengajuan perubahan data pribadi (disetujui HR, rekening terenkripsi)
-- [ ] HR & Payroll (3/4) rekrutmen, dokumen & checklist; (4/4) kinerja, pelatihan, riwayat karir, org chart,
-  dashboard HR
+- [x] HR & Payroll (3/4) Rekrutmen & dokumen: lowongan, kanban pelamar, wawancara, terima menjadi karyawan (kontrak
+  draft + onboarding); dokumen karyawan/pelamar dengan masa berlaku; pengingat HR (halaman + email harian); checklist
+  onboarding/offboarding dengan template, tenggat relatif, tugas portal, dan penonaktifan akun
+- [ ] HR & Payroll (4/4) kinerja, pelatihan, riwayat karir, org chart, dashboard HR
 
 ## 5. Roadmap Bertahap
 

@@ -1226,6 +1226,55 @@ RESOURCES.push(
     ],
   },
   {
+    path: "job-openings",
+    model: "job_opening",
+    title: L("Lowongan", "Job Openings"),
+    singular: L("Lowongan", "Job opening"),
+    permission: "hr",
+    writePermission: "hr.manage",
+    group: HR,
+    columns: [
+      { name: "name", label: L("Nama", "Name") },
+      { name: "quota", label: L("Kuota", "Quota") },
+      { name: "state", label: L("Status", "Status") },
+      { name: "dateOpen", label: L("Dibuka", "Opened") },
+    ],
+    fields: [
+      name(),
+      {
+        name: "jobId",
+        label: L("Jabatan", "Job position"),
+        type: "ref",
+        resource: "job-positions",
+        display: "name",
+      },
+      {
+        name: "departmentId",
+        label: L("Departemen", "Department"),
+        type: "ref",
+        resource: "departments",
+        display: "name",
+      },
+      { name: "quota", label: L("Kuota", "Quota"), type: "number" },
+      {
+        name: "state",
+        label: L("Status", "Status"),
+        type: "select",
+        options: [
+          ["open", L("Dibuka", "Open")],
+          ["closed", L("Ditutup", "Closed")],
+        ],
+      },
+      { name: "dateOpen", label: L("Tanggal dibuka", "Opening date"), type: "date" },
+      { name: "dateClose", label: L("Tanggal ditutup", "Closing date"), type: "date" },
+      {
+        name: "description",
+        label: L("Deskripsi & kualifikasi", "Description & requirements"),
+        type: "text",
+      },
+    ],
+  },
+  {
     path: "expense-categories",
     model: "expense_category",
     title: L("Kategori Klaim", "Expense Categories"),
@@ -1693,6 +1742,15 @@ export const LEAVE_STATE_LABEL: Record<string, Text> = {
   approved: L("Disetujui", "Approved"),
   refused: L("Ditolak", "Refused"),
   cancel: L("Dibatalkan", "Cancelled"),
+};
+
+export const APPLICANT_STAGE_LABEL: Record<string, Text> = {
+  new: L("Lamaran baru", "New"),
+  screening: L("Screening", "Screening"),
+  interview: L("Wawancara", "Interview"),
+  offer: L("Penawaran", "Offer"),
+  hired: L("Diterima", "Hired"),
+  refused: L("Ditolak", "Refused"),
 };
 
 export const EXPENSE_STATE_LABEL: Record<string, Text> = {
