@@ -15,12 +15,23 @@ export interface PayslipPdfData {
 const fmt = (v: string) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Number(v));
 
 /** Slip gaji A5 landscape: pendapatan, potongan, gaji bersih, dan informasi iuran perusahaan. */
-export function renderPayslipPdf(data: PayslipPdfData): Promise<Buffer> {
+export function renderPayslipPdf(
+  data: PayslipPdfData,
+  opts: { password?: string | null } = {},
+): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: "A4",
       margin: 48,
       info: { Title: `${data.title} ${data.employee.name}` },
+      // Dilindungi kata sandi (AES-128, PDF 1.7) untuk slip yang dikirim via email.
+      ...(opts.password
+        ? {
+            pdfVersion: "1.7" as const,
+            userPassword: opts.password,
+            permissions: { printing: "highResolution" as const, copying: true },
+          }
+        : {}),
     });
     const chunks: Buffer[] = [];
     doc.on("data", (c: Buffer) => chunks.push(c));
@@ -107,3 +118,57 @@ export function renderPayslipPdf(data: PayslipPdfData): Promise<Buffer> {
     doc.end();
   });
 }
+
+interface SlipForPdf {
+  employee: { name: string; employeeNumber: string; departmentName: string | null; jobName: string | null };
+  run: { name: string; periodStart: string };
+  ptkpStatus: string;
+  lines: { name: string; category: string; amount: string }[];
+  net: string;
+  gross: string;
+  isFinal: boolean;
+  terCategory: string;
+  terRate: string | null;
+}
+
+/** Data PDF slip gaji dari slip lengkap (`PayrollService.payslip`). */
+export function payslipPdfData(slip: SlipForPdf, company: string): PayslipPdfData {
+  const pick = (cats: string[]) =>
+    slip.lines
+      .filter((l) => cats.includes(l.category))
+      .map((l) => ({ name: l.name, amount: String(Math.abs(Number(l.amount))) }));
+  return {
+    company,
+    title: "Slip Gaji",
+    period: slip.run.name,
+    employee: {
+      name: slip.employee.name,
+      number: slip.employee.employeeNumber,
+      department: slip.employee.departmentName,
+      job: slip.employee.jobName,
+      ptkp: slip.ptkpStatus,
+    },
+    earnings: slip.lines
+      .filter((l) => ["basic", "allowance", "overtime", "unpaid"].includes(l.category))
+      .map((l) => ({ name: l.name, amount: l.amount })),
+    // Potongan tampil positif; PPh 21 lebih potong (baris positif) tampil sebagai pengembalian (negatif).
+    deductions: slip.lines
+      .filter((l) => ["bpjs_employee", "tax", "deduction"].includes(l.category))
+      .map((l) => ({ name: l.name, amount: String(-Number(l.amount)) })),
+    employer: pick(["bpjs_employer"]),
+    net: slip.net,
+    pph21Info: slip.isFinal
+      ? `PPh 21 masa pajak terakhir dihitung setahun (tarif Pasal 17) dikurangi PPh 21 yang telah dipotong. Penghasilan bruto bulan ini Rp ${slip.gross}.`
+      : `PPh 21 metode TER kategori ${slip.terCategory} tarif ${slip.terRate ?? 0}% × penghasilan bruto Rp ${slip.gross} (termasuk premi JKK, JKM, BPJS Kesehatan yang dibayar perusahaan).`,
+  };
+}
+
+export const payslipFilename = (slip: {
+  employee: { employeeNumber: string };
+  run: { periodStart: string };
+}) =>
+  `slip-${slip.employee.employeeNumber}-${slip.run.periodStart.slice(0, 7)}.pdf`.replace(/[^\w.-]+/g, "_");
+
+/** Kata sandi PDF slip via email: tanggal lahir DDMMYYYY (kosong bila tanggal lahir belum diisi). */
+export const payslipPassword = (birthDate: string | null) =>
+  birthDate ? `${birthDate.slice(8, 10)}${birthDate.slice(5, 7)}${birthDate.slice(0, 4)}` : null;

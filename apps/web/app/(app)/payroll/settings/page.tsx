@@ -19,7 +19,11 @@ type Settings = Record<
   | "employeeLoanAccountId"
   | "leaveApprovalLevels"
   | "overtimeApprovalLevels"
-  | "casualFullBpjsMonths",
+  | "casualFullBpjsMonths"
+  | "thrComponentId"
+  | "retroComponentId"
+  | "transferSourceAccount"
+  | "transferCompanyCode",
   string
 >;
 
@@ -28,6 +32,9 @@ export default function PayrollSettingsPage() {
   const { l } = useI18n();
   const accounts = useOptions<{ id: string; code: string; name: string }>("/accounts");
   const journals = useOptions<{ id: string; code: string; name: string; journalType: string }>("/journals");
+  const components = useOptions<{ id: string; code: string; name: string; kind: string }>(
+    "/salary-components",
+  );
   const [form, setForm] = useState<Settings | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +51,10 @@ export default function PayrollSettingsPage() {
           leaveApprovalLevels: String(s.leaveApprovalLevels),
           overtimeApprovalLevels: String(s.overtimeApprovalLevels),
           casualFullBpjsMonths: String(s.casualFullBpjsMonths),
+          thrComponentId: s.thrComponentId ?? "",
+          retroComponentId: s.retroComponentId ?? "",
+          transferSourceAccount: s.transferSourceAccount ?? "",
+          transferCompanyCode: s.transferCompanyCode ?? "",
         }),
       )
       .catch((e: Error) => setError(e.message));
@@ -70,6 +81,10 @@ export default function PayrollSettingsPage() {
         leaveApprovalLevels,
         overtimeApprovalLevels,
         casualFullBpjsMonths,
+        thrComponentId,
+        retroComponentId,
+        transferSourceAccount,
+        transferCompanyCode,
       } = form;
       await api("/payroll/settings", {
         method: "PUT",
@@ -88,6 +103,10 @@ export default function PayrollSettingsPage() {
           leaveApprovalLevels: Number(leaveApprovalLevels),
           overtimeApprovalLevels: Number(overtimeApprovalLevels),
           casualFullBpjsMonths: Number(casualFullBpjsMonths),
+          thrComponentId: thrComponentId || null,
+          retroComponentId: retroComponentId || null,
+          transferSourceAccount: transferSourceAccount || null,
+          transferCompanyCode: transferCompanyCode || null,
         },
       });
       setNotice(l("Pengaturan disimpan.", "Settings saved."));
@@ -165,6 +184,44 @@ export default function PayrollSettingsPage() {
               </option>
             ))}
         </select>
+      </label>
+      <h2>{l("THR, rapel & transfer gaji", "THR, back pay & salary transfer")}</h2>
+      {(
+        [
+          ["thrComponentId", l("Komponen THR otomatis", "Automatic THR component")],
+          ["retroComponentId", l("Komponen rapel otomatis", "Automatic back-pay component")],
+        ] as const
+      ).map(([k, label]) => (
+        <label key={k} className="field">
+          <span>{label}</span>
+          <select value={form[k]} onChange={set(k)}>
+            <option value="">—</option>
+            {components
+              .filter((c) => c.kind === "allowance")
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.code} {c.name}
+                </option>
+              ))}
+          </select>
+        </label>
+      ))}
+      <label className="field">
+        <span>
+          {l(
+            "Rekening sumber transfer gaji (didebet di file unggah bank)",
+            "Salary transfer source account (debited in bank upload files)",
+          )}
+        </span>
+        <input
+          inputMode="numeric"
+          value={form.transferSourceAccount}
+          onChange={set("transferSourceAccount")}
+        />
+      </label>
+      <label className="field">
+        <span>{l("Corporate ID / kode perusahaan di bank (opsional)", "Bank corporate ID (optional)")}</span>
+        <input value={form.transferCompanyCode} onChange={set("transferCompanyCode")} />
       </label>
       <h2>{l("Absensi & persetujuan", "Attendance & approvals")}</h2>
       <label className="field">

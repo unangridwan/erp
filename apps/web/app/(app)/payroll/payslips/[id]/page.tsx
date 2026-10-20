@@ -25,7 +25,13 @@ interface Slip {
   run: { id: string; name: string; periodStart: string; state: string };
   employee: { name: string; employeeNumber: string; departmentName: string | null; jobName: string | null };
   lines: { id: string; code: string; name: string; category: string; amount: string }[];
-  inputs: { componentId: string; amount: string; description: string | null }[];
+  inputs: {
+    componentId: string;
+    componentName: string;
+    amount: string;
+    description: string | null;
+    source: "manual" | "thr" | "retro";
+  }[];
 }
 
 const EARN = ["basic", "allowance", "overtime", "unpaid"];
@@ -46,11 +52,13 @@ export default function PayslipPage() {
   const load = (s: Slip) => {
     setSlip(s);
     setInputs(
-      s.inputs.map((i) => ({
-        componentId: i.componentId,
-        amount: String(Number(i.amount)),
-        description: i.description ?? "",
-      })),
+      s.inputs
+        .filter((i) => i.source === "manual")
+        .map((i) => ({
+          componentId: i.componentId,
+          amount: String(Number(i.amount)),
+          description: i.description ?? "",
+        })),
     );
   };
   useEffect(() => {
@@ -160,12 +168,35 @@ export default function PayslipPage() {
           )}
         </p>
       )}
+      {slip.inputs.some((i) => i.source !== "manual") && (
+        <>
+          <h2>{l("Dihitung otomatis", "Computed automatically")}</h2>
+          <ul>
+            {slip.inputs
+              .filter((i) => i.source !== "manual")
+              .map((i) => (
+                <li key={i.componentId + i.source}>
+                  {i.source === "thr" ? "THR" : l("Rapel", "Back pay")}: {i.componentName}
+                  {i.description ? ` — ${i.description}` : ""} · <strong>{n(i.amount)}</strong>
+                </li>
+              ))}
+          </ul>
+          {editable && (
+            <p className="muted">
+              {l(
+                "Hitung ulang lewat tombol Hitung THR / Hitung rapel di halaman payroll.",
+                "Recompute with the Compute THR / Compute back pay buttons on the payroll page.",
+              )}
+            </p>
+          )}
+        </>
+      )}
       {editable && (
         <>
           <h2>
             {l(
-              "Komponen tidak tetap bulan ini (THR, bonus, potongan)",
-              "One-off items this month (THR, bonus, deductions)",
+              "Komponen tidak tetap bulan ini (bonus, potongan)",
+              "One-off items this month (bonus, deductions)",
             )}
           </h2>
           <table className="lines">

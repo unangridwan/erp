@@ -849,6 +849,18 @@ export const departmentSchema = z.object({
 
 export const jobPositionSchema = z.object({
   name: z.string().trim().min(1).max(100),
+  /** Golongan upah (struktur & skala upah). */
+  gradeId: optionalUuid,
+  active: z.boolean().default(true),
+});
+
+/** Golongan upah; upah maksimum ≥ minimum diperiksa API (juga saat PATCH sebagian). */
+export const salaryGradeSchema = z.object({
+  code: z.string().trim().toUpperCase().min(1).max(20),
+  name: z.string().trim().min(1).max(100),
+  minWage: nonNegative(2),
+  maxWage: nonNegative(2),
+  sequence: z.coerce.number().int().min(0).max(999).default(0),
   active: z.boolean().default(true),
 });
 
@@ -1005,7 +1017,31 @@ export const payrollSettingsSchema = z.object({
   leaveApprovalLevels: z.coerce.number().int().min(1).max(3).optional(),
   overtimeApprovalLevels: z.coerce.number().int().min(0).max(3).optional(),
   casualFullBpjsMonths: z.coerce.number().int().min(0).max(24).optional(),
+  thrComponentId: z.string().uuid().nullish(),
+  retroComponentId: z.string().uuid().nullish(),
+  transferSourceAccount: z
+    .string()
+    .trim()
+    .max(30)
+    .regex(/^[\d\s.-]*$/, "Nomor rekening hanya angka")
+    .nullish(),
+  transferCompanyCode: z.string().trim().max(30).nullish(),
 });
+
+export const thrComputeSchema = z.object({
+  /** Tanggal hari raya keagamaan (masa kerja dihitung sampai tanggal ini). */
+  holidayDate: z.string().date(),
+  /** Nama hari raya untuk keterangan slip, mis. "Idul Fitri 1447 H". */
+  holiday: z.string().trim().max(60).nullish(),
+});
+
+export const payrollCostQuerySchema = z
+  .object({
+    from: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Format YYYY-MM"),
+    to: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Format YYYY-MM"),
+    groupBy: z.enum(["department", "branch", "month"]).default("department"),
+  })
+  .refine((q) => q.to >= q.from, { message: "Periode akhir sebelum awal", path: ["to"] });
 
 const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Format JJ:MM");
 

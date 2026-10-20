@@ -22,6 +22,7 @@ import {
   contractSchema,
   departmentSchema,
   employeeSchema,
+  gradePosition,
   holidaySchema,
   jobPositionSchema,
   leaveAllocationSchema,
@@ -29,6 +30,7 @@ import {
   leaveTypeSchema,
   overtimeSchema,
   approvalDecisionSchema,
+  salaryGradeSchema,
   shiftAssignmentSchema,
   workEntrySchema,
   workScheduleSchema,
@@ -86,7 +88,111 @@ const JobPositionsController = createCrudController({
   write: "hr.manage",
   searchColumns: [schema.jobPositions.name],
   orderBy: schema.jobPositions.name,
+  refs: { gradeId: schema.salaryGrades },
 });
+
+/** Golongan upah — struktur & skala upah (PP 36/2021). */
+const SalaryGradesController = createCrudController({
+  path: "salary-grades",
+  model: "salary_grade",
+  table: schema.salaryGrades,
+  schema: salaryGradeSchema,
+  read: "hr.read",
+  write: "hr.manage",
+  searchColumns: [schema.salaryGrades.code, schema.salaryGrades.name],
+  orderBy: schema.salaryGrades.sequence,
+  beforeSave: async (tx, values, id) => {
+    let { minWage, maxWage } = values as { minWage?: string; maxWage?: string };
+    if (id && (minWage === undefined || maxWage === undefined)) {
+      const [row] = await tx.select().from(schema.salaryGrades).where(eq(schema.salaryGrades.id, id));
+      minWage ??= row?.minWage;
+      maxWage ??= row?.maxWage;
+    }
+    if (minWage !== undefined && maxWage !== undefined && new Decimal(maxWage).lt(minWage))
+      throw fieldError("maxWage", "Upah maksimum di bawah upah minimum");
+  },
+});
+
+/** Golongan upah karyawan lewat jabatannya. */
+async function gradeOf(tx: Db, employeeId: string) {
+  const [row] = await tx
+    .select({ grade: schema.salaryGrades })
+    .from(schema.employees)
+    .innerJoin(schema.jobPositions, eq(schema.jobPositions.id, schema.employees.jobId))
+    .innerJoin(schema.salaryGrades, eq(schema.salaryGrades.id, schema.jobPositions.gradeId))
+    .where(eq(schema.employees.id, employeeId));
+  return row?.grade ?? null;
+}
+
+/** Laporan struktur & skala upah: upah kontrak berjalan dibandingkan rentang golongan jabatan. */
+@Controller("hr/wage-scale")
+class WageScaleController {
+  constructor(@Inject(TenantDb) private readonly tenantDb: TenantDb) {}
+
+  @Get()
+  @RequirePermission("hr.manage")
+  report() {
+    return this.tenantDb.run(async (tx) => {
+      const rows = await tx
+        .select({
+          employeeId: schema.employees.id,
+          employeeNumber: schema.employees.employeeNumber,
+          name: schema.employees.name,
+          jobName: schema.jobPositions.name,
+          wage: schema.contracts.wage,
+          wageType: schema.contracts.wageType,
+          grade: schema.salaryGrades,
+        })
+        .from(schema.contracts)
+        .innerJoin(schema.employees, eq(schema.employees.id, schema.contracts.employeeId))
+        .leftJoin(schema.jobPositions, eq(schema.jobPositions.id, schema.employees.jobId))
+        .leftJoin(schema.salaryGrades, eq(schema.salaryGrades.id, schema.jobPositions.gradeId))
+        .where(
+          and(
+            eq(schema.contracts.companyId, currentContext().companyId),
+            eq(schema.contracts.state, "running"),
+            eq(schema.contracts.wageType, "monthly"),
+          ),
+        )
+        .orderBy(asc(schema.salaryGrades.sequence), asc(schema.employees.name));
+      const items = rows.map((r) => ({
+        employeeId: r.employeeId,
+        employeeNumber: r.employeeNumber,
+        name: r.name,
+        jobName: r.jobName,
+        wage: r.wage,
+        grade: r.grade ? { id: r.grade.id, code: r.grade.code, name: r.grade.name } : null,
+        minWage: r.grade?.minWage ?? null,
+        maxWage: r.grade?.maxWage ?? null,
+        position: r.grade ? gradePosition(r.wage, r.grade) : null,
+      }));
+      // Ringkasan per golongan: jumlah karyawan, upah terendah/tertinggi/rata-rata.
+      const byGrade = new Map<string, typeof items>();
+      for (const i of items) {
+        const key = i.grade?.code ?? "";
+        byGrade.set(key, [...(byGrade.get(key) ?? []), i]);
+      }
+      const grades = [...byGrade.entries()].map(([code, list]) => {
+        const wages = list.map((i) => new Decimal(i.wage));
+        return {
+          code: code || null,
+          name: list[0]!.grade?.name ?? null,
+          minWage: list[0]!.minWage,
+          maxWage: list[0]!.maxWage,
+          employees: list.length,
+          lowest: Decimal.min(...wages).toFixed(0),
+          highest: Decimal.max(...wages).toFixed(0),
+          average: wages
+            .reduce((sum, w) => sum.plus(w), new Decimal(0))
+            .div(wages.length)
+            .toFixed(0),
+          outOfRange: list.filter((i) => i.position && i.position !== "within").length,
+        };
+      });
+      return { grades, items };
+    });
+  }
+}
 
 const HolidaysController = createCrudController({
   path: "public-holidays",
@@ -537,7 +643,22 @@ class ContractsController {
       .select({ name: schema.employees.name })
       .from(schema.employees)
       .where(eq(schema.employees.id, contract.employeeId));
-    return { ...contract, employeeName: employee?.name ?? "", allowances };
+    const grade = await gradeOf(tx, contract.employeeId);
+    return {
+      ...contract,
+      employeeName: employee?.name ?? "",
+      allowances,
+      // Peringatan struktur & skala upah: upah pokok di luar rentang golongan jabatan.
+      grade: grade
+        ? {
+            code: grade.code,
+            name: grade.name,
+            minWage: grade.minWage,
+            maxWage: grade.maxWage,
+            position: contract.wageType === "monthly" ? gradePosition(contract.wage, grade) : null,
+          }
+        : null,
+    };
   }
 }
 
@@ -785,6 +906,8 @@ class PortalController {
   controllers: [
     DepartmentsController,
     JobPositionsController,
+    SalaryGradesController,
+    WageScaleController,
     HolidaysController,
     LeaveTypesController,
     LeaveAllocationsController,

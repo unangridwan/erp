@@ -194,6 +194,12 @@ Otomatis (tanpa endpoint baru):
 | `GET/POST /employee-loans`, `GET /employee-loans/:id`, `POST /employee-loans/:id/{disburse,cancel}`                    | Pinjaman karyawan: cair via kas/bank, cicilan otomatis di slip sampai lunas       |
 | `/work-entries`                                                                                                        | Hasil kerja pekerja borongan (terkunci setelah payroll diposting)                 |
 | `GET/POST /employees/:id/severances`, `POST /employees/:id/severance/preview`                                          | Pesangon, UPMK, UPH, uang pisah/kompensasi PKWT (PP 35/2021) + PPh 21 final       |
+| `/salary-grades`, `GET /hr/wage-scale`                                                                                 | Struktur & skala upah (PP 36/2021): golongan di jabatan, upah di luar rentang     |
+| `POST /payroll-runs/:id/{thr,retro}`                                                                                   | THR otomatis (Permenaker 6/2016) & rapel kenaikan upah berlaku mundur             |
+| `GET /payroll-runs/:id/bank-transfer?format=csv\|bca\|mandiri\|bri\|bni`, `GET …/bank-transfer/summary`                | File transfer gaji massal per bank (rekening bank itu saja) + ringkasan per bank  |
+| `GET /payroll-runs/:id/recap?format=csv\|edabu\|sipp`                                                                  | Rekap PPh 21 & BPJS, unggah BPJS Kesehatan (e-Dabu) & Ketenagakerjaan (SIPP)      |
+| `POST /payroll-runs/:id/email-payslips`                                                                                | Kirim slip PDF berkata sandi (tanggal lahir DDMMYYYY) ke email kerja              |
+| `GET /payroll/reports/cost?from=YYYY-MM&to=YYYY-MM&groupBy=department\|branch\|month`                                  | Biaya tenaga kerja (pendapatan + BPJS perusahaan) dari payroll terposting         |
 
 PPh 21 dihitung dengan TER (PP 58/2023) per bulan dan tarif Pasal 17 setahun di Desember atau bulan karyawan keluar.
 Tarif TER, PTKP, BPJS, dan lembur ada di `packages/shared/src/payroll.ts` (dengan unit test); batas upah JP perlu
@@ -203,6 +209,14 @@ Kontrak bisa berupah bulanan, harian lepas (hari hadir × upah harian), atau bor
 Pekerja harian/borongan memakai PPh 21 tarif harian (PMK 168/2023) dan hanya ikut JKK & JKM sampai masa kerja mencapai
 batas di Pengaturan Payroll (bawaan 3 bulan). Lembur yang butuh persetujuan baru dibayar setelah disetujui. Pesangon
 memakai upah sebulan terakhir (harian × 21; borongan rata-rata 3 slip) dan sisa cuti tahunan dari saldo bila tidak diisi.
+
+THR dihitung sampai tanggal hari raya: masa kerja ≥ 12 bulan = upah sebulan (gaji pokok + tunjangan tetap), 1–12 bulan
+prorata masa kerja/12, harian lepas/borongan rata-rata upah maks. 12 slip terakhir; masuk slip sebagai komponen THR
+(kena PPh 21 lewat TER). Rapel membandingkan upah kontrak berjalan dengan gaji pokok + tunjangan tetap yang sudah dibayar
+di payroll terposting sejak tanggal mulai kontrak (bulan pertama prorata hari kalender, rapel terdahulu dikurangkan),
+jadi kenaikan upah berlaku mundur dicatat sebagai kontrak baru dengan tanggal mulai di masa lalu. Input otomatis THR/rapel
+tidak tertimpa input manual slip. File transfer per bank mengikuti templat unggah massal umum (rekening sumber & corporate
+ID diisi di Pengaturan Payroll) — cocokkan dengan templat terbaru bank sebelum dipakai produksi.
 
 ### Pajak Coretax, Langganan & Operasional (Fase 5)
 

@@ -396,4 +396,15 @@ export const MESSAGES_EN: Record<string, string> = {
     "Journal entry {0} is posted and cannot be deleted",
   "Entri jurnal {} sudah diposting dan tidak bisa diubah":
     "Journal entry {0} is posted and cannot be changed",
+  // Payroll lanjutan
+  "Upah maksimum di bawah upah minimum": "The maximum wage is below the minimum wage",
+  "Komponen THR belum diatur di pengaturan payroll": "The THR component is not set in the payroll settings",
+  "Komponen rapel belum diatur di pengaturan payroll":
+    "The back-pay component is not set in the payroll settings",
+  "Rekening sumber transfer gaji belum diatur di pengaturan payroll":
+    "The salary transfer source account is not set in the payroll settings",
+  "Posting payroll sebelum mengirim slip": "Post the payroll before sending payslips",
+  "Pilih komponen tunjangan perusahaan ini": "Choose an allowance component of this company",
+  "Periode akhir sebelum awal": "The end period is before the start period",
+  "Nomor rekening hanya angka": "The account number may only contain digits",
 };

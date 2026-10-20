@@ -230,6 +230,7 @@ export const APPS: App[] = [
       "/work-schedules",
       "/shift-assignments",
       "/work-entries",
+      "/salary-grades",
     ],
     menu: [
       group("Karyawan", "Employees", [
@@ -252,6 +253,8 @@ export const APPS: App[] = [
       group("Konfigurasi", "Configuration", [
         link("Jadwal Kerja", "Work Schedules", "/work-schedules", "hr.read"),
         link("Jabatan", "Job Positions", "/job-positions", "hr.read"),
+        link("Golongan Upah", "Salary Grades", "/salary-grades", "hr.read"),
+        link("Struktur & Skala Upah", "Wage Scale", "/hr/wage-scale", "hr.manage"),
         link("Jenis Cuti", "Time Off Types", "/leave-types", "hr.read"),
         link("Hari Libur", "Public Holidays", "/public-holidays", "hr.read"),
       ]),
@@ -265,6 +268,7 @@ export const APPS: App[] = [
     menu: [
       link("Penggajian", "Payslip Batches", "/payroll/runs", "payroll.read"),
       link("Pinjaman Karyawan", "Employee Loans", "/payroll/loans", "payroll.read"),
+      link("Biaya Tenaga Kerja", "Labour Cost", "/payroll/cost", "payroll.read"),
       group("Konfigurasi", "Configuration", [
         link("Komponen Gaji", "Salary Rules", "/salary-components", "payroll.read"),
         link("Pengaturan Payroll", "Settings", "/payroll/settings", "payroll.manage"),

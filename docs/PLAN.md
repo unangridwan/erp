@@ -344,6 +344,12 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   RelayState terenkripsi, pengikat cookie peramban); terjemahan Inggris seluruh pesan error API dengan tes cakupan
 - [ ] Ditunda: kurs KMK (pajak) & JISDOR BI otomatis (tidak ada API resmi); SAML Single Logout & AuthnRequest bertanda
   tangan; assertion terenkripsi
+- [x] HR & Payroll (1/4) Payroll lanjutan: THR otomatis (Permenaker 6/2016, prorata masa kerja, rata-rata upah harian/
+  borongan), rapel kenaikan upah berlaku mundur dari payroll terposting, struktur & skala upah (PP 36/2021, golongan di
+  jabatan, peringatan kontrak & laporan), file transfer gaji massal BCA/Mandiri/BRI/BNI + CSV umum, unggah BPJS e-Dabu &
+  SIPP, laporan biaya tenaga kerja per departemen/cabang/bulan, slip gaji via email (PDF berkata sandi)
+- [ ] HR & Payroll (2/4) Reimbursement & portal karyawan; (3/4) rekrutmen, dokumen & checklist; (4/4) kinerja,
+  pelatihan, riwayat karir, org chart, dashboard HR
 
 ## 5. Roadmap Bertahap
 

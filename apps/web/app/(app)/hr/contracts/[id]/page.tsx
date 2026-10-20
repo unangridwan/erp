@@ -22,6 +22,13 @@ interface Contract {
   state: string;
   note: string | null;
   allowances: { componentId: string; amount: string; name: string; kind: string; fixed: boolean }[];
+  grade: {
+    code: string;
+    name: string;
+    minWage: string;
+    maxWage: string;
+    position: "below" | "within" | "above" | null;
+  } | null;
 }
 interface Component {
   id: string;
@@ -143,6 +150,14 @@ export default function ContractPage() {
         )}
       </header>
       {error && <p className="error">{error}</p>}
+      {contract?.grade?.position && contract.grade.position !== "within" && (
+        <p className="error">
+          {l(
+            `Gaji pokok ${contract.grade.position === "below" ? "di bawah" : "di atas"} skala upah golongan ${contract.grade.code} (${money(contract.grade.minWage, locale)} – ${money(contract.grade.maxWage, locale)}).`,
+            `Base wage is ${contract.grade.position} the ${contract.grade.code} grade range (${money(contract.grade.minWage, locale)} – ${money(contract.grade.maxWage, locale)}).`,
+          )}
+        </p>
+      )}
       <fieldset className="fields" disabled={!editable}>
         <label className="field">
           <span>{l("Karyawan *", "Employee *")}</span>

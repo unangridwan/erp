@@ -37,6 +37,8 @@ interface Run {
     pph21: string;
     employeeBpjs: string;
     net: string;
+    emailedAt: string | null;
+    emailError: string | null;
   }[];
   accountMove: { id: string; name: string | null } | null;
   paymentMove: { id: string; name: string | null } | null;
@@ -53,12 +55,34 @@ export default function PayrollRunPage() {
   const [journalId, setJournalId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [holidayDate, setHolidayDate] = useState("");
+  const [holiday, setHoliday] = useState("");
+  const [bankFormat, setBankFormat] = useState("csv");
 
-  useEffect(() => {
+  const load = () =>
     api<Run>(`/payroll-runs/${id}`)
       .then(setRun)
       .catch((e: Error) => setError(e.message));
+  useEffect(() => {
+    void load();
   }, [id]);
+
+  /** Aksi yang mengembalikan ringkasan (THR, rapel, email): tampilkan pesan lalu muat ulang payroll. */
+  async function summaryAction<T>(path: string, body: object, message: (r: T) => string) {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const r = await api<T>(`/payroll-runs/${id}/${path}`, { method: "POST", body });
+      setNotice(message(r));
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function act(path: string, body?: object) {
     setBusy(true);
@@ -126,32 +150,129 @@ export default function PayrollRunPage() {
         )}
         {manage && (
           <>
+            <select
+              aria-label={l("Format file transfer", "Transfer file format")}
+              value={bankFormat}
+              onChange={(e) => setBankFormat(e.target.value)}
+            >
+              <option value="csv">{l("CSV umum (semua bank)", "Generic CSV (all banks)")}</option>
+              <option value="bca">BCA — KlikBCA Bisnis</option>
+              <option value="mandiri">Mandiri — MCM</option>
+              <option value="bri">BRI — CMS</option>
+              <option value="bni">BNI — BNIDirect</option>
+            </select>
             <button
               type="button"
               onClick={() =>
                 download(
-                  `/payroll-runs/${id}/bank-transfer?format=csv`,
-                  `transfer-${run.periodStart.slice(0, 7)}.csv`,
+                  `/payroll-runs/${id}/bank-transfer?format=${bankFormat}`,
+                  `transfer-gaji-${bankFormat}-${run.periodStart.slice(0, 7)}.${bankFormat === "bca" ? "txt" : "csv"}`,
                 ).catch((e: Error) => setError(e.message))
               }
             >
               {l("File transfer bank", "Bank transfer file")}
             </button>
-            <button
-              type="button"
-              onClick={() =>
-                download(
-                  `/payroll-runs/${id}/recap?format=csv`,
-                  `pph21-bpjs-${run.periodStart.slice(0, 7)}.csv`,
-                ).catch((e: Error) => setError(e.message))
-              }
-            >
-              {l("Rekap PPh 21 & BPJS", "PPh 21 & BPJS recap")}
-            </button>
+            {(
+              [
+                ["csv", l("Rekap PPh 21 & BPJS", "PPh 21 & BPJS recap"), "pph21-bpjs"],
+                ["edabu", "BPJS Kesehatan (e-Dabu)", "bpjs-kesehatan-edabu"],
+                ["sipp", "BPJS Ketenagakerjaan (SIPP)", "bpjs-ketenagakerjaan-sipp"],
+              ] as const
+            ).map(([format, label, file]) => (
+              <button
+                key={format}
+                type="button"
+                onClick={() =>
+                  download(
+                    `/payroll-runs/${id}/recap?format=${format}`,
+                    `${file}-${run.periodStart.slice(0, 7)}.csv`,
+                  ).catch((e: Error) => setError(e.message))
+                }
+              >
+                {label}
+              </button>
+            ))}
+            {run.state !== "draft" && run.state !== "cancel" && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  confirm(
+                    l(
+                      "Kirim slip gaji (PDF berkata sandi tanggal lahir) ke email kerja karyawan?",
+                      "Email payslips (PDF protected with the birth date) to employees' work emails?",
+                    ),
+                  ) &&
+                  summaryAction<{ sent: number; failed: number; skipped: { name: string }[] }>(
+                    "email-payslips",
+                    {},
+                    (r) =>
+                      l(
+                        `${r.sent} slip terkirim, ${r.failed} gagal, ${r.skipped.length} dilewati (tanpa email)${r.skipped.length ? `: ${r.skipped.map((x) => x.name).join(", ")}` : ""}.`,
+                        `${r.sent} payslips sent, ${r.failed} failed, ${r.skipped.length} skipped (no email)${r.skipped.length ? `: ${r.skipped.map((x) => x.name).join(", ")}` : ""}.`,
+                      ),
+                  )
+                }
+              >
+                {l("Kirim slip via email", "Email payslips")}
+              </button>
+            )}
           </>
         )}
       </header>
       {error && <p className="error">{error}</p>}
+      {notice && <p className="notice">{notice}</p>}
+      {run.state === "draft" && can(me.permissions, "payroll.write") && (
+        <div className="inline-panel">
+          <label className="field">
+            <span>{l("Tanggal hari raya", "Holiday date")}</span>
+            <input type="date" value={holidayDate} onChange={(e) => setHolidayDate(e.target.value)} />
+          </label>
+          <label className="field">
+            <span>{l("Hari raya", "Holiday")}</span>
+            <input
+              placeholder="Idul Fitri 1447 H"
+              value={holiday}
+              onChange={(e) => setHoliday(e.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={!holidayDate || busy}
+            onClick={() =>
+              summaryAction<{ total: string; items: { eligible: boolean }[] }>(
+                "thr",
+                { holidayDate, holiday: holiday || null },
+                (r) =>
+                  l(
+                    `THR ${r.items.filter((i) => i.eligible).length} karyawan, total ${n(r.total)} (Permenaker 6/2016).`,
+                    `THR for ${r.items.filter((i) => i.eligible).length} employees, total ${n(r.total)}.`,
+                  ),
+              )
+            }
+          >
+            {l("Hitung THR", "Compute THR")}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            title={l(
+              "Selisih kenaikan upah berlaku mundur terhadap payroll yang sudah diposting",
+              "Back pay for retroactive wage increases against posted payrolls",
+            )}
+            onClick={() =>
+              summaryAction<{ total: string; items: unknown[] }>("retro", {}, (r) =>
+                l(
+                  `Rapel ${r.items.length} karyawan, total ${n(r.total)}.`,
+                  `Back pay for ${r.items.length} employees, total ${n(r.total)}.`,
+                ),
+              )
+            }
+          >
+            {l("Hitung rapel", "Compute back pay")}
+          </button>
+        </div>
+      )}
       <p className="muted">
         {l("Periode", "Period")} {formatDate(run.periodStart, locale)} – {formatDate(run.periodEnd, locale)} ·{" "}
         {l("dibayar", "paid on")} {formatDate(run.paymentDate, locale)}
@@ -232,7 +353,9 @@ export default function PayrollRunPage() {
                     {" "}
                     · {p.employeeNumber}
                     {p.departmentName ? ` · ${p.departmentName}` : ""}
+                    {p.emailedAt ? ` · ${l("slip terkirim", "slip emailed")}` : ""}
                   </small>
+                  {p.emailError && <small className="error"> {p.emailError}</small>}
                 </td>
                 <td>
                   {p.ptkpStatus} ·{" "}
