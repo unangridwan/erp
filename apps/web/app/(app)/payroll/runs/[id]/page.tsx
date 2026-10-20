@@ -172,6 +172,9 @@ export default function PayrollRunPage() {
             >
               {l("File transfer bank", "Bank transfer file")}
             </button>
+            <Link className="button" href={`/payroll/data?runId=${id}`}>
+              {l("Impor/ekspor Excel", "Excel import/export")}
+            </Link>
             {(
               [
                 ["csv", l("Rekap PPh 21 & BPJS", "PPh 21 & BPJS recap"), "pph21-bpjs"],

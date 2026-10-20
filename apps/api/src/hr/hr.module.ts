@@ -48,6 +48,7 @@ import { parse } from "../common/zod.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { ApprovalService } from "./approval.service.js";
 import { ChecklistService } from "./checklist.service.js";
+import { ContractService } from "./contract.service.js";
 import { HistoryService } from "./history.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { LeaveService } from "./leave.service.js";
@@ -242,6 +243,19 @@ const LeaveAllocationsController = createCrudController({
   },
 });
 
+/** Lembur baru menunggu persetujuan bila perusahaan mewajibkannya (pengaturan payroll). */
+export async function applyOvertimeApproval(tx: Db, row: { id: string; companyId?: unknown }) {
+  const [s] = await tx
+    .select({ levels: schema.payrollSettings.overtimeApprovalLevels })
+    .from(schema.payrollSettings)
+    .where(eq(schema.payrollSettings.companyId, String(row.companyId)));
+  if (s && s.levels > 0)
+    await tx
+      .update(schema.overtimes)
+      .set({ state: "confirm", approvalLevels: s.levels, approvalStep: 1 })
+      .where(eq(schema.overtimes.id, row.id));
+}
+
 const OvertimesController = createCrudController({
   path: "overtimes",
   model: "overtime",
@@ -263,18 +277,7 @@ const OvertimesController = createCrudController({
   beforeDelete: async (_tx, row) => {
     if (row.payslipId) throw new BadRequestException("Lembur sudah dibayar lewat slip gaji");
   },
-  // Lembur baru menunggu persetujuan bila perusahaan mewajibkannya (pengaturan payroll).
-  afterCreate: async (tx, row) => {
-    const [s] = await tx
-      .select({ levels: schema.payrollSettings.overtimeApprovalLevels })
-      .from(schema.payrollSettings)
-      .where(eq(schema.payrollSettings.companyId, String(row.companyId)));
-    if (s && s.levels > 0)
-      await tx
-        .update(schema.overtimes)
-        .set({ state: "confirm", approvalLevels: s.levels, approvalStep: 1 })
-        .where(eq(schema.overtimes.id, row.id));
-  },
+  afterCreate: (tx, row) => applyOvertimeApproval(tx, row),
 });
 
 const WorkSchedulesController = createCrudController({
@@ -445,10 +448,8 @@ const C = schema.contracts;
 class ContractsController {
   constructor(
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
-    @Inject(EmployeeService) private readonly employees: EmployeeService,
-    @Inject(SequenceService) private readonly sequences: SequenceService,
     @Inject(ActivityService) private readonly activity: ActivityService,
-    @Inject(HistoryService) private readonly history: HistoryService,
+    @Inject(ContractService) private readonly contracts: ContractService,
   ) {}
 
   @Get()
@@ -484,45 +485,7 @@ class ContractsController {
   @RequirePermission("hr.manage")
   create(@Body() body: unknown) {
     const input = parse(contractSchema, body);
-    return this.tenantDb.run(async (tx) => {
-      const employee = await this.employees.find(tx, input.employeeId);
-      await this.assertComponents(
-        tx,
-        input.allowances.map((a) => a.componentId),
-      );
-      const name = await this.sequences.next(
-        tx,
-        "hr.contract",
-        employee.companyId,
-        new Date(`${input.dateStart}T00:00:00Z`),
-        "KTR",
-      );
-      const [row] = await tx
-        .insert(C)
-        .values({
-          companyId: employee.companyId,
-          employeeId: employee.id,
-          name,
-          contractType: input.contractType,
-          wageType: input.wageType,
-          dateStart: input.dateStart,
-          dateEnd: input.dateEnd ?? null,
-          wage: input.wage,
-          note: input.note ?? null,
-        })
-        .returning();
-      if (input.allowances.length)
-        await tx
-          .insert(schema.contractAllowances)
-          .values(input.allowances.map((a) => ({ ...a, contractId: row!.id })));
-      await this.activity.log(tx, {
-        resModel: "employee",
-        resId: employee.id,
-        action: "comment",
-        message: `Kontrak ${name} dibuat`,
-      });
-      return this.load(tx, row!.id);
-    });
+    return this.tenantDb.run(async (tx) => this.load(tx, await this.contracts.create(tx, input)));
   }
 
   /** Ubah kontrak draft/berjalan (gaji baru berlaku pada payroll berikutnya). */
@@ -573,32 +536,7 @@ class ContractsController {
   @RequirePermission("hr.manage")
   start(@Param("id", ParseUUIDPipe) id: string) {
     return this.tenantDb.run(async (tx) => {
-      const contract = await this.find(tx, id);
-      if (contract.state !== "draft") throw new BadRequestException("Hanya kontrak draft yang bisa dimulai");
-      const [running] = await tx
-        .select({ name: C.name })
-        .from(C)
-        .where(and(eq(C.employeeId, contract.employeeId), eq(C.state, "running")));
-      if (running)
-        throw new BadRequestException(`Karyawan masih punya kontrak berjalan (${running.name}); akhiri dulu`);
-      await tx
-        .update(C)
-        .set({ state: "running", updatedAt: sql`now()` })
-        .where(eq(C.id, id));
-      // Riwayat upah: dibanding kontrak sebelumnya.
-      const [previous] = await tx
-        .select({ wage: C.wage })
-        .from(C)
-        .where(and(eq(C.employeeId, contract.employeeId), eq(C.state, "closed")))
-        .orderBy(desc(C.dateStart))
-        .limit(1);
-      if (!previous || !new Decimal(previous.wage).eq(contract.wage))
-        await this.history.record(tx, { id: contract.employeeId, companyId: contract.companyId }, "wage", {
-          date: contract.dateStart,
-          oldValue: previous ? new Decimal(previous.wage).toFixed(0) : null,
-          newValue: new Decimal(contract.wage).toFixed(0),
-          note: contract.name,
-        });
+      await this.contracts.start(tx, id);
       return this.load(tx, id);
     });
   }
@@ -633,29 +571,12 @@ class ContractsController {
     });
   }
 
-  private async assertComponents(tx: Db, ids: string[]) {
-    for (const [i, id] of ids.entries()) {
-      const [row] = await tx
-        .select({ kind: schema.salaryComponents.kind })
-        .from(schema.salaryComponents)
-        .where(
-          and(
-            eq(schema.salaryComponents.id, id),
-            eq(schema.salaryComponents.companyId, currentContext().companyId),
-          ),
-        );
-      if (!row) throw fieldError(`allowances.${i}.componentId`, "Komponen gaji tidak ditemukan");
-    }
-    if (new Set(ids).size !== ids.length) throw fieldError("allowances", "Komponen ganda");
+  private find(tx: Db, id: string) {
+    return this.contracts.find(tx, id);
   }
 
-  private async find(tx: Db, id: string) {
-    const [row] = await tx
-      .select()
-      .from(C)
-      .where(and(eq(C.id, id), eq(C.companyId, currentContext().companyId)));
-    if (!row) throw new NotFoundException("Kontrak tidak ditemukan");
-    return row;
+  private assertComponents(tx: Db, ids: string[]) {
+    return this.contracts.assertComponents(tx, ids);
   }
 
   private async load(tx: Db, id: string) {
@@ -969,6 +890,7 @@ class PortalController {
     ScheduleService,
     ChecklistService,
     HistoryService,
+    ContractService,
   ],
   exports: [
     EmployeeService,
@@ -977,6 +899,7 @@ class PortalController {
     ApprovalService,
     ChecklistService,
     HistoryService,
+    ContractService,
   ],
 })
 export class HrModule {}

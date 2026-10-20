@@ -34,6 +34,8 @@ export {
   type FamilyRelation,
   type MaritalStatus,
   type ProfileItem,
+  zonedToUtc,
+  localTime,
 } from "./hr.js";
 export * from "./coretax.js";
 export * from "./coretax-extra.js";

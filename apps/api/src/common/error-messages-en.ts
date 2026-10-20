@@ -493,4 +493,22 @@ export const MESSAGES_EN: Record<string, string> = {
   "Isi minimal satu perubahan (jabatan, departemen, cabang, atasan, golongan, atau upah)":
     "Fill in at least one change (job, department, branch, manager, grade, or wage)",
   "Masa berlaku berakhir sebelum tanggal SP": "The validity ends before the warning date",
+  "Kolom ekspor tidak dikenal: {}": "Unknown export columns: {0}",
+  "Dataset tidak ditemukan": "Dataset not found",
+  "Dataset ini hanya bisa diekspor": "This dataset can only be exported",
+  "Pilih periode payroll": "Choose a payroll period",
+  "Kolom data pribadi hanya untuk pemegang hak kelola": "Personal data columns require the manage permission",
+  "Profil ekspor tidak ditemukan": "Export profile not found",
+  "Hanya pembuat profil yang bisa menghapusnya": "Only the profile's creator can delete it",
+  'Nilai "{}" tidak dikenal (pilihan: {})': 'Unknown value "{0}" (choices: {1})',
+  'Isi "ya" atau "tidak", bukan "{}"': 'Enter "ya" (yes) or "tidak" (no), not "{0}"',
+  'Tanggal "{}" tidak valid (gunakan YYYY-MM-DD atau DD/MM/YYYY)':
+    'Invalid date "{0}" (use YYYY-MM-DD or DD/MM/YYYY)',
+  'Angka "{}" tidak valid': 'Invalid number "{0}"',
+  'Jam "{}" tidak valid (HH:MM)': 'Invalid time "{0}" (HH:MM)',
+  'Karyawan dengan No. Karyawan "{}" tidak ditemukan': 'No employee with employee no. "{0}"',
+  "{} tidak ada di periode payroll ini": "{0} is not in this payroll period",
+  "Kolom data pribadi hanya bisa diimpor pemegang hr.manage":
+    "Personal data columns can only be imported with hr.manage",
+  "Periode tidak valid": "Invalid period",
 };

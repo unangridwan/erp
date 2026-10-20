@@ -37,10 +37,15 @@ export function coerceCsvRow(schema: AnyZodObject, row: Record<string, string>):
 
 export const exportColumns = (schema: AnyZodObject) => ["id", ...Object.keys(schema.shape)];
 
-/** Teks sel Excel: tanggal → YYYY-MM-DD, rumus → hasilnya, rich text → teks biasa. */
+/** Teks sel Excel: tanggal → YYYY-MM-DD (jam → HH:MM), rumus → hasilnya, rich text → teks biasa. */
 function cellText(value: unknown): string {
   if (value === null || value === undefined) return "";
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (value instanceof Date) {
+    const iso = value.toISOString();
+    // Sel jam saja (Excel menyimpannya sebagai 30 Des 1899) → HH:MM; tanggal+jam → "YYYY-MM-DD HH:MM".
+    if (iso.startsWith("1899-12-3")) return iso.slice(11, 16);
+    return iso.slice(11, 19) === "00:00:00" ? iso.slice(0, 10) : `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
+  }
   if (typeof value === "object") {
     const v = value as { result?: unknown; richText?: { text: string }[]; text?: string; hyperlink?: string };
     if ("result" in v) return cellText(v.result);
@@ -84,21 +89,42 @@ export async function parseXlsx(base64: string): Promise<Record<string, string>[
   return rows;
 }
 
-/** Berkas .xlsx satu lembar dari kolom & baris (untuk ekspor/template impor). */
-export async function toXlsx(sheetName: string, columns: string[], rows: Record<string, unknown>[]) {
+export interface XlsxSheet {
+  name: string;
+  columns: { key: string; header?: string; width?: number; numeric?: boolean }[];
+  rows: Record<string, unknown>[];
+  /** Baris total di bawah: kunci kolom → nilai. */
+  totals?: Record<string, unknown>;
+}
+
+const xlsxCell = (v: unknown, numeric?: boolean) => {
+  if (v === null || v === undefined) return "";
+  if (Array.isArray(v)) return v.join(",");
+  if (v instanceof Date) return v.toISOString();
+  if (numeric && typeof v === "string" && /^-?\d+(\.\d+)?$/.test(v)) return Number(v);
+  return typeof v === "object" ? JSON.stringify(v) : v;
+};
+
+/** Berkas .xlsx beberapa lembar: judul tebal & dibekukan, lebar kolom, angka sebagai angka, baris total opsional. */
+export async function toXlsxBook(sheets: XlsxSheet[]) {
   const book = new ExcelJS.Workbook();
-  const sheet = book.addWorksheet(sheetName.slice(0, 31));
-  sheet.addRow(columns).font = { bold: true };
-  for (const r of rows)
-    sheet.addRow(
-      columns.map((c) => {
-        const v = r[c];
-        if (v === null || v === undefined) return "";
-        if (Array.isArray(v)) return v.join(",");
-        if (v instanceof Date) return v.toISOString();
-        return typeof v === "object" ? JSON.stringify(v) : v;
-      }),
-    );
-  sheet.columns.forEach((col) => (col.width = 18));
+  for (const s of sheets) {
+    const sheet = book.addWorksheet(s.name.replace(/[\\/?*[\]:]/g, " ").slice(0, 31));
+    sheet.addRow(s.columns.map((c) => c.header ?? c.key)).font = { bold: true };
+    sheet.views = [{ state: "frozen", ySplit: 1 }];
+    for (const r of s.rows) sheet.addRow(s.columns.map((c) => xlsxCell(r[c.key], c.numeric)));
+    if (s.totals)
+      sheet.addRow(s.columns.map((c) => xlsxCell(s.totals![c.key], c.numeric))).font = { bold: true };
+    s.columns.forEach((c, i) => {
+      const col = sheet.getColumn(i + 1);
+      col.width = c.width ?? Math.min(40, Math.max(12, (c.header ?? c.key).length + 2));
+      if (c.numeric) col.numFmt = "#,##0.##";
+    });
+  }
   return Buffer.from(await book.xlsx.writeBuffer());
+}
+
+/** Berkas .xlsx satu lembar dari kolom & baris (untuk ekspor/template impor). */
+export function toXlsx(sheetName: string, columns: string[], rows: Record<string, unknown>[]) {
+  return toXlsxBook([{ name: sheetName, columns: columns.map((key) => ({ key, width: 18 })), rows }]);
 }

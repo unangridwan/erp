@@ -278,6 +278,7 @@ export const APPS: App[] = [
         link("Template Checklist", "Checklist Templates", "/hr/checklist-templates", "hr.read"),
         link("Template KPI", "KPI Templates", "/hr/appraisal-templates", "hr.read"),
         link("Hari Libur", "Public Holidays", "/public-holidays", "hr.read"),
+        link("Impor & Ekspor Data", "Data Import & Export", "/hr/data", "hr.read"),
       ]),
     ],
   },
@@ -292,6 +293,7 @@ export const APPS: App[] = [
       link("Biaya Tenaga Kerja", "Labour Cost", "/payroll/cost", "payroll.read"),
       group("Konfigurasi", "Configuration", [
         link("Komponen Gaji", "Salary Rules", "/salary-components", "payroll.read"),
+        link("Impor & Ekspor Data", "Data Import & Export", "/payroll/data", "payroll.read"),
         link("Pengaturan Payroll", "Settings", "/payroll/settings", "payroll.manage"),
       ]),
     ],

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, apiRaw } from "../lib/api";
 import { AuthImage } from "./auth-image";
+import { ExportDialog, type ExportChoice } from "./export-dialog";
 import { useI18n } from "../lib/i18n";
 import { canWrite, type Resource } from "../lib/resources";
 import { useMe } from "./me-context";
@@ -70,6 +71,7 @@ export function ListView({ resource }: { resource: Resource }) {
   const [data, setData] = useState<{ items: Row[]; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importErrors, setImportErrors] = useState<{ row: number; path: string; message: string }[]>([]);
+  const [exportColumns, setExportColumns] = useState<string[] | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const writable = canWrite(me.permissions, resource);
@@ -101,11 +103,21 @@ export function ListView({ resource }: { resource: Resource }) {
     return refLabels[name]?.get(String(v)) ?? String(v);
   };
 
-  async function exportFile(format: "csv" | "xlsx") {
+  async function openExport() {
+    setError(null);
+    try {
+      setExportColumns(await api<string[]>(`/${resource.path}/export-columns`));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function exportFile({ columns, format }: ExportChoice) {
     const params = new URLSearchParams(q ? { q } : {});
+    params.set("columns", columns.join(","));
     if (format === "xlsx") params.set("format", "xlsx");
-    const res = await apiRaw(`/${resource.path}/export${params.size ? `?${params}` : ""}`);
-    if (!res.ok) return setError(res.statusText);
+    const res = await apiRaw(`/${resource.path}/export?${params}`);
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? res.statusText);
     const url = URL.createObjectURL(await res.blob());
     const a = document.createElement("a");
     a.href = url;
@@ -155,8 +167,7 @@ export function ListView({ resource }: { resource: Resource }) {
           />
         </div>
         <div className="cp-right">
-          {resource.csv && <button onClick={() => exportFile("csv")}>{t("list.export")}</button>}
-          {resource.csv && <button onClick={() => exportFile("xlsx")}>{t("list.exportXlsx")}</button>}
+          {resource.csv && <button onClick={openExport}>{t("list.export")}…</button>}
           {resource.csv && writable && (
             <>
               <button onClick={() => fileInput.current?.click()}>{t("list.import")}</button>
@@ -297,6 +308,24 @@ export function ListView({ resource }: { resource: Resource }) {
             </tbody>
           </table>
         </div>
+      )}
+      {resource.csv && exportColumns !== null && (
+        <ExportDialog
+          open
+          onClose={() => setExportColumns(null)}
+          title={`${t("list.export")} ${tx(resource.title)}`}
+          storageKey={`erp.export.${resource.path}`}
+          columns={(exportColumns ?? []).map((key) => {
+            const field = resource.fields.find((f) => f.name === key);
+            return {
+              key,
+              header: key === "id" ? "id" : field ? tx(field.label) : key,
+              group: field?.section ? tx(field.section) : tx(resource.singular),
+              key0: key === "id",
+            };
+          })}
+          onExport={exportFile}
+        />
       )}
     </>
   );

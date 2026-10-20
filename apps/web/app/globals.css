@@ -1260,3 +1260,75 @@ img.record-avatar {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---- Impor & ekspor ---- */
+.export-dialog {
+  width: min(920px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--fg);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.export-dialog::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+.export-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px;
+  margin: 8px 0;
+}
+@media (max-width: 640px) {
+  .export-columns {
+    grid-template-columns: 1fr;
+  }
+}
+.export-group {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin: 0 0 8px;
+  padding: 6px 10px 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 2px 12px;
+}
+.export-group legend {
+  font-weight: 600;
+  font-size: 13px;
+  padding: 0 4px;
+}
+.export-order {
+  margin: 0;
+  padding-left: 22px;
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.export-order li {
+  padding: 2px 6px;
+}
+.export-order li > span:first-child {
+  display: inline-block;
+  min-width: 70%;
+}
+.data-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+  gap: 16px;
+}
+.data-card .form-actions {
+  flex-wrap: wrap;
+}
+.data-card p.muted {
+  min-height: 2.6em;
+}
+.import-preview {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+}

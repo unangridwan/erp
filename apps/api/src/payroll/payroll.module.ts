@@ -516,5 +516,6 @@ class SeveranceController {
   imports: [AccountingModule, HrModule, ExpenseModule],
   controllers: [SalaryComponentsController, PayrollController, LoansController, SeveranceController],
   providers: [ActivityService, PayrollService, LoanService, SeveranceService],
+  exports: [PayrollService],
 })
 export class PayrollModule {}
