@@ -4,8 +4,15 @@ import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../lib/api";
 import { formatDate, money, today } from "../../lib/format";
-import { useI18n } from "../../lib/i18n";
-import { APPRAISAL_STATE_LABEL, EXPENSE_STATE_LABEL, LEAVE_STATE_LABEL } from "../../lib/resources";
+import { L, useI18n, type Text } from "../../lib/i18n";
+import {
+  APPRAISAL_STATE_LABEL,
+  EXPENSE_STATE_LABEL,
+  LEAVE_STATE_LABEL,
+  MARITAL_OPTIONS,
+  RELIGION_OPTIONS,
+} from "../../lib/resources";
+import { EDUCATION_LABEL, PhotoBox, RELATION_OPTIONS } from "./profile-panels";
 import { ExpenseClaimForm } from "./expense-form";
 
 const errorText = (e: unknown) =>
@@ -236,11 +243,30 @@ const CHANGE_LABELS = {
   bankAccount: ["No rekening", "Account number"],
   bankAccountName: ["Atas nama rekening", "Account holder"],
   ptkpStatus: ["Status PTKP", "PTKP status"],
+  domicileAddress: ["Alamat domisili", "Current address"],
+  personalPhone: ["No. HP pribadi", "Personal phone"],
+  personalEmail: ["Email pribadi", "Personal email"],
+  maritalStatus: ["Status pernikahan", "Marital status"],
+  religion: ["Agama", "Religion"],
+  bloodType: ["Golongan darah", "Blood type"],
+  rhesus: ["Rhesus", "Rhesus"],
 } as const;
+
+/** Pilihan untuk field perubahan data yang berupa daftar. */
+const CHANGE_OPTIONS: Partial<Record<keyof typeof CHANGE_LABELS, [string, Text][]>> = {
+  ptkpStatus: ["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"].map((s) => [s, L(s, s)]),
+  maritalStatus: MARITAL_OPTIONS,
+  religion: RELIGION_OPTIONS,
+  bloodType: ["A", "B", "AB", "O"].map((b) => [b, L(b, b)]),
+  rhesus: [
+    ["+", L("Positif (+)", "Positive (+)")],
+    ["-", L("Negatif (−)", "Negative (−)")],
+  ],
+};
 
 /** Ajukan perubahan data pribadi (disetujui HR). */
 export function MyChangeRequest() {
-  const { l } = useI18n();
+  const { l, tx } = useI18n();
   const [rows, setRows] = useState<
     {
       id: string;
@@ -285,7 +311,7 @@ export function MyChangeRequest() {
       ) : (
         <form className="inline-panel" onSubmit={submit}>
           {(Object.keys(CHANGE_LABELS) as (keyof typeof CHANGE_LABELS)[]).map((k) =>
-            k === "ptkpStatus" ? (
+            CHANGE_OPTIONS[k] ? (
               <label key={k} className="field">
                 <span>{label(k)}</span>
                 <select
@@ -293,8 +319,10 @@ export function MyChangeRequest() {
                   onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))}
                 >
                   <option value="">{l("(tidak diubah)", "(unchanged)")}</option>
-                  {["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"].map((s) => (
-                    <option key={s}>{s}</option>
+                  {CHANGE_OPTIONS[k]!.map(([v, t]) => (
+                    <option key={v} value={v}>
+                      {tx(t)}
+                    </option>
                   ))}
                 </select>
               </label>
@@ -480,6 +508,123 @@ export function MyAppraisals() {
           ))}
         </tbody>
       </table>
+    </section>
+  );
+}
+
+interface MyProfileData {
+  hasPhoto: boolean;
+  family: { id: string; relation: string; name: string; birthDate: string | null; dependent: boolean }[];
+  education: {
+    id: string;
+    level: string;
+    institution: string;
+    major: string | null;
+    yearEnd: number | null;
+  }[];
+  experiences: {
+    id: string;
+    company: string;
+    position: string | null;
+    dateStart: string | null;
+    dateEnd: string | null;
+  }[];
+  warnings: {
+    id: string;
+    level: string;
+    date: string;
+    validUntil: string;
+    reason: string;
+    active: boolean;
+  }[];
+}
+
+/** Profil sendiri: foto (bisa diganti), keluarga, pendidikan, pengalaman, surat peringatan (read-only). */
+export function MyProfile({ name }: { name: string }) {
+  const { l, tx, locale } = useI18n();
+  const [p, setP] = useState<MyProfileData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    api<MyProfileData>("/me/profile").then(setP, (e) => setError(errorText(e)));
+  }, []);
+  const relation = (r: string) => tx(RELATION_OPTIONS.find(([k]) => k === r)?.[1] ?? L(r, r));
+  return (
+    <section className="panel">
+      <h2>{l("Profil saya", "My profile")}</h2>
+      {error && <p className="error">{error}</p>}
+      <div className="profile-head">
+        <PhotoBox path="/me/photo" name={name} editable />
+        {p && (
+          <div className="stack" style={{ flex: 1, minWidth: 220 }}>
+            <div>
+              <strong>{l("Keluarga", "Family")}</strong>
+              {p.family.length === 0 ? (
+                <p className="muted">—</p>
+              ) : (
+                <ul>
+                  {p.family.map((f) => (
+                    <li key={f.id}>
+                      {f.name} <small className="muted">({relation(f.relation)})</small>
+                      {f.birthDate && ` · ${formatDate(f.birthDate, locale)}`}
+                      {f.dependent && ` · ${l("tanggungan", "dependant")}`}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <strong>{l("Pendidikan", "Education")}</strong>
+              {p.education.length === 0 ? (
+                <p className="muted">—</p>
+              ) : (
+                <ul>
+                  {p.education.map((e) => (
+                    <li key={e.id}>
+                      {EDUCATION_LABEL[e.level]} {e.institution}
+                      {e.major && ` — ${e.major}`}
+                      {e.yearEnd && ` (${e.yearEnd})`}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            {p.experiences.length > 0 && (
+              <div>
+                <strong>{l("Pengalaman kerja", "Work experience")}</strong>
+                <ul>
+                  {p.experiences.map((x) => (
+                    <li key={x.id}>
+                      {x.company}
+                      {x.position && ` — ${x.position}`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {p.warnings.some((w) => w.active) && (
+              <div>
+                <strong>{l("Surat peringatan aktif", "Active warning letters")}</strong>
+                <ul>
+                  {p.warnings
+                    .filter((w) => w.active)
+                    .map((w) => (
+                      <li key={w.id}>
+                        {w.level.toUpperCase()} · {w.reason} · {l("s.d.", "until")}{" "}
+                        {formatDate(w.validUntil, locale)}
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
+            <small className="muted">
+              {l(
+                "Data keluarga & pendidikan dikelola HR; ajukan koreksi lewat HR.",
+                "Family & education data are managed by HR; ask HR for corrections.",
+              )}
+            </small>
+          </div>
+        )}
+      </div>
     </section>
   );
 }

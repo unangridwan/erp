@@ -762,6 +762,7 @@ class HrInsightsController {
           managerId: E.managerId,
           jobName: schema.jobPositions.name,
           departmentName: schema.departments.name,
+          hasPhoto: sql<boolean>`exists (select 1 from employee_photos p where p.employee_id = ${E.id})`,
         })
         .from(E)
         .leftJoin(schema.jobPositions, eq(schema.jobPositions.id, E.jobId))

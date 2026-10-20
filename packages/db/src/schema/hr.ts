@@ -19,6 +19,17 @@ const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () =>
 
 export const PTKP_STATUSES = ["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"] as const;
 
+export const RELIGIONS = [
+  "islam",
+  "protestant",
+  "catholic",
+  "hindu",
+  "buddha",
+  "confucian",
+  "other",
+] as const;
+export const MARITAL_STATUSES = ["single", "married", "divorced", "widowed"] as const;
+
 export const departments = pgTable("departments", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
@@ -81,6 +92,20 @@ export const employees = pgTable("employees", {
   address: text("address"),
   emergencyContact: text("emergency_contact"),
   emergencyPhone: text("emergency_phone"),
+  birthPlace: text("birth_place"),
+  religion: text("religion", { enum: RELIGIONS }),
+  maritalStatus: text("marital_status", { enum: MARITAL_STATUSES }),
+  bloodType: text("blood_type", { enum: ["A", "B", "AB", "O"] }),
+  rhesus: text("rhesus", { enum: ["+", "-"] }),
+  nationality: text("nationality").notNull().default("WNI"),
+  heightCm: smallint("height_cm"),
+  weightKg: smallint("weight_kg"),
+  personalEmail: text("personal_email"),
+  personalPhone: text("personal_phone"),
+  /** Alamat domisili bila berbeda dengan alamat KTP (`address`). */
+  domicileAddress: text("domicile_address"),
+  kkNoEnc: text("kk_no_enc"),
+  gradeId: uuid("grade_id"),
   /** Jadwal kerja bawaan (dapat diganti per rentang tanggal lewat penugasan shift). */
   scheduleId: uuid("schedule_id"),
   active: boolean("active").notNull().default(true),
@@ -542,11 +567,17 @@ export const HR_DOCUMENT_KINDS = [
   "ktp",
   "npwp",
   "kk",
+  "bpjs_kes",
+  "bpjs_tk",
+  "sim",
+  "passport",
+  "bank_book",
   "ijazah",
   "cv",
   "contract",
   "decree",
   "certificate",
+  "warning",
   "other",
 ] as const;
 
@@ -561,6 +592,8 @@ export const hrDocuments = pgTable("hr_documents", {
   file: bytea("file").notNull(),
   fileName: text("file_name").notNull(),
   fileType: text("file_type").notNull(),
+  /** Nomor kartu/dokumen (mis. no. BPJS, SIM, paspor). */
+  number: text("number"),
   issuedDate: date("issued_date"),
   expiryDate: date("expiry_date"),
   note: text("note"),
@@ -737,6 +770,11 @@ export const EMPLOYEE_HISTORY_KINDS = [
   "manager",
   "wage",
   "resign",
+  "promotion",
+  "demotion",
+  "transfer",
+  "grade",
+  "warning",
 ] as const;
 
 export const employeeHistory = pgTable("employee_history", {
@@ -751,4 +789,124 @@ export const employeeHistory = pgTable("employee_history", {
   note: text("note"),
   createdBy: uuid("created_by"),
   createdAt: audit.createdAt,
+});
+
+export const employeePhotos = pgTable("employee_photos", {
+  employeeId: uuid("employee_id").primaryKey(),
+  tenantId: tenantId(),
+  photo: bytea("photo").notNull(),
+  photoType: text("photo_type", { enum: ["image/jpeg", "image/png", "image/webp"] }).notNull(),
+  updatedAt: audit.updatedAt,
+});
+
+export const FAMILY_RELATIONS = ["spouse", "child", "father", "mother", "sibling", "other"] as const;
+
+export const employeeFamily = pgTable("employee_family", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  employeeId: uuid("employee_id").notNull(),
+  relation: text("relation", { enum: FAMILY_RELATIONS }).notNull(),
+  name: text("name").notNull(),
+  nikEnc: text("nik_enc"),
+  gender: text("gender", { enum: ["male", "female"] }),
+  birthPlace: text("birth_place"),
+  birthDate: date("birth_date"),
+  education: text("education"),
+  occupation: text("occupation"),
+  phone: text("phone"),
+  dependent: boolean("dependent").notNull().default(false),
+  bpjsCovered: boolean("bpjs_covered").notNull().default(false),
+  alive: boolean("alive").notNull().default(true),
+  note: text("note"),
+  ...audit,
+});
+
+export const EDUCATION_LEVELS = [
+  "sd",
+  "smp",
+  "sma",
+  "d1",
+  "d2",
+  "d3",
+  "d4",
+  "s1",
+  "s2",
+  "s3",
+  "other",
+] as const;
+
+export const employeeEducation = pgTable("employee_education", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  employeeId: uuid("employee_id").notNull(),
+  level: text("level", { enum: EDUCATION_LEVELS }).notNull(),
+  institution: text("institution").notNull(),
+  major: text("major"),
+  yearStart: smallint("year_start"),
+  yearEnd: smallint("year_end"),
+  gpa: numeric("gpa", { precision: 4, scale: 2 }),
+  documentId: uuid("document_id"),
+  note: text("note"),
+  ...audit,
+});
+
+export const employeeExperiences = pgTable("employee_experiences", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  employeeId: uuid("employee_id").notNull(),
+  company: text("company").notNull(),
+  position: text("position"),
+  dateStart: date("date_start"),
+  dateEnd: date("date_end"),
+  reasonLeaving: text("reason_leaving"),
+  note: text("note"),
+  ...audit,
+});
+
+export const MOVEMENT_KINDS = ["promotion", "demotion", "transfer", "rotation"] as const;
+
+export const employeeMovements = pgTable("employee_movements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  kind: text("kind", { enum: MOVEMENT_KINDS }).notNull(),
+  decreeNo: text("decree_no"),
+  effectiveDate: date("effective_date").notNull(),
+  fromJobId: uuid("from_job_id"),
+  toJobId: uuid("to_job_id"),
+  fromDepartmentId: uuid("from_department_id"),
+  toDepartmentId: uuid("to_department_id"),
+  fromBranchId: uuid("from_branch_id"),
+  toBranchId: uuid("to_branch_id"),
+  fromManagerId: uuid("from_manager_id"),
+  toManagerId: uuid("to_manager_id"),
+  fromGradeId: uuid("from_grade_id"),
+  toGradeId: uuid("to_grade_id"),
+  oldWage: numeric("old_wage", { precision: 20, scale: 2 }),
+  newWage: numeric("new_wage", { precision: 20, scale: 2 }),
+  reason: text("reason"),
+  state: text("state", { enum: ["draft", "done", "cancel"] })
+    .notNull()
+    .default("draft"),
+  documentId: uuid("document_id"),
+  contractId: uuid("contract_id"),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
+  appliedBy: uuid("applied_by"),
+  ...audit,
+});
+
+export const employeeWarnings = pgTable("employee_warnings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  level: text("level", { enum: ["sp1", "sp2", "sp3"] }).notNull(),
+  decreeNo: text("decree_no"),
+  date: date("date").notNull(),
+  validUntil: date("valid_until").notNull(),
+  reason: text("reason").notNull(),
+  documentId: uuid("document_id"),
+  createdBy: uuid("created_by"),
+  ...audit,
 });

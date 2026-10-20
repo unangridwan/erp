@@ -866,6 +866,17 @@ export const salaryGradeSchema = z.object({
 
 export const PTKP_STATUS_VALUES = ["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"] as const;
 
+export const RELIGION_VALUES = [
+  "islam",
+  "protestant",
+  "catholic",
+  "hindu",
+  "buddha",
+  "confucian",
+  "other",
+] as const;
+export const MARITAL_STATUS_VALUES = ["single", "married", "divorced", "widowed"] as const;
+
 export const employeeSchema = z.object({
   employeeNumber: z.string().trim().max(30).nullish(),
   name: z.string().trim().min(1).max(200),
@@ -906,6 +917,26 @@ export const employeeSchema = z.object({
   address: z.string().trim().max(500).nullish(),
   emergencyContact: optionalText,
   emergencyPhone: optionalText,
+  kkNo: digits([16], "No. KK")
+    .nullish()
+    .or(z.literal("").transform(() => null)),
+  birthPlace: optionalText,
+  religion: z.enum(RELIGION_VALUES).nullish(),
+  maritalStatus: z.enum(MARITAL_STATUS_VALUES).nullish(),
+  bloodType: z.enum(["A", "B", "AB", "O"]).nullish(),
+  rhesus: z.enum(["+", "-"]).nullish(),
+  nationality: z.string().trim().min(1).max(50).default("WNI"),
+  heightCm: z.coerce.number().int().min(30).max(250).nullish(),
+  weightKg: z.coerce.number().int().min(2).max(400).nullish(),
+  personalEmail: z
+    .string()
+    .trim()
+    .email()
+    .nullish()
+    .or(z.literal("").transform(() => null)),
+  personalPhone: optionalText,
+  domicileAddress: z.string().trim().max(500).nullish(),
+  gradeId: optionalUuid,
   /** Jadwal kerja bawaan (shift). */
   scheduleId: z.string().uuid().nullish(),
   active: z.boolean().default(true),
@@ -1094,6 +1125,13 @@ export const EMPLOYEE_CHANGE_FIELDS = [
   "bankAccount",
   "bankAccountName",
   "ptkpStatus",
+  "personalEmail",
+  "personalPhone",
+  "domicileAddress",
+  "maritalStatus",
+  "religion",
+  "bloodType",
+  "rhesus",
 ] as const;
 
 /** Teks perubahan data: tidak diisi = tidak diubah; string kosong = dikosongkan. */
@@ -1119,6 +1157,19 @@ export const employeeChangeSchema = z
       .nullish(),
     bankAccountName: changeText,
     ptkpStatus: z.enum(PTKP_STATUS_VALUES).optional(),
+    personalEmail: z
+      .string()
+      .trim()
+      .email()
+      .or(z.literal(""))
+      .nullish()
+      .transform((v) => (v === undefined ? undefined : v || null)),
+    personalPhone: changeText,
+    domicileAddress: changeText,
+    maritalStatus: z.enum(MARITAL_STATUS_VALUES).optional(),
+    religion: z.enum(RELIGION_VALUES).optional(),
+    bloodType: z.enum(["A", "B", "AB", "O"]).optional(),
+    rhesus: z.enum(["+", "-"]).optional(),
     note: z.string().trim().max(500).nullish(),
   })
   .refine((c) => EMPLOYEE_CHANGE_FIELDS.some((f) => c[f] !== undefined), {
@@ -1131,11 +1182,17 @@ export const HR_DOCUMENT_KIND_VALUES = [
   "ktp",
   "npwp",
   "kk",
+  "bpjs_kes",
+  "bpjs_tk",
+  "sim",
+  "passport",
+  "bank_book",
   "ijazah",
   "cv",
   "contract",
   "decree",
   "certificate",
+  "warning",
   "other",
 ] as const;
 
@@ -1145,6 +1202,7 @@ export const hrDocumentSchema = z
     applicantId: z.string().uuid().nullish(),
     kind: z.enum(HR_DOCUMENT_KIND_VALUES),
     name: z.string().trim().min(1).max(200),
+    number: optionalText,
     issuedDate: z.string().date().nullish(),
     expiryDate: z.string().date().nullish(),
     note: z.string().trim().max(500).nullish(),
@@ -1709,3 +1767,118 @@ export const fxSettingsSchema = z.object({
 });
 
 export const fxFetchSchema = z.object({ date: z.string().date().optional() });
+
+// ---- Profil karyawan: foto, keluarga, pendidikan, pengalaman, mutasi, surat peringatan ----
+
+/** Foto karyawan: JPG/PNG/WebP maks. 1 MB (base64). */
+export const employeePhotoSchema = z.object({
+  type: z.enum(["image/jpeg", "image/png", "image/webp"], { message: "Foto harus JPG, PNG, atau WebP" }),
+  data: z
+    .string()
+    .regex(/^[A-Za-z0-9+/=\s]+$/, "Berkas tidak valid")
+    .refine((v) => (v.replace(/\s/g, "").length * 3) / 4 <= 1024 * 1024, "Foto maksimal 1 MB"),
+});
+
+export const FAMILY_RELATION_VALUES = ["spouse", "child", "father", "mother", "sibling", "other"] as const;
+
+export const employeeFamilySchema = z.object({
+  relation: z.enum(FAMILY_RELATION_VALUES),
+  name: z.string().trim().min(1).max(200),
+  nik: digits([16], "NIK")
+    .nullish()
+    .or(z.literal("").transform(() => null)),
+  gender: z.enum(["male", "female"]).nullish(),
+  birthPlace: optionalText,
+  birthDate: z.string().date().nullish(),
+  education: optionalText,
+  occupation: optionalText,
+  phone: optionalText,
+  dependent: z.boolean().default(false),
+  bpjsCovered: z.boolean().default(false),
+  alive: z.boolean().default(true),
+  note: z.string().trim().max(500).nullish(),
+});
+
+export const EDUCATION_LEVEL_VALUES = [
+  "sd",
+  "smp",
+  "sma",
+  "d1",
+  "d2",
+  "d3",
+  "d4",
+  "s1",
+  "s2",
+  "s3",
+  "other",
+] as const;
+
+const year = z.coerce.number().int().min(1900).max(2200).nullish();
+
+export const employeeEducationSchema = z
+  .object({
+    level: z.enum(EDUCATION_LEVEL_VALUES),
+    institution: z.string().trim().min(1).max(200),
+    major: optionalText,
+    yearStart: year,
+    yearEnd: year,
+    gpa: z.coerce.number().min(0).max(100).nullish(),
+    documentId: optionalUuid,
+    note: z.string().trim().max(500).nullish(),
+  })
+  .refine((e) => !e.yearStart || !e.yearEnd || e.yearEnd >= e.yearStart, {
+    message: "Tahun lulus sebelum tahun masuk",
+    path: ["yearEnd"],
+  });
+
+export const employeeExperienceSchema = z
+  .object({
+    company: z.string().trim().min(1).max(200),
+    position: optionalText,
+    dateStart: z.string().date().nullish(),
+    dateEnd: z.string().date().nullish(),
+    reasonLeaving: optionalText,
+    note: z.string().trim().max(500).nullish(),
+  })
+  .refine((e) => !e.dateStart || !e.dateEnd || e.dateEnd >= e.dateStart, {
+    message: "Tanggal keluar sebelum tanggal masuk",
+    path: ["dateEnd"],
+  });
+
+export const MOVEMENT_KIND_VALUES = ["promotion", "demotion", "transfer", "rotation"] as const;
+
+export const employeeMovementSchema = z
+  .object({
+    employeeId: z.string().uuid(),
+    kind: z.enum(MOVEMENT_KIND_VALUES),
+    decreeNo: optionalText,
+    effectiveDate: z.string().date(),
+    toJobId: optionalUuid,
+    toDepartmentId: optionalUuid,
+    toBranchId: optionalUuid,
+    toManagerId: optionalUuid,
+    toGradeId: optionalUuid,
+    newWage: nonNegative(2).nullish(),
+    reason: z.string().trim().max(1000).nullish(),
+    documentId: optionalUuid,
+  })
+  .refine(
+    (m) => m.toJobId || m.toDepartmentId || m.toBranchId || m.toManagerId || m.toGradeId || m.newWage != null,
+    { message: "Isi minimal satu perubahan (jabatan, departemen, cabang, atasan, golongan, atau upah)" },
+  );
+
+export const employeeWarningSchema = z
+  .object({
+    employeeId: z.string().uuid(),
+    level: z.enum(["sp1", "sp2", "sp3"]),
+    decreeNo: optionalText,
+    date: z.string().date(),
+    /** Kosong = 6 bulan sejak tanggal SP. */
+    validUntil: z.string().date().nullish(),
+    reason: z.string().trim().min(1).max(2000),
+    documentId: optionalUuid,
+  })
+  .refine((w) => !w.validUntil || w.validUntil >= w.date, {
+    message: "Masa berlaku berakhir sebelum tanggal SP",
+    path: ["validUntil"],
+  });

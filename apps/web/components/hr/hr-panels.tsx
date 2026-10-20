@@ -6,16 +6,23 @@ import { api, ApiError } from "../../lib/api";
 import { formatDate, money } from "../../lib/format";
 import { useI18n, type Text, L } from "../../lib/i18n";
 import { download } from "../accounting/download";
+import { AuthImage } from "../auth-image";
 
 export const DOCUMENT_KIND_LABEL: Record<string, Text> = {
   ktp: L("KTP", "ID card (KTP)"),
   npwp: L("NPWP", "Tax ID (NPWP)"),
   kk: L("Kartu Keluarga", "Family card"),
+  bpjs_kes: L("Kartu BPJS Kesehatan", "BPJS Health card"),
+  bpjs_tk: L("Kartu BPJS Ketenagakerjaan", "BPJS Employment card"),
+  sim: L("SIM", "Driving licence"),
+  passport: L("Paspor", "Passport"),
+  bank_book: L("Buku tabungan", "Bank book"),
   ijazah: L("Ijazah", "Diploma"),
   cv: L("CV", "CV"),
   contract: L("Kontrak", "Contract"),
   decree: L("SK", "Decree"),
   certificate: L("Sertifikat", "Certificate"),
+  warning: L("Surat peringatan", "Warning letter"),
   other: L("Lainnya", "Other"),
 };
 
@@ -34,11 +41,16 @@ const readFile = (file: File) =>
     reader.readAsDataURL(file);
   });
 
+/** Kartu identitas yang ditampilkan sebagai galeri di profil karyawan. */
+const ID_CARDS = ["ktp", "kk", "npwp", "bpjs_kes", "bpjs_tk", "sim", "passport", "bank_book"] as const;
+
 interface Doc {
   id: string;
   kind: string;
   name: string;
+  number: string | null;
   fileName: string;
+  fileType: string;
   size: number;
   issuedDate: string | null;
   expiryDate: string | null;
@@ -49,7 +61,7 @@ interface Doc {
 export function DocumentsPanel({ employeeId, applicantId }: { employeeId?: string; applicantId?: string }) {
   const { l, tx, locale } = useI18n();
   const [docs, setDocs] = useState<Doc[]>([]);
-  const [form, setForm] = useState({ kind: "ktp", name: "", issuedDate: "", expiryDate: "" });
+  const [form, setForm] = useState({ kind: "ktp", name: "", number: "", issuedDate: "", expiryDate: "" });
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const query = employeeId ? `employeeId=${employeeId}` : `applicantId=${applicantId}`;
@@ -72,13 +84,14 @@ export function DocumentsPanel({ employeeId, applicantId }: { employeeId?: strin
         body: {
           ...(employeeId ? { employeeId } : { applicantId }),
           kind: form.kind,
-          name: form.name || file.name,
+          name: form.name || (employeeId ? tx(DOCUMENT_KIND_LABEL[form.kind]!) : file.name),
+          number: form.number || null,
           issuedDate: form.issuedDate || null,
           expiryDate: form.expiryDate || null,
           file: { name: file.name, type: file.type, data: await readFile(file) },
         },
       });
-      setForm({ kind: form.kind, name: "", issuedDate: "", expiryDate: "" });
+      setForm({ kind: form.kind, name: "", number: "", issuedDate: "", expiryDate: "" });
       setFile(null);
       (e.target as HTMLFormElement).reset();
       void load();
@@ -89,7 +102,37 @@ export function DocumentsPanel({ employeeId, applicantId }: { employeeId?: strin
 
   return (
     <section className="panel">
-      <h2>{l("Dokumen", "Documents")}</h2>
+      <h2>{l("Dokumen & kartu identitas", "Documents & ID cards")}</h2>
+      {employeeId && (
+        <div className="id-cards">
+          {ID_CARDS.map((kind) => {
+            const doc = docs.find((d) => d.kind === kind);
+            return (
+              <div key={kind} className={doc ? "id-card" : "id-card missing"}>
+                <strong>{tx(DOCUMENT_KIND_LABEL[kind]!)}</strong>
+                {doc ? (
+                  <>
+                    {doc.fileType.startsWith("image/") ? (
+                      <AuthImage path={`/hr-documents/${doc.id}/file?inline=1`} alt={doc.name} />
+                    ) : (
+                      <small className="muted">PDF · {Math.ceil(doc.size / 1024)} KB</small>
+                    )}
+                    <small>{doc.number ?? doc.name}</small>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => setForm((f) => ({ ...f, kind, name: "" }))}
+                  >
+                    + {l("Unggah", "Upload")}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
       {docs.length > 0 && (
         <table>
           <tbody>
@@ -106,6 +149,7 @@ export function DocumentsPanel({ employeeId, applicantId }: { employeeId?: strin
                   >
                     {d.name}
                   </button>{" "}
+                  {d.number && <span>· {d.number} </span>}
                   <small className="muted">{Math.ceil(d.size / 1024)} KB</small>
                 </td>
                 <td>
@@ -151,6 +195,10 @@ export function DocumentsPanel({ employeeId, applicantId }: { employeeId?: strin
         <label className="field">
           <span>{l("Nama", "Name")}</span>
           <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+        </label>
+        <label className="field">
+          <span>{l("Nomor kartu/dokumen", "Card/document no.")}</span>
+          <input value={form.number} onChange={(e) => setForm((f) => ({ ...f, number: e.target.value }))} />
         </label>
         <label className="field">
           <span>{l("Terbit", "Issued")}</span>
@@ -266,6 +314,11 @@ const HISTORY_LABEL: Record<string, Text> = {
   manager: L("Ganti atasan", "Manager change"),
   wage: L("Perubahan upah", "Wage change"),
   resign: L("Keluar", "Leaving"),
+  promotion: L("Promosi", "Promotion"),
+  demotion: L("Demosi", "Demotion"),
+  transfer: L("Mutasi/rotasi", "Transfer/rotation"),
+  grade: L("Ganti golongan", "Grade change"),
+  warning: L("Surat peringatan", "Warning letter"),
 };
 
 interface Career {

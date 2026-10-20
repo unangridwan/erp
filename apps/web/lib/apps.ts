@@ -239,6 +239,8 @@ export const APPS: App[] = [
         link("Karyawan", "Employees", "/employees", "hr.read"),
         link("Kontrak Kerja", "Contracts", "/hr/contracts", "hr.manage"),
         link("Departemen", "Departments", "/departments", "hr.read"),
+        link("Promosi & Mutasi", "Promotions & Transfers", "/hr/movements", "hr.read"),
+        link("Surat Peringatan", "Warning Letters", "/hr/warnings", "hr.manage"),
         link("Checklist Onboarding/Offboarding", "Onboarding/Offboarding", "/hr/checklists", "hr.read"),
         link("Perubahan Data", "Data Changes", "/hr/change-requests", "hr.manage"),
       ]),

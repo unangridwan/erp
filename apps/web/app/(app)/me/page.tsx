@@ -9,6 +9,7 @@ import {
   MyClaims,
   MyLoans,
   MyOvertime,
+  MyProfile,
   MyTaxSlips,
 } from "../../../components/hr/portal-extras";
 import { api, ApiError } from "../../../lib/api";
@@ -248,6 +249,7 @@ export default function MyPortalPage() {
         </table>
       </section>
 
+      <MyProfile name={employee.name} />
       <MyAppraisals />
       <MyChecklistTasks />
       <MyOvertime />

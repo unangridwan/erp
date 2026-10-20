@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, apiRaw } from "../lib/api";
+import { AuthImage } from "./auth-image";
 import { useI18n } from "../lib/i18n";
 import { canWrite, type Resource } from "../lib/resources";
 import { useMe } from "./me-context";
@@ -230,9 +231,24 @@ export function ListView({ resource }: { resource: Resource }) {
             const tag = resource.kanban!.tag && cell(row, resource.kanban!.tag);
             return (
               <Link key={row.id} href={`/${resource.path}/${row.id}`} className="record-card">
-                <span className="record-avatar" style={{ background: avatarColor(title) }}>
-                  {title.slice(0, 1).toUpperCase()}
-                </span>
+                {(() => {
+                  const initial = (
+                    <span className="record-avatar" style={{ background: avatarColor(title) }}>
+                      {title.slice(0, 1).toUpperCase()}
+                    </span>
+                  );
+                  const image = resource.kanban!.image;
+                  return image && row[image.flag] ? (
+                    <AuthImage
+                      path={`/${image.path.replace("{id}", String(row.id))}`}
+                      alt={title}
+                      className="record-avatar"
+                      fallback={initial}
+                    />
+                  ) : (
+                    initial
+                  );
+                })()}
                 <span className="record-body">
                   <strong>{title}</strong>
                   {resource.kanban!.lines.map((name) => {

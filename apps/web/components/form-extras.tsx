@@ -8,6 +8,14 @@ import { formatDate, money } from "../lib/format";
 import { useI18n } from "../lib/i18n";
 import { can } from "../lib/resources";
 import { CareerPanel, ChecklistsPanel, DocumentsPanel } from "./hr/hr-panels";
+import {
+  EducationPanel,
+  ExperiencePanel,
+  FamilyPanel,
+  MovementsPanel,
+  ProfileHeader,
+  WarningsPanel,
+} from "./hr/profile-panels";
 import { useMe } from "./me-context";
 
 interface Attribute {
@@ -469,9 +477,16 @@ function SeverancePanel({ id }: { id: string }) {
 
 function EmployeeExtras({ id }: { id: string }) {
   const me = useMe();
+  const manage = can(me.permissions, "hr.manage");
   return (
     <>
-      {can(me.permissions, "hr.manage") && <DocumentsPanel employeeId={id} />}
+      {can(me.permissions, "hr.read") && <ProfileHeader employeeId={id} />}
+      {can(me.permissions, "hr.read") && <FamilyPanel employeeId={id} editable={manage} />}
+      {can(me.permissions, "hr.read") && <EducationPanel employeeId={id} editable={manage} />}
+      {can(me.permissions, "hr.read") && <ExperiencePanel employeeId={id} editable={manage} />}
+      {manage && <DocumentsPanel employeeId={id} />}
+      {can(me.permissions, "hr.read") && <MovementsPanel employeeId={id} />}
+      {manage && <WarningsPanel employeeId={id} />}
       {can(me.permissions, "hr.read") && <CareerPanel employeeId={id} />}
       {can(me.permissions, "hr.read") && <ChecklistsPanel employeeId={id} />}
       {can(me.permissions, "payroll.read") && <SeverancePanel id={id} />}
