@@ -218,3 +218,46 @@ export function profileCompleteness(
     missing,
   };
 }
+
+// ---- Zona waktu (impor absensi mesin) ----
+
+/** Selisih (ms) waktu lokal `timeZone` terhadap UTC pada instan `at`. */
+function zoneOffset(at: number, timeZone: string) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+      .formatToParts(at)
+      .map((p) => [p.type, p.value]),
+  );
+  const wall = Date.UTC(
+    +parts.year!,
+    +parts.month! - 1,
+    +parts.day!,
+    +parts.hour!,
+    +parts.minute!,
+    +parts.second!,
+  );
+  return wall - Math.floor(at / 1000) * 1000;
+}
+
+/** Instan UTC dari tanggal (YYYY-MM-DD) & jam (HH:MM[:SS]) waktu lokal `timeZone`. */
+export function zonedToUtc(date: string, time: string, timeZone: string) {
+  const [h = "0", m = "0", s = "0"] = time.split(":");
+  const guess = Date.parse(`${date}T${h.padStart(2, "0")}:${m.padStart(2, "0")}:${s.padStart(2, "0")}Z`);
+  const first = guess - zoneOffset(guess, timeZone);
+  return new Date(guess - zoneOffset(first, timeZone));
+}
+
+/** Jam lokal HH:MM sebuah instan. */
+export const localTime = (at: Date, timeZone: string) =>
+  new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(
+    at,
+  );

@@ -362,6 +362,11 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   (KTP, KK, NPWP, BPJS, SIM, paspor, buku tabungan) dengan nomor & pratinjau, data keluarga (tanggungan PTKP, saran
   status PTKP), riwayat pendidikan & pengalaman kerja, promosi/demosi/mutasi berbasis SK (kontrak upah baru otomatis),
   surat peringatan SP1–SP3, kelengkapan profil, foto di kanban/org chart/portal
+- [x] HR & Payroll: impor & ekspor Excel/CSV — template berpetunjuk & daftar rujukan, rujukan per nama/kode/No.
+  Karyawan, pratinjau impor (semua baris diperiksa, satu gagal = batal), ekspor dengan kolom & urutan pilihan user,
+  filter, profil ekspor pribadi/bersama; dataset karyawan, kontrak (+tunjangan per komponen), keluarga, pendidikan,
+  absensi mesin (zona waktu), jatah cuti, lembur, cuti, input variabel slip, rekap slip; data master HR/Payroll juga
+  bisa diekspor dengan pemilih kolom
 
 ## 5. Roadmap Bertahap
 

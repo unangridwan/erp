@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  localTime,
+  zonedToUtc,
   highestEducation,
   profileCompleteness,
   suggestedPtkp,
@@ -110,5 +112,12 @@ describe("SDM: profil karyawan", () => {
         reason: "Mangkir",
       }).success,
     ).toBe(false);
+  });
+
+  it("konversi waktu lokal ↔ UTC untuk impor absensi", () => {
+    expect(zonedToUtc("2026-10-01", "08:02", "Asia/Jakarta").toISOString()).toBe("2026-10-01T01:02:00.000Z");
+    expect(zonedToUtc("2026-10-01", "07:30", "Asia/Makassar").toISOString()).toBe("2026-09-30T23:30:00.000Z");
+    expect(zonedToUtc("2026-07-01", "09:00", "Europe/Berlin").toISOString()).toBe("2026-07-01T07:00:00.000Z");
+    expect(localTime(new Date("2026-10-01T10:15:00Z"), "Asia/Jayapura")).toBe("19:15");
   });
 });

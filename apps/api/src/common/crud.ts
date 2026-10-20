@@ -93,11 +93,30 @@ export async function assertRefsVisible(
   }
 }
 
+/**
+ * Kolom ekspor pilihan user (`columns=a,b`), urutan mengikuti pilihan; `id` selalu ikut di depan agar berkas bisa
+ * diimpor ulang. Kosong = semua kolom.
+ */
+export function pickColumns(all: string[], requested: string | undefined) {
+  if (!requested?.trim()) return all;
+  const wanted = [
+    ...new Set(
+      requested
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean),
+    ),
+  ];
+  const unknown = wanted.filter((c) => !all.includes(c));
+  if (unknown.length) throw new BadRequestException(`Kolom ekspor tidak dikenal: ${unknown.join(", ")}`);
+  return ["id", ...wanted.filter((c) => c !== "id")];
+}
+
 const MAX_LIMIT = 200;
-const MAX_IMPORT_ROWS = 5000;
+export const MAX_IMPORT_ROWS = 5000;
 const EXPORT_LIMIT = 50_000;
 /** Isi CSV, atau berkas .xlsx dalam base64. */
-const importBody = z
+export const importBody = z
   .object({
     csv: z.string().min(1).max(10_000_000).optional(),
     xlsx: z.string().min(1).max(14_000_000).optional(),
@@ -164,10 +183,18 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
       });
     }
 
+    /** Kolom yang bisa dipilih untuk ekspor (dialog pemilih kolom). */
+    @Get("export-columns")
+    @RequirePermission(opts.read)
+    exportColumns() {
+      return exportColumns(opts.schema);
+    }
+
     /** Ekspor CSV dengan filter yang sama seperti list. Didaftarkan sebelum `:id` agar tidak tertangkap rute itu. */
     @Get("export")
     @RequirePermission(opts.read)
     async export(@Query() query: Record<string, string | undefined>, @Res() res: Response) {
+      const columns = pickColumns(exportColumns(opts.schema), query.columns);
       const rows = await this.tenantDb.run((tx) =>
         tx.select().from(table).where(listFilter(query)).orderBy(asc(opts.orderBy)).limit(EXPORT_LIMIT),
       );
@@ -175,11 +202,11 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
         return res
           .type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
           .attachment(`${opts.path}.xlsx`)
-          .send(await toXlsx(opts.path, exportColumns(opts.schema), rows as Record<string, unknown>[]));
+          .send(await toXlsx(opts.path, columns, rows as Record<string, unknown>[]));
       res
         .type("text/csv; charset=utf-8")
         .attachment(`${opts.path}.csv`)
-        .send("\uFEFF" + toCsv(exportColumns(opts.schema), rows as Record<string, unknown>[]));
+        .send("\uFEFF" + toCsv(columns, rows as Record<string, unknown>[]));
     }
 
     /**

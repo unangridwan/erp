@@ -218,7 +218,7 @@ export const attendances = pgTable("attendances", {
   checkOut: timestamp("check_out", { withTimezone: true }),
   latitude: numeric("latitude", { precision: 9, scale: 6 }),
   longitude: numeric("longitude", { precision: 9, scale: 6 }),
-  source: text("source", { enum: ["web", "manual"] })
+  source: text("source", { enum: ["web", "manual", "import"] })
     .notNull()
     .default("web"),
   createdAt: audit.createdAt,
@@ -908,5 +908,19 @@ export const employeeWarnings = pgTable("employee_warnings", {
   reason: text("reason").notNull(),
   documentId: uuid("document_id"),
   createdBy: uuid("created_by"),
+  ...audit,
+});
+
+/** Profil ekspor: kolom & filter yang disimpan per dataset (pribadi atau dipakai bersama). */
+export const exportPresets = pgTable("export_presets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  dataset: text("dataset").notNull(),
+  name: text("name").notNull(),
+  columns: text("columns").array().notNull(),
+  filters: jsonb("filters").$type<Record<string, string>>().notNull().default({}),
+  shared: boolean("shared").notNull().default(false),
   ...audit,
 });

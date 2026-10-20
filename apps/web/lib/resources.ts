@@ -1260,6 +1260,7 @@ RESOURCES.push(
   {
     path: "departments",
     model: "department",
+    csv: true,
     title: L("Departemen", "Departments"),
     singular: L("Departemen", "Department"),
     permission: "hr",
@@ -1291,6 +1292,7 @@ RESOURCES.push(
   {
     path: "job-positions",
     model: "job_position",
+    csv: true,
     title: L("Jabatan", "Job Positions"),
     singular: L("Jabatan", "Job position"),
     permission: "hr",
@@ -1312,6 +1314,7 @@ RESOURCES.push(
   {
     path: "job-openings",
     model: "job_opening",
+    csv: true,
     title: L("Lowongan", "Job Openings"),
     singular: L("Lowongan", "Job opening"),
     permission: "hr",
@@ -1361,6 +1364,7 @@ RESOURCES.push(
   {
     path: "expense-categories",
     model: "expense_category",
+    csv: true,
     title: L("Kategori Klaim", "Expense Categories"),
     singular: L("Kategori klaim", "Expense category"),
     permission: "hr",
@@ -1399,6 +1403,7 @@ RESOURCES.push(
   {
     path: "salary-grades",
     model: "salary_grade",
+    csv: true,
     title: L("Golongan Upah", "Salary Grades"),
     singular: L("Golongan upah", "Salary grade"),
     permission: "hr",
@@ -1432,6 +1437,7 @@ RESOURCES.push(
   {
     path: "leave-allocations",
     model: "leave_allocation",
+    csv: true,
     title: L("Jatah Cuti", "Leave Allocations"),
     singular: L("Jatah cuti", "Leave allocation"),
     permission: "hr",
@@ -1470,6 +1476,7 @@ RESOURCES.push(
   {
     path: "leave-types",
     model: "leave_type",
+    csv: true,
     title: L("Jenis Cuti", "Leave Types"),
     singular: L("Jenis cuti", "Leave type"),
     permission: "hr",
@@ -1490,6 +1497,7 @@ RESOURCES.push(
   {
     path: "overtimes",
     model: "overtime",
+    csv: true,
     title: L("Lembur", "Overtime"),
     singular: L("Lembur", "Overtime"),
     permission: "hr",
@@ -1527,6 +1535,7 @@ RESOURCES.push(
   {
     path: "work-schedules",
     model: "work_schedule",
+    csv: true,
     title: L("Jadwal Kerja", "Work Schedules"),
     singular: L("Jadwal kerja", "Work schedule"),
     permission: "hr",
@@ -1573,6 +1582,7 @@ RESOURCES.push(
   {
     path: "shift-assignments",
     model: "shift_assignment",
+    csv: true,
     title: L("Penugasan Shift", "Shift Assignments"),
     singular: L("Penugasan shift", "Shift assignment"),
     permission: "hr",
@@ -1635,6 +1645,7 @@ RESOURCES.push(
   {
     path: "public-holidays",
     model: "public_holiday",
+    csv: true,
     title: L("Hari Libur", "Public Holidays"),
     singular: L("Hari libur", "Public holiday"),
     permission: "hr",
@@ -1649,6 +1660,7 @@ RESOURCES.push(
   {
     path: "salary-components",
     model: "salary_component",
+    csv: true,
     title: L("Komponen Gaji", "Salary Components"),
     singular: L("Komponen gaji", "Salary component"),
     permission: "payroll",
