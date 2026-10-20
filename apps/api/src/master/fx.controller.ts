@@ -21,6 +21,7 @@ import { RequirePermission } from "../auth/decorators.js";
 import { CONFIG, type AppConfig } from "../config.js";
 import { OWNER_DB, TenantDb } from "../common/database.js";
 import { parse } from "../common/zod.js";
+import { reportError } from "../common/error-reporting.js";
 
 @Injectable()
 export class FxService {
@@ -100,7 +101,11 @@ export class FxSyncService implements OnApplicationBootstrap, OnApplicationShutd
   onApplicationBootstrap() {
     if (!this.config.fx.scheduler) return;
     this.timer = setInterval(
-      () => void this.runDaily().catch((e: unknown) => this.logger.error(e)),
+      () =>
+        void this.runDaily().catch((e: unknown) => {
+          this.logger.error(e);
+          reportError(e, { job: "fx-daily" });
+        }),
       60 * 60_000,
     );
     this.timer.unref();

@@ -305,9 +305,12 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   otomatis di baris penjualan, STLG di faktur); pemeriksaan isi XML faktur sebelum ekspor sesuai aturan template
   (pengganti XSD — DJP tidak menerbitkan XSD); faktur pengganti (draft menunjuk faktur lama, status "diganti"); nota
   retur pajak masukan dari nota debit (mengurangi PPN masukan di rekap); e-Faktur 3.x: rentang NSFP dan CSV FK/OF/RM
+- [x] Fase 5 (tunda, operasional): PITR — arsip WAL terkompresi terus-menerus, base backup fisik berkala dengan retensi
+  & pembersihan WAL, skrip pemulihan ke titik waktu (diuji putar ulang WAL sampai target); tracing OpenTelemetry
+  (HTTP, Express, Nest, Postgres, Redis via OTLP, `traceId` di log); laporan error Sentry untuk 5xx & job latar
 - [ ] Fase 5 ditunda: bukti potong A2 (khusus ASN/bendahara instansi pemerintah); XML Coretax untuk faktur pengganti &
   retur (impor XML Coretax hanya menerima faktur normal; skema retur pajak masukan belum bisa diverifikasi dari sini);
-  PITR/WAL archiving terkelola, tracing OpenTelemetry, Sentry
+  Sentry untuk aplikasi web (browser)
 - [x] Fase 4 (tunda, selesai): jadwal kerja & penugasan shift dengan toleransi dan potongan keterlambatan per menit/
   kejadian (zona waktu perusahaan, hari libur dikecualikan) yang masuk slip; persetujuan berjenjang cuti & lembur
   (atasan → atasan dari atasan → HR, riwayat & kotak persetujuan); pinjaman karyawan (pencairan via kas/bank ke piutang
