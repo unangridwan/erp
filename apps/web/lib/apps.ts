@@ -231,6 +231,7 @@ export const APPS: App[] = [
       "/shift-assignments",
       "/work-entries",
       "/salary-grades",
+      "/expense-categories",
     ],
     menu: [
       group("Karyawan", "Employees", [
@@ -249,13 +250,16 @@ export const APPS: App[] = [
         link("Jatah Cuti", "Allocations", "/leave-allocations", "hr.read"),
       ]),
       link("Lembur", "Overtime", "/overtimes", "hr.read"),
+      link("Klaim Biaya", "Expenses", "/hr/expenses", "hr.read"),
       link("Persetujuan", "Approvals", "/hr/approvals", "hr.read"),
+      link("Perubahan Data", "Data Changes", "/hr/change-requests", "hr.manage"),
       group("Konfigurasi", "Configuration", [
         link("Jadwal Kerja", "Work Schedules", "/work-schedules", "hr.read"),
         link("Jabatan", "Job Positions", "/job-positions", "hr.read"),
         link("Golongan Upah", "Salary Grades", "/salary-grades", "hr.read"),
         link("Struktur & Skala Upah", "Wage Scale", "/hr/wage-scale", "hr.manage"),
         link("Jenis Cuti", "Time Off Types", "/leave-types", "hr.read"),
+        link("Kategori Klaim", "Expense Categories", "/expense-categories", "hr.read"),
         link("Hari Libur", "Public Holidays", "/public-holidays", "hr.read"),
       ]),
     ],

@@ -20,6 +20,7 @@ type Settings = Record<
   | "leaveApprovalLevels"
   | "overtimeApprovalLevels"
   | "casualFullBpjsMonths"
+  | "expenseApprovalLevels"
   | "thrComponentId"
   | "retroComponentId"
   | "transferSourceAccount"
@@ -51,6 +52,7 @@ export default function PayrollSettingsPage() {
           leaveApprovalLevels: String(s.leaveApprovalLevels),
           overtimeApprovalLevels: String(s.overtimeApprovalLevels),
           casualFullBpjsMonths: String(s.casualFullBpjsMonths),
+          expenseApprovalLevels: String(s.expenseApprovalLevels),
           thrComponentId: s.thrComponentId ?? "",
           retroComponentId: s.retroComponentId ?? "",
           transferSourceAccount: s.transferSourceAccount ?? "",
@@ -81,6 +83,7 @@ export default function PayrollSettingsPage() {
         leaveApprovalLevels,
         overtimeApprovalLevels,
         casualFullBpjsMonths,
+        expenseApprovalLevels,
         thrComponentId,
         retroComponentId,
         transferSourceAccount,
@@ -103,6 +106,7 @@ export default function PayrollSettingsPage() {
           leaveApprovalLevels: Number(leaveApprovalLevels),
           overtimeApprovalLevels: Number(overtimeApprovalLevels),
           casualFullBpjsMonths: Number(casualFullBpjsMonths),
+          expenseApprovalLevels: Number(expenseApprovalLevels),
           thrComponentId: thrComponentId || null,
           retroComponentId: retroComponentId || null,
           transferSourceAccount: transferSourceAccount || null,
@@ -250,6 +254,14 @@ export default function PayrollSettingsPage() {
         <span>{l("Tahap persetujuan lembur", "Overtime approval steps")}</span>
         <select value={form.overtimeApprovalLevels} onChange={set("overtimeApprovalLevels")}>
           <option value="0">{l("0 — langsung disetujui", "0 — approved on entry")}</option>
+          <option value="1">{l("1 — atasan langsung", "1 — direct manager")}</option>
+          <option value="2">{l("2 — + atasan dari atasan", "2 — + manager's manager")}</option>
+          <option value="3">{l("3 — + HR", "3 — + HR")}</option>
+        </select>
+      </label>
+      <label className="field">
+        <span>{l("Tahap persetujuan klaim biaya", "Expense claim approval steps")}</span>
+        <select value={form.expenseApprovalLevels} onChange={set("expenseApprovalLevels")}>
           <option value="1">{l("1 — atasan langsung", "1 — direct manager")}</option>
           <option value="2">{l("2 — + atasan dari atasan", "2 — + manager's manager")}</option>
           <option value="3">{l("3 — + HR", "3 — + HR")}</option>

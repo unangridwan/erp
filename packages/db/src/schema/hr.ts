@@ -1,5 +1,6 @@
 import {
   boolean,
+  customType,
   date,
   integer,
   jsonb,
@@ -11,6 +12,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { audit, tenantId } from "./core.js";
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
 
 // FK di database berbentuk komposit (tenant_id, id); di sini cukup dideklarasikan kolomnya.
 
@@ -75,6 +78,9 @@ export const employees = pgTable("employees", {
   bankAccountName: text("bank_account_name"),
   joinDate: date("join_date").notNull(),
   resignDate: date("resign_date"),
+  address: text("address"),
+  emergencyContact: text("emergency_contact"),
+  emergencyPhone: text("emergency_phone"),
   /** Jadwal kerja bawaan (dapat diganti per rentang tanggal lewat penugasan shift). */
   scheduleId: uuid("schedule_id"),
   active: boolean("active").notNull().default(true),
@@ -230,6 +236,7 @@ export const payrollSettings = pgTable("payroll_settings", {
   leaveApprovalLevels: smallint("leave_approval_levels").notNull().default(1),
   overtimeApprovalLevels: smallint("overtime_approval_levels").notNull().default(0),
   casualFullBpjsMonths: smallint("casual_full_bpjs_months").notNull().default(3),
+  expenseApprovalLevels: smallint("expense_approval_levels").notNull().default(1),
   thrComponentId: uuid("thr_component_id"),
   retroComponentId: uuid("retro_component_id"),
   /** Rekening perusahaan yang didebet untuk transfer gaji (file unggah bank). */
@@ -299,6 +306,7 @@ export const payslipLines = pgTable("payslip_lines", {
   amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
   componentId: uuid("component_id"),
   loanId: uuid("loan_id"),
+  expenseClaimId: uuid("expense_claim_id"),
 });
 
 export const payslipInputs = pgTable("payslip_inputs", {
@@ -345,7 +353,7 @@ export const shiftAssignments = pgTable("shift_assignments", {
 export const approvals = pgTable("approvals", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
-  resModel: text("res_model", { enum: ["leave_request", "overtime"] }).notNull(),
+  resModel: text("res_model", { enum: ["leave_request", "overtime", "expense_claim"] }).notNull(),
   resId: uuid("res_id").notNull(),
   step: smallint("step").notNull(),
   userId: uuid("user_id"),
@@ -405,6 +413,74 @@ export const severances = pgTable("severances", {
     .notNull()
     .default("draft"),
   moveId: uuid("move_id"),
+  createdBy: uuid("created_by"),
+  ...audit,
+});
+
+export const expenseCategories = pgTable("expense_categories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  accountId: uuid("account_id").notNull(),
+  /** Plafon per karyawan per tahun kalender (null = tanpa plafon). */
+  annualLimit: numeric("annual_limit", { precision: 20, scale: 2 }),
+  /** Objek PPh 21 bila dibayar lewat slip gaji. */
+  taxable: boolean("taxable").notNull().default(false),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const EXPENSE_CLAIM_STATES = ["draft", "confirm", "approved", "refused", "paid", "cancel"] as const;
+
+export const expenseClaims = pgTable("expense_claims", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  name: text("name").notNull(),
+  date: date("date").notNull(),
+  description: text("description"),
+  state: text("state", { enum: EXPENSE_CLAIM_STATES }).notNull().default("draft"),
+  approvalStep: smallint("approval_step").notNull().default(1),
+  approvalLevels: smallint("approval_levels").notNull().default(1),
+  payMethod: text("pay_method", { enum: ["payslip", "cash"] })
+    .notNull()
+    .default("payslip"),
+  total: numeric("total", { precision: 20, scale: 2 }).notNull().default("0"),
+  payslipId: uuid("payslip_id"),
+  moveId: uuid("move_id"),
+  createdBy: uuid("created_by"),
+  ...audit,
+});
+
+export const expenseClaimLines = pgTable("expense_claim_lines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  claimId: uuid("claim_id").notNull(),
+  categoryId: uuid("category_id").notNull(),
+  date: date("date").notNull(),
+  amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
+  note: text("note"),
+  attachment: bytea("attachment"),
+  attachmentName: text("attachment_name"),
+  attachmentType: text("attachment_type"),
+});
+
+export const employeeChangeRequests = pgTable("employee_change_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  /** Nilai baru per field; nomor rekening disimpan terenkripsi (`bankAccountEnc`). */
+  changes: jsonb("changes").$type<Record<string, string | null>>().notNull(),
+  note: text("note"),
+  state: text("state", { enum: ["confirm", "approved", "refused"] })
+    .notNull()
+    .default("confirm"),
+  decidedBy: uuid("decided_by"),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  decisionNote: text("decision_note"),
   createdBy: uuid("created_by"),
   ...audit,
 });

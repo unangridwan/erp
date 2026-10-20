@@ -2,6 +2,13 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { download } from "../../../components/accounting/download";
+import {
+  MyChangeRequest,
+  MyClaims,
+  MyLoans,
+  MyOvertime,
+  MyTaxSlips,
+} from "../../../components/hr/portal-extras";
 import { api, ApiError } from "../../../lib/api";
 import { formatDate, money, today } from "../../../lib/format";
 import { useI18n } from "../../../lib/i18n";
@@ -39,7 +46,7 @@ interface Slip {
   net: string;
 }
 
-/** Portal karyawan: absen masuk/pulang, saldo & pengajuan cuti, dan slip gaji. */
+/** Portal karyawan: absen, cuti, lembur, klaim biaya, pinjaman, slip gaji, bukti potong A1, perubahan data. */
 export default function MyPortalPage() {
   const { l, tx, locale } = useI18n();
   const [employee, setEmployee] = useState<Employee | null>(null);
@@ -239,6 +246,10 @@ export default function MyPortalPage() {
         </table>
       </section>
 
+      <MyOvertime />
+      <MyClaims />
+      <MyLoans />
+
       <section className="panel">
         <h2>{l("Slip gaji", "Payslips")}</h2>
         {slips.length === 0 ? (
@@ -268,6 +279,8 @@ export default function MyPortalPage() {
           </table>
         )}
       </section>
+      <MyTaxSlips />
+      <MyChangeRequest />
     </div>
   );
 }

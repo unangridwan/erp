@@ -348,8 +348,11 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   borongan), rapel kenaikan upah berlaku mundur dari payroll terposting, struktur & skala upah (PP 36/2021, golongan di
   jabatan, peringatan kontrak & laporan), file transfer gaji massal BCA/Mandiri/BRI/BNI + CSV umum, unggah BPJS e-Dabu &
   SIPP, laporan biaya tenaga kerja per departemen/cabang/bulan, slip gaji via email (PDF berkata sandi)
-- [ ] HR & Payroll (2/4) Reimbursement & portal karyawan; (3/4) rekrutmen, dokumen & checklist; (4/4) kinerja,
-  pelatihan, riwayat karir, org chart, dashboard HR
+- [x] HR & Payroll (2/4) Reimbursement & portal: kategori klaim (akun beban, plafon tahunan, objek PPh 21), klaim
+  dengan bukti, persetujuan berjenjang, pembayaran via slip gaji atau kas/bank; portal: ajukan lembur & klaim, pinjaman,
+  bukti potong A1, pengajuan perubahan data pribadi (disetujui HR, rekening terenkripsi)
+- [ ] HR & Payroll (3/4) rekrutmen, dokumen & checklist; (4/4) kinerja, pelatihan, riwayat karir, org chart,
+  dashboard HR
 
 ## 5. Roadmap Bertahap
 

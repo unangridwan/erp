@@ -178,28 +178,31 @@ Otomatis (tanpa endpoint baru):
 
 ### SDM & Payroll (Fase 4)
 
-| Endpoint                                                                                                               | Keterangan                                                                        |
-| ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `/employees`, `/departments`, `/job-positions`, `/public-holidays`, `/leave-types`, `/leave-allocations`, `/overtimes` | Data karyawan (NIK/NPWP/rekening terenkripsi), struktur, hari libur, cuti, lembur |
-| `GET/POST /contracts`, `GET/PUT/DELETE /contracts/:id`, `POST /contracts/:id/{start,close}`                            | Kontrak PKWT/PKWTT dengan tunjangan & potongan bulanan                            |
-| `GET/POST /leaves`, `GET /leaves/balances?employeeId=`, `POST /leaves/:id/{approve,refuse,cancel}`                     | Pengajuan cuti (hari kerja di luar libur), saldo jatah                            |
-| `POST /attendance/{check-in,check-out}`, `GET/POST /attendance`                                                        | Absensi dari portal, rekap & koreksi manual                                       |
-| `GET /me/{employee,attendance,leaves,leave-types,payslips}`                                                            | Portal karyawan (user yang terhubung ke data karyawan)                            |
-| `/salary-components`, `GET/PUT /payroll/settings`                                                                      | Komponen gaji, tarif JKK, batas upah BPJS, akun & jurnal gaji                     |
-| `GET/POST /payroll-runs`, `GET /payroll-runs/:id`, `POST /payroll-runs/:id/{compute,post,pay,cancel}`                  | Payroll bulanan: hitung, posting jurnal, bayar gaji bersih                        |
-| `GET /payroll-runs/:id/{bank-transfer,recap}?format=csv`                                                               | File transfer bank, rekap PPh 21 & BPJS (NIK/NPWP)                                |
-| `GET /payslips/:id`, `PUT /payslips/:id/inputs`, `GET /payslips/:id/pdf`                                               | Slip gaji, input THR/bonus/potongan, PDF                                          |
-| `/work-schedules`, `/shift-assignments`, `GET /attendance/lateness?from=&to=&employeeId=`                              | Jadwal kerja & shift, toleransi & potongan keterlambatan (otomatis di slip)       |
-| `GET /approvals/pending`, `GET /approvals/:model/:id`, `POST /approvals/overtime/:id/{approve,refuse}`                 | Persetujuan berjenjang cuti & lembur: atasan → atasan dari atasan → HR            |
-| `GET/POST /employee-loans`, `GET /employee-loans/:id`, `POST /employee-loans/:id/{disburse,cancel}`                    | Pinjaman karyawan: cair via kas/bank, cicilan otomatis di slip sampai lunas       |
-| `/work-entries`                                                                                                        | Hasil kerja pekerja borongan (terkunci setelah payroll diposting)                 |
-| `GET/POST /employees/:id/severances`, `POST /employees/:id/severance/preview`                                          | Pesangon, UPMK, UPH, uang pisah/kompensasi PKWT (PP 35/2021) + PPh 21 final       |
-| `/salary-grades`, `GET /hr/wage-scale`                                                                                 | Struktur & skala upah (PP 36/2021): golongan di jabatan, upah di luar rentang     |
-| `POST /payroll-runs/:id/{thr,retro}`                                                                                   | THR otomatis (Permenaker 6/2016) & rapel kenaikan upah berlaku mundur             |
-| `GET /payroll-runs/:id/bank-transfer?format=csv\|bca\|mandiri\|bri\|bni`, `GET …/bank-transfer/summary`                | File transfer gaji massal per bank (rekening bank itu saja) + ringkasan per bank  |
-| `GET /payroll-runs/:id/recap?format=csv\|edabu\|sipp`                                                                  | Rekap PPh 21 & BPJS, unggah BPJS Kesehatan (e-Dabu) & Ketenagakerjaan (SIPP)      |
-| `POST /payroll-runs/:id/email-payslips`                                                                                | Kirim slip PDF berkata sandi (tanggal lahir DDMMYYYY) ke email kerja              |
-| `GET /payroll/reports/cost?from=YYYY-MM&to=YYYY-MM&groupBy=department\|branch\|month`                                  | Biaya tenaga kerja (pendapatan + BPJS perusahaan) dari payroll terposting         |
+| Endpoint                                                                                                                                               | Keterangan                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `/employees`, `/departments`, `/job-positions`, `/public-holidays`, `/leave-types`, `/leave-allocations`, `/overtimes`                                 | Data karyawan (NIK/NPWP/rekening terenkripsi), struktur, hari libur, cuti, lembur                            |
+| `GET/POST /contracts`, `GET/PUT/DELETE /contracts/:id`, `POST /contracts/:id/{start,close}`                                                            | Kontrak PKWT/PKWTT dengan tunjangan & potongan bulanan                                                       |
+| `GET/POST /leaves`, `GET /leaves/balances?employeeId=`, `POST /leaves/:id/{approve,refuse,cancel}`                                                     | Pengajuan cuti (hari kerja di luar libur), saldo jatah                                                       |
+| `POST /attendance/{check-in,check-out}`, `GET/POST /attendance`                                                                                        | Absensi dari portal, rekap & koreksi manual                                                                  |
+| `GET /me/{employee,attendance,leaves,leave-types,payslips}`                                                                                            | Portal karyawan (user yang terhubung ke data karyawan)                                                       |
+| `/salary-components`, `GET/PUT /payroll/settings`                                                                                                      | Komponen gaji, tarif JKK, batas upah BPJS, akun & jurnal gaji                                                |
+| `GET/POST /payroll-runs`, `GET /payroll-runs/:id`, `POST /payroll-runs/:id/{compute,post,pay,cancel}`                                                  | Payroll bulanan: hitung, posting jurnal, bayar gaji bersih                                                   |
+| `GET /payroll-runs/:id/{bank-transfer,recap}?format=csv`                                                                                               | File transfer bank, rekap PPh 21 & BPJS (NIK/NPWP)                                                           |
+| `GET /payslips/:id`, `PUT /payslips/:id/inputs`, `GET /payslips/:id/pdf`                                                                               | Slip gaji, input THR/bonus/potongan, PDF                                                                     |
+| `/work-schedules`, `/shift-assignments`, `GET /attendance/lateness?from=&to=&employeeId=`                                                              | Jadwal kerja & shift, toleransi & potongan keterlambatan (otomatis di slip)                                  |
+| `GET /approvals/pending`, `GET /approvals/:model/:id`, `POST /approvals/overtime/:id/{approve,refuse}`                                                 | Persetujuan berjenjang cuti & lembur: atasan → atasan dari atasan → HR                                       |
+| `GET/POST /employee-loans`, `GET /employee-loans/:id`, `POST /employee-loans/:id/{disburse,cancel}`                                                    | Pinjaman karyawan: cair via kas/bank, cicilan otomatis di slip sampai lunas                                  |
+| `/work-entries`                                                                                                                                        | Hasil kerja pekerja borongan (terkunci setelah payroll diposting)                                            |
+| `GET/POST /employees/:id/severances`, `POST /employees/:id/severance/preview`                                                                          | Pesangon, UPMK, UPH, uang pisah/kompensasi PKWT (PP 35/2021) + PPh 21 final                                  |
+| `/salary-grades`, `GET /hr/wage-scale`                                                                                                                 | Struktur & skala upah (PP 36/2021): golongan di jabatan, upah di luar rentang                                |
+| `POST /payroll-runs/:id/{thr,retro}`                                                                                                                   | THR otomatis (Permenaker 6/2016) & rapel kenaikan upah berlaku mundur                                        |
+| `GET /payroll-runs/:id/bank-transfer?format=csv\|bca\|mandiri\|bri\|bni`, `GET …/bank-transfer/summary`                                                | File transfer gaji massal per bank (rekening bank itu saja) + ringkasan per bank                             |
+| `GET /payroll-runs/:id/recap?format=csv\|edabu\|sipp`                                                                                                  | Rekap PPh 21 & BPJS, unggah BPJS Kesehatan (e-Dabu) & Ketenagakerjaan (SIPP)                                 |
+| `POST /payroll-runs/:id/email-payslips`                                                                                                                | Kirim slip PDF berkata sandi (tanggal lahir DDMMYYYY) ke email kerja                                         |
+| `GET /payroll/reports/cost?from=YYYY-MM&to=YYYY-MM&groupBy=department\|branch\|month`                                                                  | Biaya tenaga kerja (pendapatan + BPJS perusahaan) dari payroll terposting                                    |
+| `/expense-categories`, `GET/POST /expense-claims`, `GET/PUT/DELETE /expense-claims/:id`, `POST /expense-claims/:id/{submit,approve,refuse,cancel,pay}` | Klaim biaya: plafon tahunan per kategori, persetujuan berjenjang, bayar via slip/kas-bank, bukti PDF/JPG/PNG |
+| `GET /employee-change-requests`, `POST /employee-change-requests/:id/{approve,refuse}`                                                                 | Perubahan data pribadi dari portal, disetujui HR lalu diterapkan                                             |
+| `GET /me/{expense-categories,overtimes,loans,change-requests,withholding-slips}`, `POST /me/{overtimes,change-requests}`, `GET /expense-claims?mine=1` | Portal karyawan: lembur, klaim, pinjaman, perubahan data, bukti potong A1                                    |
 
 PPh 21 dihitung dengan TER (PP 58/2023) per bulan dan tarif Pasal 17 setahun di Desember atau bulan karyawan keluar.
 Tarif TER, PTKP, BPJS, dan lembur ada di `packages/shared/src/payroll.ts` (dengan unit test); batas upah JP perlu
@@ -217,6 +220,11 @@ di payroll terposting sejak tanggal mulai kontrak (bulan pertama prorata hari ka
 jadi kenaikan upah berlaku mundur dicatat sebagai kontrak baru dengan tanggal mulai di masa lalu. Input otomatis THR/rapel
 tidak tertimpa input manual slip. File transfer per bank mengikuti templat unggah massal umum (rekening sumber & corporate
 ID diisi di Pengaturan Payroll) — cocokkan dengan templat terbaru bank sebelum dipakai produksi.
+
+Klaim biaya yang disetujui dengan metode "slip gaji" otomatis masuk slip payroll berikutnya (baris `RMB`; tidak kena
+PPh 21 kecuali kategori ditandai objek PPh 21) dan saat posting mendebit akun beban kategori klaim; klaim yang berubah
+setelah payroll dihitung membuat posting ditolak sampai payroll dihitung ulang. Lembur yang diajukan dari portal selalu
+menunggu persetujuan (minimal atasan langsung). Nomor rekening pada pengajuan perubahan data disimpan terenkripsi.
 
 ### Pajak Coretax, Langganan & Operasional (Fase 5)
 

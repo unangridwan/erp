@@ -42,7 +42,9 @@ import { TenantDb } from "../common/database.js";
 import { Mailer } from "../common/mailer.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
+import { ExpenseModule } from "../hr/expense.module.js";
 import { HrModule } from "../hr/hr.module.js";
+import { EmployeeService } from "../hr/employee.service.js";
 import { LoanService } from "./loan.service.js";
 import { PayrollService } from "./payroll.service.js";
 import { SeveranceService } from "./severance.service.js";
@@ -90,6 +92,8 @@ class PayrollController {
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(PayrollService) private readonly payroll: PayrollService,
     @Inject(Mailer) private readonly mailer: Mailer,
+    @Inject(EmployeeService) private readonly employees: EmployeeService,
+    @Inject(LoanService) private readonly loans: LoanService,
   ) {}
 
   @Get("payroll/settings")
@@ -403,6 +407,15 @@ class PayrollController {
     res.type("application/pdf").attachment(file.filename).send(file.content);
   }
 
+  /** Pinjaman milik sendiri beserta sisa & cicilan. */
+  @Get("me/loans")
+  myLoans() {
+    return this.tenantDb.run(async (tx) => {
+      const employee = await this.employees.mine(tx);
+      return this.loans.list(tx, { employeeId: employee.id });
+    });
+  }
+
   @Get("me/payslips")
   mine() {
     return this.tenantDb.run((tx) => this.payroll.mySlips(tx));
@@ -500,7 +513,7 @@ class SeveranceController {
 }
 
 @Module({
-  imports: [AccountingModule, HrModule],
+  imports: [AccountingModule, HrModule, ExpenseModule],
   controllers: [SalaryComponentsController, PayrollController, LoansController, SeveranceController],
   providers: [ActivityService, PayrollService, LoanService, SeveranceService],
 })
