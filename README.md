@@ -238,6 +238,7 @@ melebihi batas pengguna/perusahaan ditolak, dan langganan yang berakhir (lewat `
 | `GET /consolidation/runs/:id/{worksheet[?format=csv],report,intercompany}`             | Kertas kerja, neraca & laba rugi konsolidasian (pemilik/KNP), rekonsiliasi IC        |
 | `POST /consolidation/runs/:id/entries`, `DELETE …/entries/:entryId`, `POST …/finalize` | Jurnal penyesuaian manual (top-side), finalisasi (harus seimbang)                    |
 | `GET /consolidation/runs/:id/export`                                                   | Excel: posisi keuangan, laba rugi, perubahan ekuitas, arus kas, kertas kerja, jurnal |
+| `GET /consolidation/runs/:id/segments?by=company\|business_unit\|branch`               | Laporan segmen: laba rugi per segmen + baris eliminasi ke konsolidasian              |
 | `GET /reports/branch-clearing?dateTo=`, `GET /reports/branch-clearing/export`          | Rekonsiliasi RK pusat–cabang (akun bertanda rekening antar kantor)                   |
 
 Translasi: aset/liabilitas kurs penutupan, laba rugi kurs rata-rata, ekuitas kurs historis; selisihnya ke akun selisih
@@ -254,6 +255,14 @@ dengan partner antar perusahaan. Dividen dicatat di akun Dividen (3-3000) dengan
 dieliminasi. Saldo awal laporan perubahan ekuitas & arus kas diambil dari proses final yang berakhir sehari sebelum
 periode (bila ada), selain itu dihitung ulang. Setelah upgrade, klik **Buat bagan akun grup** sekali lagi agar peran
 akun baru (persediaan, HPP, dividen, transaksi KNP, laba pelepasan) terpasang.
+
+Akuisisi bertahap: isi `previousInterestFairValue` (nilai wajar kepemilikan sebelumnya) pada baris Kepemilikan saat
+pengendalian diperoleh; kenaikan di atas biaya menambah goodwill dan laba pengukuran ulang (4-9700) dicatat setelah
+dikurangi bagian laba metode ekuitas yang sudah diakui. Goodwill entitas asing dijabarkan ulang dengan kurs penutupan.
+Saat entitas asing dilepas, bagian induk atas selisih kurs penjabaran kumulatif dipisahkan ke akun reklasifikasi
+(4-9600). Laba belum terealisasi atas persediaan antara grup dan asosiasi dieliminasi sebesar bagian investor.
+Konsolidasi sub-grup: pilih sub-holding sebagai perusahaan induk proses. Laporan segmen menjabarkan saldo tiap segmen
+dengan rasio terjemahan entitasnya; baris tanpa dimensi masuk segmen "Tanpa unit bisnis/cabang".
 
 Konfirmasi SO membuat pengiriman; barang ditagih sesuai kuantitas terkirim (jasa sesuai kuantitas dipesan). Validasi
 transfer barang stok membuat jurnal di jurnal **STJ**: penerimaan Dr Persediaan / Cr Barang Diterima Belum Ditagih,

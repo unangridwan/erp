@@ -90,6 +90,8 @@ export const ownershipHistory = pgTable("ownership_history", {
   consideration: numeric("consideration", { precision: 20, scale: 2 }),
   /** Nilai wajar aset bersih entitas anak saat akuisisi (mata uang penyajian grup). */
   acquiredNetAssets: numeric("acquired_net_assets", { precision: 20, scale: 2 }),
+  /** Akuisisi bertahap: nilai wajar kepemilikan sebelumnya saat pengendalian diperoleh (mata uang penyajian). */
+  previousInterestFairValue: numeric("previous_interest_fair_value", { precision: 20, scale: 2 }),
   ...audit,
 });
 

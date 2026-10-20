@@ -60,6 +60,9 @@ const structureQuery = z.object({
   dateTo: z.string().date(),
   dateFrom: z.string().date().optional(),
 });
+const segmentQuery = z.object({
+  by: z.enum(["company", "business_unit", "branch"]).default("company"),
+});
 
 @Controller("consolidation")
 class ConsolidationController {
@@ -173,6 +176,14 @@ class ConsolidationController {
   @RequirePermission("consolidation.read")
   report(@Param("id", ParseUUIDPipe) id: string) {
     return this.tenantDb.run((tx) => this.service.report(tx, id));
+  }
+
+  /** Laporan segmen: laba rugi per perusahaan / unit bisnis / cabang dengan rekonsiliasi ke konsolidasian. */
+  @Get("runs/:id/segments")
+  @RequirePermission("consolidation.read")
+  segments(@Param("id", ParseUUIDPipe) id: string, @Query() query: unknown) {
+    const { by } = parse(segmentQuery, query);
+    return this.tenantDb.run((tx) => this.service.segments(tx, id, by));
   }
 
   /** Paket laporan konsolidasian (posisi keuangan, laba rugi, perubahan ekuitas, arus kas, kertas kerja, jurnal). */

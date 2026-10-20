@@ -503,6 +503,14 @@ export const RESOURCES: Resource[] = [
         ),
         type: "number",
       },
+      {
+        name: "previousInterestFairValue",
+        label: L(
+          "Akuisisi bertahap: nilai wajar kepemilikan sebelumnya saat pengendalian diperoleh (diukur ulang, PSAK 22)",
+          "Step acquisition: fair value of the previously held interest when control is obtained (remeasured)",
+        ),
+        type: "number",
+      },
     ],
   },
   {

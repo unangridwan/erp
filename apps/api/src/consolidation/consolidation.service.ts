@@ -12,11 +12,13 @@ import {
   PROFIT_LOSS_TYPES,
   closingPosition,
   consolidate,
+  translationReserve,
   consolidatedCashFlow,
   consolidatedStatements,
   effectiveOwnership,
   equityChanges,
   intercompanyReconciliation,
+  segmentReport,
   worksheet,
   type ConsolidationOptions,
   type EntityInput,
@@ -105,6 +107,18 @@ const ROLE_ACCOUNTS = [
     name: "Bagian Laba Entitas Asosiasi",
     accountType: "income_other",
     role: "associate_income",
+  },
+  {
+    code: "4-9600",
+    name: "Reklasifikasi Selisih Kurs Penjabaran (Pelepasan)",
+    accountType: "income_other",
+    role: "cta_reclassified",
+  },
+  {
+    code: "4-9700",
+    name: "Laba (Rugi) Pengukuran Ulang Kepemilikan Sebelumnya",
+    accountType: "income_other",
+    role: "remeasurement_gain",
   },
 ] as const;
 /** Peran untuk akun bawaan bagan akun standar (kode sama di semua perusahaan). */
@@ -372,6 +386,8 @@ export class ConsolidationService {
             },
           ];
         });
+        // Akuisisi bertahap: kepemilikan sebelum pengendalian (biaya & periode metode ekuitas) untuk pengukuran ulang.
+        const previous = m === "equity" ? [] : chain.slice(0, k);
         return {
           parentId: l.parentCompanyId,
           pct: l.pct,
@@ -382,6 +398,14 @@ export class ConsolidationService {
           acquiredNetAssets: control.acquiredNetAssets,
           validFrom: control.validFrom,
           changes,
+          previousFairValue: previous.length ? control.previousInterestFairValue : null,
+          previousCost: previous.reduce((s, r) => s.plus(r.consideration ?? 0), D(0)).toFixed(2),
+          previous: previous.map((r) => ({
+            validFrom: r.validFrom,
+            validTo: r.validTo ?? dayBefore(control.validFrom),
+            pct: r.pct,
+            method: r.method,
+          })),
         };
       });
       return {
@@ -440,6 +464,15 @@ export class ConsolidationService {
       entities.push({ ...e, ...rate, historicalRateManual: false });
     }
     return { root, entities };
+  }
+
+  /** Kurs mata uang terhadap mata uang penyajian pada satu tanggal. */
+  private async rateBetween(tx: Db, currency: string, presentation: string, date: string) {
+    if (currency === presentation) return "1";
+    const rate = D((await this.fx.rateOn(tx, currency, date)).rate).div(
+      (await this.fx.rateOn(tx, presentation, date)).rate,
+    );
+    return rate.toDecimalPlaces(10).toString();
   }
 
   /** Kurs penutupan (per tanggal akhir), rata-rata (selama periode), dan historis (bawaan = penutupan). */
@@ -683,12 +716,43 @@ export class ConsolidationService {
             periodProfitBefore: before ? D(before.local).negated().times(e.averageRate).toFixed(2) : "0",
           });
         }
+        // Pengukuran ulang kepemilikan sebelumnya ke nilai wajar: bagian laba metode ekuitas yang sudah diakui.
+        let remeasurement: OwnershipInput["remeasurement"];
+        if (l.previousFairValue !== null && e.method !== "equity") {
+          let before = D(0);
+          let during = D(0);
+          for (const r of l.previous) {
+            if (r.method !== "equity") continue;
+            const end = r.validTo < l.validFrom ? r.validTo : dayBefore(l.validFrom);
+            const share = async (a: string, b: string) =>
+              a > b
+                ? D(0)
+                : (
+                    await this.profitBetween(tx, e.companyId, a, b, translation).then((x) =>
+                      D(x.translated ?? x.local),
+                    )
+                  )
+                    .negated()
+                    .times(r.pct)
+                    .div(100);
+            const cut = dayBefore(p.dateFrom);
+            before = before.plus(await share(r.validFrom, end < cut ? end : cut));
+            during = during.plus(await share(r.validFrom > p.dateFrom ? r.validFrom : p.dateFrom, end));
+          }
+          remeasurement = {
+            uplift: D(l.previousFairValue).minus(l.previousCost).toFixed(2),
+            equityShareBefore: before.toFixed(2),
+            equityShareInPeriod: during.toFixed(2),
+            inPeriod: l.validFrom >= p.dateFrom,
+          };
+        }
         links.push({
           parentId: l.parentId,
           pct: l.pct,
           consideration: l.consideration,
           acquiredNetAssets: l.acquiredNetAssets,
           changes,
+          ...(remeasurement ? { remeasurement } : {}),
         });
       }
       // Laba per segmen kepemilikan bila kepemilikan berubah di dalam periode.
@@ -717,6 +781,54 @@ export class ConsolidationService {
         }
       }
 
+      // Entitas asing: kurs pada tanggal akuisisi untuk menjabarkan ulang goodwill dengan kurs penutupan.
+      let acquisitionRate: string | undefined;
+      if (e.currencyCode !== p.currency && e.acquisitionDate && e.method !== "equity") {
+        acquisitionRate = await this.rateBetween(tx, e.currencyCode, p.currency, e.acquisitionDate).catch(
+          () => {
+            warnings.push(
+              `${e.name}: kurs ${e.currencyCode} pada tanggal akuisisi ${e.acquisitionDate} belum ada — goodwill tidak dijabarkan ulang`,
+            );
+            return undefined;
+          },
+        );
+      }
+      const balances = (rows: typeof data.balances) =>
+        rows.map((b) => ({
+          groupAccountId: b.groupAccountId,
+          amount: b.amount,
+          ...(dated && isEquity(b.groupAccountId) ? { translated: b.translated } : {}),
+        }));
+      // Entitas asing yang dilepas: selisih kurs penjabaran kumulatif pada tanggal pelepasan (dari posisi lengkapnya).
+      let disposalCta: string | undefined;
+      if (e.disposalDate && e.method !== "equity" && e.currencyCode !== p.currency) {
+        const full = await this.loadEntity(tx, {
+          companyId: e.companyId,
+          companyName: e.name,
+          runFrom: p.dateFrom,
+          from,
+          to,
+          profitLossOnly: false,
+          translation,
+          icCutoffs: disposedCutoffs,
+        });
+        disposalCta = translationReserve(accounts, {
+          companyId: e.companyId,
+          name: e.name,
+          isRoot: true,
+          method: "full",
+          effectivePct: "100",
+          closingRate: e.closingRate,
+          averageRate: e.averageRate,
+          historicalRate: e.historicalRate,
+          links: [],
+          balances: balances(full.balances),
+          priorUnallocated: full.prior.local,
+          ...(full.prior.translated !== null ? { priorTranslated: full.prior.translated } : {}),
+          intercompany: [],
+        });
+      }
+
       inputs.push({
         companyId: e.companyId,
         name: e.name,
@@ -726,12 +838,9 @@ export class ConsolidationService {
         closingRate: e.closingRate,
         averageRate: e.averageRate,
         historicalRate: e.historicalRate,
+        ...(acquisitionRate ? { acquisitionRate } : {}),
         links,
-        balances: data.balances.map((b) => ({
-          groupAccountId: b.groupAccountId,
-          amount: b.amount,
-          ...(dated && isEquity(b.groupAccountId) ? { translated: b.translated } : {}),
-        })),
+        balances: balances(data.balances),
         // Entitas yang dilepas tidak membawa posisi keuangan, termasuk saldo laba sebelum periode.
         priorUnallocated: e.disposalDate ? "0" : data.prior.local,
         ...(data.prior.translated !== null && !e.disposalDate
@@ -746,7 +855,9 @@ export class ConsolidationService {
           ...(dated && isEquity(i.groupAccountId) ? { translated: i.translated } : {}),
         })),
         ...(profitSegments ? { profitSegments } : {}),
-        ...(e.disposalDate ? { disposal: { date: e.disposalDate } } : {}),
+        ...(e.disposalDate
+          ? { disposal: { date: e.disposalDate, ...(disposalCta ? { cta: disposalCta } : {}) } }
+          : {}),
       });
     }
     if (unmapped.length)
@@ -783,6 +894,30 @@ export class ConsolidationService {
             closing: closing.toFixed(2),
             opening: opening.toFixed(2),
           });
+      }
+    }
+
+    // Persediaan dengan entitas asosiasi: downstream (barang grup di asosiasi) & upstream (barang asosiasi di grup).
+    options.associateProfits = [];
+    for (const associate of entities.filter((e) => e.method === "equity" && !e.disposalDate)) {
+      for (const other of trading) {
+        const sameStart = [associate, other].every(
+          (x) => !x.acquisitionDate || x.acquisitionDate <= openingDate,
+        );
+        for (const direction of ["downstream", "upstream"] as const) {
+          const [buyer, seller] = direction === "downstream" ? [associate, other] : [other, associate];
+          const closing = await this.unrealizedProfit(tx, buyer, seller, p.dateTo);
+          const opening =
+            p.withOpening && sameStart ? await this.unrealizedProfit(tx, buyer, seller, openingDate) : D(0);
+          if (!closing.isZero() || !opening.isZero())
+            options.associateProfits.push({
+              associateId: associate.companyId,
+              groupEntityId: other.companyId,
+              direction,
+              closing: closing.toFixed(2),
+              opening: opening.toFixed(2),
+            });
+        }
       }
     }
 
@@ -1282,6 +1417,96 @@ export class ConsolidationService {
       equityChanges: opening ? equityChanges(accounts, opening, ws.rows) : null,
       cashFlow: opening ? consolidatedCashFlow(accounts, opening, ws.rows) : null,
     };
+  }
+
+  /**
+   * Laporan segmen: laba rugi per perusahaan, unit bisnis, atau cabang (mata uang penyajian, sebelum eliminasi) dan
+   * baris eliminasi yang merekonsiliasi ke laba rugi konsolidasian. Saldo per segmen dijabarkan dengan rasio
+   * terjemahan saldo entitas per akun grup, sehingga jumlah segmen satu entitas sama dengan kolom entitasnya.
+   */
+  async segments(tx: Db, runId: string, by: "company" | "business_unit" | "branch") {
+    const ws = await this.worksheet(tx, runId);
+    const run = await this.get(tx, runId);
+    const accounts = await this.groupAccounts(tx);
+    const pl = new Set(accounts.filter((a) => PROFIT_LOSS_TYPES.includes(a.accountType)).map((a) => a.id));
+    const balances = (
+      await tx
+        .select()
+        .from(schema.consolidationBalances)
+        .where(eq(schema.consolidationBalances.runId, runId))
+    ).filter((b) => pl.has(b.groupAccountId));
+    const entities = run.entities.filter((e) => e.method !== "equity");
+    const segments = new Map<string, { key: string; name: string; balances: Map<string, Decimal> }>();
+    const add = (key: string, name: string, groupAccountId: string, amount: Decimal) => {
+      const s = segments.get(key) ?? { key, name, balances: new Map<string, Decimal>() };
+      s.balances.set(groupAccountId, (s.balances.get(groupAccountId) ?? D(0)).plus(amount));
+      segments.set(key, s);
+    };
+
+    if (by === "company") {
+      for (const e of entities)
+        for (const b of balances.filter((x) => x.companyId === e.companyId))
+          add(e.companyId, `${e.code} — ${e.name}`, b.groupAccountId, D(b.amount));
+    } else {
+      const dim = by === "business_unit" ? sql`l.business_unit_id` : sql`l.branch_id`;
+      const names = new Map(
+        (by === "business_unit"
+          ? await tx
+              .select({
+                id: schema.businessUnits.id,
+                code: schema.businessUnits.code,
+                name: schema.businessUnits.name,
+              })
+              .from(schema.businessUnits)
+          : await tx
+              .select({ id: schema.branches.id, code: schema.branches.code, name: schema.branches.name })
+              .from(schema.branches)
+        ).map((x) => [x.id, `${x.code} — ${x.name}`]),
+      );
+      const NONE = "none";
+      const noneName = by === "business_unit" ? "Tanpa unit bisnis" : "Tanpa cabang";
+      for (const e of entities) {
+        const from = e.acquisitionDate && e.acquisitionDate > run.dateFrom ? e.acquisitionDate : run.dateFrom;
+        const rows = await tx.execute<{
+          group_account_id: string;
+          segment_id: string | null;
+          amount: string;
+        }>(sql`
+          select map.group_account_id, ${dim} as segment_id, sum(l.balance)::text as amount
+          from account_move_lines l
+          join account_moves m on m.id = l.move_id
+          join accounts a on a.id = l.account_id
+          join consolidation_account_map map on map.account_id = a.id
+          where m.state = 'posted' and l.company_id = ${e.companyId} and m.closing_year is null
+            and m.date >= ${from} and m.date <= ${e.disposalDate ?? run.dateTo}
+            and a.account_type in (${list(PROFIT_LOSS_TYPES)})
+          group by map.group_account_id, ${dim}`);
+        for (const b of balances.filter((x) => x.companyId === e.companyId)) {
+          const local = D(b.localAmount);
+          const ratio = local.isZero() ? D(0) : D(b.amount).div(local);
+          let rest = D(b.amount);
+          for (const r of rows.filter((x) => x.group_account_id === b.groupAccountId && x.segment_id)) {
+            const amount = D(r.amount).times(ratio).toDecimalPlaces(2);
+            rest = rest.minus(amount);
+            add(r.segment_id!, names.get(r.segment_id!) ?? r.segment_id!, b.groupAccountId, amount);
+          }
+          // Baris tanpa dimensi, selisih pembulatan, dan penyeimbang entitas yang dilepas.
+          if (!rest.isZero()) add(NONE, noneName, b.groupAccountId, rest);
+        }
+      }
+    }
+    const report = segmentReport(
+      accounts,
+      [...segments.values()]
+        .sort((a, b) => (a.key === "none" ? 1 : b.key === "none" ? -1 : a.name.localeCompare(b.name)))
+        .map((s) => ({
+          key: s.key,
+          name: s.name,
+          balances: [...s.balances].map(([groupAccountId, amount]) => ({ groupAccountId, amount })),
+        })),
+      ws.rows,
+    );
+    return { run: ws.run, by, ...report };
   }
 
   /** Rekonsiliasi saldo antar perusahaan (dalam mata uang penyajian, kurs proses). */

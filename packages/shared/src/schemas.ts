@@ -126,6 +126,8 @@ export const ownershipSchema = z.object({
   validTo: z.string().date().nullish(),
   consideration: money.nullish(),
   acquiredNetAssets: money.nullish(),
+  /** Akuisisi bertahap: nilai wajar kepemilikan sebelumnya saat pengendalian diperoleh (baris pengendalian). */
+  previousInterestFairValue: money.nullish(),
 });
 
 export const businessUnitSchema = z.object({

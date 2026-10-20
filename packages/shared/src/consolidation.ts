@@ -23,6 +23,8 @@ export const GROUP_ACCOUNT_ROLES = [
   "dividends",
   "equity_transactions",
   "disposal_gain",
+  "cta_reclassified",
+  "remeasurement_gain",
 ] as const;
 export type GroupAccountRole = (typeof GROUP_ACCOUNT_ROLES)[number];
 
@@ -58,6 +60,18 @@ export interface OwnershipInput {
   consideration: Decimal.Value | null;
   acquiredNetAssets: Decimal.Value | null;
   changes?: OwnershipChange[];
+  /**
+   * Akuisisi bertahap (PSAK 22): kepemilikan sebelum pengendalian diukur ulang ke nilai wajar. `uplift` = nilai wajar −
+   * biaya kepemilikan sebelumnya (menambah goodwill); `equityShare` = bagian laba metode ekuitas yang sudah diakui
+   * selama kepemilikan sebelumnya (sebelum periode / di dalam periode); laba pengukuran ulang = uplift − equityShare.
+   */
+  remeasurement?: {
+    uplift: Decimal.Value;
+    equityShareBefore: Decimal.Value;
+    equityShareInPeriod: Decimal.Value;
+    /** Pengendalian diperoleh di dalam periode laporan. */
+    inPeriod: boolean;
+  };
 }
 
 export interface EntityInput {
@@ -71,6 +85,11 @@ export interface EntityInput {
   closingRate: Decimal.Value;
   averageRate: Decimal.Value;
   historicalRate: Decimal.Value;
+  /**
+   * Kurs pada tanggal pengendalian diperoleh (entitas asing): goodwill adalah aset entitas asing (PSAK 10) sehingga
+   * dijabarkan ulang dengan kurs penutupan; selisihnya masuk selisih kurs penjabaran.
+   */
+  acquisitionRate?: Decimal.Value;
   /** Relasi dari induk yang ada dalam lingkup konsolidasi. */
   links: OwnershipInput[];
   /**
@@ -93,8 +112,11 @@ export interface EntityInput {
   }[];
   /** Laba rugi lokal per segmen periode dengan kepemilikan efektif berbeda (bila kepemilikan berubah). */
   profitSegments?: { effectivePct: Decimal.Value; profit: Decimal.Value }[];
-  /** Pengendalian/pengaruh dilepas dalam periode: hanya laba rugi sampai tanggal ini yang digabung. */
-  disposal?: { date: string };
+  /**
+   * Pengendalian/pengaruh dilepas dalam periode: hanya laba rugi sampai tanggal ini yang digabung. `cta`: selisih kurs
+   * penjabaran kumulatif entitas (100%, kredit negatif) pada tanggal pelepasan — bagian induk direklasifikasi ke laba rugi.
+   */
+  disposal?: { date: string; cta?: Decimal.Value };
 }
 
 export interface ConsolidationOptions {
@@ -118,6 +140,18 @@ export interface ConsolidationOptions {
     gainAccountId: string;
     assetAccountId: string;
     expenseAccountId: string;
+  }[];
+  /**
+   * Laba belum terealisasi atas persediaan dengan entitas asosiasi/ventura bersama (mata uang penyajian, 100%):
+   * downstream = barang grup masih di asosiasi; upstream = barang asosiasi masih di entitas grup (`groupEntityId`).
+   * Dieliminasi sebesar bagian investor (PSAK 15).
+   */
+  associateProfits?: {
+    associateId: string;
+    groupEntityId: string;
+    direction: "downstream" | "upstream";
+    closing: Decimal.Value;
+    opening: Decimal.Value;
   }[];
 }
 
@@ -230,10 +264,6 @@ export function consolidate(
       // Entitas yang dilepas hanya membawa laba ruginya; aset neto yang dilepas menyeimbangkan kolomnya.
       const local = pl.reduce((s, [, r]) => s.minus(r.local), D(0));
       if (!total.isZero()) add(role("disposal_gain"), local, total.negated());
-      if (e.method !== "equity" && !D(e.closingRate).eq(1))
-        warnings.push(
-          `${e.name}: selisih kurs penjabaran kumulatif entitas yang dilepas belum direklasifikasi ke laba rugi — buat jurnal manual bila material`,
-        );
     } else if (!total.isZero()) {
       // Selisih kurs penjabaran menyeimbangkan neraca saldo terjemahan (bagian dari ekuitas entitas).
       add(role("cta"), D(0), total.negated());
@@ -264,6 +294,49 @@ export function consolidate(
       ? D(e.postAcquisitionPriorTranslated)
       : D(e.postAcquisitionPrior).times(e.historicalRate)
     ).negated();
+
+  /** Goodwill (mata uang penyajian pada tanggal akuisisi) dijabarkan ulang dengan kurs penutupan entitas asing. */
+  const goodwillAtClosing = (e: EntityInput, goodwill: Decimal) =>
+    e.acquisitionRate !== undefined && !D(e.acquisitionRate).isZero() && goodwill.gt(0)
+      ? r2(goodwill.times(e.closingRate).div(e.acquisitionRate))
+      : goodwill;
+  /** Goodwill pada tanggal pengendalian dari data akuisisi (tanpa data → nol). */
+  const goodwillOf = (e: EntityInput) => {
+    const acquired = e.links[0]?.acquiredNetAssets;
+    if (acquired === null || acquired === undefined) return D(0);
+    return e.links.reduce((s, l) => {
+      if (l.consideration === null) return s;
+      const pK = D(l.changes?.[0]?.pctBefore ?? l.pct).div(100);
+      return s.plus(D(l.consideration).minus(pK.times(acquired))).plus(l.remeasurement?.uplift ?? 0);
+    }, D(0));
+  };
+  /**
+   * Pelepasan entitas asing: bagian induk atas selisih kurs penjabaran kumulatif (termasuk atas goodwill) sudah ikut
+   * dalam laba pelepasan grup; dipisahkan ke akun reklasifikasi agar terlihat sebagai reklasifikasi dari penghasilan
+   * komprehensif lain ke laba rugi (PSAK 10).
+   */
+  const recycle = (e: EntityInput, share: Decimal) => {
+    if (!e.disposal) return;
+    let amount = r2(D(e.disposal.cta).negated().times(share));
+    const gw = goodwillOf(e);
+    if (gw.gt(0)) amount = amount.plus(goodwillAtClosing(e, gw).minus(gw));
+    if (amount.isZero()) return;
+    if (!accounts.some((a) => a.role === "cta_reclassified")) {
+      warnings.push(
+        `${e.name}: selisih kurs penjabaran ${fmt(amount)} ikut dalam laba pelepasan — klik "Buat bagan akun grup" agar reklasifikasinya disajikan terpisah`,
+      );
+      return;
+    }
+    entries.push({
+      kind: "disposal",
+      companyId: e.companyId,
+      description: `Reklasifikasi selisih kurs penjabaran kumulatif ${e.name} ke laba rugi saat pelepasan`,
+      lines: [
+        line(role("disposal_gain"), null, amount),
+        line(role("cta_reclassified"), null, amount.negated()),
+      ],
+    });
+  };
 
   // ---- Eliminasi investasi vs ekuitas entitas anak (metode penuh), bagian laba KNP, pelepasan ----
   for (const e of entities.filter((x) => x.method === "full" && !x.isRoot)) {
@@ -304,6 +377,7 @@ export function consolidate(
           description: `Pelepasan ${e.name} per ${e.disposal.date}: penyesuaian laba pelepasan & aset neto yang dilepas`,
           lines,
         });
+      recycle(e, pEff);
       continue;
     }
 
@@ -339,6 +413,21 @@ export function consolidate(
       const cost = l.consideration === null || missing ? r2(pK.times(acquired)) : D(l.consideration);
       let carrying = cost;
       goodwillTotal = goodwillTotal.plus(cost.minus(pK.times(acquired)));
+      const rm = l.remeasurement;
+      if (rm && !missing) {
+        // Kepemilikan sebelumnya diukur ulang ke nilai wajar: goodwill bertambah sebesar kenaikannya; bagian laba
+        // metode ekuitas yang sudah diakui tetap di saldo laba/laba periode, sisanya laba pengukuran ulang.
+        const uplift = r2(D(rm.uplift));
+        const before = r2(D(rm.equityShareBefore));
+        const during = r2(D(rm.equityShareInPeriod));
+        goodwillTotal = goodwillTotal.plus(uplift);
+        const gain = uplift.minus(before).minus(during);
+        if (rm.inPeriod) {
+          lines.push(line(role("remeasurement_gain"), l.parentId, gain.negated()));
+          lines.push(line(role("associate_income"), l.parentId, during.negated()));
+        } else lines.push(line(retained, l.parentId, gain.plus(during).negated()));
+        lines.push(line(retained, l.parentId, before.negated()));
+      }
       for (const c of l.changes ?? []) {
         const before = pct(c.pctBefore);
         const delta = pct(c.pctAfter).minus(before);
@@ -368,8 +457,12 @@ export function consolidate(
       lines.push(line(role("investment"), l.parentId, r2(carrying).negated()));
     }
     // Goodwill negatif (pembelian dengan diskon) langsung diakui di saldo laba.
-    if (goodwillTotal.gte(0)) lines.push(line(role("goodwill"), null, goodwillTotal));
-    else lines.push(line(retained, null, goodwillTotal));
+    if (goodwillTotal.gte(0)) {
+      const gw = goodwillAtClosing(e, goodwillTotal);
+      lines.push(line(role("goodwill"), null, gw));
+      // Selisih penjabaran goodwill seluruhnya milik induk (goodwill hanya atas bagian induk).
+      if (!gw.minus(goodwillTotal).isZero()) lines.push(line(ctaId, null, gw.minus(goodwillTotal).negated()));
+    } else lines.push(line(retained, null, goodwillTotal));
     lines.push(line(retained, null, ownersBase.negated()));
     lines.push(line(ctaId, null, pEff.times(ctaEquity).negated()));
     // KNP = (1 − p_efektif)·E − (Σp_langsung − p_efektif)·A; dihitung sebagai penyeimbang agar entri tepat nol
@@ -383,6 +476,9 @@ export function consolidate(
       lines: nonZero(lines),
     });
   }
+
+  for (const e of entities.filter((x) => x.method === "proportional" && x.disposal))
+    recycle(e, D(e.effectivePct).div(100));
 
   // ---- Metode ekuitas (asosiasi / ventura bersama) ----
   for (const e of entities.filter((x) => x.method === "equity")) {
@@ -593,6 +689,36 @@ export function consolidate(
     });
   }
 
+  // ---- Laba belum terealisasi atas persediaan dengan entitas asosiasi ----
+  for (const u of options.associateProfits ?? []) {
+    const associate = entityById.get(u.associateId);
+    const other = entityById.get(u.groupEntityId);
+    if (!associate || associate.method !== "equity" || associate.disposal) continue;
+    if (!other || !inScope.has(u.groupEntityId) || other.disposal) continue;
+    const share = D(associate.effectivePct).div(100);
+    const closing = r2(D(u.closing).times(share));
+    const opening = r2(D(u.opening).times(share));
+    if (closing.isZero() && opening.isZero()) continue;
+    // Downstream: mengurangi investasi pada asosiasi; upstream: mengurangi persediaan entitas grup pembeli.
+    const asset =
+      u.direction === "downstream"
+        ? line(role("associate_investment"), null, closing.negated())
+        : line(role("inventory"), u.groupEntityId, closing.negated());
+    entries.push({
+      kind: "unrealized_profit",
+      companyId: u.associateId,
+      description:
+        u.direction === "downstream"
+          ? `Bagian investor atas laba belum terealisasi: persediaan ${associate.name} yang dibeli dari ${other.name}`
+          : `Bagian investor atas laba belum terealisasi: persediaan ${other.name} yang dibeli dari ${associate.name}`,
+      lines: nonZero([
+        line(role("associate_income"), null, closing.minus(opening)),
+        asset,
+        line(retained, null, opening),
+      ]),
+    });
+  }
+
   return { balances, entries, warnings };
 }
 
@@ -773,6 +899,10 @@ export function equityChanges(accounts: GroupAccountInfo[], opening: PositionRow
   const sumRole = (position: PositionRow[], r: GroupAccountRole) =>
     position.filter((p) => byId.get(p.groupAccountId)?.role === r).reduce((s, p) => s.plus(p.amount), D(0));
   const statements = consolidatedStatements(rows);
+  // Selisih kurs yang direklasifikasi ke laba rugi periode ini (kredit positif).
+  const recycled = rows
+    .filter((r) => r.role === "cta_reclassified")
+    .reduce((s, r) => s.minus(r.consolidated), D(0));
   const zero = { capital: D(0), retained: D(0), cta: D(0), transactions: D(0), nci: D(0) };
   const movements: { key: string; label: string; values: typeof zero }[] = [
     {
@@ -787,7 +917,12 @@ export function equityChanges(accounts: GroupAccountInfo[], opening: PositionRow
     {
       key: "translation",
       label: "Selisih kurs penjabaran laporan keuangan (penghasilan komprehensif lain)",
-      values: { ...zero, cta: close.cta.minus(open.cta) },
+      values: { ...zero, cta: close.cta.minus(open.cta).plus(recycled) },
+    },
+    {
+      key: "reclassification",
+      label: "Reklasifikasi selisih kurs penjabaran ke laba rugi (pelepasan entitas asing)",
+      values: { ...zero, cta: recycled.negated() },
     },
     {
       key: "dividends",
@@ -832,7 +967,9 @@ export function equityChanges(accounts: GroupAccountInfo[], opening: PositionRow
     columns: EQUITY_COLUMNS,
     rows: [
       render("opening", "Saldo awal", open),
-      ...movements.map((m) => render(m.key, m.label, m.values)),
+      ...movements
+        .filter((m) => m.key !== "reclassification" || !recycled.isZero())
+        .map((m) => render(m.key, m.label, m.values)),
       render("closing", "Saldo akhir", close),
     ],
   };
@@ -943,4 +1080,80 @@ export function intercompanyReconciliation(
     balanceB: p.bSide.toFixed(2),
     difference: p.aSide.plus(p.bSide).toFixed(2),
   }));
+}
+
+/** Selisih kurs penjabaran kumulatif satu entitas (100%, kredit negatif) dari saldonya sendiri. */
+export function translationReserve(accounts: GroupAccountInfo[], e: EntityInput): string {
+  const cta = accounts.find((a) => a.role === "cta");
+  if (!cta) return "0.00";
+  const { disposal: _disposal, profitSegments: _segments, ...rest } = e;
+  const r = consolidate(accounts, [
+    { ...rest, isRoot: true, method: "full", effectivePct: 100, links: [], intercompany: [] },
+  ]);
+  return r.balances.find((b) => b.groupAccountId === cta.id)?.amount ?? "0.00";
+}
+
+export interface SegmentInput {
+  key: string;
+  name: string;
+  /** Saldo laba rugi segmen dalam mata uang penyajian (debit positif), sebelum eliminasi. */
+  balances: { groupAccountId: string; amount: Decimal.Value }[];
+}
+export interface SegmentRow {
+  key: string;
+  name: string;
+  income: string;
+  directCost: string;
+  grossProfit: string;
+  expense: string;
+  otherNet: string;
+  netProfit: string;
+}
+
+/**
+ * Laporan segmen (PSAK 5): laba rugi per segmen sebelum eliminasi, ditambah baris "Eliminasi & penyesuaian" yang
+ * merekonsiliasi jumlah segmen ke laba rugi konsolidasian kertas kerja.
+ */
+export function segmentReport(accounts: GroupAccountInfo[], segments: SegmentInput[], rows: WorksheetRow[]) {
+  const typeOf = new Map(accounts.map((a) => [a.id, a.accountType]));
+  const summarize = (
+    key: string,
+    name: string,
+    items: { groupAccountId: string; amount: Decimal.Value }[],
+  ) => {
+    const sum = (types: readonly string[]) =>
+      items
+        .filter((i) => types.includes(typeOf.get(i.groupAccountId) ?? ""))
+        .reduce((s, i) => s.plus(i.amount), D(0));
+    const income = sum(PROFIT_LOSS_GROUPS.income).negated();
+    const directCost = sum(PROFIT_LOSS_GROUPS.directCost);
+    const expense = sum(PROFIT_LOSS_GROUPS.expense);
+    const otherNet = sum([...PROFIT_LOSS_GROUPS.otherIncome, ...PROFIT_LOSS_GROUPS.otherExpense]).negated();
+    const grossProfit = income.minus(directCost);
+    return {
+      key,
+      name,
+      income: fmt(income),
+      directCost: fmt(directCost),
+      grossProfit: fmt(grossProfit),
+      expense: fmt(expense),
+      otherNet: fmt(otherNet),
+      netProfit: fmt(grossProfit.minus(expense).plus(otherNet)),
+    };
+  };
+  const out: SegmentRow[] = segments
+    .map((s) => summarize(s.key, s.name, s.balances))
+    .filter((s) => !(D(s.income).isZero() && D(s.netProfit).isZero() && D(s.expense).isZero()));
+  const total = summarize(
+    "consolidated",
+    "Konsolidasian",
+    rows.map((r) => ({ groupAccountId: r.groupAccountId, amount: r.consolidated })),
+  );
+  const fields = ["income", "directCost", "grossProfit", "expense", "otherNet", "netProfit"] as const;
+  const eliminations = {
+    key: "eliminations",
+    name: "Eliminasi & penyesuaian",
+    ...Object.fromEntries(fields.map((f) => [f, fmt(out.reduce((s, r) => s.minus(r[f]), D(total[f])))])),
+  } as SegmentRow;
+  return { segments: out, eliminations, total };
 }
