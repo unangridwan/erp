@@ -1,8 +1,9 @@
 /**
  * Pesan error API dalam bahasa Inggris untuk klien yang meminta `Accept-Language: en`. Pesan ditulis dalam Bahasa
  * Indonesia di kode; di sini diterjemahkan pesan tetap yang umum dan pola pesan bertemplat (mis. "X tidak ditemukan").
- * Pesan yang belum ada terjemahannya dikirim apa adanya.
+ * Pesan yang belum ada terjemahannya dikirim apa adanya. Kamus per modul ada di error-messages-en.ts.
  */
+import { MESSAGES_EN } from "./error-messages-en.js";
 
 const EXACT: Record<string, string> = {
   "Validasi gagal": "Validation failed",
@@ -144,9 +145,22 @@ const PATTERNS: [RegExp, (...m: string[]) => string | undefined][] = [
   [/^Gagal mengambil kurs: (.+)$/, (m) => `Failed to fetch rates: ${m}`],
 ];
 
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Pesan tetap dari kamus modul, dan template (`{}`) yang dikompilasi menjadi regex. */
+const STATIC = new Map<string, string>();
+const TEMPLATES: [RegExp, string][] = [];
+for (const [id, en] of Object.entries(MESSAGES_EN)) {
+  if (!id.includes("{}")) STATIC.set(id, en);
+  else TEMPLATES.push([new RegExp(`^${id.split("{}").map(escape).join("(.+?)")}$`, "s"), en]);
+}
+
 export function translateMessage(message: string): string {
-  const exact = EXACT[message];
+  const exact = EXACT[message] ?? STATIC.get(message);
   if (exact) return exact;
+  for (const [re, en] of TEMPLATES) {
+    const m = re.exec(message);
+    if (m) return en.replace(/\{(\d+)\}/g, (_, i: string) => m[Number(i) + 1] ?? "");
+  }
   for (const [re, fn] of PATTERNS) {
     const m = re.exec(message);
     if (m) {

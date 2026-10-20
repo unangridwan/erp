@@ -4,35 +4,50 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
 
+type Protocol = "oidc" | "saml";
 interface Config {
+  id?: string;
+  protocol?: Protocol;
   label?: string;
-  issuer?: string;
-  clientId?: string;
+  issuer?: string | null;
+  clientId?: string | null;
   hasClientSecret?: boolean;
+  samlEntryPoint?: string | null;
+  samlIdpCert?: string | null;
+  samlIdpIssuer?: string | null;
+  samlEmailAttribute?: string | null;
   allowedDomains?: string[];
   autoProvision?: boolean;
   defaultRoleId?: string | null;
   enforce?: boolean;
   active?: boolean;
   redirectUri: string;
+  saml: { entityId: string; acsUrl: string; metadataUrl: string };
 }
 
-/** SSO OpenID Connect tenant: Google Workspace, Microsoft Entra ID, Keycloak, Okta, dsb. */
+const EMPTY = {
+  protocol: "oidc" as Protocol,
+  label: "Google Workspace",
+  issuer: "",
+  clientId: "",
+  clientSecret: "",
+  samlEntryPoint: "",
+  samlIdpCert: "",
+  samlIdpIssuer: "",
+  samlEmailAttribute: "",
+  allowedDomains: "",
+  autoProvision: false,
+  defaultRoleId: "",
+  enforce: false,
+  active: true,
+};
+
+/** SSO tenant: OpenID Connect (Google Workspace, Entra ID, Keycloak, Okta) atau SAML 2.0 (ADFS, Entra ID, Okta, …). */
 export default function SsoSettingsPage() {
   const { l } = useI18n();
   const [config, setConfig] = useState<Config | null>(null);
   const [roles, setRoles] = useState<{ id: string; name: string }[]>([]);
-  const [form, setForm] = useState({
-    label: "Google Workspace",
-    issuer: "",
-    clientId: "",
-    clientSecret: "",
-    allowedDomains: "",
-    autoProvision: false,
-    defaultRoleId: "",
-    enforce: false,
-    active: true,
-  });
+  const [form, setForm] = useState(EMPTY);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,12 +58,17 @@ export default function SsoSettingsPage() {
     api<Config>("/auth/sso/config")
       .then((c) => {
         setConfig(c);
-        if (c.issuer)
+        if (c.id)
           setForm({
+            protocol: c.protocol ?? "oidc",
             label: c.label ?? "SSO",
-            issuer: c.issuer,
+            issuer: c.issuer ?? "",
             clientId: c.clientId ?? "",
             clientSecret: "",
+            samlEntryPoint: c.samlEntryPoint ?? "",
+            samlIdpCert: c.samlIdpCert ?? "",
+            samlIdpIssuer: c.samlIdpIssuer ?? "",
+            samlEmailAttribute: c.samlEmailAttribute ?? "",
             allowedDomains: (c.allowedDomains ?? []).join(", "),
             autoProvision: !!c.autoProvision,
             defaultRoleId: c.defaultRoleId ?? "",
@@ -63,21 +83,38 @@ export default function SsoSettingsPage() {
     e.preventDefault();
     setError(null);
     setNotice(null);
+    const common = {
+      label: form.label,
+      allowedDomains: form.allowedDomains
+        .split(/[\s,]+/)
+        .map((d) => d.trim())
+        .filter(Boolean),
+      autoProvision: form.autoProvision,
+      defaultRoleId: form.defaultRoleId || null,
+      enforce: form.enforce,
+      active: form.active,
+    };
+    const body =
+      form.protocol === "saml"
+        ? {
+            ...common,
+            protocol: "saml",
+            samlEntryPoint: form.samlEntryPoint,
+            samlIdpCert: form.samlIdpCert,
+            samlIdpIssuer: form.samlIdpIssuer || null,
+            samlEmailAttribute: form.samlEmailAttribute || null,
+          }
+        : {
+            ...common,
+            protocol: "oidc",
+            issuer: form.issuer,
+            clientId: form.clientId,
+            clientSecret: form.clientSecret || null,
+          };
     try {
-      const saved = await api<Config>("/auth/sso/config", {
-        method: "PUT",
-        body: {
-          ...form,
-          clientSecret: form.clientSecret || null,
-          defaultRoleId: form.defaultRoleId || null,
-          allowedDomains: form.allowedDomains
-            .split(/[\s,]+/)
-            .map((d) => d.trim())
-            .filter(Boolean),
-        },
-      });
+      const saved = await api<Config>("/auth/sso/config", { method: "PUT", body });
       setConfig(saved);
-      setForm((f) => ({ ...f, clientSecret: "" }));
+      setForm((f) => ({ ...f, clientSecret: "", samlIdpCert: saved.samlIdpCert ?? f.samlIdpCert }));
       setNotice(l("Pengaturan SSO disimpan.", "SSO settings saved."));
     } catch (err) {
       setError(err instanceof ApiError ? (Object.values(err.fieldErrors)[0] ?? err.message) : String(err));
@@ -86,7 +123,8 @@ export default function SsoSettingsPage() {
   async function remove() {
     if (!confirm(l("Hapus konfigurasi SSO?", "Remove the SSO configuration?"))) return;
     await api("/auth/sso/config", { method: "DELETE" });
-    setConfig((c) => (c ? { redirectUri: c.redirectUri } : c));
+    setConfig((c) => (c ? { redirectUri: c.redirectUri, saml: c.saml } : c));
+    setForm(EMPTY);
     setNotice(l("SSO dihapus.", "SSO removed."));
   }
 
@@ -94,50 +132,127 @@ export default function SsoSettingsPage() {
   const set =
     (k: keyof typeof form) => (e: { target: { value: string; checked?: boolean; type?: string } }) =>
       setForm((f) => ({ ...f, [k]: e.target.type === "checkbox" ? !!e.target.checked : e.target.value }));
+  const copyField = (label: string, value: string) => (
+    <label className="field">
+      <span>{label}</span>
+      <input readOnly value={value} onFocus={(e) => e.target.select()} />
+    </label>
+  );
+  const saml = form.protocol === "saml";
 
   return (
     <form className="panel narrow stack" onSubmit={save}>
-      <h1>{l("Single Sign-On (OpenID Connect)", "Single Sign-On (OpenID Connect)")}</h1>
-      <p className="muted">
-        {l(
-          "Daftarkan aplikasi di penyedia identitas (Google Workspace, Microsoft Entra ID, Keycloak, Okta) dengan redirect URI berikut, lalu isi issuer, client ID, dan client secret. User dicocokkan lewat email terverifikasi; 2FA ditangani penyedia identitas.",
-          "Register an app at your identity provider (Google Workspace, Microsoft Entra ID, Keycloak, Okta) with the redirect URI below, then fill in the issuer, client ID and client secret. Users are matched by verified email; 2FA is handled by the identity provider.",
-        )}
-      </p>
+      <h1>Single Sign-On</h1>
       <label className="field">
-        <span>Redirect URI</span>
-        <input readOnly value={config.redirectUri} onFocus={(e) => e.target.select()} />
+        <span>{l("Protokol", "Protocol")}</span>
+        <select value={form.protocol} onChange={set("protocol")}>
+          <option value="oidc">OpenID Connect</option>
+          <option value="saml">SAML 2.0</option>
+        </select>
       </label>
+      {saml ? (
+        <>
+          <p className="muted">
+            {l(
+              "Daftarkan ERP sebagai aplikasi SAML di penyedia identitas (ADFS, Microsoft Entra ID, Okta, OneLogin, JumpCloud) — unggah URL metadata di bawah atau isi entity ID dan ACS URL secara manual — lalu isi URL SSO dan sertifikat penandatanganan IdP. Assertion wajib ditandatangani; email diambil dari NameID atau atribut email.",
+              "Register the ERP as a SAML application at your identity provider (ADFS, Microsoft Entra ID, Okta, OneLogin, JumpCloud) — upload the metadata URL below or enter the entity ID and ACS URL manually — then fill in the IdP SSO URL and signing certificate. Assertions must be signed; the email is taken from the NameID or an email attribute.",
+            )}
+          </p>
+          {copyField(l("URL metadata SP", "SP metadata URL"), config.saml.metadataUrl)}
+          {copyField("Entity ID (Identifier)", config.saml.entityId)}
+          {copyField("ACS URL (Reply URL)", config.saml.acsUrl)}
+        </>
+      ) : (
+        <>
+          <p className="muted">
+            {l(
+              "Daftarkan aplikasi di penyedia identitas (Google Workspace, Microsoft Entra ID, Keycloak, Okta) dengan redirect URI berikut, lalu isi issuer, client ID, dan client secret. User dicocokkan lewat email terverifikasi; 2FA ditangani penyedia identitas.",
+              "Register an app at your identity provider (Google Workspace, Microsoft Entra ID, Keycloak, Okta) with the redirect URI below, then fill in the issuer, client ID and client secret. Users are matched by verified email; 2FA is handled by the identity provider.",
+            )}
+          </p>
+          {copyField("Redirect URI", config.redirectUri)}
+        </>
+      )}
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
       <label className="field">
         <span>{l("Teks tombol", "Button label")}</span>
         <input required value={form.label} onChange={set("label")} />
       </label>
-      <label className="field">
-        <span>Issuer</span>
-        <input
-          required
-          placeholder="https://accounts.google.com"
-          value={form.issuer}
-          onChange={set("issuer")}
-        />
-      </label>
-      <label className="field">
-        <span>Client ID</span>
-        <input required value={form.clientId} onChange={set("clientId")} />
-      </label>
-      <label className="field">
-        <span>
-          Client secret{" "}
-          {config.hasClientSecret && (
-            <small className="muted">
-              ({l("tersimpan; kosongkan bila tidak diubah", "stored; leave empty to keep")})
-            </small>
-          )}
-        </span>
-        <input type="password" autoComplete="off" value={form.clientSecret} onChange={set("clientSecret")} />
-      </label>
+      {saml ? (
+        <>
+          <label className="field">
+            <span>{l("URL SSO IdP (HTTP-Redirect)", "IdP SSO URL (HTTP-Redirect)")}</span>
+            <input
+              required
+              placeholder="https://login.microsoftonline.com/<tenant>/saml2"
+              value={form.samlEntryPoint}
+              onChange={set("samlEntryPoint")}
+            />
+          </label>
+          <label className="field">
+            <span>
+              {l(
+                "Sertifikat penandatanganan IdP (PEM/base64; tempel beberapa saat rotasi)",
+                "IdP signing certificate (PEM/base64; paste several during rotation)",
+              )}
+            </span>
+            <textarea
+              required
+              rows={6}
+              spellCheck={false}
+              style={{ fontFamily: "monospace", fontSize: 12 }}
+              placeholder="-----BEGIN CERTIFICATE-----"
+              value={form.samlIdpCert}
+              onChange={set("samlIdpCert")}
+            />
+          </label>
+          <label className="field">
+            <span>{l("Entity ID IdP (opsional, diverifikasi)", "IdP entity ID (optional, verified)")}</span>
+            <input value={form.samlIdpIssuer} onChange={set("samlIdpIssuer")} />
+          </label>
+          <label className="field">
+            <span>{l("Atribut email (opsional)", "Email attribute (optional)")}</span>
+            <input
+              placeholder="http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+              value={form.samlEmailAttribute}
+              onChange={set("samlEmailAttribute")}
+            />
+          </label>
+        </>
+      ) : (
+        <>
+          <label className="field">
+            <span>Issuer</span>
+            <input
+              required
+              placeholder="https://accounts.google.com"
+              value={form.issuer}
+              onChange={set("issuer")}
+            />
+          </label>
+          <label className="field">
+            <span>Client ID</span>
+            <input required value={form.clientId} onChange={set("clientId")} />
+          </label>
+          <label className="field">
+            <span>
+              Client secret{" "}
+              {config.hasClientSecret && (
+                <small className="muted">
+                  ({l("tersimpan; kosongkan bila tidak diubah", "stored; leave empty to keep")})
+                </small>
+              )}
+            </span>
+            <input
+              type="password"
+              autoComplete="off"
+              value={form.clientSecret}
+              onChange={set("clientSecret")}
+            />
+          </label>
+        </>
+      )}
       <label className="field">
         <span>
           {l(
@@ -177,7 +292,7 @@ export default function SsoSettingsPage() {
       </label>
       <div className="form-actions">
         <button className="primary">{l("Simpan", "Save")}</button>
-        {config.issuer && (
+        {config.id && (
           <button type="button" className="danger" onClick={remove}>
             {l("Hapus SSO", "Remove SSO")}
           </button>

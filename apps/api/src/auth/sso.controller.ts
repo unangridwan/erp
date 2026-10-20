@@ -1,4 +1,17 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Put, Query, Req, Res } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+  Put,
+  Query,
+  Req,
+  Res,
+} from "@nestjs/common";
 import { ssoConfigSchema } from "@erp/shared";
 import type { Request, Response } from "express";
 import { z } from "zod";
@@ -70,12 +83,53 @@ export class SsoController {
     }
   }
 
+  /**
+   * SAML Assertion Consumer Service (HTTP-POST dari IdP). Setelah assertion diverifikasi, peramban dialihkan (303)
+   * ke `saml/finish`: navigasi GET itu membawa cookie pengikat SameSite=Lax yang tidak ikut pada POST lintas situs.
+   */
+  @Public()
+  @Post("saml/acs")
+  async samlAcs(@Body() body: Record<string, string>, @Req() req: Request, @Res() res: Response) {
+    try {
+      const token = await this.sso.samlAcs(
+        { SAMLResponse: body?.SAMLResponse, RelayState: body?.RelayState },
+        meta(req).ip,
+      );
+      res.redirect(303, `${this.config.apiOrigin}/auth/sso/saml/finish?token=${encodeURIComponent(token)}`);
+    } catch (e) {
+      this.fail(res, "", e);
+    }
+  }
+
+  @Public()
+  @Get("saml/finish")
+  async samlFinish(@Query("token") token: string, @Req() req: Request, @Res() res: Response) {
+    res.setHeader("Set-Cookie", `${COOKIE}=; Path=/auth/sso; HttpOnly; SameSite=Lax; Max-Age=0`);
+    try {
+      const { session } = await this.sso.samlFinish(
+        { token: String(token ?? ""), bind: cookie(req, COOKIE) },
+        meta(req),
+      );
+      res.redirect(
+        302,
+        `${this.config.webOrigin}/login/sso#refresh=${encodeURIComponent(session.refreshToken)}`,
+      );
+    } catch (e) {
+      this.fail(res, "", e);
+    }
+  }
+
+  /** Metadata penyedia layanan (SP) untuk diunggah ke IdP. */
+  @Public()
+  @Get("saml/:slug/metadata")
+  async samlMetadata(@Param("slug") slug: string, @Res() res: Response) {
+    res.type("application/samlmetadata+xml").send(await this.sso.samlMetadata(slug));
+  }
+
   @Get("config")
   @RequirePermission("settings.manage")
   getConfig() {
-    return this.tenantDb.run(
-      async (tx) => (await this.sso.getConfig(tx)) ?? { redirectUri: this.sso.redirectUri },
-    );
+    return this.tenantDb.run((tx) => this.sso.getConfig(tx));
   }
 
   @Put("config")

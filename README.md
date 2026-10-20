@@ -279,19 +279,26 @@ sementara memakai memori instance.
 
 ### Platform
 
-| Endpoint                                                                                | Keterangan                                                                  |
-| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `GET /auth/sso/provider?tenant=`, `GET /auth/sso/start/:slug`, `GET /auth/sso/callback` | SSO OpenID Connect (Google Workspace, Entra ID, Keycloak, Okta…) + PKCE     |
-| `GET/PUT/DELETE /auth/sso/config`                                                       | Issuer, client ID/secret (terenkripsi), domain, user otomatis, SSO wajib    |
-| `GET/PUT /fx/settings`, `POST /fx/fetch {date?}`                                        | Kurs otomatis dari kurs referensi ECB (API Frankfurter), manual atau harian |
+| Endpoint                                                                                    | Keterangan                                                                  |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `GET /auth/sso/provider?tenant=`, `GET /auth/sso/start/:slug`, `GET /auth/sso/callback`     | SSO OpenID Connect (Google Workspace, Entra ID, Keycloak, Okta…) + PKCE     |
+| `GET/PUT/DELETE /auth/sso/config`                                                           | Issuer, client ID/secret (terenkripsi), domain, user otomatis, SSO wajib    |
+| `GET /auth/sso/saml/:slug/metadata`, `POST /auth/sso/saml/acs`, `GET /auth/sso/saml/finish` | SSO SAML 2.0 (ADFS, Entra ID, Okta, OneLogin…): metadata SP, ACS            |
+| `GET/PUT /fx/settings`, `POST /fx/fetch {date?}`                                            | Kurs otomatis dari kurs referensi ECB (API Frankfurter), manual atau harian |
 
-SSO: daftarkan redirect URI `${API_ORIGIN}/auth/sso/callback` di penyedia identitas. User dicocokkan lewat email
-terverifikasi (domain bisa dibatasi); 2FA ditangani penyedia identitas. Saat SSO diwajibkan, login password hanya untuk
-administrator (akses darurat). Kurs KMK untuk pajak tetap diisi manual (tidak ada API resmi Kemenkeu).
+SSO OpenID Connect: daftarkan redirect URI `${API_ORIGIN}/auth/sso/callback` di penyedia identitas. User dicocokkan lewat
+email terverifikasi (domain bisa dibatasi); 2FA ditangani penyedia identitas. Saat SSO diwajibkan, login password hanya
+untuk administrator (akses darurat). Kurs KMK untuk pajak tetap diisi manual (tidak ada API resmi Kemenkeu).
 
-Pesan error API mengikuti `Accept-Language` (`en` → Inggris; bawaan Indonesia). Pesan umum (autentikasi, validasi,
-"… tidak ditemukan", batas paket, dsb.) sudah diterjemahkan di `apps/api/src/common/error-i18n.ts`; pesan lain dikirim
-dalam Bahasa Indonesia.
+SSO SAML 2.0 (protokol `saml` di pengaturan SSO): unggah URL metadata SP (`/auth/sso/saml/<slug>/metadata`, juga entity
+ID) ke IdP, lalu isi URL SSO dan sertifikat penandatanganan IdP. Assertion wajib bertanda tangan; audience, masa berlaku,
+dan `InResponseTo` (ID AuthnRequest yang disimpan terenkripsi di RelayState, sehingga aman untuk banyak instance API)
+diverifikasi. Login yang dimulai dari IdP (tanpa AuthnRequest) ditolak. Email diambil dari atribut yang dipilih, atribut
+email umum, atau NameID.
+
+Pesan error API mengikuti `Accept-Language` (`en` → Inggris; bawaan Indonesia). Seluruh pesan error di kode — exception,
+validasi zod, dan trigger database — punya terjemahan (`apps/api/src/common/error-messages-en.ts`); tes
+`error-i18n-coverage` gagal bila ada pesan baru tanpa terjemahan.
 
 ## Pemeriksaan
 
