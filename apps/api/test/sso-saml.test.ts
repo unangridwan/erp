@@ -9,10 +9,20 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SignedXml } from "xml-crypto";
 import { client, createApp, hasDb, signup } from "./helpers.js";
 
+/** `openssl` di PATH, atau bawaan Git for Windows (PowerShell biasanya tidak punya openssl di PATH). */
+const OPENSSL = ["openssl", "C:\\Program Files\\Git\\usr\\bin\\openssl.exe"].find((bin) => {
+  try {
+    execFileSync(bin, ["version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+});
+
 /** Pasangan kunci + sertifikat X.509 sementara untuk IdP tiruan (dibuat saat tes, tidak disimpan di repo). */
 function keyPair(dir: string, name: string) {
   execFileSync(
-    "openssl",
+    OPENSSL!,
     ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2", "-subj", `/CN=${name}`].concat([
       "-keyout",
       join(dir, `${name}.key`),
@@ -84,7 +94,8 @@ function samlResponse(opts: {
   return Buffer.from(sig.getSignedXml()).toString("base64");
 }
 
-describe.skipIf(!hasDb)("Platform: SSO SAML 2.0", () => {
+// Tanpa openssl (mis. Windows tanpa Git for Windows) tes ini dilewati, seperti tes database tanpa DATABASE_URL.
+describe.skipIf(!hasDb || !OPENSSL)("Platform: SSO SAML 2.0", () => {
   let app: INestApplication;
   let a: Awaited<ReturnType<typeof signup>>;
   let dir: string;
