@@ -77,6 +77,7 @@ class DocumentsController {
           name: D.name,
           fileName: D.fileName,
           fileType: D.fileType,
+          number: D.number,
           size: sql<number>`octet_length(${D.file})::int`,
           issuedDate: D.issuedDate,
           expiryDate: D.expiryDate,
@@ -146,7 +147,11 @@ class DocumentsController {
 
   @Get(":id/file")
   @RequirePermission("hr.manage")
-  async file(@Param("id", ParseUUIDPipe) id: string, @Res() res: Response) {
+  async file(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Query("inline") inline: string | undefined,
+    @Res() res: Response,
+  ) {
     const doc = await this.tenantDb.run(async (tx) => {
       const [row] = await tx
         .select({ file: D.file, name: D.fileName, type: D.fileType })
@@ -155,7 +160,9 @@ class DocumentsController {
       if (!row) throw new NotFoundException("Dokumen tidak ditemukan");
       return row;
     });
-    res.type(doc.type).attachment(doc.name).send(doc.file);
+    // inline=1 → pratinjau gambar/PDF di browser (kartu identitas).
+    if (inline) res.type(doc.type).setHeader("Content-Disposition", "inline").send(doc.file);
+    else res.type(doc.type).attachment(doc.name).send(doc.file);
   }
 
   @Delete(":id")
@@ -234,10 +241,30 @@ async function reminders(tx: Db, companyId: string, days: number) {
       ),
     )
     .orderBy(asc(schema.hrChecklistTasks.dueDate));
+  // Surat peringatan yang masih berlaku dan akan berakhir dalam `days` hari.
+  const warnings = await tx
+    .select({
+      id: schema.employeeWarnings.id,
+      level: schema.employeeWarnings.level,
+      validUntil: schema.employeeWarnings.validUntil,
+      employeeId: schema.employeeWarnings.employeeId,
+      employeeName: schema.employees.name,
+    })
+    .from(schema.employeeWarnings)
+    .innerJoin(schema.employees, eq(schema.employees.id, schema.employeeWarnings.employeeId))
+    .where(
+      and(
+        eq(schema.employeeWarnings.companyId, companyId),
+        sql`${schema.employeeWarnings.validUntil} >= current_date`,
+        lte(schema.employeeWarnings.validUntil, addDays(today(), days)),
+      ),
+    )
+    .orderBy(asc(schema.employeeWarnings.validUntil));
   return {
     documents: await expiringDocuments(tx, companyId, days),
     contracts: contracts.map((c) => ({ ...c, expiry: expiryStatus(c.dateEnd, today(), days) })),
     overdueTasks: tasks,
+    warnings: warnings.map((w) => ({ ...w, expiry: expiryStatus(w.validUntil, today(), days) })),
   };
 }
 
@@ -297,7 +324,8 @@ export class HrReminderService implements OnApplicationBootstrap, OnApplicationS
             .from(schema.companies);
           for (const company of companies) {
             const r = await reminders(tx, company.id, 30);
-            if (!r.documents.length && !r.contracts.length && !r.overdueTasks.length) continue;
+            if (!r.documents.length && !r.contracts.length && !r.overdueTasks.length && !r.warnings.length)
+              continue;
             const [logged] = await tx
               .insert(schema.hrReminderLog)
               .values({ companyId: company.id, sentOn: today() })
@@ -324,6 +352,9 @@ export class HrReminderService implements OnApplicationBootstrap, OnApplicationS
               ),
               ...r.overdueTasks.map(
                 (t) => `- Tugas checklist "${t.name}" (${t.employeeName}) lewat tenggat ${t.dueDate}`,
+              ),
+              ...r.warnings.map(
+                (w) => `- ${w.level.toUpperCase()} ${w.employeeName} berakhir ${w.validUntil}`,
               ),
             ];
             for (const { email } of recipients)

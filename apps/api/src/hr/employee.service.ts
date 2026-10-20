@@ -22,7 +22,12 @@ type Employee = typeof schema.employees.$inferSelect;
 const E = schema.employees;
 /** Nilai sensitif yang ditampilkan tersamar; dikirim balik apa adanya berarti "tidak diubah". */
 const MASK = "••••";
-const SENSITIVE = { nik: "nikEnc", npwp: "npwpEnc", bankAccount: "bankAccountEnc" } as const;
+const SENSITIVE = {
+  nik: "nikEnc",
+  npwp: "npwpEnc",
+  bankAccount: "bankAccountEnc",
+  kkNo: "kkNoEnc",
+} as const;
 
 @Injectable()
 export class EmployeeService {
@@ -34,13 +39,19 @@ export class EmployeeService {
 
   /** Buka data sensitif hanya untuk pemegang hr.manage (atau karyawan itu sendiri); lainnya tersamar. */
   reveal(employee: Employee, full = hasPermission(currentContext().permissions, "hr.manage")) {
-    const { nikEnc, npwpEnc, bankAccountEnc, ...rest } = employee;
+    const { nikEnc, npwpEnc, bankAccountEnc, kkNoEnc, ...rest } = employee;
     const open = (v: string | null) => {
       if (!v) return null;
       const plain = decrypt(v, this.config.encryptionKey);
       return full ? plain : `${MASK}${plain.slice(-4)}`;
     };
-    return { ...rest, nik: open(nikEnc), npwp: open(npwpEnc), bankAccount: open(bankAccountEnc) };
+    return {
+      ...rest,
+      nik: open(nikEnc),
+      npwp: open(npwpEnc),
+      bankAccount: open(bankAccountEnc),
+      kkNo: open(kkNoEnc),
+    };
   }
 
   /** NPWP atau NIK (berlaku sebagai NPWP sejak 2024) menentukan tarif PPh 21 normal. */
@@ -97,6 +108,7 @@ export class EmployeeService {
         employee: E,
         departmentName: schema.departments.name,
         jobName: schema.jobPositions.name,
+        hasPhoto: sql<boolean>`exists (select 1 from employee_photos p where p.employee_id = ${E.id})`,
       })
       .from(E)
       .leftJoin(schema.departments, eq(schema.departments.id, E.departmentId))
@@ -109,8 +121,8 @@ export class EmployeeService {
     return {
       items: rows.map((r) => {
         // Daftar tidak memuat data sensitif sama sekali.
-        const { nikEnc: _n, npwpEnc: _p, bankAccountEnc: _b, ...rest } = r.employee;
-        return { ...rest, departmentName: r.departmentName, jobName: r.jobName };
+        const { nikEnc: _n, npwpEnc: _p, bankAccountEnc: _b, kkNoEnc: _k, ...rest } = r.employee;
+        return { ...rest, departmentName: r.departmentName, jobName: r.jobName, hasPhoto: r.hasPhoto };
       }),
       total,
       limit,
@@ -199,12 +211,12 @@ export class EmployeeService {
 
   /** Validasi rujukan & enkripsi data sensitif. Mengembalikan kolom yang akan disimpan. */
   private async prepare(tx: Db, input: Partial<EmployeeInput>, companyId: string, id?: string) {
-    const { nik, npwp, bankAccount, employeeNumber, ...rest } = input;
+    const { nik, npwp, bankAccount, kkNo, employeeNumber, ...rest } = input;
     const values: Record<string, unknown> = { ...rest };
     if (employeeNumber && id) values.employeeNumber = employeeNumber;
     const canManage = hasPermission(currentContext().permissions, "hr.manage");
     for (const [field, column] of Object.entries(SENSITIVE)) {
-      const value = { nik, npwp, bankAccount }[field as keyof typeof SENSITIVE];
+      const value = { nik, npwp, bankAccount, kkNo }[field as keyof typeof SENSITIVE];
       if (value === undefined || (typeof value === "string" && value.startsWith(MASK))) continue;
       if (!canManage) throw new ForbiddenException("Butuh permission hr.manage untuk mengubah data pribadi");
       values[column] = value ? encrypt(value, this.config.encryptionKey) : null;
@@ -233,6 +245,13 @@ export class EmployeeService {
         .from(schema.jobPositions)
         .where(eq(schema.jobPositions.id, input.jobId));
       if (!job) throw fieldError("jobId", "Jabatan tidak ditemukan");
+    }
+    if (input.gradeId) {
+      const [grade] = await tx
+        .select({ id: schema.salaryGrades.id })
+        .from(schema.salaryGrades)
+        .where(eq(schema.salaryGrades.id, input.gradeId));
+      if (!grade) throw fieldError("gradeId", "Golongan tidak ditemukan");
     }
     if (input.managerId) {
       if (input.managerId === id) throw fieldError("managerId", "Atasan tidak boleh diri sendiri");

@@ -2,7 +2,7 @@ import { CORETAX_UOM_CODES, TRX_CODES as CORETAX_TRX_CODES } from "@erp/shared";
 import { L, type Text } from "./i18n";
 
 /** Definisi tampilan list & form per resource — mirip "view" di Odoo. */
-export type Field =
+export type Field = (
   | { name: string; label: Text; type: "text" | "email" | "number" | "date"; required?: boolean }
   | { name: string; label: Text; type: "boolean" }
   | { name: string; label: Text; type: "select"; options: [string, Text][]; required?: boolean }
@@ -15,7 +15,11 @@ export type Field =
       display: string;
       valueKey?: string;
       required?: boolean;
-    };
+    }
+) & {
+  /** Judul seksi form yang dimulai dari field ini (form panjang, mis. karyawan). */
+  section?: Text;
+};
 
 export interface Resource {
   path: string;
@@ -33,7 +37,13 @@ export interface Resource {
   /** Data tidak bisa dihapus (cukup dinonaktifkan). */
   noDelete?: boolean;
   /** Tampilan kartu (kanban) — menjadi tampilan bawaan seperti di Odoo. */
-  kanban?: { title: string; lines: string[]; tag?: string };
+  kanban?: {
+    title: string;
+    lines: string[];
+    tag?: string;
+    /** Gambar kartu dari API (`{id}` diganti id baris) bila kolom `flag` bernilai benar. */
+    image?: { path: string; flag: string };
+  };
 }
 
 const MASTER = L("Master Data", "Master Data");
@@ -1079,10 +1089,32 @@ const PTKP: [string, Text][] = ["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K
   L(s, s),
 ]);
 
+export const RELIGION_OPTIONS: [string, Text][] = [
+  ["islam", L("Islam", "Islam")],
+  ["protestant", L("Kristen Protestan", "Protestant")],
+  ["catholic", L("Katolik", "Catholic")],
+  ["hindu", L("Hindu", "Hindu")],
+  ["buddha", L("Buddha", "Buddhism")],
+  ["confucian", L("Konghucu", "Confucianism")],
+  ["other", L("Lainnya", "Other")],
+];
+
+export const MARITAL_OPTIONS: [string, Text][] = [
+  ["single", L("Belum kawin", "Single")],
+  ["married", L("Kawin", "Married")],
+  ["divorced", L("Cerai hidup", "Divorced")],
+  ["widowed", L("Cerai mati", "Widowed")],
+];
+
 RESOURCES.push(
   {
     path: "employees",
-    kanban: { title: "name", lines: ["jobName", "workEmail", "workPhone"], tag: "departmentName" },
+    kanban: {
+      title: "name",
+      lines: ["jobName", "workEmail", "workPhone"],
+      tag: "departmentName",
+      image: { path: "employees/{id}/photo", flag: "hasPhoto" },
+    },
     model: "employee",
     title: L("Karyawan", "Employees"),
     singular: L("Karyawan", "Employee"),
@@ -1096,7 +1128,7 @@ RESOURCES.push(
       { name: "workEmail", label: L("Email kerja", "Work email") },
     ],
     fields: [
-      name(),
+      { ...name(), section: L("Pekerjaan", "Work") },
       {
         name: "employeeNumber",
         label: L("No. karyawan (kosong = otomatis)", "Employee no. (empty = automatic)"),
@@ -1114,6 +1146,13 @@ RESOURCES.push(
         label: L("Jabatan", "Job position"),
         type: "ref",
         resource: "job-positions",
+        display: "name",
+      },
+      {
+        name: "gradeId",
+        label: L("Golongan", "Grade"),
+        type: "ref",
+        resource: "salary-grades",
         display: "name",
       },
       {
@@ -1149,9 +1188,23 @@ RESOURCES.push(
       },
       { name: "joinDate", label: L("Tanggal masuk", "Join date"), type: "date", required: true },
       { name: "resignDate", label: L("Tanggal keluar", "Resign date"), type: "date" },
-      { name: "nik", label: L("NIK (KTP)", "National ID (NIK)"), type: "text" },
+      {
+        name: "nik",
+        label: L("NIK (KTP)", "National ID (NIK)"),
+        type: "text",
+        section: L("Identitas & Pajak", "Identity & Tax"),
+      },
+      { name: "kkNo", label: L("No. Kartu Keluarga", "Family card no."), type: "text" },
       { name: "npwp", label: L("NPWP", "Tax ID (NPWP)"), type: "text" },
       { name: "ptkpStatus", label: L("Status PTKP", "PTKP status"), type: "select", options: PTKP },
+      { name: "bpjsKesNo", label: L("No. BPJS Kesehatan", "BPJS Health no."), type: "text" },
+      { name: "bpjsTkNo", label: L("No. BPJS Ketenagakerjaan", "BPJS Employment no."), type: "text" },
+      {
+        name: "birthPlace",
+        label: L("Tempat lahir", "Place of birth"),
+        type: "text",
+        section: L("Biodata", "Personal"),
+      },
       { name: "birthDate", label: L("Tanggal lahir", "Birth date"), type: "date" },
       {
         name: "gender",
@@ -1162,14 +1215,45 @@ RESOURCES.push(
           ["female", L("Perempuan", "Female")],
         ],
       },
-      { name: "bpjsKesNo", label: L("No. BPJS Kesehatan", "BPJS Health no."), type: "text" },
-      { name: "bpjsTkNo", label: L("No. BPJS Ketenagakerjaan", "BPJS Employment no."), type: "text" },
-      { name: "bankName", label: L("Bank", "Bank"), type: "text" },
-      { name: "bankAccount", label: L("No. rekening", "Account number"), type: "text" },
-      { name: "bankAccountName", label: L("Nama pemilik rekening", "Account holder"), type: "text" },
-      { name: "address", label: L("Alamat", "Address"), type: "text" },
+      { name: "religion", label: L("Agama", "Religion"), type: "select", options: RELIGION_OPTIONS },
+      {
+        name: "maritalStatus",
+        label: L("Status pernikahan", "Marital status"),
+        type: "select",
+        options: MARITAL_OPTIONS,
+      },
+      {
+        name: "bloodType",
+        label: L("Golongan darah", "Blood type"),
+        type: "select",
+        options: ["A", "B", "AB", "O"].map((b) => [b, L(b, b)]),
+      },
+      {
+        name: "rhesus",
+        label: L("Rhesus", "Rhesus"),
+        type: "select",
+        options: [
+          ["+", L("Positif (+)", "Positive (+)")],
+          ["-", L("Negatif (−)", "Negative (−)")],
+        ],
+      },
+      { name: "nationality", label: L("Kewarganegaraan", "Nationality"), type: "text" },
+      { name: "heightCm", label: L("Tinggi badan (cm)", "Height (cm)"), type: "number" },
+      { name: "weightKg", label: L("Berat badan (kg)", "Weight (kg)"), type: "number" },
+      {
+        name: "address",
+        label: L("Alamat sesuai KTP", "Address (ID card)"),
+        type: "text",
+        section: L("Kontak", "Contact"),
+      },
+      { name: "domicileAddress", label: L("Alamat domisili", "Current address"), type: "text" },
+      { name: "personalPhone", label: L("No. HP pribadi", "Personal phone"), type: "text" },
+      { name: "personalEmail", label: L("Email pribadi", "Personal email"), type: "email" },
       { name: "emergencyContact", label: L("Kontak darurat", "Emergency contact"), type: "text" },
       { name: "emergencyPhone", label: L("Telepon kontak darurat", "Emergency phone"), type: "text" },
+      { name: "bankName", label: L("Bank", "Bank"), type: "text", section: L("Rekening", "Bank account") },
+      { name: "bankAccount", label: L("No. rekening", "Account number"), type: "text" },
+      { name: "bankAccountName", label: L("Nama pemilik rekening", "Account holder"), type: "text" },
       { name: "active", label: L("Aktif", "Active"), type: "boolean" },
     ],
   },

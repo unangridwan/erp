@@ -23,6 +23,17 @@ export {
   turnoverRate,
   orgTree,
   type Rating,
+  suggestedPtkp,
+  warningValidUntil,
+  warningActive,
+  EDUCATION_RANK,
+  highestEducation,
+  PROFILE_ITEMS,
+  profileCompleteness,
+  type EducationLevel,
+  type FamilyRelation,
+  type MaritalStatus,
+  type ProfileItem,
 } from "./hr.js";
 export * from "./coretax.js";
 export * from "./coretax-extra.js";

@@ -124,7 +124,12 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
           <form id="record-form" className="panel" onSubmit={onSubmit}>
             {error && <p className="error">{error}</p>}
             <fieldset disabled={!editable} className="fields">
-              {resource.fields.map((f) => (
+              {resource.fields.map((f) => [
+                f.section && (
+                  <h3 key={`section-${f.name}`} className="field-section">
+                    {tx(f.section)}
+                  </h3>
+                ),
                 <label key={f.name} className={f.type === "boolean" ? "field check" : "field"}>
                   <span>
                     {tx(f.label)}
@@ -132,8 +137,8 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
                   </span>
                   <FieldInput field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} />
                   {fieldErrors[f.name] && <small className="error">{fieldErrors[f.name]}</small>}
-                </label>
-              ))}
+                </label>,
+              ])}
             </fieldset>
           </form>
           {!isNew && <FormExtras path={resource.path} id={id} />}

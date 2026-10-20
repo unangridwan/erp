@@ -1150,11 +1150,22 @@ code.wrap {
 }
 .org-node {
   display: inline-flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   border: 1px solid var(--border);
   background: var(--card);
   border-radius: 8px;
   padding: 6px 10px;
+}
+.org-text {
+  display: flex;
+  flex-direction: column;
+}
+.org-photo {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 .viz-tip .dot {
   display: inline-block;
@@ -1167,4 +1178,85 @@ code.wrap {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 16px;
+}
+
+/* ---- Profil karyawan ---- */
+.field-section {
+  grid-column: 1 / -1;
+  margin: 8px 0 -4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.field-section:first-child {
+  margin-top: 0;
+}
+img.record-avatar {
+  width: 64px;
+  object-fit: cover;
+}
+.profile-head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.profile-photo {
+  width: 120px;
+  height: 150px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 40px;
+}
+.meter {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border);
+  overflow: hidden;
+  min-width: 160px;
+}
+.meter > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.id-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.id-card {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  background: var(--card);
+}
+.id-card.missing {
+  border-style: dashed;
+  color: var(--muted);
+}
+.id-card img {
+  width: 100%;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 3px;
+}
+.id-card small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

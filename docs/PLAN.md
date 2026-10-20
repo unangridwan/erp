@@ -357,6 +357,11 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] HR & Payroll (4/4) Kinerja & analitik: template KPI berbobot per jabatan, siklus penilaian (diri → atasan →
   kalibrasi HR, predikat & usulan kenaikan upah), pelatihan & sertifikat berkedaluwarsa, riwayat karir otomatis, struktur
   organisasi, dashboard SDM (headcount, masuk/keluar, turnover, cuti, biaya tenaga kerja, sebaran predikat)
+- [x] HR: profil karyawan lengkap — foto, biodata (tempat lahir, agama, status nikah, golongan darah & rhesus,
+  kewarganegaraan, tinggi/berat, kontak pribadi, alamat domisili, no. KK terenkripsi, golongan), galeri kartu identitas
+  (KTP, KK, NPWP, BPJS, SIM, paspor, buku tabungan) dengan nomor & pratinjau, data keluarga (tanggungan PTKP, saran
+  status PTKP), riwayat pendidikan & pengalaman kerja, promosi/demosi/mutasi berbasis SK (kontrak upah baru otomatis),
+  surat peringatan SP1–SP3, kelengkapan profil, foto di kanban/org chart/portal
 
 ## 5. Roadmap Bertahap
 

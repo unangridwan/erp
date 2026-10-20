@@ -106,3 +106,115 @@ export function orgTree<T extends { id: string; managerId: string | null }>(rows
   }
   return roots;
 }
+
+// ---- Profil karyawan ----
+
+export type MaritalStatus = "single" | "married" | "divorced" | "widowed";
+export type FamilyRelation = "spouse" | "child" | "father" | "mother" | "sibling" | "other";
+
+/**
+ * Saran status PTKP dari data keluarga (PMK 101/2016, PER-16/PJ/2016): K bila kawin, tanggungan = anggota keluarga
+ * sedarah/semenda garis lurus yang ditanggung (anak, orang tua, mertua, dll.) — maks. 3. Karyawan wanita kawin
+ * dihitung TK/0 kecuali suami tidak berpenghasilan (diatur manual oleh HR).
+ */
+export function suggestedPtkp(
+  gender: "male" | "female" | null | undefined,
+  maritalStatus: MaritalStatus | null | undefined,
+  family: { relation: FamilyRelation; dependent: boolean; alive: boolean }[],
+) {
+  const dependents = Math.min(
+    3,
+    family.filter((f) => f.dependent && f.alive && f.relation !== "spouse").length,
+  );
+  if (maritalStatus === "married") return gender === "female" ? "TK/0" : `K/${dependents}`;
+  return `TK/${dependents}`;
+}
+
+/** Tanggal berakhir surat peringatan: 6 bulan sejak diterbitkan (PP 35/2021 ps. 52 ayat 2). */
+export function warningValidUntil(date: string, months = 6) {
+  const d = new Date(`${date}T00:00:00Z`);
+  const day = d.getUTCDate();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  d.setUTCDate(Math.min(day, last));
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+export const warningActive = (w: { date: string; validUntil: string }, today: string) =>
+  w.date <= today && today <= w.validUntil;
+
+export const EDUCATION_RANK = [
+  "other",
+  "sd",
+  "smp",
+  "sma",
+  "d1",
+  "d2",
+  "d3",
+  "d4",
+  "s1",
+  "s2",
+  "s3",
+] as const;
+export type EducationLevel = (typeof EDUCATION_RANK)[number];
+
+/** Pendidikan tertinggi (jenjang terbesar; sama jenjang → tahun lulus terakhir). */
+export function highestEducation<T extends { level: EducationLevel; yearEnd?: number | null }>(rows: T[]) {
+  let best: T | null = null;
+  for (const row of rows) {
+    if (
+      !best ||
+      EDUCATION_RANK.indexOf(row.level) > EDUCATION_RANK.indexOf(best.level) ||
+      (row.level === best.level && (row.yearEnd ?? 0) > (best.yearEnd ?? 0))
+    )
+      best = row;
+  }
+  return best;
+}
+
+/** Butir kelengkapan profil karyawan; kunci dipakai UI untuk label. */
+export const PROFILE_ITEMS = [
+  "photo",
+  "nik",
+  "kkNo",
+  "npwp",
+  "birthPlace",
+  "birthDate",
+  "gender",
+  "religion",
+  "maritalStatus",
+  "bloodType",
+  "address",
+  "personalPhone",
+  "emergencyContact",
+  "bankAccount",
+  "bpjsKesNo",
+  "bpjsTkNo",
+  "family",
+  "education",
+  "doc:ktp",
+  "doc:kk",
+] as const;
+export type ProfileItem = (typeof PROFILE_ITEMS)[number];
+
+/** Persentase kelengkapan profil & butir yang belum diisi. Keluarga hanya wajib bila status kawin. */
+export function profileCompleteness(
+  employee: Partial<Record<string, unknown>>,
+  extra: { photo: boolean; family: number; education: number; documents: string[] },
+) {
+  const filled = (item: ProfileItem) => {
+    if (item === "photo") return extra.photo;
+    if (item === "family") return employee.maritalStatus !== "married" || extra.family > 0;
+    if (item === "education") return extra.education > 0;
+    if (item.startsWith("doc:")) return extra.documents.includes(item.slice(4));
+    const v = employee[item];
+    return v !== null && v !== undefined && v !== "";
+  };
+  const missing = PROFILE_ITEMS.filter((i) => !filled(i));
+  return {
+    percent: Math.round(((PROFILE_ITEMS.length - missing.length) / PROFILE_ITEMS.length) * 100),
+    missing,
+  };
+}

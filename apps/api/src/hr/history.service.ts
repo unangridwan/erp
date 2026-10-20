@@ -4,6 +4,7 @@ import { currentContext } from "../common/request-context.js";
 
 type Employee = typeof schema.employees.$inferSelect;
 type Kind = (typeof schema.EMPLOYEE_HISTORY_KINDS)[number];
+type Table = "departments" | "jobPositions" | "branches" | "employees" | "salaryGrades";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -28,22 +29,20 @@ export class HistoryService {
     });
   }
 
-  /** Catat perubahan struktur (departemen, jabatan, cabang, atasan) & tanggal keluar antara dua versi data. */
+  /** Catat perubahan struktur (departemen, jabatan, cabang, atasan, golongan) & tanggal keluar antara dua versi data. */
   async diff(tx: Db, before: Employee, after: Employee) {
-    const name = async (
-      table: "departments" | "jobPositions" | "branches" | "employees",
-      id: string | null,
-    ) => {
+    const name = async (table: Table, id: string | null) => {
       if (!id) return null;
       const t = schema[table];
       const [row] = await tx.select({ name: t.name }).from(t).where(eq(t.id, id));
       return row?.name ?? null;
     };
-    const fields: [keyof Employee, Kind, "departments" | "jobPositions" | "branches" | "employees"][] = [
+    const fields: [keyof Employee, Kind, Table][] = [
       ["departmentId", "department", "departments"],
       ["jobId", "job", "jobPositions"],
       ["branchId", "branch", "branches"],
       ["managerId", "manager", "employees"],
+      ["gradeId", "grade", "salaryGrades"],
     ];
     for (const [field, kind, table] of fields) {
       if (before[field] === after[field]) continue;

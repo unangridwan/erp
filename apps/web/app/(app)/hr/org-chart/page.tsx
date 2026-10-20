@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AuthImage } from "../../../../components/auth-image";
 import { errorText } from "../../../../components/hr/hr-panels";
 import { api } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
@@ -11,6 +12,7 @@ interface Node {
   name: string;
   jobName: string | null;
   departmentName: string | null;
+  hasPhoto: boolean;
   reports: Node[];
 }
 
@@ -18,10 +20,13 @@ function Branch({ node }: { node: Node }) {
   return (
     <li>
       <span className="org-node">
-        <Link href={`/employees/${node.id}`}>{node.name}</Link>
-        <small className="muted">
-          {[node.jobName, node.departmentName].filter(Boolean).join(" · ") || "—"}
-        </small>
+        {node.hasPhoto && <AuthImage path={`/employees/${node.id}/photo`} alt="" className="org-photo" />}
+        <span className="org-text">
+          <Link href={`/employees/${node.id}`}>{node.name}</Link>
+          <small className="muted">
+            {[node.jobName, node.departmentName].filter(Boolean).join(" · ") || "—"}
+          </small>
+        </span>
       </span>
       {node.reports.length > 0 && (
         <ul>
