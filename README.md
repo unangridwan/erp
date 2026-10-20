@@ -43,6 +43,24 @@ pnpm dev                                            # api di :3001, web di :3000
 Signup otomatis membuat perusahaan holding (`HQ`), role `admin` & `user`, satuan (UoM) bawaan, bagan akun, jurnal,
 pajak, dan user admin.
 
+### Kalau aplikasi terasa lambat (terutama di Windows)
+
+`pnpm dev` adalah mode pengembangan: setiap halaman dikompilasi saat pertama dibuka (beberapa detik per halaman) dan
+kode React tidak dioptimalkan. Untuk menguji/memakai aplikasi, jalankan **mode produksi**:
+
+```bash
+pnpm start          # build sekali (berikutnya memakai cache), lalu api di :3001 & web di :3000
+```
+
+Setelah mengubah kode atau `git pull`, cukup jalankan `pnpm start` lagi. Tips lain untuk Windows:
+
+- **Kecualikan folder proyek dari pemindaian Windows Defender** (Windows Security → Virus & threat protection →
+  Manage settings → Exclusions → Add an exclusion → Folder, mis. `D:\unang\erp`). Pemindaian ribuan berkas
+  `node_modules` adalah penyebab utama lambatnya `pnpm install`, build, dan mode dev.
+- Windows 11: simpan proyek di **Dev Drive** (Settings → System → Storage → Disks & volumes → Create Dev Drive).
+- Docker Desktop: pakai backend **WSL 2** (Settings → General) dan beri memori cukup (≥ 4 GB).
+- Mode dev sudah memakai Turbopack (kompilasi lebih cepat); halaman yang sudah pernah dibuka akan cepat.
+
 ### Masalah umum
 
 - **`password authentication failed` / `password gagal diotentikasi` untuk user `erp`**: aplikasi tersambung ke
