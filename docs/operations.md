@@ -20,21 +20,25 @@ docker compose -f infra/docker-compose.prod.yml --env-file .env.prod up -d --bui
 
 ## 2. Variabel lingkungan produksi
 
-| Variabel                                         | Wajib | Keterangan                                                                           |
-| ------------------------------------------------ | ----- | ------------------------------------------------------------------------------------ |
-| `DATABASE_URL`                                   | ya    | Koneksi pemilik schema (bukan superuser bila memungkinkan; harus anggota `app_user`) |
-| `JWT_SECRET`, `ENCRYPTION_KEY`                   | ya    | Masing-masing ≥ 32 karakter acak, berbeda. API menolak nilai contoh `.env.example`   |
-| `WEB_ORIGIN`                                     | ya    | URL web `https://…` (beberapa dipisah koma) — dipakai CORS & tautan email            |
-| `MAIL_TRANSPORT`, `MAIL_FROM`                    | ya    | `smtp://user:pass@host:587`                                                          |
-| `TRIAL_PLAN`, `TRIAL_DAYS`, `BILLING_GRACE_DAYS` |       | Bawaan `enterprise`, 14 hari, 7 hari                                                 |
-| `XENDIT_SECRET_KEY`, `XENDIT_CALLBACK_TOKEN`     |       | Aktifkan pembayaran Xendit; tanpa ini tagihan dibayar transfer manual                |
-| `BILLING_BANK_INFO`                              |       | Instruksi transfer manual yang ditampilkan ke pelanggan                              |
-| `METRICS_TOKEN`                                  |       | Aktifkan `GET /metrics`                                                              |
-| `LOG_FORMAT`                                     |       | `json` (bawaan di image), `pretty`, `off`                                            |
-| `BODY_LIMIT`                                     |       | Batas body JSON, bawaan `10mb` (impor CSV/Excel)                                     |
-| `API_ORIGIN`                                     | SSO   | URL publik API `https://…` untuk redirect URI SSO (`/auth/sso/callback`)             |
-| `REDIS_URL` / `RATE_LIMIT_REDIS_URL`             |       | Rate limit bersama antar-instance (produksi memakai `REDIS_URL` bila ada)            |
-| `FX_FRANKFURTER_URL`, `FX_SCHEDULER`             |       | Sumber kurs otomatis (bawaan `https://api.frankfurter.app`); `off` mematikan jadwal  |
+| Variabel                                                               | Wajib | Keterangan                                                                                  |
+| ---------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                         | ya    | Koneksi pemilik schema (bukan superuser bila memungkinkan; harus anggota `app_user`)        |
+| `JWT_SECRET`, `ENCRYPTION_KEY`                                         | ya    | Masing-masing ≥ 32 karakter acak, berbeda. API menolak nilai contoh `.env.example`          |
+| `WEB_ORIGIN`                                                           | ya    | URL web `https://…` (beberapa dipisah koma) — dipakai CORS & tautan email                   |
+| `MAIL_TRANSPORT`, `MAIL_FROM`                                          | ya    | `smtp://user:pass@host:587`                                                                 |
+| `TRIAL_PLAN`, `TRIAL_DAYS`, `BILLING_GRACE_DAYS`                       |       | Bawaan `enterprise`, 14 hari, 7 hari                                                        |
+| `XENDIT_SECRET_KEY`, `XENDIT_CALLBACK_TOKEN`                           |       | Aktifkan pembayaran Xendit; tanpa ini tagihan dibayar transfer manual                       |
+| `BILLING_BANK_INFO`                                                    |       | Instruksi transfer manual yang ditampilkan ke pelanggan                                     |
+| `METRICS_TOKEN`                                                        |       | Aktifkan `GET /metrics`                                                                     |
+| `LOG_FORMAT`                                                           |       | `json` (bawaan di image), `pretty`, `off`                                                   |
+| `BODY_LIMIT`                                                           |       | Batas body JSON, bawaan `10mb` (impor CSV/Excel)                                            |
+| `API_ORIGIN`                                                           | SSO   | URL publik API `https://…` untuk redirect URI SSO (`/auth/sso/callback`)                    |
+| `REDIS_URL` / `RATE_LIMIT_REDIS_URL`                                   |       | Rate limit bersama antar-instance (produksi memakai `REDIS_URL` bila ada)                   |
+| `FX_FRANKFURTER_URL`, `FX_SCHEDULER`                                   |       | Sumber kurs otomatis (bawaan `https://api.frankfurter.app`); `off` mematikan jadwal         |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`                     |       | Tracing OpenTelemetry (OTLP/HTTP, mis. `http://otel-collector:4318`); nama bawaan `erp-api` |
+| `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`                       |       | Sampling, mis. `parentbased_traceidratio` + `0.1` (bawaan semua trace)                      |
+| `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE`                   |       | Laporan error 5xx & job latar ke Sentry (atau GlitchTip yang kompatibel)                    |
+| `PITR_BASE_KEEP`, `PITR_BASE_INTERVAL_SECONDS`, `PITR_ARCHIVE_TIMEOUT` |       | Base backup PITR yang disimpan (2), jarak (7 hari), batas detik ganti WAL (300)             |
 
 Callback Xendit: arahkan _Invoice paid_ ke `https://api.erpku.id/billing/webhooks/xendit` dengan token verifikasi yang
 sama dengan `XENDIT_CALLBACK_TOKEN`.
@@ -53,7 +57,32 @@ sama dengan `XENDIT_CALLBACK_TOKEN`.
   PGDATABASE=erp_restore_test infra/backup/restore.sh backups/erp-20261019T000000Z.dump
   ```
 
-- Untuk RPO < 24 jam gunakan PostgreSQL terkelola dengan point-in-time recovery (WAL archiving), atau pgBackRest/WAL-G.
+### Point-in-time recovery (PITR)
+
+Selain dump harian, compose produksi mengarsipkan WAL terus-menerus sehingga database bisa dipulihkan ke detik
+tertentu (mis. sesaat sebelum data terhapus). RPO ≈ `PITR_ARCHIVE_TIMEOUT` (bawaan 5 menit).
+
+- `postgres` menjalankan `archive_mode=on` dengan `infra/pitr/archive-wal.sh`: setiap segmen WAL dikompresi ke
+  `BACKUP_PATH/wal` secara atomik (arsip ulang dengan isi sama dianggap sukses, isi berbeda ditolak).
+- Container `pitr` membuat base backup fisik (`pg_basebackup`, tar.gz + WAL) ke `BACKUP_PATH/base` setiap
+  `PITR_BASE_INTERVAL_SECONDS`, menyimpan `PITR_BASE_KEEP` base terbaru, dan menghapus WAL yang lebih tua dari base
+  tertua. Pantau ukuran `BACKUP_PATH/wal`: bila terus membesar, `archive_command` atau container `pitr` bermasalah
+  (cek `select * from pg_stat_archiver`).
+- Seperti dump, sinkronkan `BACKUP_PATH` (base + wal) ke object storage di luar server.
+
+Pemulihan ke titik waktu (pada server/volume baru, jangan menimpa data yang sedang berjalan):
+
+```bash
+docker compose -f infra/docker-compose.prod.yml stop api web
+docker run --rm -v "$PWD/backups:/backups" -v "$PWD/infra/pitr:/pitr:ro" -v erp_restored:/restored \
+  postgres:16-alpine sh -c 'sh /pitr/restore-pitr.sh /backups/base/base-20261019T000000Z /restored/data \
+    "2026-10-20 09:30:00+07" && chown -R postgres:postgres /restored/data'
+# Jalankan postgres dengan PGDATA=/restored/data; server memutar ulang WAL sampai waktu target lalu promote.
+# Periksa data, lalu arahkan DATABASE_URL ke server hasil pemulihan (atau dump → restore ke server utama).
+```
+
+Pilih base backup terbaru yang dibuat **sebelum** waktu target. Tanpa argumen waktu, pemulihan berjalan sampai WAL
+terakhir yang terarsip. Server hasil pemulihan menonaktifkan `archive_mode` sampai operator mengaktifkannya lagi.
 
 ## 4. Monitoring
 
@@ -65,6 +94,14 @@ sama dengan `XENDIT_CALLBACK_TOKEN`.
 - Log JSON satu baris per request (`reqId`, `method`, `route`, `status`, `ms`, `tenantId`, `userId`, `ip`; body tidak
   pernah dicatat). Header `X-Request-Id` dikembalikan ke klien untuk korelasi laporan error. Kirim stdout ke
   Loki/ELK/CloudWatch.
+- **Tracing (OpenTelemetry)**: isi `OTEL_EXPORTER_OTLP_ENDPOINT` agar setiap request menghasilkan trace (HTTP →
+  Express → controller Nest → query Postgres & Redis) yang dikirim ke collector OTLP/HTTP (Jaeger, Tempo, Honeycomb,
+  Grafana Cloud, dsb.). Log request memuat `traceId` untuk lompat dari log ke trace. Teks SQL dicatat tanpa nilai
+  parameter; `/health` dan `/metrics` tidak dilacak. Instrumentasi dimuat lewat `node --import ./dist/instrument.js`
+  (sudah dipakai `pnpm start` dan image Docker); tanpa variabel OTEL tidak ada yang dimuat.
+- **Sentry**: isi `SENTRY_DSN` untuk menerima error tak tertangani (respons 500) dan kegagalan job latar (kurs
+  harian, perpanjangan langganan) dengan tag `tenant_id`, `request_id`, `route`, dan ID user — tanpa body request,
+  header, atau data pribadi lainnya.
 
 ## 5. Keamanan
 

@@ -27,6 +27,7 @@ import type { z } from "zod";
 import { OWNER_DB, TenantDb } from "../common/database.js";
 import { CONFIG, type AppConfig } from "../config.js";
 import { paymentProvider, type PaymentProvider } from "./payment-provider.js";
+import { reportError } from "../common/error-reporting.js";
 
 const P = schema.plans;
 const S = schema.subscriptions;
@@ -68,7 +69,11 @@ export class BillingService implements OnApplicationBootstrap, OnApplicationShut
   onApplicationBootstrap() {
     if (!this.config.billing.scheduler) return;
     this.timer = setInterval(
-      () => void this.runRenewals().catch((e: unknown) => this.logger.error(e)),
+      () =>
+        void this.runRenewals().catch((e: unknown) => {
+          this.logger.error(e);
+          reportError(e, { job: "billing-renewals" });
+        }),
       60 * 60_000,
     );
     this.timer.unref();

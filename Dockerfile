@@ -32,7 +32,7 @@ COPY --from=build /app/apps/api/dist apps/api/dist
 USER node
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://127.0.0.1:3001/health || exit 1
-CMD ["node", "apps/api/dist/main.js"]
+CMD ["node", "--import", "./apps/api/dist/instrument.js", "apps/api/dist/main.js"]
 
 FROM node:22-alpine AS web
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1

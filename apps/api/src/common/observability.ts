@@ -1,4 +1,5 @@
 import type { LoggerService, LogLevel } from "@nestjs/common";
+import { trace } from "@opentelemetry/api";
 import type { NextFunction, Request, Response } from "express";
 import { randomUUID } from "node:crypto";
 import { contextSlot } from "./request-context.js";
@@ -129,6 +130,8 @@ export function requestMiddleware(logger: LoggerService, production: boolean) {
     res.removeHeader("X-Powered-By");
 
     const slot = contextSlot();
+    // Trace OpenTelemetry aktif (bila instrumentasi dimuat) agar log bisa dikorelasikan dengan trace.
+    const traceId = trace.getActiveSpan()?.spanContext().traceId;
     const start = process.hrtime.bigint();
     res.on("finish", () => {
       const seconds = Number(process.hrtime.bigint() - start) / 1e9;
@@ -147,6 +150,7 @@ export function requestMiddleware(logger: LoggerService, production: boolean) {
           tenantId: slot?.ctx?.tenantId,
           userId: slot?.ctx?.userId,
           ip: req.ip,
+          ...(traceId ? { traceId } : {}),
         },
         "http",
       );

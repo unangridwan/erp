@@ -2,11 +2,12 @@ import { sql } from "drizzle-orm";
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema/index.js";
+import { instrumentClient } from "./tracing.js";
 
 export type Db = PostgresJsDatabase<typeof schema>;
 
 export function createDb(url: string, options: postgres.Options<Record<string, never>> = {}) {
-  const client = postgres(url, options);
+  const client = instrumentClient(postgres(url, options));
   return { db: drizzle(client, { schema }), client };
 }
 

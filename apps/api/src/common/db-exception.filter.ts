@@ -1,7 +1,9 @@
 import { Catch, HttpException, HttpStatus, type ArgumentsHost, type ExceptionFilter } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { localizeErrorBody, preferredLanguage } from "./error-i18n.js";
+import { reportError } from "./error-reporting.js";
 import { JsonLogger, type LogFormat } from "./observability.js";
+import { contextSlot } from "./request-context.js";
 
 const logger = new JsonLogger(
   (process.env.LOG_FORMAT as LogFormat | undefined) ?? (process.env.VITEST ? "off" : "pretty"),
@@ -33,12 +35,20 @@ export class DbExceptionFilter implements ExceptionFilter {
       res.status(mapped.status).json({ statusCode: mapped.status, message, detail: pg.detail });
       return;
     }
-    const req = (request ?? {}) as { id?: string };
+    const req = (request ?? {}) as { id?: string; method?: string; route?: { path?: string } };
     logger.error(
       { msg: "unhandled error", reqId: req.id, error: String(error) },
       (error as Error)?.stack,
       "exception",
     );
+    const ctx = contextSlot()?.ctx;
+    reportError(error, {
+      reqId: req.id,
+      method: req.method,
+      route: req.route?.path,
+      tenantId: ctx?.tenantId,
+      userId: ctx?.userId,
+    });
     res.status(500).json({ statusCode: 500, message: "Terjadi kesalahan pada server" });
   }
 }

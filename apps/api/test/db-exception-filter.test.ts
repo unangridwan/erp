@@ -1,6 +1,7 @@
 import type { ArgumentsHost } from "@nestjs/common";
 import { describe, expect, it } from "vitest";
 import { DbExceptionFilter } from "../src/common/db-exception.filter.js";
+import { setErrorReporter, type ErrorContext } from "../src/common/error-reporting.js";
 
 function run(error: unknown) {
   let status = 0;
@@ -46,6 +47,40 @@ describe("DbExceptionFilter", () => {
     expect(
       run(Object.assign(new Error("wrap"), { cause: pgError({ code: "42501", message: "rls" }) })).status,
     ).toBe(403);
+  });
+});
+
+describe("pelaporan error", () => {
+  it("hanya error tak tertangani (500) yang dilaporkan, dengan ID request & route tanpa body", async () => {
+    const reported: [unknown, ErrorContext][] = [];
+    setErrorReporter((e, c) => reported.push([e, c]));
+    try {
+      const { NotFoundException } = await import("@nestjs/common");
+      const res = { status: () => res, json: () => undefined };
+      const host = (req: object) =>
+        ({
+          switchToHttp: () => ({ getResponse: () => res, getRequest: () => req }),
+        }) as unknown as ArgumentsHost;
+      const req = {
+        id: "req-1",
+        method: "POST",
+        route: { path: "/moves" },
+        headers: {},
+        body: { secret: 1 },
+      };
+      new DbExceptionFilter().catch(new NotFoundException("Produk tidak ditemukan"), host(req));
+      new DbExceptionFilter().catch(pgError({ code: "23505", message: "dup" }), host(req));
+      const boom = new TypeError("x is undefined");
+      new DbExceptionFilter().catch(boom, host(req));
+      expect(reported).toEqual([[boom, { reqId: "req-1", method: "POST", route: "/moves" }]]);
+      // Pelapor yang gagal tidak mengganggu respons.
+      setErrorReporter(() => {
+        throw new Error("sentry down");
+      });
+      expect(() => new DbExceptionFilter().catch(boom, host(req))).not.toThrow();
+    } finally {
+      setErrorReporter(null);
+    }
   });
 });
 

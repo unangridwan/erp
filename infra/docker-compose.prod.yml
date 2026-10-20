@@ -9,8 +9,29 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-erp}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib}
       POSTGRES_DB: ${POSTGRES_DB:-erp}
+    # WAL diarsipkan terus-menerus untuk point-in-time recovery (lihat infra/pitr dan docs/operations.md).
+    # Direktori arsip dibuat & diberikan ke user postgres sebelum entrypoint resmi berjalan.
+    entrypoint:
+      [
+        "/bin/sh",
+        "-c",
+        'mkdir -p /wal-archive && chown postgres:postgres /wal-archive && exec docker-entrypoint.sh "$$@"',
+        "--",
+      ]
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=/pitr/archive-wal.sh %p %f
+      - -c
+      - archive_timeout=${PITR_ARCHIVE_TIMEOUT:-300}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./pitr:/pitr:ro
+      - ${BACKUP_PATH:-../backups}/wal:/wal-archive
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-erp}"]
       interval: 5s
@@ -63,6 +84,27 @@ services:
       - ./backup:/scripts:ro
       - ${BACKUP_PATH:-../backups}:/backups
     entrypoint: ["/bin/sh", "/scripts/loop.sh"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  # Base backup fisik berkala + retensi WAL untuk PITR. Berbagi jaringan dengan postgres agar koneksi replication
+  # lewat 127.0.0.1 diizinkan pg_hba bawaan image.
+  pitr:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    network_mode: "service:postgres"
+    environment:
+      PGHOST: 127.0.0.1
+      PGUSER: ${POSTGRES_USER:-erp}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PITR_BASE_DIR: /backups/base
+      WAL_ARCHIVE_DIR: /backups/wal
+      PITR_BASE_KEEP: ${PITR_BASE_KEEP:-2}
+      PITR_BASE_INTERVAL_SECONDS: ${PITR_BASE_INTERVAL_SECONDS:-604800}
+    volumes:
+      - ./pitr:/pitr:ro
+      - ${BACKUP_PATH:-../backups}:/backups
+    entrypoint: ["/bin/sh", "/pitr/loop.sh"]
     depends_on:
       postgres: { condition: service_healthy }
 

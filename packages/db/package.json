@@ -10,6 +10,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./load-env": {
+      "types": "./dist/load-env.d.ts",
+      "default": "./dist/load-env.js"
+    },
     "./migrate": {
       "types": "./dist/migrate.d.ts",
       "default": "./dist/migrate.js"
@@ -30,10 +34,13 @@
   },
   "dependencies": {
     "@erp/shared": "workspace:*",
+    "@opentelemetry/api": "1.9.1",
     "drizzle-orm": "^0.38.3",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
+    "@opentelemetry/context-async-hooks": "2.11.0",
+    "@opentelemetry/sdk-trace-base": "2.11.0",
     "@types/node": "^22.10.2",
     "vitest": "^2.1.8"
   }
