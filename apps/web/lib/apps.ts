@@ -239,29 +239,33 @@ export const APPS: App[] = [
         link("Karyawan", "Employees", "/employees", "hr.read"),
         link("Kontrak Kerja", "Contracts", "/hr/contracts", "hr.manage"),
         link("Departemen", "Departments", "/departments", "hr.read"),
+        link("Checklist Onboarding/Offboarding", "Onboarding/Offboarding", "/hr/checklists", "hr.read"),
+        link("Perubahan Data", "Data Changes", "/hr/change-requests", "hr.manage"),
       ]),
       group("Kehadiran", "Attendance", [
         link("Absensi", "Attendances", "/hr/attendance", "hr.read"),
         link("Keterlambatan", "Lateness", "/hr/lateness", "hr.read"),
+        link("Lembur", "Overtime", "/overtimes", "hr.read"),
         link("Penugasan Shift", "Shift Assignments", "/shift-assignments", "hr.read"),
         link("Hasil Kerja Borongan", "Piece Work", "/work-entries", "hr.read"),
       ]),
-      group("Cuti", "Time Off", [
-        link("Pengajuan Cuti", "Requests", "/hr/leaves", "hr.read"),
+      group("Cuti & Klaim", "Time Off & Expenses", [
+        link("Pengajuan Cuti", "Time Off Requests", "/hr/leaves", "hr.read"),
         link("Jatah Cuti", "Allocations", "/leave-allocations", "hr.read"),
+        link("Klaim Biaya", "Expenses", "/hr/expenses", "hr.read"),
+        link("Persetujuan", "Approvals", "/hr/approvals", "hr.read"),
       ]),
-      link("Lembur", "Overtime", "/overtimes", "hr.read"),
-      link("Klaim Biaya", "Expenses", "/hr/expenses", "hr.read"),
-      group("Rekrutmen", "Recruitment", [
+      group("Talenta", "Talent", [
         link("Pelamar", "Applicants", "/hr/recruitment", "hr.read"),
         link("Lowongan", "Job Openings", "/job-openings", "hr.read"),
+        link("Penilaian Kinerja", "Appraisals", "/hr/appraisals", "hr.read"),
+        link("Pelatihan", "Trainings", "/hr/trainings", "hr.read"),
       ]),
-      group("Siklus Karyawan", "Employee Lifecycle", [
-        link("Checklist", "Checklists", "/hr/checklists", "hr.read"),
+      group("Laporan", "Reporting", [
+        link("Dashboard SDM", "HR Dashboard", "/hr/dashboard", "hr.read"),
+        link("Struktur Organisasi", "Org Chart", "/hr/org-chart", "hr.read"),
         link("Pengingat", "Reminders", "/hr/reminders", "hr.read"),
       ]),
-      link("Persetujuan", "Approvals", "/hr/approvals", "hr.read"),
-      link("Perubahan Data", "Data Changes", "/hr/change-requests", "hr.manage"),
       group("Konfigurasi", "Configuration", [
         link("Jadwal Kerja", "Work Schedules", "/work-schedules", "hr.read"),
         link("Jabatan", "Job Positions", "/job-positions", "hr.read"),
@@ -270,6 +274,7 @@ export const APPS: App[] = [
         link("Jenis Cuti", "Time Off Types", "/leave-types", "hr.read"),
         link("Kategori Klaim", "Expense Categories", "/expense-categories", "hr.read"),
         link("Template Checklist", "Checklist Templates", "/hr/checklist-templates", "hr.read"),
+        link("Template KPI", "KPI Templates", "/hr/appraisal-templates", "hr.read"),
         link("Hari Libur", "Public Holidays", "/public-holidays", "hr.read"),
       ]),
     ],

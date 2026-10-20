@@ -626,3 +626,129 @@ export const hrReminderLog = pgTable("hr_reminder_log", {
   companyId: uuid("company_id").notNull(),
   sentOn: date("sent_on").notNull(),
 });
+
+// ---- Kinerja, pelatihan, riwayat karir ----
+
+export const appraisalTemplates = pgTable("appraisal_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  jobId: uuid("job_id"),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const appraisalTemplateItems = pgTable("appraisal_template_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  templateId: uuid("template_id").notNull(),
+  sequence: integer("sequence").notNull().default(0),
+  name: text("name").notNull(),
+  description: text("description"),
+  weight: numeric("weight", { precision: 6, scale: 2 }).notNull(),
+});
+
+export const appraisalCycles = pgTable("appraisal_cycles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  dateStart: date("date_start").notNull(),
+  dateEnd: date("date_end").notNull(),
+  state: text("state", { enum: ["draft", "open", "closed"] })
+    .notNull()
+    .default("draft"),
+  ...audit,
+});
+
+export const appraisals = pgTable("appraisals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  cycleId: uuid("cycle_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  templateId: uuid("template_id"),
+  managerUserId: uuid("manager_user_id"),
+  state: text("state", { enum: ["self", "manager", "calibration", "done"] })
+    .notNull()
+    .default("self"),
+  selfScore: numeric("self_score", { precision: 4, scale: 2 }),
+  managerScore: numeric("manager_score", { precision: 4, scale: 2 }),
+  finalScore: numeric("final_score", { precision: 4, scale: 2 }),
+  rating: text("rating", { enum: ["A", "B", "C", "D", "E"] }),
+  employeeComment: text("employee_comment"),
+  managerComment: text("manager_comment"),
+  hrComment: text("hr_comment"),
+  raisePercent: numeric("raise_percent", { precision: 5, scale: 2 }),
+  selfSubmittedAt: timestamp("self_submitted_at", { withTimezone: true }),
+  managerSubmittedAt: timestamp("manager_submitted_at", { withTimezone: true }),
+  doneAt: timestamp("done_at", { withTimezone: true }),
+  ...audit,
+});
+
+export const appraisalLines = pgTable("appraisal_lines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  appraisalId: uuid("appraisal_id").notNull(),
+  sequence: integer("sequence").notNull().default(0),
+  name: text("name").notNull(),
+  weight: numeric("weight", { precision: 6, scale: 2 }).notNull(),
+  selfScore: smallint("self_score"),
+  managerScore: smallint("manager_score"),
+  comment: text("comment"),
+});
+
+export const trainings = pgTable("trainings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  provider: text("provider"),
+  dateStart: date("date_start").notNull(),
+  dateEnd: date("date_end").notNull(),
+  cost: numeric("cost", { precision: 20, scale: 2 }).notNull().default("0"),
+  certificateValidMonths: integer("certificate_valid_months"),
+  state: text("state", { enum: ["planned", "done", "cancel"] })
+    .notNull()
+    .default("planned"),
+  description: text("description"),
+  ...audit,
+});
+
+export const trainingParticipants = pgTable("training_participants", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  trainingId: uuid("training_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  state: text("state", { enum: ["enrolled", "completed", "absent"] })
+    .notNull()
+    .default("enrolled"),
+  certificateDocumentId: uuid("certificate_document_id"),
+  certificateExpiry: date("certificate_expiry"),
+  createdAt: audit.createdAt,
+});
+
+export const EMPLOYEE_HISTORY_KINDS = [
+  "join",
+  "department",
+  "job",
+  "branch",
+  "manager",
+  "wage",
+  "resign",
+] as const;
+
+export const employeeHistory = pgTable("employee_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  date: date("date").notNull(),
+  kind: text("kind", { enum: EMPLOYEE_HISTORY_KINDS }).notNull(),
+  oldValue: text("old_value"),
+  newValue: text("new_value"),
+  note: text("note"),
+  createdBy: uuid("created_by"),
+  createdAt: audit.createdAt,
+});

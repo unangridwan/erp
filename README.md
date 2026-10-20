@@ -206,6 +206,10 @@ Otomatis (tanpa endpoint baru):
 | `/job-openings`, `GET/POST /applicants`, `GET/PUT/DELETE /applicants/:id`, `POST /applicants/:id/{stage,interviews,hire}`                              | Rekrutmen: lowongan, kanban pelamar, wawancara (skor), terima → karyawan + kontrak draft + onboarding        |
 | `GET/POST /hr-documents`, `GET /hr-documents/:id/file`, `GET /hr-documents/expiring`, `GET /hr/reminders`                                              | Dokumen karyawan/pelamar (PDF/JPG/PNG ≤ 5 MB) & pengingat kedaluwarsa, kontrak PKWT berakhir                 |
 | `/hr-checklist-templates`, `GET/POST /hr-checklists`, `POST /hr-checklists/tasks/:taskId`, `GET /me/checklist-tasks`                                   | Checklist onboarding/offboarding (otomatis saat karyawan baru/tanggal keluar diisi)                          |
+| `/appraisal-templates`, `GET/POST /appraisal-cycles`, `POST /appraisal-cycles/:id/{start,close}`                                                       | Penilaian kinerja: template KPI berbobot per jabatan, siklus, formulir per karyawan                          |
+| `GET /appraisals`, `PUT /appraisals/:id/{self,manager}`, `POST /appraisals/:id/calibrate`, `GET /me/appraisals`                                        | Penilaian diri → atasan → kalibrasi HR (skor akhir, predikat A–E, usulan kenaikan upah)                      |
+| `/trainings`, `POST /trainings/:id/participants`, `PUT /trainings/:id/participants/:pid`                                                               | Pelatihan & sertifikasi; sertifikat menjadi dokumen karyawan dengan masa berlaku                             |
+| `GET /employees/:id/history`, `GET /hr/org-chart`, `GET /hr/dashboard?year=`                                                                           | Riwayat karir otomatis, struktur organisasi, dashboard SDM (headcount, turnover, cuti, biaya)                |
 
 PPh 21 dihitung dengan TER (PP 58/2023) per bulan dan tarif Pasal 17 setahun di Desember atau bulan karyawan keluar.
 Tarif TER, PTKP, BPJS, dan lembur ada di `packages/shared/src/payroll.ts` (dengan unit test); batas upah JP perlu
@@ -234,6 +238,11 @@ offboarding saat tanggal keluar diisi. Tanpa template bawaan perusahaan dipakai 
 akun" menonaktifkan login karyawan saat dicentang. Email pengingat HR harian (dokumen kedaluwarsa, kontrak PKWT
 berakhir ≤ 30 hari, tugas checklist lewat tenggat) dikirim ke pengguna `hr.manage`; matikan dengan
 `HR_REMINDER_SCHEDULER=off`.
+
+Skor penilaian = rata-rata tertimbang skor 1–5 per indikator; predikat A ≥ 4,5, B ≥ 3,5, C ≥ 2,5, D ≥ 1,5, E, dengan
+usulan kenaikan upah bawaan A 10%, B 7%, C 4% (dapat diubah saat kalibrasi). Karyawan tanpa atasan ber-akun dinilai
+langsung oleh HR. Riwayat karir dicatat otomatis saat karyawan dibuat, departemen/jabatan/cabang/atasan berubah, tanggal
+keluar diisi, dan kontrak baru dengan upah berbeda mulai berlaku.
 
 ### Pajak Coretax, Langganan & Operasional (Fase 5)
 

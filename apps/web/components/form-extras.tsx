@@ -7,7 +7,7 @@ import { api, ApiError } from "../lib/api";
 import { formatDate, money } from "../lib/format";
 import { useI18n } from "../lib/i18n";
 import { can } from "../lib/resources";
-import { ChecklistsPanel, DocumentsPanel } from "./hr/hr-panels";
+import { CareerPanel, ChecklistsPanel, DocumentsPanel } from "./hr/hr-panels";
 import { useMe } from "./me-context";
 
 interface Attribute {
@@ -472,6 +472,7 @@ function EmployeeExtras({ id }: { id: string }) {
   return (
     <>
       {can(me.permissions, "hr.manage") && <DocumentsPanel employeeId={id} />}
+      {can(me.permissions, "hr.read") && <CareerPanel employeeId={id} />}
       {can(me.permissions, "hr.read") && <ChecklistsPanel employeeId={id} />}
       {can(me.permissions, "payroll.read") && <SeverancePanel id={id} />}
     </>

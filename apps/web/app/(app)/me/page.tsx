@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { download } from "../../../components/accounting/download";
 import {
+  MyAppraisals,
   MyChangeRequest,
   MyChecklistTasks,
   MyClaims,
@@ -247,6 +248,7 @@ export default function MyPortalPage() {
         </table>
       </section>
 
+      <MyAppraisals />
       <MyChecklistTasks />
       <MyOvertime />
       <MyClaims />

@@ -42,3 +42,35 @@ describe("SDM: kedaluwarsa & checklist", () => {
     ).toBe(false);
   });
 });
+
+describe("SDM: kinerja & organisasi", () => {
+  it("skor tertimbang & predikat", async () => {
+    const { weightedScore, ratingFor, turnoverRate, orgTree } = await import("./hr.js");
+    expect(
+      weightedScore([
+        { weight: 60, score: 4 },
+        { weight: 40, score: 5 },
+      ]),
+    ).toBe(4.4);
+    expect(
+      weightedScore([
+        { weight: 1, score: 3 },
+        { weight: 1, score: null },
+      ]),
+    ).toBeNull();
+    expect(weightedScore([])).toBeNull();
+    expect([4.5, 4.49, 3.5, 2.5, 1.5, 1.49].map(ratingFor)).toEqual(["A", "B", "B", "C", "D", "E"]);
+    expect(turnoverRate(3, 20, 40)).toBe(10);
+    expect(turnoverRate(1, 0, 0)).toBe(0);
+    const tree = orgTree([
+      { id: "ceo", managerId: null },
+      { id: "cfo", managerId: "ceo" },
+      { id: "acc", managerId: "cfo" },
+      { id: "x", managerId: "y" },
+      { id: "y", managerId: "x" },
+      { id: "orphan", managerId: "gone" },
+    ]);
+    expect(tree.map((n) => n.id).sort()).toEqual(["ceo", "orphan", "x", "y"]);
+    expect(tree.find((n) => n.id === "ceo")!.reports[0]!.reports[0]!.id).toBe("acc");
+  });
+});

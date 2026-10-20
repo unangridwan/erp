@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../lib/api";
-import { formatDate } from "../../lib/format";
+import { formatDate, money } from "../../lib/format";
 import { useI18n, type Text, L } from "../../lib/i18n";
 import { download } from "../accounting/download";
 
@@ -253,6 +253,133 @@ export function ChecklistsPanel({ employeeId }: { employeeId: string }) {
             ))}
           </tbody>
         </table>
+      )}
+    </section>
+  );
+}
+
+const HISTORY_LABEL: Record<string, Text> = {
+  join: L("Mulai bekerja", "Joined"),
+  department: L("Mutasi departemen", "Department change"),
+  job: L("Ganti jabatan", "Job change"),
+  branch: L("Mutasi cabang", "Branch change"),
+  manager: L("Ganti atasan", "Manager change"),
+  wage: L("Perubahan upah", "Wage change"),
+  resign: L("Keluar", "Leaving"),
+};
+
+interface Career {
+  history: {
+    id: string;
+    date: string;
+    kind: string;
+    oldValue: string | null;
+    newValue: string | null;
+    note: string | null;
+  }[];
+  trainings: { id: string; name: string; dateEnd: string; state: string; certificateExpiry: string | null }[];
+  appraisals: {
+    id: string;
+    cycleName: string;
+    finalScore: string | null;
+    rating: string | null;
+    state: string;
+  }[];
+}
+
+/** Riwayat karir (mutasi, promosi, upah), pelatihan, dan hasil penilaian kinerja karyawan. */
+export function CareerPanel({ employeeId }: { employeeId: string }) {
+  const { l, tx, locale } = useI18n();
+  const [c, setC] = useState<Career | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    api<Career>(`/employees/${employeeId}/history`).then(setC, (e) => setError(errorText(e)));
+  }, [employeeId]);
+  const value = (kind: string, v: string | null) =>
+    v === null
+      ? "—"
+      : kind === "wage"
+        ? money(v, locale)
+        : kind === "join" || kind === "resign"
+          ? formatDate(v, locale)
+          : v;
+  return (
+    <section className="panel">
+      <h2>{l("Riwayat karir", "Career history")}</h2>
+      {error && <p className="error">{error}</p>}
+      {c && (
+        <>
+          {c.history.length === 0 ? (
+            <p className="muted">—</p>
+          ) : (
+            <table>
+              <tbody>
+                {c.history.map((h) => (
+                  <tr key={h.id}>
+                    <td>{formatDate(h.date, locale)}</td>
+                    <td>{tx(HISTORY_LABEL[h.kind] ?? L(h.kind, h.kind))}</td>
+                    <td>
+                      {h.oldValue !== null && h.kind !== "join" && h.kind !== "resign" && (
+                        <>
+                          <span className="muted">{value(h.kind, h.oldValue)}</span> →{" "}
+                        </>
+                      )}
+                      <strong>{value(h.kind, h.newValue)}</strong>
+                      {h.note && <small className="muted"> · {h.note}</small>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {c.appraisals.length > 0 && (
+            <>
+              <h3>{l("Penilaian kinerja", "Appraisals")}</h3>
+              <table>
+                <tbody>
+                  {c.appraisals.map((a) => (
+                    <tr key={a.id}>
+                      <td>
+                        <Link href={`/hr/appraisal-forms/${a.id}`}>{a.cycleName}</Link>
+                      </td>
+                      <td>{a.finalScore ? Number(a.finalScore).toFixed(2) : "—"}</td>
+                      <td>
+                        <strong>{a.rating ?? ""}</strong>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+          {c.trainings.length > 0 && (
+            <>
+              <h3>{l("Pelatihan", "Trainings")}</h3>
+              <table>
+                <tbody>
+                  {c.trainings.map((t) => (
+                    <tr key={t.id}>
+                      <td>
+                        <Link href={`/hr/trainings/${t.id}`}>{t.name}</Link>
+                      </td>
+                      <td>{formatDate(t.dateEnd, locale)}</td>
+                      <td>
+                        {t.state === "completed"
+                          ? l("lulus", "completed")
+                          : t.state === "absent"
+                            ? l("tidak hadir", "absent")
+                            : l("terdaftar", "enrolled")}
+                        {t.certificateExpiry
+                          ? ` · ${l("sertifikat s.d.", "certificate until")} ${formatDate(t.certificateExpiry, locale)}`
+                          : ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </>
       )}
     </section>
   );

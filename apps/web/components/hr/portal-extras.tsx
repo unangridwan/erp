@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../lib/api";
 import { formatDate, money, today } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
-import { EXPENSE_STATE_LABEL, LEAVE_STATE_LABEL } from "../../lib/resources";
+import { APPRAISAL_STATE_LABEL, EXPENSE_STATE_LABEL, LEAVE_STATE_LABEL } from "../../lib/resources";
 import { ExpenseClaimForm } from "./expense-form";
 
 const errorText = (e: unknown) =>
@@ -433,6 +434,48 @@ export function MyChecklistTasks() {
                 {r.checklistName} · {r.employeeName}
               </td>
               <td>{formatDate(r.dueDate, locale)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+/** Penilaian kinerja: milik sendiri (penilaian diri) dan bawahan yang perlu dinilai. */
+export function MyAppraisals() {
+  const { l, tx } = useI18n();
+  const [rows, setRows] = useState<
+    {
+      id: string;
+      cycleName: string;
+      employeeName: string;
+      state: string;
+      role: "self" | "manager";
+      finalScore: string | null;
+      rating: string | null;
+    }[]
+  >([]);
+  useEffect(() => {
+    api<typeof rows>("/me/appraisals").then(setRows, () => setRows([]));
+  }, []);
+  if (!rows.length) return null;
+  const todo = (r: (typeof rows)[number]) => (r.role === "self" ? r.state === "self" : r.state === "manager");
+  return (
+    <section className="panel">
+      <h2>{l("Penilaian kinerja", "Performance appraisals")}</h2>
+      <table>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id}>
+              <td>
+                <Link href={`/hr/appraisal-forms/${r.id}`}>{r.cycleName}</Link>
+              </td>
+              <td>{r.role === "self" ? l("Diri sendiri", "Myself") : r.employeeName}</td>
+              <td>
+                {todo(r) ? <strong>{l("Perlu diisi", "To do")}</strong> : tx(APPRAISAL_STATE_LABEL[r.state]!)}
+              </td>
+              <td>{r.rating ? `${Number(r.finalScore).toFixed(2)} · ${r.rating}` : ""}</td>
             </tr>
           ))}
         </tbody>

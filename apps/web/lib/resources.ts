@@ -1753,6 +1753,13 @@ export const APPLICANT_STAGE_LABEL: Record<string, Text> = {
   refused: L("Ditolak", "Refused"),
 };
 
+export const APPRAISAL_STATE_LABEL: Record<string, Text> = {
+  self: L("Penilaian diri", "Self-assessment"),
+  manager: L("Menunggu atasan", "Awaiting manager"),
+  calibration: L("Kalibrasi HR", "HR calibration"),
+  done: L("Selesai", "Done"),
+};
+
 export const EXPENSE_STATE_LABEL: Record<string, Text> = {
   draft: L("Draft", "Draft"),
   confirm: L("Menunggu persetujuan", "To approve"),

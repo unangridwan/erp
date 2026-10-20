@@ -17,6 +17,12 @@ export {
   APPLICANT_FLOW,
   type ChecklistItem,
   type ChecklistResponsible,
+  weightedScore,
+  ratingFor,
+  RAISE_BY_RATING,
+  turnoverRate,
+  orgTree,
+  type Rating,
 } from "./hr.js";
 export * from "./coretax.js";
 export * from "./coretax-extra.js";

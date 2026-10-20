@@ -354,7 +354,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] HR & Payroll (3/4) Rekrutmen & dokumen: lowongan, kanban pelamar, wawancara, terima menjadi karyawan (kontrak
   draft + onboarding); dokumen karyawan/pelamar dengan masa berlaku; pengingat HR (halaman + email harian); checklist
   onboarding/offboarding dengan template, tenggat relatif, tugas portal, dan penonaktifan akun
-- [ ] HR & Payroll (4/4) kinerja, pelatihan, riwayat karir, org chart, dashboard HR
+- [x] HR & Payroll (4/4) Kinerja & analitik: template KPI berbobot per jabatan, siklus penilaian (diri → atasan →
+  kalibrasi HR, predikat & usulan kenaikan upah), pelatihan & sertifikat berkedaluwarsa, riwayat karir otomatis, struktur
+  organisasi, dashboard SDM (headcount, masuk/keluar, turnover, cuti, biaya tenaga kerja, sebaran predikat)
 
 ## 5. Roadmap Bertahap
 
