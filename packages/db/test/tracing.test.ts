@@ -54,7 +54,7 @@ describe("tracing query postgres.js", () => {
       });
       expect(inTx).toEqual({ v: "rahasia-param" });
       // Kueri builder memakai .values() — format hasil tidak boleh berubah.
-      const tenants = await db.execute(sql`select count(*)::int as n from tenants`);
+      const tenants = await db.execute(sql`select count(*)::int as n from pg_class`);
       expect(typeof tenants[0]!.n).toBe("number");
 
       const spans = exporter.getFinishedSpans();
