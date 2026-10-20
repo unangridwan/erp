@@ -10,11 +10,12 @@ import { hasPermission } from "@erp/shared";
 import { ActivityService } from "../activity/activity.service.js";
 import { currentContext } from "../common/request-context.js";
 
-type Model = "leave_request" | "overtime";
+export type ApprovalModel = "leave_request" | "overtime" | "expense_claim";
+type Model = ApprovalModel;
 type Employee = typeof schema.employees.$inferSelect;
 
 /**
- * Persetujuan berjenjang cuti & lembur. Tahap 1 = atasan langsung karyawan, tahap 2 = atasan dari atasan,
+ * Persetujuan berjenjang cuti, lembur, dan klaim biaya. Tahap 1 = atasan langsung karyawan, tahap 2 = atasan dari atasan,
  * tahap 3 = HR. Tahap tanpa atasan (atau tahap 3) diputuskan HR (permission hr.write), yang juga boleh mengambil
  * alih tahap mana pun.
  */
@@ -28,9 +29,11 @@ export class ApprovalService {
       .select({
         leave: schema.payrollSettings.leaveApprovalLevels,
         overtime: schema.payrollSettings.overtimeApprovalLevels,
+        expense: schema.payrollSettings.expenseApprovalLevels,
       })
       .from(schema.payrollSettings)
       .where(eq(schema.payrollSettings.companyId, companyId));
+    if (model === "expense_claim") return s?.expense ?? 1;
     return model === "leave_request" ? (s?.leave ?? 1) : (s?.overtime ?? 0);
   }
 
@@ -74,7 +77,12 @@ export class ApprovalService {
     });
     const last = doc.approvalStep >= doc.approvalLevels;
     const state = decision === "refused" ? "refused" : last ? "approved" : "confirm";
-    const table = model === "leave_request" ? schema.leaveRequests : schema.overtimes;
+    const table =
+      model === "leave_request"
+        ? schema.leaveRequests
+        : model === "overtime"
+          ? schema.overtimes
+          : schema.expenseClaims;
     await tx
       .update(table)
       .set({
@@ -86,7 +94,7 @@ export class ApprovalService {
         updatedAt: sql`now()`,
       })
       .where(eq(table.id, id));
-    const what = model === "leave_request" ? "Cuti" : "Lembur";
+    const what = model === "leave_request" ? "Cuti" : model === "overtime" ? "Lembur" : "Klaim";
     await this.activity.log(tx, {
       resModel: "employee",
       resId: doc.employeeId,
@@ -149,7 +157,30 @@ export class ApprovalService {
       .from(schema.overtimes)
       .innerJoin(schema.employees, eq(schema.employees.id, schema.overtimes.employeeId))
       .where(and(inArray(schema.overtimes.companyId, ctx.companyIds), eq(schema.overtimes.state, "confirm")));
+    const claims = await tx
+      .select({ doc: schema.expenseClaims, employee: schema.employees })
+      .from(schema.expenseClaims)
+      .innerJoin(schema.employees, eq(schema.employees.id, schema.expenseClaims.employeeId))
+      .where(
+        and(
+          inArray(schema.expenseClaims.companyId, ctx.companyIds),
+          eq(schema.expenseClaims.state, "confirm"),
+        ),
+      );
     const result = [];
+    for (const { doc, employee } of claims) {
+      const approver = await this.approverFor(tx, employee, doc.approvalStep);
+      if (approver === ctx.userId || (hr && employee.userId !== ctx.userId) || (hr && !approver))
+        result.push({
+          model: "expense_claim" as const,
+          id: doc.id,
+          employeeName: employee.name,
+          summary: `Klaim ${doc.name} Rp ${Number(doc.total).toLocaleString("id-ID")}`,
+          step: doc.approvalStep,
+          levels: doc.approvalLevels,
+          mine: approver === ctx.userId,
+        });
+    }
     for (const { doc, employee, typeName } of leaves) {
       const approver = await this.approverFor(tx, employee, doc.approvalStep);
       if (approver === ctx.userId || (hr && employee.userId !== ctx.userId) || (hr && !approver))
@@ -188,6 +219,14 @@ export class ApprovalService {
         .where(and(eq(schema.leaveRequests.id, id), inArray(schema.leaveRequests.companyId, companyIds)));
       if (!r) throw new NotFoundException("Pengajuan cuti tidak ditemukan");
       return { ...r, label: `${r.dateFrom} s.d. ${r.dateTo}` };
+    }
+    if (model === "expense_claim") {
+      const [c] = await tx
+        .select()
+        .from(schema.expenseClaims)
+        .where(and(eq(schema.expenseClaims.id, id), inArray(schema.expenseClaims.companyId, companyIds)));
+      if (!c) throw new NotFoundException("Klaim biaya tidak ditemukan");
+      return { ...c, label: c.name };
     }
     const [o] = await tx
       .select()

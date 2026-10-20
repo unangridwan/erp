@@ -407,4 +407,26 @@ export const MESSAGES_EN: Record<string, string> = {
   "Pilih komponen tunjangan perusahaan ini": "Choose an allowance component of this company",
   "Periode akhir sebelum awal": "The end period is before the start period",
   "Nomor rekening hanya angka": "The account number may only contain digits",
+  // Klaim biaya & portal
+  "Klaim biaya tidak ditemukan": "Expense claim not found",
+  "Pengajuan perubahan data tidak ditemukan": "Data change request not found",
+  "Masih ada pengajuan perubahan data yang menunggu persetujuan":
+    "A data change request is still awaiting approval",
+  "Klaim belum punya baris": "The claim has no lines",
+  "Klaim {} melebihi plafon tahunan (sisa Rp {}, lebih Rp {})":
+    "Claim {0} exceeds the annual limit (Rp {1} left, Rp {2} over)",
+  "Klaim yang sudah dibayar/dibatalkan tidak bisa dibatalkan": "Paid or cancelled claims cannot be cancelled",
+  "Hanya klaim disetujui yang bisa dibayar": "Only approved claims can be paid",
+  "Klaim ini dibayar lewat slip gaji berikutnya": "This claim is paid through the next payslip",
+  "Bukti klaim tidak ditemukan": "Claim receipt not found",
+  "Hanya klaim draft yang bisa diubah": "Only draft claims can be changed",
+  "Karyawan klaim tidak bisa diganti": "The claim's employee cannot be changed",
+  "Pilih karyawan": "Choose an employee",
+  "Kategori klaim tidak ditemukan": "Expense category not found",
+  "Klaim {} sudah berubah; hitung ulang payroll": "Claim {0} has changed; recompute the payroll",
+  "Bukti harus PDF, JPG, atau PNG": "The receipt must be a PDF, JPG or PNG",
+  "Isi minimal satu data yang diubah": "Fill in at least one field to change",
+  "Berkas tidak valid": "Invalid file",
+  "Berkas maksimal 2 MB": "Files may be at most 2 MB",
+  "Minimal satu baris klaim": "At least one claim line is required",
 };

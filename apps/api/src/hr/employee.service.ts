@@ -52,6 +52,32 @@ export class EmployeeService {
     return this.reveal(employee, true);
   }
 
+  /** Enkripsi nilai sensitif (mis. nomor rekening di pengajuan perubahan data). */
+  seal(value: string) {
+    return encrypt(value, this.config.encryptionKey);
+  }
+
+  open(value: string, full: boolean) {
+    const plain = decrypt(value, this.config.encryptionKey);
+    return full ? plain : `${MASK}${plain.slice(-4)}`;
+  }
+
+  /** Terapkan perubahan data pribadi yang disetujui (nomor rekening sudah terenkripsi). */
+  async applyChanges(tx: Db, id: string, changes: Record<string, string | null>) {
+    await tx
+      .update(E)
+      .set({ ...changes, updatedAt: sql`now()` })
+      .where(eq(E.id, id));
+    await this.activity.log(tx, {
+      resModel: "employee",
+      resId: id,
+      action: "update",
+      message: `Perubahan data disetujui: ${Object.keys(changes)
+        .map((k) => k.replace(/Enc$/, ""))
+        .join(", ")}`,
+    });
+  }
+
   async list(
     tx: Db,
     query: { q?: string; departmentId?: string; active?: string; limit?: string; offset?: string },

@@ -903,6 +903,9 @@ export const employeeSchema = z.object({
   bankAccountName: optionalText,
   joinDate: z.string().date(),
   resignDate: z.string().date().nullish(),
+  address: z.string().trim().max(500).nullish(),
+  emergencyContact: optionalText,
+  emergencyPhone: optionalText,
   /** Jadwal kerja bawaan (shift). */
   scheduleId: z.string().uuid().nullish(),
   active: z.boolean().default(true),
@@ -1016,6 +1019,7 @@ export const payrollSettingsSchema = z.object({
   employeeLoanAccountId: z.string().uuid().nullish(),
   leaveApprovalLevels: z.coerce.number().int().min(1).max(3).optional(),
   overtimeApprovalLevels: z.coerce.number().int().min(0).max(3).optional(),
+  expenseApprovalLevels: z.coerce.number().int().min(1).max(3).optional(),
   casualFullBpjsMonths: z.coerce.number().int().min(0).max(24).optional(),
   thrComponentId: z.string().uuid().nullish(),
   retroComponentId: z.string().uuid().nullish(),
@@ -1027,6 +1031,92 @@ export const payrollSettingsSchema = z.object({
     .nullish(),
   transferCompanyCode: z.string().trim().max(30).nullish(),
 });
+
+export const expenseCategorySchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  accountId: z.string().uuid(),
+  /** Plafon per karyawan per tahun (kosong = tanpa plafon). */
+  annualLimit: nonNegative(2).nullish(),
+  taxable: z.boolean().default(false),
+  active: z.boolean().default(true),
+});
+
+/** Bukti klaim (struk/nota): PDF/JPG/PNG maks. 2 MB, dikirim base64. */
+export const claimAttachmentSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  type: z.enum(["application/pdf", "image/jpeg", "image/png"], {
+    message: "Bukti harus PDF, JPG, atau PNG",
+  }),
+  data: z
+    .string()
+    .regex(/^[A-Za-z0-9+/=\s]+$/, "Berkas tidak valid")
+    .refine((v) => (v.replace(/\s/g, "").length * 3) / 4 <= 2 * 1024 * 1024, "Berkas maksimal 2 MB"),
+});
+
+export const expenseClaimSchema = z.object({
+  /** Kosong = karyawan user yang login (portal). */
+  employeeId: z.string().uuid().optional(),
+  date: z.string().date(),
+  description: z.string().trim().max(500).nullish(),
+  payMethod: z.enum(["payslip", "cash"]).default("payslip"),
+  lines: z
+    .array(
+      z.object({
+        categoryId: z.string().uuid(),
+        date: z.string().date(),
+        amount: nonNegative(2).refine((v) => Number(v) > 0, "Harus lebih dari 0"),
+        note: z.string().trim().max(500).nullish(),
+        /** Baris lama (bukti lama dipertahankan bila `attachment` tidak dikirim; `null` menghapusnya). */
+        id: z.string().uuid().optional(),
+        attachment: claimAttachmentSchema.nullish(),
+      }),
+    )
+    .min(1, "Minimal satu baris klaim")
+    .max(50),
+});
+
+export const payClaimSchema = z.object({ journalId: z.string().uuid(), date: z.string().date() });
+
+/** Field data pribadi yang boleh diajukan perubahannya oleh karyawan dari portal. */
+export const EMPLOYEE_CHANGE_FIELDS = [
+  "address",
+  "workPhone",
+  "emergencyContact",
+  "emergencyPhone",
+  "bankName",
+  "bankAccount",
+  "bankAccountName",
+  "ptkpStatus",
+] as const;
+
+/** Teks perubahan data: tidak diisi = tidak diubah; string kosong = dikosongkan. */
+const changeText = z
+  .string()
+  .trim()
+  .max(500)
+  .nullish()
+  .transform((v) => (v === undefined ? undefined : v || null));
+
+export const employeeChangeSchema = z
+  .object({
+    address: changeText,
+    workPhone: changeText,
+    emergencyContact: changeText,
+    emergencyPhone: changeText,
+    bankName: changeText,
+    bankAccount: z
+      .string()
+      .trim()
+      .max(50)
+      .regex(/^[\d\s.-]*$/, "Nomor rekening hanya angka")
+      .nullish(),
+    bankAccountName: changeText,
+    ptkpStatus: z.enum(PTKP_STATUS_VALUES).optional(),
+    note: z.string().trim().max(500).nullish(),
+  })
+  .refine((c) => EMPLOYEE_CHANGE_FIELDS.some((f) => c[f] !== undefined), {
+    message: "Isi minimal satu data yang diubah",
+  });
 
 export const thrComputeSchema = z.object({
   /** Tanggal hari raya keagamaan (masa kerja dihitung sampai tanggal ini). */

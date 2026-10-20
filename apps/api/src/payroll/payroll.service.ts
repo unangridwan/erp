@@ -26,6 +26,7 @@ import { assertCompanyAccounts, assertCompanyJournal, fieldError } from "../acco
 import { MoveService } from "../accounting/move.service.js";
 import { currentContext } from "../common/request-context.js";
 import { EmployeeService } from "../hr/employee.service.js";
+import { ExpenseService } from "../hr/expense.service.js";
 import { holidaysBetween, LeaveService } from "../hr/leave.service.js";
 import { localDate, ScheduleService } from "../hr/schedule.service.js";
 import { LoanService } from "./loan.service.js";
@@ -69,6 +70,7 @@ export class PayrollService {
     @Inject(LeaveService) private readonly leaves: LeaveService,
     @Inject(ScheduleService) private readonly schedules: ScheduleService,
     @Inject(LoanService) private readonly loans: LoanService,
+    @Inject(ExpenseService) private readonly expenses: ExpenseService,
   ) {}
 
   // ---- Pengaturan ----
@@ -300,7 +302,7 @@ export class PayrollService {
       componentId: string,
       amount: string,
       suffix?: string | null,
-    ): PayslipItem & { componentId: string | null; loanId?: string } => {
+    ): PayslipItem & { componentId: string | null; loanId?: string; expenseClaimId?: string } => {
       const c = comp.get(componentId)!;
       return {
         componentId,
@@ -318,6 +320,40 @@ export class PayrollService {
       ...inputs
         .filter((i) => comp.get(i.componentId)?.kind === "allowance")
         .map((i) => ({ ...item(i.componentId, i.amount, i.description), fixed: false })),
+      // Klaim biaya disetujui yang dibayar lewat slip (bagian objek PPh 21 dipisah).
+      ...(
+        await tx
+          .select({
+            claimId: schema.expenseClaims.id,
+            name: schema.expenseClaims.name,
+            taxable: schema.expenseCategories.taxable,
+            amount: sql<string>`sum(${schema.expenseClaimLines.amount})::text`,
+          })
+          .from(schema.expenseClaims)
+          .innerJoin(schema.expenseClaimLines, eq(schema.expenseClaimLines.claimId, schema.expenseClaims.id))
+          .innerJoin(
+            schema.expenseCategories,
+            eq(schema.expenseCategories.id, schema.expenseClaimLines.categoryId),
+          )
+          .where(
+            and(
+              eq(schema.expenseClaims.employeeId, employee.id),
+              eq(schema.expenseClaims.state, "approved"),
+              eq(schema.expenseClaims.payMethod, "payslip"),
+              lte(schema.expenseClaims.date, run.periodEnd),
+            ),
+          )
+          .groupBy(schema.expenseClaims.id, schema.expenseClaims.name, schema.expenseCategories.taxable)
+          .orderBy(asc(schema.expenseClaims.name))
+      ).map((c) => ({
+        componentId: null,
+        expenseClaimId: c.claimId,
+        code: "RMB",
+        name: `Penggantian biaya ${c.name}${c.taxable ? " (objek PPh 21)" : ""}`,
+        amount: d(c.amount).toFixed(2),
+        fixed: false,
+        taxable: c.taxable,
+      })),
     ];
     const deductions = [
       ...allowanceRows
@@ -488,6 +524,9 @@ export class PayrollService {
       [...allowances, ...deductions].map((x) => [x.code + x.name, x.componentId]),
     );
     const loanByCode = new Map(deductions.filter((x) => x.loanId).map((x) => [x.code + x.name, x.loanId!]));
+    const claimByCode = new Map(
+      allowances.filter((x) => x.expenseClaimId).map((x) => [x.code + x.name, x.expenseClaimId!]),
+    );
     await tx.insert(schema.payslipLines).values(
       result.lines.map((l, i) => ({
         payslipId: slipId,
@@ -498,6 +537,7 @@ export class PayrollService {
         amount: l.amount,
         componentId: componentByCode.get(l.code + l.name) ?? null,
         loanId: loanByCode.get(l.code + l.name) ?? null,
+        expenseClaimId: claimByCode.get(l.code + l.name) ?? null,
       })),
     );
     await tx
@@ -632,7 +672,8 @@ export class PayrollService {
           case "allowance":
           case "overtime":
           case "unpaid":
-            add(accountId ?? s.salaryExpenseAccountId, amount, dims);
+            // Klaim biaya: debit akun beban kategori klaim (di bawah).
+            if (!line.expenseClaimId) add(accountId ?? s.salaryExpenseAccountId, amount, dims);
             break;
           case "bpjs_employer":
             add(s.bpjsExpenseAccountId, amount, dims);
@@ -653,7 +694,35 @@ export class PayrollService {
             break;
         }
       }
+      const claimIds = [
+        ...new Set(
+          lines
+            .filter((l) => l.line.payslipId === slip.id && l.line.expenseClaimId)
+            .map((l) => l.line.expenseClaimId!),
+        ),
+      ];
+      for (const x of await this.expenses.accountTotals(tx, claimIds)) add(x.accountId, d(x.amount), dims);
       add(s.salaryPayableAccountId, d(slip.net).negated());
+    }
+    // Klaim yang dibayar lewat slip harus masih disetujui & belum dibayar (mis. tidak dibatalkan setelah dihitung).
+    const claimLines = lines.filter((l) => l.line.expenseClaimId);
+    if (claimLines.length) {
+      const claims = await tx
+        .select({
+          id: schema.expenseClaims.id,
+          name: schema.expenseClaims.name,
+          state: schema.expenseClaims.state,
+        })
+        .from(schema.expenseClaims)
+        .where(
+          inArray(
+            schema.expenseClaims.id,
+            claimLines.map((l) => l.line.expenseClaimId!),
+          ),
+        )
+        .for("update");
+      const stale = claims.find((c) => c.state !== "approved");
+      if (stale) throw new BadRequestException(`Klaim ${stale.name} sudah berubah; hitung ulang payroll`);
     }
     const journalLines = [...entries.entries()]
       .filter(([, v]) => !v.isZero())
@@ -713,6 +782,11 @@ export class PayrollService {
       .update(RUN)
       .set({ state: "done", accountMoveId: moveId, updatedAt: sql`now()` })
       .where(eq(RUN.id, id));
+    for (const l of claimLines)
+      await tx
+        .update(schema.expenseClaims)
+        .set({ state: "paid", payslipId: l.line.payslipId, updatedAt: sql`now()` })
+        .where(eq(schema.expenseClaims.id, l.line.expenseClaimId!));
     await this.loans.closePaid(tx, [
       ...new Set(lines.map((l) => l.line.loanId).filter((x): x is string => Boolean(x))),
     ]);

@@ -1167,6 +1167,9 @@ RESOURCES.push(
       { name: "bankName", label: L("Bank", "Bank"), type: "text" },
       { name: "bankAccount", label: L("No. rekening", "Account number"), type: "text" },
       { name: "bankAccountName", label: L("Nama pemilik rekening", "Account holder"), type: "text" },
+      { name: "address", label: L("Alamat", "Address"), type: "text" },
+      { name: "emergencyContact", label: L("Kontak darurat", "Emergency contact"), type: "text" },
+      { name: "emergencyPhone", label: L("Telepon kontak darurat", "Emergency phone"), type: "text" },
       { name: "active", label: L("Aktif", "Active"), type: "boolean" },
     ],
   },
@@ -1218,6 +1221,44 @@ RESOURCES.push(
         type: "ref",
         resource: "salary-grades",
         display: "name",
+      },
+      { name: "active", label: L("Aktif", "Active"), type: "boolean" },
+    ],
+  },
+  {
+    path: "expense-categories",
+    model: "expense_category",
+    title: L("Kategori Klaim", "Expense Categories"),
+    singular: L("Kategori klaim", "Expense category"),
+    permission: "hr",
+    writePermission: "hr.manage",
+    group: HR,
+    columns: [
+      { name: "name", label: L("Nama", "Name") },
+      { name: "annualLimit", label: L("Plafon per tahun", "Annual limit") },
+    ],
+    fields: [
+      name(),
+      {
+        name: "accountId",
+        label: L("Akun beban", "Expense account"),
+        type: "ref",
+        resource: "accounts",
+        display: "name",
+        required: true,
+      },
+      {
+        name: "annualLimit",
+        label: L(
+          "Plafon per karyawan per tahun (kosong = tanpa plafon)",
+          "Annual limit per employee (empty = none)",
+        ),
+        type: "number",
+      },
+      {
+        name: "taxable",
+        label: L("Objek PPh 21 bila dibayar lewat slip", "Subject to PPh 21 when paid via payslip"),
+        type: "boolean",
       },
       { name: "active", label: L("Aktif", "Active"), type: "boolean" },
     ],
@@ -1651,6 +1692,15 @@ export const LEAVE_STATE_LABEL: Record<string, Text> = {
   confirm: L("Menunggu persetujuan", "To approve"),
   approved: L("Disetujui", "Approved"),
   refused: L("Ditolak", "Refused"),
+  cancel: L("Dibatalkan", "Cancelled"),
+};
+
+export const EXPENSE_STATE_LABEL: Record<string, Text> = {
+  draft: L("Draft", "Draft"),
+  confirm: L("Menunggu persetujuan", "To approve"),
+  approved: L("Disetujui", "Approved"),
+  refused: L("Ditolak", "Refused"),
+  paid: L("Dibayar", "Paid"),
   cancel: L("Dibatalkan", "Cancelled"),
 };
 

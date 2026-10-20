@@ -309,3 +309,19 @@ export function bankTransferFile(format: BankFormat, header: TransferHeader, row
     skipped,
   };
 }
+
+/**
+ * Plafon klaim per kategori per tahun: sisa plafon setelah klaim lain (yang diajukan/disetujui/dibayar) dan
+ * apakah klaim baru masih muat. Plafon kosong = tanpa batas.
+ */
+export function claimLimitCheck(input: {
+  limit: Decimal.Value | null;
+  used: Decimal.Value;
+  amount: Decimal.Value;
+}) {
+  if (input.limit === null || input.limit === undefined)
+    return { ok: true, remaining: null as string | null, excess: "0" };
+  const remaining = Decimal.max(d(input.limit).minus(input.used), 0);
+  const excess = Decimal.max(d(input.amount).minus(remaining), 0);
+  return { ok: excess.isZero(), remaining: remaining.toFixed(0), excess: excess.toFixed(0) };
+}

@@ -350,7 +350,8 @@ class ApprovalsController {
 
   @Get(":model/:id")
   status(@Param("model") model: string, @Param("id", ParseUUIDPipe) id: string) {
-    if (model !== "leave_request" && model !== "overtime") throw new NotFoundException();
+    if (model !== "leave_request" && model !== "overtime" && model !== "expense_claim")
+      throw new NotFoundException();
     return this.tenantDb.run((tx) => this.approvals.status(tx, model, id));
   }
 
@@ -930,6 +931,6 @@ class PortalController {
     ApprovalService,
     ScheduleService,
   ],
-  exports: [EmployeeService, LeaveService, ScheduleService],
+  exports: [EmployeeService, LeaveService, ScheduleService, ApprovalService],
 })
 export class HrModule {}

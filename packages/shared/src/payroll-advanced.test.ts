@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bankOf,
+  claimLimitCheck,
   bankTransferFile,
   fullMonths,
   gradePosition,
@@ -8,7 +9,12 @@ import {
   thrAmount,
   type TransferRow,
 } from "./payroll-advanced.js";
-import { payrollCostQuerySchema, salaryGradeSchema } from "./schemas.js";
+import {
+  employeeChangeSchema,
+  expenseClaimSchema,
+  payrollCostQuerySchema,
+  salaryGradeSchema,
+} from "./schemas.js";
 
 describe("THR (Permenaker 6/2016)", () => {
   const base = { wageType: "monthly" as const, monthlyWage: "6000000", holidayDate: "2026-03-20" };
@@ -182,5 +188,44 @@ describe("file transfer gaji", () => {
     const all = bankTransferFile("csv", header, rows);
     expect(all).toMatchObject({ count: 3, total: "12500000" });
     expect(all.content).toContain("NIK Karyawan");
+  });
+});
+
+describe("klaim biaya", () => {
+  it("plafon tahunan per kategori", () => {
+    expect(claimLimitCheck({ limit: null, used: "9000000", amount: "1" })).toMatchObject({
+      ok: true,
+      remaining: null,
+    });
+    expect(claimLimitCheck({ limit: "5000000", used: "3000000", amount: "2000000" })).toEqual({
+      ok: true,
+      remaining: "2000000",
+      excess: "0",
+    });
+    expect(claimLimitCheck({ limit: "5000000", used: "4500000", amount: "1000000" })).toEqual({
+      ok: false,
+      remaining: "500000",
+      excess: "500000",
+    });
+    expect(claimLimitCheck({ limit: "1000000", used: "1500000", amount: "1" })).toMatchObject({
+      remaining: "0",
+      ok: false,
+    });
+  });
+
+  it("validasi klaim & perubahan data", () => {
+    const line = { categoryId: "00000000-0000-4000-8000-000000000001", date: "2026-03-01", amount: "150000" };
+    expect(expenseClaimSchema.safeParse({ date: "2026-03-02", lines: [] }).success).toBe(false);
+    expect(expenseClaimSchema.parse({ date: "2026-03-02", lines: [line] }).payMethod).toBe("payslip");
+    const big = { name: "a.pdf", type: "application/pdf", data: "A".repeat(3 * 1024 * 1024) };
+    expect(
+      expenseClaimSchema.safeParse({ date: "2026-03-02", lines: [{ ...line, attachment: big }] }).success,
+    ).toBe(false);
+    const gif = { name: "a.gif", type: "image/gif", data: "AAAA" };
+    expect(
+      expenseClaimSchema.safeParse({ date: "2026-03-02", lines: [{ ...line, attachment: gif }] }).success,
+    ).toBe(false);
+    expect(employeeChangeSchema.safeParse({ note: "x" }).success).toBe(false);
+    expect(employeeChangeSchema.parse({ bankAccount: "123-456" }).bankAccount).toBe("123-456");
   });
 });

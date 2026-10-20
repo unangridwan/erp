@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, useEffect, useState } from "react";
 import { api, ApiError } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
 
 interface Pending {
-  model: "leave_request" | "overtime";
+  model: "leave_request" | "overtime" | "expense_claim";
   id: string;
   employeeName: string;
   summary: string;
@@ -42,7 +43,11 @@ export default function ApprovalsPage() {
   async function decide(r: Pending, decision: "approve" | "refuse") {
     setError(null);
     const path =
-      r.model === "leave_request" ? `/leaves/${r.id}/${decision}` : `/approvals/overtime/${r.id}/${decision}`;
+      r.model === "leave_request"
+        ? `/leaves/${r.id}/${decision}`
+        : r.model === "expense_claim"
+          ? `/expense-claims/${r.id}/${decision}`
+          : `/approvals/overtime/${r.id}/${decision}`;
     try {
       await api(path, { method: "POST", body: { note: notes[r.id] || null } });
       setVersion((v) => v + 1);
@@ -93,7 +98,15 @@ export default function ApprovalsPage() {
               {rows.map((r) => (
                 <Fragment key={r.id}>
                   <tr>
-                    <td>{r.model === "leave_request" ? l("Cuti", "Time off") : l("Lembur", "Overtime")}</td>
+                    <td>
+                      {r.model === "leave_request" ? (
+                        l("Cuti", "Time off")
+                      ) : r.model === "expense_claim" ? (
+                        <Link href={`/hr/expenses/${r.id}`}>{l("Klaim biaya", "Expense claim")}</Link>
+                      ) : (
+                        l("Lembur", "Overtime")
+                      )}
+                    </td>
                     <td>{r.employeeName}</td>
                     <td>{r.summary}</td>
                     <td>
