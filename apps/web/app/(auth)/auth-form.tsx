@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, API_URL, ApiError, session, type Session } from "../../lib/api";
 import { LocaleSwitch, useI18n, type MessageKey } from "../../lib/i18n";
+import { ThemeSwitch } from "../../lib/theme";
 
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
@@ -133,7 +134,10 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             </>
           )}
         </p>
-        <LocaleSwitch />
+        <div className="auth-prefs">
+          <LocaleSwitch />
+          <ThemeSwitch />
+        </div>
       </form>
     </main>
   );

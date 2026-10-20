@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { session, type Me } from "../lib/api";
 import { visibleMenu, type App, type MenuEntry } from "../lib/apps";
 import { useI18n } from "../lib/i18n";
+import { useTheme, useThemeLabels } from "../lib/theme";
 import { AppIcon, AppsGlyph } from "./app-icon";
 
 /** Tutup dropdown saat klik di luar elemen atau setelah navigasi. */
@@ -37,6 +38,8 @@ export function Navbar({ me, app }: { me: Me; app: App | null }) {
   const router = useRouter();
   const pathname = usePathname();
   const { tx, l, locale, setLocale } = useI18n();
+  const [theme, setTheme] = useTheme();
+  const themeLabels = useThemeLabels();
   const { open, setOpen, ref } = useDropdown();
   const menu: MenuEntry[] = app ? visibleMenu(me, app) : [];
   const active = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
@@ -123,6 +126,18 @@ export function Navbar({ me, app }: { me: Me; app: App | null }) {
               <button className="nav-item" onClick={() => setLocale(locale === "id" ? "en" : "id")}>
                 {locale === "id" ? "English" : "Bahasa Indonesia"}
               </button>
+              <div className="nav-theme" role="group" aria-label={l("Tema", "Theme")}>
+                {(["light", "dark", "system"] as const).map((t) => (
+                  <button
+                    key={t}
+                    className={theme === t ? "active" : ""}
+                    aria-pressed={theme === t}
+                    onClick={() => setTheme(t)}
+                  >
+                    {themeLabels[t]}
+                  </button>
+                ))}
+              </div>
               <button
                 className="nav-item"
                 onClick={async () => {

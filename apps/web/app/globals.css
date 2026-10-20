@@ -12,9 +12,27 @@
   --hover: #f2eef1;
   --nav-bg: #ffffff;
   --shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 2px 6px rgb(0 0 0 / 5%);
+  color-scheme: light;
+}
+/* Tema gelap: dipilih pengguna (data-theme="dark") atau mengikuti sistem bila tidak dipilih terang. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1b1d26;
+  --fg: #e4e4e4;
+  --card: #262a36;
+  --border: #3c3e4b;
+  --muted: #9a9ca5;
+  --accent: #a07c9a;
+  --accent-fg: #111;
+  --link: #48c6cc;
+  --danger: #ff6b76;
+  --hover: #2f3341;
+  --nav-bg: #262a36;
+  --shadow: 0 1px 2px rgb(0 0 0 / 30%);
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #1b1d26;
     --fg: #e4e4e4;
     --card: #262a36;
@@ -1021,4 +1039,26 @@ code.wrap {
   font-weight: 600;
   font-size: 18px;
   margin-right: auto;
+}
+
+/* Pemilih tema di menu user & halaman masuk. */
+.nav-theme {
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px;
+}
+.nav-theme button {
+  flex: 1;
+  padding: 3px 6px;
+  font-size: 12px;
+}
+.nav-theme button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+.auth-prefs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
