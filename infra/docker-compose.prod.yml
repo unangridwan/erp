@@ -64,6 +64,7 @@ services:
       target: web
       args:
         NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL wajib, mis. https://api.erpku.id}
+        NEXT_PUBLIC_SENTRY_DSN: ${WEB_SENTRY_DSN:-}
     restart: unless-stopped
     ports: ["127.0.0.1:3000:3000"]
     depends_on: [api]

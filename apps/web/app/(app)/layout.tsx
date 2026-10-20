@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { MeContext } from "../../components/me-context";
 import { Navbar } from "../../components/navbar";
 import { api, session, type Me } from "../../lib/api";
+import { setErrorUser } from "../../lib/error-reporting";
 import { appForPath, rememberApp, rememberedApp, visibleApps } from "../../lib/apps";
 import { useI18n } from "../../lib/i18n";
 import { can } from "../../lib/resources";
@@ -31,6 +32,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     api<Me>("/auth/me")
       .then((data) => {
         session.setCompanyId(data.activeCompanyId);
+        setErrorUser(data);
         setMe(data);
       })
       .catch(() => {

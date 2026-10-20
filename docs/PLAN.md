@@ -299,7 +299,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   sudah diakui), goodwill entitas asing dijabarkan kurs penutupan (selisih ke selisih kurs penjabaran induk), laba
   belum terealisasi atas persediaan dengan asosiasi (downstream & upstream, bagian investor), laporan segmen per
   perusahaan/unit bisnis/cabang dengan rekonsiliasi eliminasi; konsolidasi sub-grup dengan memilih sub-holding sebagai
-  induk. Belum: selisih kurs penjabaran asosiasi asing pada metode ekuitas
+  induk; bagian investor atas selisih kurs penjabaran asosiasi asing (metode ekuitas) ke investasi & OCI, direklasifikasi
+  saat pengaruh signifikan hilang
+- [x] Operasional (tunda, selesai): laporan error browser ke Sentry (error render & tak tertangani, token di URL
+  disaring)
 - [x] Fase 5 (tunda, selesai sebagian): bukti potong A1 (XML `A1Bulk` dari slip masa terakhir); faktur uang muka &
   pelunasan (potongan uang muka mengurangi DPP); PPnBM per produk (tarif di produk, pajak PPnBM + PPN barang mewah
   otomatis di baris penjualan, STLG di faktur); pemeriksaan isi XML faktur sebelum ekspor sesuai aturan template
@@ -309,8 +312,7 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   & pembersihan WAL, skrip pemulihan ke titik waktu (diuji putar ulang WAL sampai target); tracing OpenTelemetry
   (HTTP, Express, Nest, Postgres, Redis via OTLP, `traceId` di log); laporan error Sentry untuk 5xx & job latar
 - [ ] Fase 5 ditunda: bukti potong A2 (khusus ASN/bendahara instansi pemerintah); XML Coretax untuk faktur pengganti &
-  retur (impor XML Coretax hanya menerima faktur normal; skema retur pajak masukan belum bisa diverifikasi dari sini);
-  Sentry untuk aplikasi web (browser)
+  retur (impor XML Coretax hanya menerima faktur normal; skema retur pajak masukan belum bisa diverifikasi dari sini)
 - [x] Fase 4 (tunda, selesai): jadwal kerja & penugasan shift dengan toleransi dan potongan keterlambatan per menit/
   kejadian (zona waktu perusahaan, hari libur dikecualikan) yang masuk slip; persetujuan berjenjang cuti & lembur
   (atasan → atasan dari atasan → HR, riwayat & kotak persetujuan); pinjaman karyawan (pencairan via kas/bank ke piutang

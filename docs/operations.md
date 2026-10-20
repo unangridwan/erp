@@ -38,6 +38,7 @@ docker compose -f infra/docker-compose.prod.yml --env-file .env.prod up -d --bui
 | `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`                     |       | Tracing OpenTelemetry (OTLP/HTTP, mis. `http://otel-collector:4318`); nama bawaan `erp-api` |
 | `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`                       |       | Sampling, mis. `parentbased_traceidratio` + `0.1` (bawaan semua trace)                      |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE`                   |       | Laporan error 5xx & job latar ke Sentry (atau GlitchTip yang kompatibel)                    |
+| `WEB_SENTRY_DSN` (build web: `NEXT_PUBLIC_SENTRY_DSN`)                 |       | Laporan error browser (error render & tak tertangani); ditanam saat build image web         |
 | `PITR_BASE_KEEP`, `PITR_BASE_INTERVAL_SECONDS`, `PITR_ARCHIVE_TIMEOUT` |       | Base backup PITR yang disimpan (2), jarak (7 hari), batas detik ganti WAL (300)             |
 
 Callback Xendit: arahkan _Invoice paid_ ke `https://api.erpku.id/billing/webhooks/xendit` dengan token verifikasi yang
@@ -102,6 +103,9 @@ terakhir yang terarsip. Server hasil pemulihan menonaktifkan `archive_mode` samp
 - **Sentry**: isi `SENTRY_DSN` untuk menerima error tak tertangani (respons 500) dan kegagalan job latar (kurs
   harian, perpanjangan langganan) dengan tag `tenant_id`, `request_id`, `route`, dan ID user — tanpa body request,
   header, atau data pribadi lainnya.
+- **Sentry di web**: isi `WEB_SENTRY_DSN` (DSN proyek browser, boleh berbeda dari API) sebelum build image web. Error
+  render (batas error halaman) dan error JavaScript tak tertangani dilaporkan dengan ID user & tenant; fragmen URL dan
+  parameter token (refresh SSO, undangan, reset password, SAML) dihapus sebelum dikirim. Tanpa DSN, SDK tidak dimuat.
 
 ## 5. Keamanan
 
