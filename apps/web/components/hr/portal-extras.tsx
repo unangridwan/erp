@@ -384,3 +384,59 @@ export function MyTaxSlips() {
     </section>
   );
 }
+
+/** Tugas checklist onboarding/offboarding milik sendiri. */
+export function MyChecklistTasks() {
+  const { l, locale } = useI18n();
+  const [rows, setRows] = useState<
+    {
+      id: string;
+      name: string;
+      dueDate: string;
+      doneAt: string | null;
+      checklistName: string;
+      employeeName: string;
+    }[]
+  >([]);
+  const [version, setVersion] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    api<typeof rows>("/me/checklist-tasks").then(setRows, () => setRows([]));
+  }, [version]);
+  if (!rows.length) return null;
+  return (
+    <section className="panel">
+      <h2>{l("Tugas onboarding/offboarding", "Onboarding/offboarding tasks")}</h2>
+      {error && <p className="error">{error}</p>}
+      <table>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id}>
+              <td>
+                <input
+                  type="checkbox"
+                  aria-label={r.name}
+                  checked={Boolean(r.doneAt)}
+                  onChange={(e) =>
+                    api(`/hr-checklists/tasks/${r.id}`, {
+                      method: "POST",
+                      body: { done: e.target.checked },
+                    }).then(
+                      () => setVersion((v) => v + 1),
+                      (err) => setError(errorText(err)),
+                    )
+                  }
+                />
+              </td>
+              <td>{r.name}</td>
+              <td className="muted">
+                {r.checklistName} · {r.employeeName}
+              </td>
+              <td>{formatDate(r.dueDate, locale)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}

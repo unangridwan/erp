@@ -27,6 +27,8 @@ export interface AppConfig {
   };
   /** Sumber kurs otomatis (API Frankfurter: kurs referensi ECB) & penjadwal harian. */
   fx: { frankfurterUrl: string; scheduler: boolean };
+  /** Email pengingat HR harian (dokumen kedaluwarsa, kontrak PKWT berakhir). */
+  hrReminder: { scheduler: boolean };
   /** Token untuk GET /metrics (Prometheus); kosong = endpoint dimatikan. */
   metricsToken: string | null;
   logFormat: "json" | "pretty" | "off";
@@ -66,6 +68,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     fx: {
       frankfurterUrl: (env.FX_FRANKFURTER_URL ?? "https://api.frankfurter.app").replace(/\/+$/, ""),
       scheduler: env.FX_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
+    },
+    hrReminder: {
+      scheduler: env.HR_REMINDER_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
     },
     metricsToken: env.METRICS_TOKEN || null,
     logFormat: (env.LOG_FORMAT as "json" | "pretty" | "off" | undefined) ?? (env.VITEST ? "off" : "pretty"),

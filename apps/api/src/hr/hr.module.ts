@@ -21,6 +21,7 @@ import {
   checkInSchema,
   contractSchema,
   departmentSchema,
+  addDays,
   employeeSchema,
   gradePosition,
   holidaySchema,
@@ -46,6 +47,7 @@ import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { ApprovalService } from "./approval.service.js";
+import { ChecklistService } from "./checklist.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { LeaveService } from "./leave.service.js";
 import { ScheduleService } from "./schedule.service.js";
@@ -375,6 +377,7 @@ class EmployeesController {
   constructor(
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(EmployeeService) private readonly employees: EmployeeService,
+    @Inject(ChecklistService) private readonly checklists: ChecklistService,
   ) {}
 
   @Get()
@@ -395,7 +398,13 @@ class EmployeesController {
   @RequirePermission("hr.write")
   create(@Body() body: unknown) {
     const input = parse(employeeSchema, body);
-    return this.tenantDb.run((tx) => this.employees.create(tx, input));
+    return this.tenantDb.run(async (tx) => {
+      const employee = await this.employees.create(tx, input);
+      // Onboarding otomatis untuk karyawan baru (bukan impor data lama).
+      if (employee.joinDate >= addDays(new Date().toISOString().slice(0, 10), -30))
+        await this.checklists.autoStart(tx, employee.id, "onboarding");
+      return employee;
+    });
   }
 
   @Patch(":id")
@@ -405,7 +414,13 @@ class EmployeesController {
     const sent = Object.fromEntries(
       Object.entries(values).filter(([k]) => body !== null && typeof body === "object" && k in body),
     );
-    return this.tenantDb.run((tx) => this.employees.update(tx, id, sent));
+    return this.tenantDb.run(async (tx) => {
+      const before = await this.employees.find(tx, id);
+      const employee = await this.employees.update(tx, id, sent);
+      // Tanggal keluar baru diisi → checklist offboarding.
+      if (employee.resignDate && !before.resignDate) await this.checklists.autoStart(tx, id, "offboarding");
+      return employee;
+    });
   }
 
   @Delete(":id")
@@ -930,7 +945,8 @@ class PortalController {
     LeaveService,
     ApprovalService,
     ScheduleService,
+    ChecklistService,
   ],
-  exports: [EmployeeService, LeaveService, ScheduleService, ApprovalService],
+  exports: [EmployeeService, LeaveService, ScheduleService, ApprovalService, ChecklistService],
 })
 export class HrModule {}

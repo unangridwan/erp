@@ -232,6 +232,7 @@ export const APPS: App[] = [
       "/work-entries",
       "/salary-grades",
       "/expense-categories",
+      "/job-openings",
     ],
     menu: [
       group("Karyawan", "Employees", [
@@ -251,6 +252,14 @@ export const APPS: App[] = [
       ]),
       link("Lembur", "Overtime", "/overtimes", "hr.read"),
       link("Klaim Biaya", "Expenses", "/hr/expenses", "hr.read"),
+      group("Rekrutmen", "Recruitment", [
+        link("Pelamar", "Applicants", "/hr/recruitment", "hr.read"),
+        link("Lowongan", "Job Openings", "/job-openings", "hr.read"),
+      ]),
+      group("Siklus Karyawan", "Employee Lifecycle", [
+        link("Checklist", "Checklists", "/hr/checklists", "hr.read"),
+        link("Pengingat", "Reminders", "/hr/reminders", "hr.read"),
+      ]),
       link("Persetujuan", "Approvals", "/hr/approvals", "hr.read"),
       link("Perubahan Data", "Data Changes", "/hr/change-requests", "hr.manage"),
       group("Konfigurasi", "Configuration", [
@@ -260,6 +269,7 @@ export const APPS: App[] = [
         link("Struktur & Skala Upah", "Wage Scale", "/hr/wage-scale", "hr.manage"),
         link("Jenis Cuti", "Time Off Types", "/leave-types", "hr.read"),
         link("Kategori Klaim", "Expense Categories", "/expense-categories", "hr.read"),
+        link("Template Checklist", "Checklist Templates", "/hr/checklist-templates", "hr.read"),
         link("Hari Libur", "Public Holidays", "/public-holidays", "hr.read"),
       ]),
     ],

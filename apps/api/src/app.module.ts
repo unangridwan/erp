@@ -22,6 +22,7 @@ import { IntercompanyModule } from "./intercompany/intercompany.module.js";
 import { PortalModule } from "./portal/portal.module.js";
 import { ExpenseModule } from "./hr/expense.module.js";
 import { HrModule } from "./hr/hr.module.js";
+import { RecruitmentModule } from "./hr/recruitment.module.js";
 import { PayrollModule } from "./payroll/payroll.module.js";
 import { TaxModule } from "./tax/tax.module.js";
 import { BillingModule } from "./billing/billing.module.js";
@@ -48,6 +49,7 @@ import { UsersService } from "./users/users.service.js";
     PortalModule,
     HrModule,
     ExpenseModule,
+    RecruitmentModule,
     PayrollModule,
     TaxModule,
     OnboardingModule,

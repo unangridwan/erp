@@ -484,3 +484,145 @@ export const employeeChangeRequests = pgTable("employee_change_requests", {
   createdBy: uuid("created_by"),
   ...audit,
 });
+
+// ---- Rekrutmen, dokumen, checklist ----
+
+export const jobOpenings = pgTable("job_openings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  jobId: uuid("job_id"),
+  departmentId: uuid("department_id"),
+  description: text("description"),
+  quota: integer("quota").notNull().default(1),
+  state: text("state", { enum: ["open", "closed"] })
+    .notNull()
+    .default("open"),
+  dateOpen: date("date_open").notNull().defaultNow(),
+  dateClose: date("date_close"),
+  ...audit,
+});
+
+export const APPLICANT_STAGES = ["new", "screening", "interview", "offer", "hired", "refused"] as const;
+
+export const applicants = pgTable("applicants", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  openingId: uuid("opening_id").notNull(),
+  name: text("name").notNull(),
+  email: text("email"),
+  phone: text("phone"),
+  source: text("source", { enum: ["referral", "jobportal", "website", "walkin", "other"] })
+    .notNull()
+    .default("other"),
+  stage: text("stage", { enum: APPLICANT_STAGES }).notNull().default("new"),
+  expectedWage: numeric("expected_wage", { precision: 20, scale: 2 }),
+  notes: text("notes"),
+  refuseReason: text("refuse_reason"),
+  employeeId: uuid("employee_id"),
+  ...audit,
+});
+
+export const applicantInterviews = pgTable("applicant_interviews", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  applicantId: uuid("applicant_id").notNull(),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+  interviewerId: uuid("interviewer_id"),
+  location: text("location"),
+  result: text("result"),
+  score: smallint("score"),
+  done: boolean("done").notNull().default(false),
+  ...audit,
+});
+
+export const HR_DOCUMENT_KINDS = [
+  "ktp",
+  "npwp",
+  "kk",
+  "ijazah",
+  "cv",
+  "contract",
+  "decree",
+  "certificate",
+  "other",
+] as const;
+
+export const hrDocuments = pgTable("hr_documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id"),
+  applicantId: uuid("applicant_id"),
+  kind: text("kind", { enum: HR_DOCUMENT_KINDS }).notNull(),
+  name: text("name").notNull(),
+  file: bytea("file").notNull(),
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type").notNull(),
+  issuedDate: date("issued_date"),
+  expiryDate: date("expiry_date"),
+  note: text("note"),
+  createdBy: uuid("created_by"),
+  ...audit,
+});
+
+const RESPONSIBLES = ["hr", "manager", "employee", "it"] as const;
+const CHECKLIST_ACTIONS = ["severance", "deactivate_user"] as const;
+
+export const hrChecklistTemplates = pgTable("hr_checklist_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  kind: text("kind", { enum: ["onboarding", "offboarding"] }).notNull(),
+  name: text("name").notNull(),
+  isDefault: boolean("is_default").notNull().default(false),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const hrChecklistTemplateItems = pgTable("hr_checklist_template_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  templateId: uuid("template_id").notNull(),
+  sequence: integer("sequence").notNull().default(0),
+  name: text("name").notNull(),
+  responsible: text("responsible", { enum: RESPONSIBLES }).notNull().default("hr"),
+  dueDays: integer("due_days").notNull().default(0),
+  action: text("action", { enum: CHECKLIST_ACTIONS }),
+});
+
+export const hrChecklists = pgTable("hr_checklists", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  kind: text("kind", { enum: ["onboarding", "offboarding"] }).notNull(),
+  name: text("name").notNull(),
+  baseDate: date("base_date").notNull(),
+  state: text("state", { enum: ["open", "done"] })
+    .notNull()
+    .default("open"),
+  ...audit,
+});
+
+export const hrChecklistTasks = pgTable("hr_checklist_tasks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  checklistId: uuid("checklist_id").notNull(),
+  sequence: integer("sequence").notNull().default(0),
+  name: text("name").notNull(),
+  responsible: text("responsible", { enum: RESPONSIBLES }).notNull(),
+  responsibleUserId: uuid("responsible_user_id"),
+  dueDate: date("due_date").notNull(),
+  action: text("action", { enum: CHECKLIST_ACTIONS }),
+  doneAt: timestamp("done_at", { withTimezone: true }),
+  doneBy: uuid("done_by"),
+});
+
+export const hrReminderLog = pgTable("hr_reminder_log", {
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  sentOn: date("sent_on").notNull(),
+});
