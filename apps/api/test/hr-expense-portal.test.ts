@@ -64,7 +64,7 @@ describe.skipIf(!hasDb)("HR: klaim biaya & portal karyawan", () => {
       code: string;
     }[];
     expenseAccount = accounts.find(
-      (x) => x.code.startsWith("6-") && !["6-1000", "6-1100"].includes(x.code),
+      (x) => x.code.startsWith("6-") && !["6-1000", "6-1100", "6-1110"].includes(x.code),
     )!.id;
     bankJournal = (await a.get("/journals").expect(200)).body.items.find(
       (j: { code: string }) => j.code === "BNK1",

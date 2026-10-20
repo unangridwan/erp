@@ -91,8 +91,33 @@ const EMPLOYEE_COLUMNS: Column[] = [
   { key: "kkNo", header: "No. KK", group: "Identitas & Pajak", sensitive: true },
   { key: "npwp", header: "NPWP", group: "Identitas & Pajak", sensitive: true },
   { key: "ptkpStatus", header: "Status PTKP", group: "Identitas & Pajak", example: "TK/0" },
-  { key: "bpjsKesNo", header: "No. BPJS Kesehatan", group: "Identitas & Pajak" },
-  { key: "bpjsTkNo", header: "No. BPJS Ketenagakerjaan", group: "Identitas & Pajak" },
+  { key: "bpjsKesNo", header: "No. BPJS Kesehatan", group: "BPJS Kesehatan" },
+  {
+    key: "bpjsKesEnrolled",
+    header: "Peserta BPJS Kesehatan",
+    group: "BPJS Kesehatan",
+    example: "ya",
+    note: "ya/tidak",
+  },
+  { key: "bpjsKesDate", header: "Tgl Kepesertaan BPJS Kesehatan", group: "BPJS Kesehatan" },
+  { key: "bpjsKesClass", header: "Kelas BPJS Kesehatan", group: "BPJS Kesehatan", note: "1, 2, atau 3" },
+  { key: "bpjsKesFacility", header: "Faskes Tingkat 1", group: "BPJS Kesehatan" },
+  { key: "bpjsTkNo", header: "No. BPJS Ketenagakerjaan (KPJ)", group: "BPJS Ketenagakerjaan" },
+  {
+    key: "bpjsTkEnrolled",
+    header: "Peserta BPJS Ketenagakerjaan",
+    group: "BPJS Ketenagakerjaan",
+    example: "ya",
+    note: "ya/tidak (JHT, JKK, JKM)",
+  },
+  { key: "bpjsTkDate", header: "Tgl Kepesertaan BPJS Ketenagakerjaan", group: "BPJS Ketenagakerjaan" },
+  {
+    key: "bpjsJpEnrolled",
+    header: "Ikut Jaminan Pensiun",
+    group: "BPJS Ketenagakerjaan",
+    example: "ya",
+    note: "ya/tidak",
+  },
   { key: "birthPlace", header: "Tempat Lahir", group: "Biodata", example: "Bandung" },
   { key: "birthDate", header: "Tanggal Lahir", group: "Biodata", example: "1993-05-12" },
   { key: "gender", header: "Jenis Kelamin", group: "Biodata", example: "Perempuan" },
@@ -123,6 +148,7 @@ const TEXT_FIELDS = [
   "kkNo",
   "npwp",
   "bpjsKesNo",
+  "bpjsKesFacility",
   "bpjsTkNo",
   "birthPlace",
   "nationality",
@@ -149,7 +175,11 @@ async function employeeInput(row: Row, ctx: Ctx, lookups: Lookups) {
     input[f] = v;
   }
   for (const f of ENUM_FIELDS) if (get(row, f)) input[f] = code(f, f, get(row, f));
-  for (const f of ["joinDate", "resignDate", "birthDate"]) if (get(row, f)) input[f] = date(f, get(row, f));
+  for (const f of ["joinDate", "resignDate", "birthDate", "bpjsKesDate", "bpjsTkDate"])
+    if (get(row, f)) input[f] = date(f, get(row, f));
+  for (const f of ["bpjsKesEnrolled", "bpjsTkEnrolled", "bpjsJpEnrolled"])
+    if (get(row, f)) input[f] = bool(f, get(row, f));
+  if (get(row, "bpjsKesClass")) input.bpjsKesClass = Number(num("bpjsKesClass", get(row, "bpjsKesClass")));
   for (const f of ["heightCm", "weightKg"]) if (get(row, f)) input[f] = Number(num(f, get(row, f)));
   if (get(row, "active")) input.active = bool("active", get(row, "active"));
   if (get(row, "department"))
@@ -228,6 +258,9 @@ function employeesDataset(svc: HrServices): Dataset {
           schedule: r.scheduleId ? n.schedules.get(r.scheduleId) : "",
           managerNumber: r.managerId ? numbers.get(r.managerId) : "",
           active: r.active ? "ya" : "tidak",
+          bpjsKesEnrolled: r.bpjsKesEnrolled ? "ya" : "tidak",
+          bpjsTkEnrolled: r.bpjsTkEnrolled ? "ya" : "tidak",
+          bpjsJpEnrolled: r.bpjsJpEnrolled ? "ya" : "tidak",
           ...Object.fromEntries(ENUM_FIELDS.map((f) => [f, label(f, r[f])])),
         };
       });
@@ -438,7 +471,7 @@ function familyDataset(svc: HrServices): Dataset {
     key: "family",
     label: "Data keluarga",
     description:
-      "Anggota keluarga karyawan, tanggungan PTKP & BPJS. Baris dengan nama & hubungan sama diperbarui.",
+      "Anggota keluarga karyawan, tanggungan PTKP & BPJS Kesehatan. Baris dengan nama & hubungan sama diperbarui.",
     app: "hr",
     read: "hr.read",
     write: "hr.manage",
@@ -464,7 +497,7 @@ function familyDataset(svc: HrServices): Dataset {
       { key: "occupation", header: "Pekerjaan", group: "Keluarga" },
       { key: "phone", header: "Telepon", group: "Keluarga" },
       { key: "dependent", header: "Tanggungan PTKP", group: "Keluarga", example: "ya" },
-      { key: "bpjsCovered", header: "Ditanggung BPJS", group: "Keluarga", example: "ya" },
+      { key: "bpjsCovered", header: "Ditanggung BPJS Kesehatan", group: "Keluarga", example: "ya" },
       { key: "alive", header: "Masih Hidup", group: "Keluarga", example: "ya" },
     ],
     async rows(tx, ctx, query) {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_BPJS,
   bpjsContributions,
+  bpjsProgram,
   computePayslip,
   overtimePay,
   pph21Annual,
@@ -76,7 +77,29 @@ describe("BPJS", () => {
     expect(bpjsContributions(10_000_000)).toEqual({
       employer: { kes: "400000", jht: "370000", jkk: "24000", jkm: "30000", jp: "200000" },
       employee: { kes: "100000", jht: "200000", jp: "100000" },
+      kesWage: "10000000",
+      tkWage: "10000000",
     });
+  });
+  it("kepesertaan per program: tanpa BPJS Kesehatan / Ketenagakerjaan / JP", () => {
+    const noKes = bpjsContributions(10_000_000, DEFAULT_BPJS, false, { kes: false, tk: true, jp: true });
+    expect(noKes.employer.kes).toBe("0");
+    expect(noKes.employee.kes).toBe("0");
+    expect(noKes.kesWage).toBe("0");
+    expect(noKes.employer.jht).toBe("370000");
+    const noTk = bpjsContributions(10_000_000, DEFAULT_BPJS, false, { kes: true, tk: false, jp: true });
+    expect([
+      noTk.employer.jht,
+      noTk.employer.jkk,
+      noTk.employer.jkm,
+      noTk.employer.jp,
+      noTk.employee.jht,
+    ]).toEqual(["0", "0", "0", "0", "0"]);
+    expect(noTk.employer.kes).toBe("400000");
+    const noJp = bpjsContributions(10_000_000, DEFAULT_BPJS, false, { kes: true, tk: true, jp: false });
+    expect([noJp.employer.jp, noJp.employee.jp, noJp.employer.jht]).toEqual(["0", "0", "370000"]);
+    expect(bpjsProgram("BPJS_KES_ER")).toBe("kes");
+    expect(bpjsProgram("JKK")).toBe("tk");
   });
   it("batas upah BPJS Kesehatan & JP", () => {
     const r = bpjsContributions(15_000_000, DEFAULT_BPJS);
@@ -85,6 +108,8 @@ describe("BPJS", () => {
     expect(r.employer.jp).toBe("210948");
     expect(r.employee.jp).toBe("105474");
     expect(r.employer.jht).toBe("555000");
+    expect(r.kesWage).toBe("12000000");
+    expect(r.tkWage).toBe("15000000");
   });
 });
 
@@ -127,6 +152,12 @@ describe("slip gaji", () => {
       pph21: "652240",
       employeeBpjs: "465474",
       employerBpjs: "1199748",
+      // Terpisah per program: Kesehatan (batas upah Rp12 jt) & Ketenagakerjaan.
+      kesEmployee: "120000",
+      kesEmployer: "480000",
+      tkEmployee: "345474",
+      tkEmployer: "719748",
+      kesWage: "12000000",
       net: "11382286",
     });
     expect(r.lines.find((l) => l.code === "PPH21")?.amount).toBe("-652240");

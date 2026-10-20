@@ -19,7 +19,15 @@ interface Run {
   paymentDate: string;
   state: string;
   totals: Record<
-    "earnings" | "gross" | "pph21" | "employeeBpjs" | "employerBpjs" | "deductions" | "net",
+    | "earnings"
+    | "gross"
+    | "pph21"
+    | "kesEmployee"
+    | "kesEmployer"
+    | "tkEmployee"
+    | "tkEmployer"
+    | "deductions"
+    | "net",
     string
   >;
   payslips: {
@@ -35,7 +43,8 @@ interface Run {
     earnings: string;
     gross: string;
     pph21: string;
-    employeeBpjs: string;
+    kesEmployee: string;
+    tkEmployee: string;
     net: string;
     emailedAt: string | null;
     emailError: string | null;
@@ -322,8 +331,10 @@ export default function PayrollRunPage() {
           [
             [l("Total pendapatan", "Total earnings"), run.totals.earnings],
             [l("PPh 21", "PPh 21"), run.totals.pph21],
-            [l("BPJS karyawan", "Employee BPJS"), run.totals.employeeBpjs],
-            [l("BPJS perusahaan", "Employer BPJS"), run.totals.employerBpjs],
+            [l("BPJS Kesehatan — karyawan", "BPJS Health — employee"), run.totals.kesEmployee],
+            [l("BPJS Kesehatan — perusahaan", "BPJS Health — employer"), run.totals.kesEmployer],
+            [l("BPJS Ketenagakerjaan — karyawan", "BPJS Employment — employee"), run.totals.tkEmployee],
+            [l("BPJS Ketenagakerjaan — perusahaan", "BPJS Employment — employer"), run.totals.tkEmployer],
             [l("Gaji bersih", "Net pay"), run.totals.net],
           ] as const
         ).map(([label, value]) => (
@@ -343,7 +354,8 @@ export default function PayrollRunPage() {
               <th className="num">{l("Pendapatan", "Earnings")}</th>
               <th className="num">{l("Bruto PPh 21", "PPh 21 gross")}</th>
               <th className="num">PPh 21</th>
-              <th className="num">BPJS</th>
+              <th className="num">{l("BPJS Kesehatan", "BPJS Health")}</th>
+              <th className="num">{l("BPJS Ketenagakerjaan", "BPJS Employment")}</th>
               <th className="num">{l("Gaji bersih", "Net")}</th>
             </tr>
           </thead>
@@ -368,7 +380,8 @@ export default function PayrollRunPage() {
                 <td className="num">{n(p.earnings)}</td>
                 <td className="num">{n(p.gross)}</td>
                 <td className="num">{n(p.pph21)}</td>
-                <td className="num">{n(p.employeeBpjs)}</td>
+                <td className="num">{n(p.kesEmployee)}</td>
+                <td className="num">{n(p.tkEmployee)}</td>
                 <td className="num">
                   <strong>{n(p.net)}</strong>
                 </td>
@@ -376,7 +389,7 @@ export default function PayrollRunPage() {
             ))}
             {run.payslips.length === 0 && (
               <tr>
-                <td colSpan={8} className="muted">
+                <td colSpan={9} className="muted">
                   {l(
                     "Tidak ada karyawan dengan kontrak berjalan pada periode ini.",
                     "No employees with a running contract in this period.",

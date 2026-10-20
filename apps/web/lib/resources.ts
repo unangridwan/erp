@@ -1197,8 +1197,50 @@ RESOURCES.push(
       { name: "kkNo", label: L("No. Kartu Keluarga", "Family card no."), type: "text" },
       { name: "npwp", label: L("NPWP", "Tax ID (NPWP)"), type: "text" },
       { name: "ptkpStatus", label: L("Status PTKP", "PTKP status"), type: "select", options: PTKP },
-      { name: "bpjsKesNo", label: L("No. BPJS Kesehatan", "BPJS Health no."), type: "text" },
-      { name: "bpjsTkNo", label: L("No. BPJS Ketenagakerjaan", "BPJS Employment no."), type: "text" },
+
+      {
+        name: "bpjsKesNo",
+        label: L("No. kartu BPJS Kesehatan", "BPJS Health card no."),
+        type: "text",
+        section: L("BPJS Kesehatan", "BPJS Health"),
+      },
+      {
+        name: "bpjsKesEnrolled",
+        label: L("Peserta BPJS Kesehatan", "Enrolled in BPJS Health"),
+        type: "boolean",
+      },
+      { name: "bpjsKesDate", label: L("Tanggal kepesertaan", "Enrolment date"), type: "date" },
+      {
+        name: "bpjsKesClass",
+        label: L("Kelas rawat", "Ward class"),
+        type: "select",
+        options: [
+          ["1", L("Kelas 1", "Class 1")],
+          ["2", L("Kelas 2", "Class 2")],
+          ["3", L("Kelas 3", "Class 3")],
+        ],
+      },
+      { name: "bpjsKesFacility", label: L("Faskes tingkat 1", "Primary health facility"), type: "text" },
+      {
+        name: "bpjsTkNo",
+        label: L("No. BPJS Ketenagakerjaan (KPJ)", "BPJS Employment no. (KPJ)"),
+        type: "text",
+        section: L("BPJS Ketenagakerjaan", "BPJS Employment"),
+      },
+      {
+        name: "bpjsTkEnrolled",
+        label: L(
+          "Peserta BPJS Ketenagakerjaan (JHT, JKK, JKM)",
+          "Enrolled in BPJS Employment (JHT, JKK, JKM)",
+        ),
+        type: "boolean",
+      },
+      { name: "bpjsTkDate", label: L("Tanggal kepesertaan", "Enrolment date"), type: "date" },
+      {
+        name: "bpjsJpEnrolled",
+        label: L("Ikut Jaminan Pensiun (JP)", "Enrolled in pension (JP)"),
+        type: "boolean",
+      },
       {
         name: "birthPlace",
         label: L("Tempat lahir", "Place of birth"),

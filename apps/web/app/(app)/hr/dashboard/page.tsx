@@ -25,6 +25,8 @@ interface Dashboard {
     leaveDays: number;
     overtimeHours: number;
     labourCost: string;
+    bpjsKesCost: string;
+    bpjsTkCost: string;
   }[];
 }
 
@@ -119,7 +121,12 @@ export default function HrDashboardPage() {
             />
           </section>
           <section className="panel">
-            <h2>{l("Biaya tenaga kerja (gaji + BPJS perusahaan)", "Labour cost (pay + employer BPJS)")}</h2>
+            <h2>
+              {l(
+                "Biaya tenaga kerja (gaji + BPJS Kesehatan + BPJS Ketenagakerjaan perusahaan)",
+                "Labour cost (pay + employer BPJS Health + BPJS Employment)",
+              )}
+            </h2>
             <BarChart
               ariaLabel={l("Biaya tenaga kerja per bulan", "Labour cost by month")}
               empty={l("Belum ada payroll terposting tahun ini.", "No posted payroll this year.")}
@@ -186,6 +193,10 @@ export default function HrDashboardPage() {
                   <th className="num">{l("Keluar", "Left")}</th>
                   <th className="num">{l("Hari cuti", "Leave days")}</th>
                   <th className="num">{l("Jam lembur", "Overtime h")}</th>
+                  <th className="num">{l("BPJS Kesehatan (perusahaan)", "BPJS Health (employer)")}</th>
+                  <th className="num">
+                    {l("BPJS Ketenagakerjaan (perusahaan)", "BPJS Employment (employer)")}
+                  </th>
                   <th className="num">{l("Biaya tenaga kerja", "Labour cost")}</th>
                 </tr>
               </thead>
@@ -200,6 +211,8 @@ export default function HrDashboardPage() {
                     <td className="num">{m.leaves}</td>
                     <td className="num">{m.leaveDays}</td>
                     <td className="num">{m.overtimeHours}</td>
+                    <td className="num">{money(m.bpjsKesCost, locale)}</td>
+                    <td className="num">{money(m.bpjsTkCost, locale)}</td>
                     <td className="num">{money(m.labourCost, locale)}</td>
                   </tr>
                 ))}

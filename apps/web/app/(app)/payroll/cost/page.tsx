@@ -5,13 +5,16 @@ import { api } from "../../../../lib/api";
 import { money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 
-type Totals = Record<"earnings" | "employerBpjs" | "cost" | "pph21" | "net", string>;
+type Totals = Record<"earnings" | "kesEmployer" | "tkEmployer" | "cost" | "pph21" | "net", string>;
 interface Report {
   items: ({ key: string | null; employees: number } & Totals)[];
   totals: Totals;
 }
 
-/** Biaya tenaga kerja dari payroll terposting: pendapatan + BPJS perusahaan per departemen, cabang, atau bulan. */
+/**
+ * Biaya tenaga kerja dari payroll terposting: pendapatan + iuran perusahaan BPJS Kesehatan + BPJS Ketenagakerjaan
+ * (kolom terpisah) per departemen, cabang, atau bulan.
+ */
 export default function PayrollCostPage() {
   const { l, locale } = useI18n();
   const year = today().slice(0, 4);
@@ -58,7 +61,10 @@ export default function PayrollCostPage() {
                 </th>
                 <th className="num">{l("Karyawan", "Employees")}</th>
                 <th className="num">{l("Pendapatan", "Earnings")}</th>
-                <th className="num">{l("BPJS perusahaan", "Employer BPJS")}</th>
+                <th className="num">{l("BPJS Kesehatan (perusahaan)", "BPJS Health (employer)")}</th>
+                <th className="num">
+                  {l("BPJS Ketenagakerjaan (perusahaan)", "BPJS Employment (employer)")}
+                </th>
                 <th className="num">{l("Total biaya", "Total cost")}</th>
                 <th className="num">PPh 21</th>
                 <th className="num">{l("Gaji bersih", "Net pay")}</th>
@@ -70,7 +76,8 @@ export default function PayrollCostPage() {
                   <td>{r.key ?? none}</td>
                   <td className="num">{r.employees}</td>
                   <td className="num">{n(r.earnings)}</td>
-                  <td className="num">{n(r.employerBpjs)}</td>
+                  <td className="num">{n(r.kesEmployer)}</td>
+                  <td className="num">{n(r.tkEmployer)}</td>
                   <td className="num">
                     <strong>{n(r.cost)}</strong>
                   </td>
@@ -80,7 +87,7 @@ export default function PayrollCostPage() {
               ))}
               {report.items.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="muted">
+                  <td colSpan={8} className="muted">
                     {l("Belum ada payroll terposting pada periode ini.", "No posted payroll in this period.")}
                   </td>
                 </tr>
@@ -91,7 +98,8 @@ export default function PayrollCostPage() {
                 <th>{l("Total", "Total")}</th>
                 <th />
                 <th className="num">{n(report.totals.earnings)}</th>
-                <th className="num">{n(report.totals.employerBpjs)}</th>
+                <th className="num">{n(report.totals.kesEmployer)}</th>
+                <th className="num">{n(report.totals.tkEmployer)}</th>
                 <th className="num">{n(report.totals.cost)}</th>
                 <th className="num">{n(report.totals.pph21)}</th>
                 <th className="num">{n(report.totals.net)}</th>

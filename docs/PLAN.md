@@ -367,6 +367,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   filter, profil ekspor pribadi/bersama; dataset karyawan, kontrak (+tunjangan per komponen), keluarga, pendidikan,
   absensi mesin (zona waktu), jatah cuti, lembur, cuti, input variabel slip, rekap slip; data master HR/Payroll juga
   bisa diekspor dengan pemilih kolom
+- [x] HR & Payroll: BPJS Kesehatan & BPJS Ketenagakerjaan selalu terpisah — kepesertaan per program di data karyawan
+  (Kesehatan: no. kartu, kelas, faskes, tanggal; Ketenagakerjaan: KPJ, tanggal, ikut JP), iuran & dasar upah per program
+  di slip/total run/PDF, akun beban & utang per program di jurnal gaji, laporan biaya, dashboard SDM, rekap e-Dabu/SIPP,
+  dan ekspor Excel
 
 ## 5. Roadmap Bertahap
 

@@ -217,6 +217,9 @@ Otomatis (tanpa endpoint baru):
 | `GET /data-transfer`, `GET /data-transfer/:key/{columns,template,export}`, `POST /data-transfer/:key/import`                                           | Impor & ekspor Excel/CSV HR & Payroll: karyawan, kontrak, keluarga, pendidikan, absensi, jatah cuti, lembur, cuti, input slip, rekap slip; kolom ekspor dipilih user, pratinjau impor |
 | `GET/POST/DELETE /data-transfer/:key/presets`                                                                                                          | Profil ekspor (kolom & filter tersimpan; pribadi atau bersama)                                                                                                                        |
 
+BPJS Kesehatan dan BPJS Ketenagakerjaan (JHT, JKK, JKM, JP) selalu dicatat terpisah: kepesertaan per program di data karyawan,
+iuran & dasar upah per program di slip, serta akun beban/utang masing-masing di jurnal gaji.
+
 PPh 21 dihitung dengan TER (PP 58/2023) per bulan dan tarif Pasal 17 setahun di Desember atau bulan karyawan keluar.
 Tarif TER, PTKP, BPJS, dan lembur ada di `packages/shared/src/payroll.ts` (dengan unit test); batas upah JP perlu
 diperbarui di Pengaturan Payroll setiap Maret.
