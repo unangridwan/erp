@@ -25,7 +25,16 @@ export async function installPayroll(tx: Db, companyId: string) {
     .where(
       and(
         eq(schema.accounts.companyId, companyId),
-        inArray(schema.accounts.code, ["6-1000", "6-1100", "2-1500", "2-1300", "2-1400", "1-1800"]),
+        inArray(schema.accounts.code, [
+          "6-1000",
+          "6-1100",
+          "6-1110",
+          "2-1500",
+          "2-1300",
+          "2-1400",
+          "2-1410",
+          "1-1800",
+        ]),
       ),
     );
   const [journal] = await tx
@@ -38,10 +47,12 @@ export async function installPayroll(tx: Db, companyId: string) {
   await tx.insert(schema.payrollSettings).values({
     companyId,
     salaryExpenseAccountId: account("6-1000")!,
-    bpjsExpenseAccountId: account("6-1100")!,
+    bpjsTkExpenseAccountId: account("6-1100")!,
+    bpjsKesExpenseAccountId: account("6-1110") ?? account("6-1100")!,
     salaryPayableAccountId: account("2-1500")!,
     pph21PayableAccountId: account("2-1300")!,
-    bpjsPayableAccountId: account("2-1400")!,
+    bpjsTkPayableAccountId: account("2-1400")!,
+    bpjsKesPayableAccountId: account("2-1410") ?? account("2-1400")!,
     employeeLoanAccountId: account("1-1800") ?? null,
     journalId: journal.id,
   });

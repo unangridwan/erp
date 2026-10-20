@@ -308,16 +308,19 @@ class PayrollController {
           { key: "name", header: "Nama" },
           { key: "birthDate", header: "Tgl Lahir" },
           { key: "joinDate", header: "TMT Kerja" },
-          { key: "bpjsWage", header: "Gaji Pokok + Tunjangan Tetap" },
+          { key: "bpjsKesWage", header: "Gaji Pokok + Tunjangan Tetap" },
           { key: "kesEmployer", header: "Iuran Pemberi Kerja" },
           { key: "kesEmployee", header: "Iuran Pekerja" },
           { key: "kesTotal", header: "Total Iuran" },
         ],
-        rows.map(({ bpjs, ...r }) => ({
-          ...r,
-          ...bpjs,
-          kesTotal: String(Number(bpjs.kesEmployer) + Number(bpjs.kesEmployee)),
-        })),
+        // Hanya peserta BPJS Kesehatan.
+        rows
+          .filter((r) => r.bpjsKesEnrolled)
+          .map(({ bpjs, ...r }) => ({
+            ...r,
+            ...bpjs,
+            kesTotal: String(Number(bpjs.kesEmployer) + Number(bpjs.kesEmployee)),
+          })),
       );
     if (format === "sipp")
       // BPJS Ketenagakerjaan SIPP: upah & iuran per program.
@@ -329,7 +332,7 @@ class PayrollController {
           { key: "bpjsTkNo", header: "No KPJ" },
           { key: "name", header: "Nama" },
           { key: "birthDate", header: "Tgl Lahir" },
-          { key: "bpjsWage", header: "Upah" },
+          { key: "bpjsTkWage", header: "Upah" },
           { key: "jhtEmployer", header: "JHT Pemberi Kerja" },
           { key: "jhtEmployee", header: "JHT Pekerja" },
           { key: "jkk", header: "JKK" },
@@ -338,16 +341,23 @@ class PayrollController {
           { key: "jpEmployee", header: "JP Pekerja" },
           { key: "tkTotal", header: "Total Iuran" },
         ],
-        rows.map(({ bpjs, ...r }) => ({
-          ...r,
-          ...bpjs,
-          tkTotal: String(
-            [bpjs.jhtEmployer, bpjs.jhtEmployee, bpjs.jkk, bpjs.jkm, bpjs.jpEmployer, bpjs.jpEmployee].reduce(
-              (sum, x) => sum + Number(x),
-              0,
+        // Hanya peserta BPJS Ketenagakerjaan.
+        rows
+          .filter((r) => r.bpjsTkEnrolled)
+          .map(({ bpjs, ...r }) => ({
+            ...r,
+            ...bpjs,
+            tkTotal: String(
+              [
+                bpjs.jhtEmployer,
+                bpjs.jhtEmployee,
+                bpjs.jkk,
+                bpjs.jkm,
+                bpjs.jpEmployer,
+                bpjs.jpEmployee,
+              ].reduce((sum, x) => sum + Number(x), 0),
             ),
-          ),
-        })),
+          })),
       );
     if (format !== "csv") return res.json(rows);
     csv(
@@ -364,9 +374,11 @@ class PayrollController {
         { key: "gross", header: "Penghasilan Bruto" },
         { key: "pph21", header: "PPh 21" },
         { key: "bpjsKesNo", header: "No BPJS Kesehatan" },
-        { key: "bpjsTkNo", header: "No BPJS Ketenagakerjaan" },
+        { key: "bpjsKesWage", header: "Dasar Upah BPJS Kesehatan" },
         { key: "kesEmployer", header: "BPJS Kes Perusahaan" },
         { key: "kesEmployee", header: "BPJS Kes Karyawan" },
+        { key: "bpjsTkNo", header: "No BPJS Ketenagakerjaan" },
+        { key: "bpjsTkWage", header: "Dasar Upah BPJS Ketenagakerjaan" },
         { key: "jhtEmployer", header: "JHT Perusahaan" },
         { key: "jhtEmployee", header: "JHT Karyawan" },
         { key: "jkk", header: "JKK" },

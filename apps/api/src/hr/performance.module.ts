@@ -831,24 +831,26 @@ class HrInsightsController {
           )
           .groupBy(sql`1`),
       );
-      const cost = per(
-        await tx
-          .select({
-            key: sql<string>`to_char(${schema.payrollRuns.periodStart}, 'MM')`,
-            value: sql<string>`sum(${schema.payslips.earnings} + ${schema.payslips.employerBpjs})::text`,
-          })
-          .from(schema.payslips)
-          .innerJoin(schema.payrollRuns, eq(schema.payrollRuns.id, schema.payslips.runId))
-          .where(
-            and(
-              eq(schema.payslips.companyId, cid),
-              inArray(schema.payrollRuns.state, ["done", "paid"]),
-              gte(schema.payrollRuns.periodStart, yStart),
-              lte(schema.payrollRuns.periodStart, yEnd),
-            ),
-          )
-          .groupBy(sql`1`),
-      );
+      // Biaya tenaga kerja = pendapatan + iuran perusahaan BPJS Kesehatan + BPJS Ketenagakerjaan (dilaporkan terpisah).
+      const costRows = await tx
+        .select({
+          key: sql<string>`to_char(${schema.payrollRuns.periodStart}, 'MM')`,
+          earnings: sql<string>`sum(${schema.payslips.earnings})::text`,
+          kes: sql<string>`sum(${schema.payslips.kesEmployer})::text`,
+          tk: sql<string>`sum(${schema.payslips.tkEmployer})::text`,
+        })
+        .from(schema.payslips)
+        .innerJoin(schema.payrollRuns, eq(schema.payrollRuns.id, schema.payslips.runId))
+        .where(
+          and(
+            eq(schema.payslips.companyId, cid),
+            inArray(schema.payrollRuns.state, ["done", "paid"]),
+            gte(schema.payrollRuns.periodStart, yStart),
+            lte(schema.payrollRuns.periodStart, yEnd),
+          ),
+        )
+        .groupBy(sql`1`);
+      const cost = new Map(costRows.map((r) => [r.key, r]));
       const months = Array.from({ length: 12 }, (_, i) => {
         const mm = String(i + 1).padStart(2, "0");
         const from = `${year}-${mm}-01`;
@@ -860,7 +862,13 @@ class HrInsightsController {
           leaves: employees.filter((e) => e.resignDate && e.resignDate >= from && e.resignDate <= to).length,
           leaveDays: leave.get(mm) ?? 0,
           overtimeHours: overtime.get(mm) ?? 0,
-          labourCost: (cost.get(mm) ?? 0).toFixed(0),
+          labourCost: (
+            Number(cost.get(mm)?.earnings ?? 0) +
+            Number(cost.get(mm)?.kes ?? 0) +
+            Number(cost.get(mm)?.tk ?? 0)
+          ).toFixed(0),
+          bpjsKesCost: Number(cost.get(mm)?.kes ?? 0).toFixed(0),
+          bpjsTkCost: Number(cost.get(mm)?.tk ?? 0).toFixed(0),
         };
       });
       const today = new Date().toISOString().slice(0, 10);

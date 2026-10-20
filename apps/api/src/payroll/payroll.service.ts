@@ -8,6 +8,7 @@ import {
 import { and, asc, desc, eq, gte, inArray, isNull, lte, lt, ne, or, schema, sql, type Db } from "@erp/db";
 import {
   bankTransferFile,
+  bpjsProgram,
   computePayslip,
   retroPay,
   thrAmount,
@@ -92,10 +93,12 @@ export class PayrollService {
     await this.settings(tx, companyId);
     await assertCompanyAccounts(tx, companyId, [
       { path: "salaryExpenseAccountId", id: input.salaryExpenseAccountId },
-      { path: "bpjsExpenseAccountId", id: input.bpjsExpenseAccountId },
+      { path: "bpjsKesExpenseAccountId", id: input.bpjsKesExpenseAccountId },
+      { path: "bpjsTkExpenseAccountId", id: input.bpjsTkExpenseAccountId },
       { path: "salaryPayableAccountId", id: input.salaryPayableAccountId },
       { path: "pph21PayableAccountId", id: input.pph21PayableAccountId },
-      { path: "bpjsPayableAccountId", id: input.bpjsPayableAccountId },
+      { path: "bpjsKesPayableAccountId", id: input.bpjsKesPayableAccountId },
+      { path: "bpjsTkPayableAccountId", id: input.bpjsTkPayableAccountId },
       ...(input.employeeLoanAccountId
         ? [{ path: "employeeLoanAccountId", id: input.employeeLoanAccountId }]
         : []),
@@ -164,7 +167,16 @@ export class PayrollService {
       departmentName: r.departmentName,
     }));
     const sum = (
-      k: "earnings" | "gross" | "pph21" | "employeeBpjs" | "employerBpjs" | "deductions" | "net",
+      k:
+        | "earnings"
+        | "gross"
+        | "pph21"
+        | "kesEmployee"
+        | "kesEmployer"
+        | "tkEmployee"
+        | "tkEmployer"
+        | "deductions"
+        | "net",
     ) => payslips.reduce((s, p) => s.plus(p[k]), d(0)).toFixed(2);
     const moves = await tx
       .select({ id: schema.accountMoves.id, name: schema.accountMoves.name })
@@ -182,8 +194,11 @@ export class PayrollService {
         earnings: sum("earnings"),
         gross: sum("gross"),
         pph21: sum("pph21"),
-        employeeBpjs: sum("employeeBpjs"),
-        employerBpjs: sum("employerBpjs"),
+        // BPJS Kesehatan & Ketenagakerjaan tidak digabung.
+        kesEmployee: sum("kesEmployee"),
+        kesEmployer: sum("kesEmployer"),
+        tkEmployee: sum("tkEmployee"),
+        tkEmployer: sum("tkEmployer"),
         deductions: sum("deductions"),
         net: sum("net"),
       },
@@ -517,6 +532,7 @@ export class PayrollService {
       },
       latePenalty: late[0]?.penalty ?? 0,
       casual,
+      enrollment: { kes: employee.bpjsKesEnrolled, tk: employee.bpjsTkEnrolled, jp: employee.bpjsJpEnrolled },
     });
 
     await tx.delete(schema.payslipLines).where(eq(schema.payslipLines.payslipId, slipId));
@@ -556,6 +572,12 @@ export class PayrollService {
         pph21: result.pph21,
         employeeBpjs: result.employeeBpjs,
         employerBpjs: result.employerBpjs,
+        kesEmployee: result.kesEmployee,
+        kesEmployer: result.kesEmployer,
+        tkEmployee: result.tkEmployee,
+        tkEmployer: result.tkEmployer,
+        bpjsKesWage: result.kesWage,
+        bpjsTkWage: result.tkWage,
         employeePension: result.employeePension,
         deductions: result.deductions,
         net: result.net,
@@ -650,7 +672,8 @@ export class PayrollService {
         ),
       );
 
-    // Agregasi: key = akun|cabang|unit bisnis; nilai positif = debit.
+    // Agregasi: key = akun|cabang|unit bisnis|program BPJS; nilai positif = debit. BPJS Kesehatan & Ketenagakerjaan
+    // selalu menjadi baris jurnal sendiri walau memakai akun yang sama.
     const entries = new Map<string, Decimal>();
     const add = (
       accountId: string,
@@ -659,10 +682,15 @@ export class PayrollService {
         branchId: null,
         businessUnitId: null,
       },
+      program = "",
     ) => {
-      const key = `${accountId}|${dims.branchId ?? ""}|${dims.businessUnitId ?? ""}`;
+      const key = `${accountId}|${dims.branchId ?? ""}|${dims.businessUnitId ?? ""}|${program}`;
       entries.set(key, (entries.get(key) ?? d(0)).plus(amount));
     };
+    const bpjsAccounts = (code: string) =>
+      bpjsProgram(code) === "kes"
+        ? { program: "kes", expense: s.bpjsKesExpenseAccountId, payable: s.bpjsKesPayableAccountId }
+        : { program: "tk", expense: s.bpjsTkExpenseAccountId, payable: s.bpjsTkPayableAccountId };
     for (const slip of slips) {
       const dims = { branchId: slip.branchId, businessUnitId: slip.businessUnitId };
       for (const { line, accountId } of lines.filter((l) => l.line.payslipId === slip.id)) {
@@ -675,13 +703,17 @@ export class PayrollService {
             // Klaim biaya: debit akun beban kategori klaim (di bawah).
             if (!line.expenseClaimId) add(accountId ?? s.salaryExpenseAccountId, amount, dims);
             break;
-          case "bpjs_employer":
-            add(s.bpjsExpenseAccountId, amount, dims);
-            add(s.bpjsPayableAccountId, amount.negated());
+          case "bpjs_employer": {
+            const b = bpjsAccounts(line.code);
+            add(b.expense, amount, dims, b.program);
+            add(b.payable, amount.negated(), undefined, b.program);
             break;
-          case "bpjs_employee":
-            add(s.bpjsPayableAccountId, amount); // baris slip bernilai negatif
+          }
+          case "bpjs_employee": {
+            const b = bpjsAccounts(line.code);
+            add(b.payable, amount, undefined, b.program); // baris slip bernilai negatif
             break;
+          }
           case "tax":
             add(s.pph21PayableAccountId, amount);
             break;
@@ -727,10 +759,20 @@ export class PayrollService {
     const journalLines = [...entries.entries()]
       .filter(([, v]) => !v.isZero())
       .map(([key, v]) => {
-        const [accountId, branchId, businessUnitId] = key.split("|") as [string, string, string];
+        const [accountId, branchId, businessUnitId, program] = key.split("|") as [
+          string,
+          string,
+          string,
+          string,
+        ];
         return {
           accountId,
-          name: run.name,
+          name:
+            program === "kes"
+              ? `${run.name} — BPJS Kesehatan`
+              : program === "tk"
+                ? `${run.name} — BPJS Ketenagakerjaan`
+                : run.name,
           debit: v.gt(0) ? v.toFixed(2) : "0",
           credit: v.lt(0) ? v.abs().toFixed(2) : "0",
           branchId: branchId || null,
@@ -906,6 +948,10 @@ export class PayrollService {
         gross: r.slip.gross,
         pph21: r.slip.pph21,
         bpjsWage: d(r.slip.bpjsWage).toFixed(0),
+        bpjsKesWage: d(r.slip.bpjsKesWage).toFixed(0),
+        bpjsTkWage: d(r.slip.bpjsTkWage).toFixed(0),
+        bpjsKesEnrolled: r.employee.bpjsKesEnrolled,
+        bpjsTkEnrolled: r.employee.bpjsTkEnrolled,
         birthDate: r.employee.birthDate,
         joinDate: r.employee.joinDate,
         bpjsKesNo: r.employee.bpjsKesNo,
@@ -1164,7 +1210,8 @@ export class PayrollService {
         key,
         employees: sql<number>`count(distinct ${SLIP.employeeId})::int`,
         earnings: sql<string>`sum(${SLIP.earnings})::text`,
-        employerBpjs: sql<string>`sum(${SLIP.employerBpjs})::text`,
+        kesEmployer: sql<string>`sum(${SLIP.kesEmployer})::text`,
+        tkEmployer: sql<string>`sum(${SLIP.tkEmployer})::text`,
         pph21: sql<string>`sum(${SLIP.pph21})::text`,
         net: sql<string>`sum(${SLIP.net})::text`,
       })
@@ -1187,19 +1234,21 @@ export class PayrollService {
       key: r.key,
       employees: r.employees,
       earnings: d(r.earnings).toFixed(0),
-      employerBpjs: d(r.employerBpjs).toFixed(0),
-      cost: d(r.earnings).plus(r.employerBpjs).toFixed(0),
+      kesEmployer: d(r.kesEmployer).toFixed(0),
+      tkEmployer: d(r.tkEmployer).toFixed(0),
+      cost: d(r.earnings).plus(r.kesEmployer).plus(r.tkEmployer).toFixed(0),
       pph21: d(r.pph21).toFixed(0),
       net: d(r.net).toFixed(0),
     }));
-    const total = (k: "earnings" | "employerBpjs" | "cost" | "pph21" | "net") =>
+    const total = (k: "earnings" | "kesEmployer" | "tkEmployer" | "cost" | "pph21" | "net") =>
       items.reduce((sum, r) => sum.plus(r[k]), d(0)).toFixed(0);
     return {
       ...q,
       items,
       totals: {
         earnings: total("earnings"),
-        employerBpjs: total("employerBpjs"),
+        kesEmployer: total("kesEmployer"),
+        tkEmployer: total("tkEmployer"),
         cost: total("cost"),
         pph21: total("pph21"),
         net: total("net"),

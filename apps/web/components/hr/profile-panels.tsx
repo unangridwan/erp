@@ -39,14 +39,18 @@ export function PhotoBox({
   name,
   editable,
   onChange,
+  hasPhoto = true,
 }: {
   path: string;
   name: string;
   editable: boolean;
   onChange?: () => void;
+  /** Belum ada foto: tampilkan placeholder tanpa meminta gambar (hindari 404). */
+  hasPhoto?: boolean;
 }) {
   const { l } = useI18n();
   const [error, setError] = useState<string | null>(null);
+  const [uploaded, setUploaded] = useState(false);
   const placeholder = (
     <div className="profile-photo">
       {name ? name.slice(0, 1).toUpperCase() : <small>{l("Belum ada foto", "No photo")}</small>}
@@ -59,6 +63,7 @@ export function PhotoBox({
     try {
       await api(path, { method: "PUT", body: await resizePhoto(file) });
       bumpImage(path);
+      setUploaded(true);
       onChange?.();
     } catch (e) {
       setError(errorText(e));
@@ -66,7 +71,11 @@ export function PhotoBox({
   };
   return (
     <div className="stack">
-      <AuthImage path={path} alt={name} className="profile-photo" fallback={placeholder} />
+      {hasPhoto || uploaded ? (
+        <AuthImage path={path} alt={name} className="profile-photo" fallback={placeholder} />
+      ) : (
+        placeholder
+      )}
       {editable && (
         <label className="link" style={{ cursor: "pointer" }}>
           {l("Ganti foto", "Change photo")}
@@ -145,8 +154,10 @@ export function ProfileHeader({ employeeId }: { employeeId: string }) {
       {error && <p className="error">{error}</p>}
       <div className="profile-head">
         <PhotoBox
+          key={String(s?.hasPhoto)}
           path={`/employees/${employeeId}/photo`}
           name=""
+          hasPhoto={s?.hasPhoto ?? false}
           editable={can(me.permissions, "hr.manage")}
           onChange={() => setTick((t) => t + 1)}
         />
@@ -418,7 +429,11 @@ export function FamilyPanel({ employeeId, editable }: { employeeId: string; edit
         { name: "occupation", label: L("Pekerjaan", "Occupation"), type: "text" },
         { name: "phone", label: L("Telepon", "Phone"), type: "text", list: false },
         { name: "dependent", label: L("Tanggungan PTKP", "PTKP dependant"), type: "boolean" },
-        { name: "bpjsCovered", label: L("Ditanggung BPJS Kes.", "BPJS Health covered"), type: "boolean" },
+        {
+          name: "bpjsCovered",
+          label: L("Ditanggung BPJS Kesehatan", "Covered by BPJS Health"),
+          type: "boolean",
+        },
         { name: "alive", label: L("Masih hidup", "Living"), type: "boolean", list: false },
       ]}
     />

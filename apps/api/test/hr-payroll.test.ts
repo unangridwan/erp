@@ -90,10 +90,13 @@ describe.skipIf(!hasDb)("Fase 4: SDM & payroll", () => {
     expect(settings).toMatchObject({
       jkkRate: "0.24",
       salaryExpenseAccountId: acc["6-1000"],
-      bpjsExpenseAccountId: acc["6-1100"],
+      // BPJS Kesehatan dan Ketenagakerjaan memakai akun terpisah.
+      bpjsTkExpenseAccountId: acc["6-1100"],
+      bpjsKesExpenseAccountId: acc["6-1110"],
       salaryPayableAccountId: acc["2-1500"],
       pph21PayableAccountId: acc["2-1300"],
-      bpjsPayableAccountId: acc["2-1400"],
+      bpjsTkPayableAccountId: acc["2-1400"],
+      bpjsKesPayableAccountId: acc["2-1410"],
     });
     expect(Object.keys(comp)).toEqual(expect.arrayContaining(["TJAB", "TRANS", "THR", "PINJ"]));
     expect(Object.keys(leaveType)).toEqual(expect.arrayContaining(["Cuti tahunan", "Izin tanpa upah"]));
@@ -302,10 +305,12 @@ describe.skipIf(!hasDb)("Fase 4: SDM & payroll", () => {
       expect(posted.state).toBe("done");
       expect(await entry(posted.accountMove.id)).toEqual([
         ["2-1300", "0.00", "1997699.00"],
-        ["2-1400", "0.00", "1665222.00"],
+        ["2-1400", "0.00", "1065222.00"], // utang BPJS Ketenagakerjaan
+        ["2-1410", "0.00", "600000.00"], // utang BPJS Kesehatan (4% + 1% × Rp12 jt)
         ["2-1500", "0.00", "19188693.00"],
         ["6-1000", "21651866.00", "0.00"],
-        ["6-1100", "1199748.00", "0.00"],
+        ["6-1100", "719748.00", "0.00"], // beban BPJS Ketenagakerjaan
+        ["6-1110", "480000.00", "0.00"], // beban BPJS Kesehatan
       ]);
       await a.post(`/payroll-runs/${octRun}/compute`).expect(400);
       const ot = (await a.get("/overtimes").expect(200)).body.items[0];

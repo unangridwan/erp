@@ -553,7 +553,7 @@ export function MyProfile({ name }: { name: string }) {
       <h2>{l("Profil saya", "My profile")}</h2>
       {error && <p className="error">{error}</p>}
       <div className="profile-head">
-        <PhotoBox path="/me/photo" name={name} editable />
+        {p && <PhotoBox path="/me/photo" name={name} editable hasPhoto={p.hasPhoto} />}
         {p && (
           <div className="stack" style={{ flex: 1, minWidth: 220 }}>
             <div>

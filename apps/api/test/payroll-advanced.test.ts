@@ -212,10 +212,12 @@ describe.skipIf(!hasDb)("Payroll lanjutan: skala upah, THR, rapel, transfer bank
         kesWageCap: s.kesWageCap,
         jpWageCap: s.jpWageCap,
         salaryExpenseAccountId: s.salaryExpenseAccountId,
-        bpjsExpenseAccountId: s.bpjsExpenseAccountId,
+        bpjsKesExpenseAccountId: s.bpjsKesExpenseAccountId,
+        bpjsTkExpenseAccountId: s.bpjsTkExpenseAccountId,
         salaryPayableAccountId: s.salaryPayableAccountId,
         pph21PayableAccountId: s.pph21PayableAccountId,
-        bpjsPayableAccountId: s.bpjsPayableAccountId,
+        bpjsKesPayableAccountId: s.bpjsKesPayableAccountId,
+        bpjsTkPayableAccountId: s.bpjsTkPayableAccountId,
         journalId: s.journalId,
         thrComponentId: comp.PINJ, // potongan, bukan tunjangan
       })
@@ -226,10 +228,12 @@ describe.skipIf(!hasDb)("Payroll lanjutan: skala upah, THR, rapel, transfer bank
         kesWageCap: s.kesWageCap,
         jpWageCap: s.jpWageCap,
         salaryExpenseAccountId: s.salaryExpenseAccountId,
-        bpjsExpenseAccountId: s.bpjsExpenseAccountId,
+        bpjsKesExpenseAccountId: s.bpjsKesExpenseAccountId,
+        bpjsTkExpenseAccountId: s.bpjsTkExpenseAccountId,
         salaryPayableAccountId: s.salaryPayableAccountId,
         pph21PayableAccountId: s.pph21PayableAccountId,
-        bpjsPayableAccountId: s.bpjsPayableAccountId,
+        bpjsKesPayableAccountId: s.bpjsKesPayableAccountId,
+        bpjsTkPayableAccountId: s.bpjsTkPayableAccountId,
         journalId: s.journalId,
         transferSourceAccount: "777-000-1234",
         transferCompanyCode: "PTUJI",
@@ -271,7 +275,7 @@ describe.skipIf(!hasDb)("Payroll lanjutan: skala upah, THR, rapel, transfer bank
     const byDept = (await a.get("/payroll/reports/cost?from=2026-01&to=2026-03").expect(200)).body;
     expect(byDept.items).toEqual([expect.objectContaining({ key: "Keuangan", employees: 2 })]);
     expect(Number(byDept.totals.cost)).toBe(
-      Number(byDept.totals.earnings) + Number(byDept.totals.employerBpjs),
+      Number(byDept.totals.earnings) + Number(byDept.totals.kesEmployer) + Number(byDept.totals.tkEmployer),
     );
     const byMonth = (await a.get("/payroll/reports/cost?from=2026-01&to=2026-03&groupBy=month").expect(200))
       .body;

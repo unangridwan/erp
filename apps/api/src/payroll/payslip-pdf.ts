@@ -7,7 +7,8 @@ export interface PayslipPdfData {
   employee: { name: string; number: string; department: string | null; job: string | null; ptkp: string };
   earnings: { name: string; amount: string }[];
   deductions: { name: string; amount: string }[];
-  employer: { name: string; amount: string }[];
+  /** BPJS Kesehatan & BPJS Ketenagakerjaan selalu ditampilkan terpisah. */
+  bpjs: { title: string; wage: string; rows: { name: string; employee: string; employer: string }[] }[];
   net: string;
   pph21Info: string;
 }
@@ -102,17 +103,39 @@ export function renderPayslipPdf(
     doc.text(`Rp ${fmt(data.net)}`, left, y + 8, { width: width - 10, align: "right" });
     y += 44;
 
-    doc
-      .font("Helvetica-Bold")
-      .fontSize(9)
-      .text("Iuran yang dibayar perusahaan (tidak memotong gaji)", left, y);
-    y += 14;
-    doc.font("Helvetica");
-    for (const r of data.employer) {
-      doc.text(r.name, left, y, { width: 300 });
-      doc.text(fmt(r.amount), left + 300, y, { width: 90, align: "right" });
-      y += 13;
-    }
+    // Rincian BPJS per program: kolom karyawan (memotong gaji) & perusahaan (tidak memotong gaji).
+    let bottom = y;
+    data.bpjs.forEach((program, i) => {
+      const x = left + i * (col + 24);
+      let yy = y;
+      doc.font("Helvetica-Bold").fontSize(9).text(program.title, x, yy, { width: col });
+      yy += 12;
+      doc
+        .font("Helvetica")
+        .fontSize(8)
+        .text(`Dasar upah Rp ${fmt(program.wage)}`, x, yy, { width: col });
+      yy += 12;
+      doc.font("Helvetica-Bold").text("Program", x, yy, { width: col - 140 });
+      doc.text("Karyawan", x + col - 140, yy, { width: 70, align: "right" });
+      doc.text("Perusahaan", x + col - 70, yy, { width: 70, align: "right" });
+      yy += 12;
+      doc.font("Helvetica");
+      const rows = program.rows.length
+        ? program.rows
+        : [{ name: "Tidak terdaftar", employee: "0", employer: "0" }];
+      for (const r of rows) {
+        doc.text(r.name, x, yy, { width: col - 140 });
+        doc.text(fmt(r.employee), x + col - 140, yy, { width: 70, align: "right" });
+        doc.text(fmt(r.employer), x + col - 70, yy, { width: 70, align: "right" });
+        yy += 12;
+      }
+      const total = (k: "employee" | "employer") => String(rows.reduce((t, r) => t + Number(r[k]), 0));
+      doc.font("Helvetica-Bold").text("Subtotal", x, yy, { width: col - 140 });
+      doc.text(fmt(total("employee")), x + col - 140, yy, { width: 70, align: "right" });
+      doc.text(fmt(total("employer")), x + col - 70, yy, { width: 70, align: "right" });
+      bottom = Math.max(bottom, yy + 14);
+    });
+    y = bottom;
     y += 8;
     doc.fontSize(8).fillColor("#555").text(data.pph21Info, left, y, { width });
     doc.end();
@@ -123,7 +146,9 @@ interface SlipForPdf {
   employee: { name: string; employeeNumber: string; departmentName: string | null; jobName: string | null };
   run: { name: string; periodStart: string };
   ptkpStatus: string;
-  lines: { name: string; category: string; amount: string }[];
+  lines: { code: string; name: string; category: string; amount: string }[];
+  bpjsKesWage: string;
+  bpjsTkWage: string;
   net: string;
   gross: string;
   isFinal: boolean;
@@ -132,11 +157,29 @@ interface SlipForPdf {
 }
 
 /** Data PDF slip gaji dari slip lengkap (`PayrollService.payslip`). */
+/** Program BPJS per kode baris: [judul, kode karyawan, kode perusahaan, nama program]. */
+const BPJS_PROGRAMS: [string, [string, string | null, string | null][]][] = [
+  ["BPJS Kesehatan", [["Jaminan Kesehatan", "BPJS_KES_EE", "BPJS_KES_ER"]]],
+  [
+    "BPJS Ketenagakerjaan",
+    [
+      ["Jaminan Hari Tua (JHT)", "JHT_EE", "JHT_ER"],
+      ["Jaminan Kecelakaan Kerja (JKK)", null, "JKK"],
+      ["Jaminan Kematian (JKM)", null, "JKM"],
+      ["Jaminan Pensiun (JP)", "JP_EE", "JP_ER"],
+    ],
+  ],
+];
+
 export function payslipPdfData(slip: SlipForPdf, company: string): PayslipPdfData {
-  const pick = (cats: string[]) =>
-    slip.lines
-      .filter((l) => cats.includes(l.category))
-      .map((l) => ({ name: l.name, amount: String(Math.abs(Number(l.amount))) }));
+  const amount = (code: string | null) =>
+    code ? String(Math.abs(Number(slip.lines.find((l) => l.code === code)?.amount ?? 0))) : "0";
+  const deduction = (l: { amount: string }) => String(-Number(l.amount));
+  const bpjsEmployee = (program: "kes" | "tk") =>
+    slip.lines.filter(
+      (l) => l.category === "bpjs_employee" && l.code.startsWith("BPJS_KES") === (program === "kes"),
+    );
+  const subtotal = (rows: { amount: string }[]) => String(rows.reduce((t, l) => t - Number(l.amount), 0));
   return {
     company,
     title: "Slip Gaji",
@@ -151,11 +194,26 @@ export function payslipPdfData(slip: SlipForPdf, company: string): PayslipPdfDat
     earnings: slip.lines
       .filter((l) => ["basic", "allowance", "overtime", "unpaid"].includes(l.category))
       .map((l) => ({ name: l.name, amount: l.amount })),
-    // Potongan tampil positif; PPh 21 lebih potong (baris positif) tampil sebagai pengembalian (negatif).
-    deductions: slip.lines
-      .filter((l) => ["bpjs_employee", "tax", "deduction"].includes(l.category))
-      .map((l) => ({ name: l.name, amount: String(-Number(l.amount)) })),
-    employer: pick(["bpjs_employer"]),
+    // Potongan tampil positif; PPh 21 lebih potong (baris positif) tampil sebagai pengembalian (negatif). Iuran BPJS
+    // karyawan satu baris per program: BPJS Kesehatan dan BPJS Ketenagakerjaan.
+    deductions: [
+      ...(bpjsEmployee("kes").length
+        ? [{ name: "BPJS Kesehatan", amount: subtotal(bpjsEmployee("kes")) }]
+        : []),
+      ...(bpjsEmployee("tk").length
+        ? [{ name: "BPJS Ketenagakerjaan (JHT, JP)", amount: subtotal(bpjsEmployee("tk")) }]
+        : []),
+      ...slip.lines
+        .filter((l) => ["tax", "deduction"].includes(l.category))
+        .map((l) => ({ name: l.name, amount: deduction(l) })),
+    ],
+    bpjs: BPJS_PROGRAMS.map(([title, rows], i) => ({
+      title,
+      wage: i === 0 ? slip.bpjsKesWage : slip.bpjsTkWage,
+      rows: rows
+        .map(([name, ee, er]) => ({ name, employee: amount(ee), employer: amount(er) }))
+        .filter((r) => Number(r.employee) || Number(r.employer)),
+    })),
     net: slip.net,
     pph21Info: slip.isFinal
       ? `PPh 21 masa pajak terakhir dihitung setahun (tarif Pasal 17) dikurangi PPh 21 yang telah dipotong. Penghasilan bruto bulan ini Rp ${slip.gross}.`

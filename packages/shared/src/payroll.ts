@@ -254,27 +254,52 @@ export const DEFAULT_BPJS: BpjsSettings = { jkkRate: "0.24", kesWageCap: "120000
  * Iuran BPJS dari upah (gaji pokok + tunjangan tetap). `onlyJkkJkm`: pekerja harian lepas/borongan yang belum memenuhi
  * masa kerja kepesertaan penuh hanya diikutkan JKK & JKM.
  */
-export function bpjsContributions(wage: Decimal.Value, s: BpjsSettings = DEFAULT_BPJS, onlyJkkJkm = false) {
+export function bpjsContributions(
+  wage: Decimal.Value,
+  s: BpjsSettings = DEFAULT_BPJS,
+  onlyJkkJkm = false,
+  enrollment: BpjsEnrollment = FULL_ENROLLMENT,
+) {
   const w = Decimal.max(d(wage), 0);
   const kesBase = Decimal.min(w, s.kesWageCap);
   const jpBase = Decimal.min(w, s.jpWageCap);
   const pct = (base: Decimal, rate: Decimal.Value) => rupiah(base.times(rate).div(100)).toFixed(0);
   const full = (v: string) => (onlyJkkJkm ? "0" : v);
+  // Tidak terdaftar pada program → iuran program itu nol.
+  const kes = (v: string) => (enrollment.kes ? full(v) : "0");
+  const tk = (v: string) => (enrollment.tk ? v : "0");
+  const jp = (v: string) => (enrollment.tk && enrollment.jp ? full(v) : "0");
   return {
     employer: {
-      kes: full(pct(kesBase, 4)),
-      jht: full(pct(w, 3.7)),
-      jkk: pct(w, s.jkkRate),
-      jkm: pct(w, 0.3),
-      jp: full(pct(jpBase, 2)),
+      kes: kes(pct(kesBase, 4)),
+      jht: tk(full(pct(w, 3.7))),
+      jkk: tk(pct(w, s.jkkRate)),
+      jkm: tk(pct(w, 0.3)),
+      jp: jp(pct(jpBase, 2)),
     },
     employee: {
-      kes: full(pct(kesBase, 1)),
-      jht: full(pct(w, 2)),
-      jp: full(pct(jpBase, 1)),
+      kes: kes(pct(kesBase, 1)),
+      jht: tk(full(pct(w, 2))),
+      jp: jp(pct(jpBase, 1)),
     },
+    /** Dasar upah iuran: Kesehatan dibatasi batas upah Kes; Ketenagakerjaan = upah (JP dibatasi tersendiri). */
+    kesWage: enrollment.kes && !onlyJkkJkm ? kesBase.toFixed(0) : "0",
+    tkWage: enrollment.tk ? w.toFixed(0) : "0",
   };
 }
+
+/** Kepesertaan karyawan per program BPJS. */
+export interface BpjsEnrollment {
+  kes: boolean;
+  tk: boolean;
+  /** Jaminan Pensiun (bagian BPJS Ketenagakerjaan). */
+  jp: boolean;
+}
+
+export const FULL_ENROLLMENT: BpjsEnrollment = { kes: true, tk: true, jp: true };
+
+/** Program BPJS sebuah kode baris slip: Kesehatan atau Ketenagakerjaan (JHT, JKK, JKM, JP). */
+export const bpjsProgram = (code: string): "kes" | "tk" => (code.startsWith("BPJS_KES") ? "kes" : "tk");
 
 export type OvertimeDay = "workday" | "rest_day";
 
@@ -342,6 +367,8 @@ export interface PayslipInput {
    * `bpjsWage`; PPh 21 memakai tarif harian per hari kerja (bukan TER bulanan).
    */
   casual?: { kind: "daily" | "piece"; days: number; bpjsWage: Decimal.Value; onlyJkkJkm: boolean };
+  /** Kepesertaan BPJS Kesehatan / Ketenagakerjaan / JP (bawaan: ikut semua). */
+  enrollment?: BpjsEnrollment;
 }
 
 export type PayslipCategory =
@@ -397,9 +424,10 @@ export function computePayslip(input: PayslipInput) {
     });
   const unpaid = absent.plus(late);
 
+  const enrollment = input.enrollment ?? FULL_ENROLLMENT;
   const bpjs = input.casual
-    ? bpjsContributions(input.casual.bpjsWage, input.bpjs, input.casual.onlyJkkJkm)
-    : bpjsContributions(baseWage, input.bpjs);
+    ? bpjsContributions(input.casual.bpjsWage, input.bpjs, input.casual.onlyJkkJkm, enrollment)
+    : bpjsContributions(baseWage, input.bpjs, false, enrollment);
   const employer: [string, string, string][] = [
     ["BPJS_KES_ER", "BPJS Kesehatan (perusahaan 4%)", bpjs.employer.kes],
     ["JHT_ER", "BPJS JHT (perusahaan 3,7%)", bpjs.employer.jht],
@@ -464,6 +492,11 @@ export function computePayslip(input: PayslipInput) {
   const deductions = input.deductions.reduce((s, x) => s.plus(rupiah(d(x.amount))), d(0));
   const employerBpjs = employer.reduce((s, [, , a]) => s.plus(a), d(0));
   const net = earnings.minus(employeeBpjs).minus(pph21).minus(deductions);
+  const sum = (rows: [string, string, string][], program: "kes" | "tk") =>
+    rows
+      .filter(([code]) => bpjsProgram(code) === program)
+      .reduce((t, [, , a]) => t.plus(a), d(0))
+      .toFixed(0);
   return {
     lines,
     earnings: rupiah(earnings).toFixed(0),
@@ -473,6 +506,13 @@ export function computePayslip(input: PayslipInput) {
     pph21: pph21.toFixed(0),
     employeeBpjs: employeeBpjs.toFixed(0),
     employerBpjs: employerBpjs.toFixed(0),
+    // BPJS Kesehatan dan Ketenagakerjaan selalu dilaporkan terpisah.
+    kesEmployee: sum(employee, "kes"),
+    kesEmployer: sum(employer, "kes"),
+    tkEmployee: sum(employee, "tk"),
+    tkEmployer: sum(employer, "tk"),
+    kesWage: bpjs.kesWage,
+    tkWage: bpjs.tkWage,
     employeePension: pension.toFixed(0),
     deductions: deductions.toFixed(0),
     net: rupiah(net).toFixed(0),

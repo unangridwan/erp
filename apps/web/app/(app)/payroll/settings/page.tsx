@@ -10,10 +10,12 @@ type Settings = Record<
   | "kesWageCap"
   | "jpWageCap"
   | "salaryExpenseAccountId"
-  | "bpjsExpenseAccountId"
+  | "bpjsKesExpenseAccountId"
+  | "bpjsTkExpenseAccountId"
   | "salaryPayableAccountId"
   | "pph21PayableAccountId"
-  | "bpjsPayableAccountId"
+  | "bpjsKesPayableAccountId"
+  | "bpjsTkPayableAccountId"
   | "journalId"
   | "timezone"
   | "employeeLoanAccountId"
@@ -73,10 +75,12 @@ export default function PayrollSettingsPage() {
         kesWageCap,
         jpWageCap,
         salaryExpenseAccountId,
-        bpjsExpenseAccountId,
+        bpjsKesExpenseAccountId,
+        bpjsTkExpenseAccountId,
         salaryPayableAccountId,
         pph21PayableAccountId,
-        bpjsPayableAccountId,
+        bpjsKesPayableAccountId,
+        bpjsTkPayableAccountId,
         journalId,
         timezone,
         employeeLoanAccountId,
@@ -96,10 +100,12 @@ export default function PayrollSettingsPage() {
           kesWageCap,
           jpWageCap,
           salaryExpenseAccountId,
-          bpjsExpenseAccountId,
+          bpjsKesExpenseAccountId,
+          bpjsTkExpenseAccountId,
           salaryPayableAccountId,
           pph21PayableAccountId,
-          bpjsPayableAccountId,
+          bpjsKesPayableAccountId,
+          bpjsTkPayableAccountId,
           journalId,
           timezone,
           employeeLoanAccountId: employeeLoanAccountId || null,
@@ -165,13 +171,24 @@ export default function PayrollSettingsPage() {
         <input className="num" inputMode="decimal" value={form.jpWageCap} onChange={set("jpWageCap")} />
       </label>
       {accountSelect("salaryExpenseAccountId", l("Akun beban gaji", "Salary expense account"))}
-      {accountSelect(
-        "bpjsExpenseAccountId",
-        l("Akun beban BPJS perusahaan", "Employer BPJS expense account"),
-      )}
       {accountSelect("salaryPayableAccountId", l("Akun utang gaji", "Salary payable account"))}
       {accountSelect("pph21PayableAccountId", l("Akun utang PPh 21", "PPh 21 payable account"))}
-      {accountSelect("bpjsPayableAccountId", l("Akun utang BPJS", "BPJS payable account"))}
+      {accountSelect(
+        "bpjsKesExpenseAccountId",
+        l("Akun beban BPJS Kesehatan (perusahaan)", "BPJS Health expense account (employer)"),
+      )}
+      {accountSelect(
+        "bpjsKesPayableAccountId",
+        l("Akun utang BPJS Kesehatan", "BPJS Health payable account"),
+      )}
+      {accountSelect(
+        "bpjsTkExpenseAccountId",
+        l("Akun beban BPJS Ketenagakerjaan (perusahaan)", "BPJS Employment expense account (employer)"),
+      )}
+      {accountSelect(
+        "bpjsTkPayableAccountId",
+        l("Akun utang BPJS Ketenagakerjaan", "BPJS Employment payable account"),
+      )}
       {accountSelect(
         "employeeLoanAccountId",
         l("Akun piutang karyawan (pinjaman/kasbon)", "Employee loan receivable account"),

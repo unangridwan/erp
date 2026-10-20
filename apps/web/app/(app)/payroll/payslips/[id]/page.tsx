@@ -8,7 +8,7 @@ import { useOptions } from "../../../../../components/accounting/use-options";
 import { useMe } from "../../../../../components/me-context";
 import { api, ApiError } from "../../../../../lib/api";
 import { money } from "../../../../../lib/format";
-import { useI18n } from "../../../../../lib/i18n";
+import { L, useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
 
 interface Slip {
@@ -21,6 +21,12 @@ interface Slip {
   gross: string;
   pph21: string;
   net: string;
+  kesEmployee: string;
+  kesEmployer: string;
+  tkEmployee: string;
+  tkEmployer: string;
+  bpjsKesWage: string;
+  bpjsTkWage: string;
   annual: { biayaJabatan: string; neto: string; ptkp: string; pkp: string; tax: string } | null;
   run: { id: string; name: string; periodStart: string; state: string };
   employee: { name: string; employeeNumber: string; departmentName: string | null; jobName: string | null };
@@ -35,13 +41,32 @@ interface Slip {
 }
 
 const EARN = ["basic", "allowance", "overtime", "unpaid"];
-const DEDUCT = ["bpjs_employee", "tax", "deduction"];
+const DEDUCT = ["tax", "deduction"];
+
+/** Rincian per program: BPJS Kesehatan dan BPJS Ketenagakerjaan tidak digabung. */
+const PROGRAMS = [
+  {
+    key: "kes" as const,
+    title: L("BPJS Kesehatan", "BPJS Health"),
+    rows: [[L("Jaminan Kesehatan", "Health insurance"), "BPJS_KES_EE", "BPJS_KES_ER"]],
+  },
+  {
+    key: "tk" as const,
+    title: L("BPJS Ketenagakerjaan", "BPJS Employment"),
+    rows: [
+      [L("Jaminan Hari Tua (JHT)", "Old-age savings (JHT)"), "JHT_EE", "JHT_ER"],
+      [L("Jaminan Kecelakaan Kerja (JKK)", "Work accident (JKK)"), null, "JKK"],
+      [L("Jaminan Kematian (JKM)", "Death benefit (JKM)"), null, "JKM"],
+      [L("Jaminan Pensiun (JP)", "Pension (JP)"), "JP_EE", "JP_ER"],
+    ],
+  },
+] as const;
 
 /** Slip gaji: rincian pendapatan, potongan, iuran perusahaan, perhitungan PPh 21, dan input tidak tetap. */
 export default function PayslipPage() {
   const { id } = useParams<{ id: string }>();
   const me = useMe();
-  const { l, locale } = useI18n();
+  const { l, tx, locale } = useI18n();
   const components = useOptions<{ id: string; code: string; name: string; kind: string }>(
     can(me.permissions, "payroll.write") ? "/salary-components" : null,
   );
@@ -134,9 +159,100 @@ export default function PayslipPage() {
       {error && <p className="error">{error}</p>}
       <div className="split">
         {section(l("Pendapatan", "Earnings"), EARN)}
-        {section(l("Potongan", "Deductions"), DEDUCT, -1)}
-        {section(l("Iuran perusahaan (tidak memotong gaji)", "Employer contributions"), ["bpjs_employer"])}
+        <section>
+          <h2>{l("Potongan", "Deductions")}</h2>
+          <table>
+            <tbody>
+              <tr>
+                <td>{l("BPJS Kesehatan (karyawan)", "BPJS Health (employee)")}</td>
+                <td className="num">{n(slip.kesEmployee)}</td>
+              </tr>
+              <tr>
+                <td>{l("BPJS Ketenagakerjaan (karyawan)", "BPJS Employment (employee)")}</td>
+                <td className="num">{n(slip.tkEmployee)}</td>
+              </tr>
+              {slip.lines
+                .filter((x) => DEDUCT.includes(x.category))
+                .map((x) => (
+                  <tr key={x.id}>
+                    <td>{x.name}</td>
+                    <td className="num">{n(String(-Number(x.amount)))}</td>
+                  </tr>
+                ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th>{l("Total", "Total")}</th>
+                <th className="num">
+                  {n(
+                    String(
+                      Number(slip.kesEmployee) +
+                        Number(slip.tkEmployee) -
+                        slip.lines
+                          .filter((x) => DEDUCT.includes(x.category))
+                          .reduce((t, x) => t + Number(x.amount), 0),
+                    ),
+                  )}
+                </th>
+              </tr>
+            </tfoot>
+          </table>
+        </section>
       </div>
+      <div className="split">
+        {PROGRAMS.map((program) => {
+          const amount = (code: string | null) =>
+            code ? Math.abs(Number(slip.lines.find((x) => x.code === code)?.amount ?? 0)) : 0;
+          const rows = program.rows.filter(([, ee, er]) => amount(ee) || amount(er));
+          const wage = program.key === "kes" ? slip.bpjsKesWage : slip.bpjsTkWage;
+          return (
+            <section key={program.key}>
+              <h2>{tx(program.title)}</h2>
+              <p className="muted">
+                {l("Dasar upah", "Wage base")}: {n(wage)}
+              </p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>{l("Program", "Programme")}</th>
+                    <th className="num">{l("Karyawan", "Employee")}</th>
+                    <th className="num">{l("Perusahaan", "Employer")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(([label, ee, er]) => (
+                    <tr key={er}>
+                      <td>{tx(label)}</td>
+                      <td className="num">{n(String(amount(ee)))}</td>
+                      <td className="num">{n(String(amount(er)))}</td>
+                    </tr>
+                  ))}
+                  {rows.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="muted">
+                        {l("Tidak terdaftar sebagai peserta", "Not enrolled")}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th>{l("Subtotal", "Subtotal")}</th>
+                    <th className="num">{n(program.key === "kes" ? slip.kesEmployee : slip.tkEmployee)}</th>
+                    <th className="num">{n(program.key === "kes" ? slip.kesEmployer : slip.tkEmployer)}</th>
+                  </tr>
+                </tfoot>
+              </table>
+            </section>
+          );
+        })}
+      </div>
+      <p className="muted">
+        {l(
+          "Iuran perusahaan dibayar perusahaan dan tidak memotong gaji.",
+          "Employer contributions are paid by the company and do not reduce pay.",
+        )}
+      </p>
       <p className="notice">
         <strong>
           {l("Gaji bersih", "Net pay")}: {n(slip.net)}
