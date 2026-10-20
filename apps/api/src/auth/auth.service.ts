@@ -64,7 +64,7 @@ export class AuthService {
 
   /** Daftarkan tenant baru beserta perusahaan holding dan user admin pertama. */
   async signup(input: SignupInput, meta: ClientMeta): Promise<Session> {
-    this.limiter.consume(`signup:${meta.ip}`, 10, 60 * MINUTE);
+    await this.limiter.consume(`signup:${meta.ip}`, 10, 60 * MINUTE);
     const passwordHash = await hashPassword(input.password);
     const { tenantId, userId } = await this.ownerDb.transaction(async (tx) => {
       const [tenant] = await tx
@@ -94,8 +94,8 @@ export class AuthService {
     const ip = meta.ip;
     // Batas per akun mencegah tebak password terarah; batas per IP mencegah penyisiran banyak akun.
     const accountKey = `login:${input.tenantSlug}:${input.email}`;
-    this.limiter.consume(`login-ip:${ip}`, 50, 15 * MINUTE);
-    this.limiter.consume(accountKey, 10, 15 * MINUTE);
+    await this.limiter.consume(`login-ip:${ip}`, 50, 15 * MINUTE);
+    await this.limiter.consume(accountKey, 10, 15 * MINUTE);
 
     const invalid = new UnauthorizedException("Tenant, email, atau password salah");
     const tenantId = await this.tenantIdBySlug(input.tenantSlug);
@@ -107,6 +107,7 @@ export class AuthService {
         .from(schema.users)
         .where(and(eq(schema.users.email, input.email), eq(schema.users.active, true)));
       if (!user || !(await verifyPassword(input.password, user.passwordHash))) throw invalid;
+      await this.assertPasswordLoginAllowed(tx, user.id);
 
       if (user.totpEnabled) {
         if (!input.code) {
@@ -124,13 +125,39 @@ export class AuthService {
         .where(eq(schema.users.id, user.id));
       return this.issueSession(tx, { sub: user.id, tid: tenantId }, meta);
     });
-    this.limiter.reset(accountKey);
+    await this.limiter.reset(accountKey);
     return session;
+  }
+
+  /** Sesi untuk user yang sudah diautentikasi penyedia SSO (2FA ditangani penyedia identitas). */
+  async ssoSession(tenantId: string, userId: string, meta: ClientMeta): Promise<Session> {
+    return this.tenantDb.runAs(tenantId, async (tx) => {
+      await tx
+        .update(schema.users)
+        .set({ lastLoginAt: sql`now()` })
+        .where(eq(schema.users.id, userId));
+      return this.issueSession(tx, { sub: userId, tid: tenantId }, meta);
+    });
+  }
+
+  /** SSO wajib: login password hanya untuk administrator (akses darurat bila penyedia identitas bermasalah). */
+  private async assertPasswordLoginAllowed(tx: Db, userId: string) {
+    const [sso] = await tx
+      .select({ enforce: schema.tenantSso.enforce, active: schema.tenantSso.active })
+      .from(schema.tenantSso);
+    if (!sso?.enforce || !sso.active) return;
+    const [admin] = await tx
+      .select({ permission: schema.rolePermissions.permission })
+      .from(schema.userRoles)
+      .innerJoin(schema.rolePermissions, eq(schema.rolePermissions.roleId, schema.userRoles.roleId))
+      .where(and(eq(schema.userRoles.userId, userId), eq(schema.rolePermissions.permission, ALL_PERMISSIONS)))
+      .limit(1);
+    if (!admin) throw new UnauthorizedException("Tenant ini mewajibkan login lewat SSO");
   }
 
   /** Tukar refresh token dengan sesi baru (rotasi). Token lama yang dipakai ulang mencabut seluruh keluarganya. */
   async refresh(refreshToken: string, meta: ClientMeta): Promise<Session> {
-    this.limiter.consume(`refresh:${meta.ip}`, 60, 15 * MINUTE);
+    await this.limiter.consume(`refresh:${meta.ip}`, 60, 15 * MINUTE);
     const invalid = new UnauthorizedException("Sesi berakhir, silakan masuk lagi");
     const parsed = parseTenantToken(refreshToken);
     if (!parsed) throw invalid;
@@ -235,7 +262,7 @@ export class AuthService {
   }
 
   async acceptInvitation(input: z.infer<typeof acceptInviteSchema>, meta: ClientMeta): Promise<Session> {
-    this.limiter.consume(`invite:${meta.ip}`, 20, 15 * MINUTE);
+    await this.limiter.consume(`invite:${meta.ip}`, 20, 15 * MINUTE);
     const parsed = parseTenantToken(input.token);
     if (!parsed) throw new GoneException("Undangan tidak valid atau sudah kedaluwarsa");
     const passwordHash = await hashPassword(input.password);
@@ -421,7 +448,7 @@ export class AuthService {
 
   /** Verifikasi kode TOTP dan catat step-nya agar kode tidak bisa dipakai ulang. */
   private async consumeTotp(tx: Db, user: typeof schema.users.$inferSelect, code: string) {
-    this.limiter.consume(`totp:${user.id}`, 10, 15 * MINUTE);
+    await this.limiter.consume(`totp:${user.id}`, 10, 15 * MINUTE);
     const secret = user.totpSecretEnc && decrypt(user.totpSecretEnc, this.config.encryptionKey);
     const step = secret ? verifyTotp(secret, code, user.totpLastStep) : undefined;
     if (step === undefined) {

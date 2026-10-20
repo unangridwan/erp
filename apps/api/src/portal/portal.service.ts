@@ -130,8 +130,8 @@ export class PortalService {
 
   async login(input: z.infer<typeof portalLoginSchema>, ip: string) {
     const key = `portal-login:${input.tenantSlug}:${input.email}`;
-    this.limiter.consume(`portal-ip:${ip}`, 50, 15 * MINUTE);
-    this.limiter.consume(key, 10, 15 * MINUTE);
+    await this.limiter.consume(`portal-ip:${ip}`, 50, 15 * MINUTE);
+    await this.limiter.consume(key, 10, 15 * MINUTE);
     const invalid = new UnauthorizedException("Tenant, email, atau password salah");
     const [tenant] = await this.ownerDb
       .select({ id: schema.tenants.id })
@@ -152,13 +152,13 @@ export class PortalService {
         .where(eq(schema.portalUsers.id, user.id));
       return this.session(tx, tenant.id, user);
     });
-    this.limiter.reset(key);
+    await this.limiter.reset(key);
     return session;
   }
 
   /** Terima undangan: atur password lalu langsung masuk. */
   async accept(input: { token: string; password: string }, ip: string) {
-    this.limiter.consume(`portal-accept:${ip}`, 20, 15 * MINUTE);
+    await this.limiter.consume(`portal-accept:${ip}`, 20, 15 * MINUTE);
     const invalid = new BadRequestException("Undangan tidak valid atau kedaluwarsa");
     const parsed = parseTenantToken(input.token);
     if (!parsed) throw invalid;

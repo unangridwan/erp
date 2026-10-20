@@ -32,7 +32,7 @@ import { installInventory } from "../inventory/setup.js";
 import { installPayroll } from "../payroll/setup.js";
 import { assertCompanyLimit } from "../billing/limits.js";
 import { createCrudController } from "../common/crud.js";
-import { FxController, FxService } from "./fx.controller.js";
+import { FxController, FxService, FxSettingsController, FxSyncService } from "./fx.controller.js";
 import { RegionsController } from "./regions.controller.js";
 import { assertProductUoms } from "./uom.js";
 import { VariantService } from "./variant.service.js";
@@ -294,9 +294,10 @@ class CurrenciesController {
     CurrenciesController,
     CurrencyRatesController,
     FxController,
+    FxSettingsController,
     RegionsController,
   ],
-  providers: [ActivityService, FxService, VariantService],
+  providers: [ActivityService, FxService, FxSyncService, VariantService],
   exports: [FxService],
 })
 export class MasterModule {}

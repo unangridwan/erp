@@ -7,6 +7,8 @@ export interface AppConfig {
   /** Kunci untuk enkripsi kolom sensitif (secret 2FA, dst.). */
   encryptionKey: string;
   webOrigin: string;
+  /** URL publik API (untuk redirect URI SSO), mis. https://api.erpku.id. */
+  apiOrigin: string;
   /** "smtp://host:port" atau "json" (tidak mengirim, untuk test). */
   mailTransport: string;
   mailFrom: string;
@@ -23,6 +25,8 @@ export interface AppConfig {
     /** Jalankan penjadwal perpanjangan otomatis (dimatikan saat test). */
     scheduler: boolean;
   };
+  /** Sumber kurs otomatis (API Frankfurter: kurs referensi ECB) & penjadwal harian. */
+  fx: { frankfurterUrl: string; scheduler: boolean };
   /** Token untuk GET /metrics (Prometheus); kosong = endpoint dimatikan. */
   metricsToken: string | null;
   logFormat: "json" | "pretty" | "off";
@@ -45,6 +49,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     refreshTtlDays: Number(env.REFRESH_TOKEN_TTL_DAYS ?? 30),
     encryptionKey: secret(env, "ENCRYPTION_KEY"),
     webOrigin: env.WEB_ORIGIN ?? "http://localhost:3000",
+    apiOrigin: (env.API_ORIGIN ?? `http://localhost:${env.PORT ?? 3001}`).replace(/\/+$/, ""),
     mailTransport: env.MAIL_TRANSPORT ?? "smtp://localhost:1025",
     mailFrom: env.MAIL_FROM ?? "ERP <no-reply@erp.local>",
     billing: {
@@ -57,6 +62,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       xenditSecretKey: env.XENDIT_SECRET_KEY || null,
       xenditCallbackToken: env.XENDIT_CALLBACK_TOKEN || null,
       scheduler: env.BILLING_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
+    },
+    fx: {
+      frankfurterUrl: (env.FX_FRANKFURTER_URL ?? "https://api.frankfurter.app").replace(/\/+$/, ""),
+      scheduler: env.FX_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
     },
     metricsToken: env.METRICS_TOKEN || null,
     logFormat: (env.LOG_FORMAT as "json" | "pretty" | "off" | undefined) ?? (env.VITEST ? "off" : "pretty"),

@@ -192,6 +192,7 @@ export const APPS: App[] = [
         link("Jurnal", "Journals", "/journals", "accounting.read"),
         link("Pajak", "Taxes", "/taxes", "accounting.read"),
         link("Kurs Harian", "Currency Rates", "/currency-rates", "currency.read"),
+        link("Sumber Kurs Otomatis", "Automatic Rates", "/accounting/fx-sources", "currency.read"),
       ]),
     ],
   },
@@ -327,6 +328,7 @@ export const APPS: App[] = [
       link("Pengguna", "Users", "/settings/users", "user.read"),
       link("Langganan", "Subscription", "/settings/billing", "billing.manage"),
       link("Keamanan", "Security", "/settings/security", ""),
+      link("SSO", "Single Sign-On", "/settings/sso", "settings.manage"),
     ],
   },
   {

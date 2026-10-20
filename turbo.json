@@ -5,6 +5,6 @@
     "dev": { "cache": false, "persistent": true },
     "lint": {},
     "typecheck": { "dependsOn": ["^build"] },
-    "test": { "dependsOn": ["^build"], "env": ["DATABASE_URL"] }
+    "test": { "dependsOn": ["^build"], "env": ["DATABASE_URL", "REDIS_TEST_URL"] }
   }
 }

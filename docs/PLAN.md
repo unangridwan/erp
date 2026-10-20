@@ -327,8 +327,11 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   selisih kurs akhir bulan atas piutang/utang valas terbuka & rekening valas ke akun belum terealisasi (4-9110/7-1110)
   dengan jurnal balik otomatis
 - [ ] Fase 1 ditunda: koneksi API bank langsung (butuh kerja sama/kredensial bank; impor CSV mutasi sudah tersedia)
-- [ ] Ditunda: rate limiter berbasis Redis (multi-instance), SSO, impor Excel (.xlsx), sumber kurs otomatis
-  (KMK kurs pajak / BI), pesan error API dua bahasa
+- [x] Platform (tunda, selesai): rate limiter berbasis Redis (multi-instance, fallback memori), SSO OpenID Connect per
+  tenant (PKCE, verifikasi JWKS, domain, user otomatis, SSO wajib), impor/ekspor Excel (.xlsx) untuk resource master,
+  sumber kurs otomatis (kurs referensi ECB lewat Frankfurter, manual/harian), pesan error API dua bahasa
+  (`Accept-Language`)
+- [ ] Ditunda: kurs KMK (pajak) & JISDOR BI otomatis (tidak ada API resmi), SAML, terjemahan seluruh pesan error
 
 ## 5. Roadmap Bertahap
 

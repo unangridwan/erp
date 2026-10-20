@@ -42,7 +42,8 @@ const MESSAGES = {
   "list.empty": L("Belum ada data.", "No records yet."),
   "list.of": L("dari", "of"),
   "list.export": L("Ekspor CSV", "Export CSV"),
-  "list.import": L("Impor CSV", "Import CSV"),
+  "list.import": L("Impor CSV/Excel", "Import CSV/Excel"),
+  "list.exportXlsx": L("Ekspor Excel", "Export Excel"),
   "list.imported": L(
     "Impor selesai: {created} dibuat, {updated} diperbarui.",
     "Import done: {created} created, {updated} updated.",

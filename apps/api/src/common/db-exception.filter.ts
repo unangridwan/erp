@@ -1,5 +1,6 @@
 import { Catch, HttpException, HttpStatus, type ArgumentsHost, type ExceptionFilter } from "@nestjs/common";
-import type { Response } from "express";
+import type { Request, Response } from "express";
+import { localizeErrorBody, preferredLanguage } from "./error-i18n.js";
 import { JsonLogger, type LogFormat } from "./observability.js";
 
 const logger = new JsonLogger(
@@ -10,7 +11,16 @@ const logger = new JsonLogger(
 @Catch()
 export class DbExceptionFilter implements ExceptionFilter {
   catch(error: unknown, host: ArgumentsHost) {
-    const res = host.switchToHttp().getResponse<Response>();
+    const http = host.switchToHttp();
+    const request = typeof http.getRequest === "function" ? http.getRequest<Request>() : undefined;
+    const lang = preferredLanguage(request?.headers?.["accept-language"]);
+    const raw = http.getResponse<Response>();
+    // Pesan error mengikuti Accept-Language (Indonesia bawaan, Inggris bila diminta).
+    const res = {
+      status: (code: number) => ({
+        json: (body: unknown) => raw.status(code).json(localizeErrorBody(body, lang)),
+      }),
+    };
     if (error instanceof HttpException) {
       res.status(error.getStatus()).json(error.getResponse());
       return;
@@ -23,7 +33,7 @@ export class DbExceptionFilter implements ExceptionFilter {
       res.status(mapped.status).json({ statusCode: mapped.status, message, detail: pg.detail });
       return;
     }
-    const req = host.switchToHttp().getRequest<{ id?: string }>();
+    const req = (request ?? {}) as { id?: string };
     logger.error(
       { msg: "unhandled error", reqId: req.id, error: String(error) },
       (error as Error)?.stack,

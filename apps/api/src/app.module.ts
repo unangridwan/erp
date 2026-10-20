@@ -5,6 +5,8 @@ import { ActivityController, ActivityService } from "./activity/activity.service
 import { AuthController } from "./auth/auth.controller.js";
 import { AuthGuard } from "./auth/auth.guard.js";
 import { AuthService } from "./auth/auth.service.js";
+import { SsoController } from "./auth/sso.controller.js";
+import { SsoService } from "./auth/sso.service.js";
 import { DatabaseModule } from "./common/database.js";
 import { DbExceptionFilter } from "./common/db-exception.filter.js";
 import { MailModule } from "./common/mailer.js";
@@ -49,9 +51,17 @@ import { UsersService } from "./users/users.service.js";
     OnboardingModule,
     ConsolidationModule,
   ],
-  controllers: [HealthController, AuthController, ActivityController, SequenceController, UsersController],
+  controllers: [
+    HealthController,
+    AuthController,
+    SsoController,
+    ActivityController,
+    SequenceController,
+    UsersController,
+  ],
   providers: [
     AuthService,
+    SsoService,
     ActivityService,
     SequenceService,
     UsersService,

@@ -6,7 +6,7 @@ import { assertRefsVisible } from "../common/crud.js";
 export interface NewUser {
   name: string;
   email: string;
-  passwordHash: string;
+  passwordHash: string | null;
   roleIds: string[];
   companyIds: string[];
 }
