@@ -293,9 +293,13 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   dieliminasi otomatis; selisih IC akibat kurs ke selisih kurs penjabaran; saldo awal dari proses final periode
   sebelumnya atau dihitung ulang; laporan perubahan ekuitas & arus kas (tidak langsung) konsolidasian; ekspor Excel
   multi-lembar & cetak/PDF; akun & laporan RK pusat–cabang dengan peringatan di konsolidasi
-- [ ] Fase 5b ditunda: reklasifikasi selisih kurs penjabaran saat entitas asing dilepas, pengukuran ulang nilai wajar
-  kepemilikan sebelumnya pada akuisisi bertahap, goodwill entitas asing dijabarkan kurs penutupan, laba belum
-  terealisasi pada transaksi dengan asosiasi, laporan per sub-grup/segmen
+- [x] Fase 5b (tunda): reklasifikasi selisih kurs penjabaran kumulatif ke laba rugi saat entitas asing dilepas (akun
+  reklasifikasi terpisah + baris reklasifikasi di laporan perubahan ekuitas), pengukuran ulang nilai wajar kepemilikan
+  sebelumnya pada akuisisi bertahap (kenaikan ke goodwill, laba pengukuran ulang dikurangi bagian laba ekuitas yang
+  sudah diakui), goodwill entitas asing dijabarkan kurs penutupan (selisih ke selisih kurs penjabaran induk), laba
+  belum terealisasi atas persediaan dengan asosiasi (downstream & upstream, bagian investor), laporan segmen per
+  perusahaan/unit bisnis/cabang dengan rekonsiliasi eliminasi; konsolidasi sub-grup dengan memilih sub-holding sebagai
+  induk. Belum: selisih kurs penjabaran asosiasi asing pada metode ekuitas
 - [x] Fase 5 (tunda, selesai sebagian): bukti potong A1 (XML `A1Bulk` dari slip masa terakhir); faktur uang muka &
   pelunasan (potongan uang muka mengurangi DPP); PPnBM per produk (tarif di produk, pajak PPnBM + PPN barang mewah
   otomatis di baris penjualan, STLG di faktur); pemeriksaan isi XML faktur sebelum ekspor sesuai aturan template

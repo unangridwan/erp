@@ -118,8 +118,34 @@ interface IcPair {
   balanceB: string;
   difference: string;
 }
+interface SegmentRow {
+  key: string;
+  name: string;
+  income: string;
+  directCost: string;
+  grossProfit: string;
+  expense: string;
+  otherNet: string;
+  netProfit: string;
+}
+type SegmentBy = "company" | "business_unit" | "branch";
+interface Segments {
+  by: SegmentBy;
+  segments: SegmentRow[];
+  eliminations: SegmentRow;
+  total: SegmentRow;
+}
 
-const TABS = ["report", "equity", "cashflow", "worksheet", "entries", "intercompany", "entities"] as const;
+const TABS = [
+  "report",
+  "equity",
+  "cashflow",
+  "segments",
+  "worksheet",
+  "entries",
+  "intercompany",
+  "entities",
+] as const;
 type Tab = (typeof TABS)[number];
 
 export default function ConsolidationRunPage() {
@@ -132,6 +158,8 @@ export default function ConsolidationRunPage() {
   const [report, setReport] = useState<Report | null>(null);
   const [ws, setWs] = useState<Worksheet | null>(null);
   const [ic, setIc] = useState<{ balances: IcPair[]; transactions: IcPair[] } | null>(null);
+  const [segmentBy, setSegmentBy] = useState<SegmentBy>("company");
+  const [segments, setSegments] = useState<Segments | null>(null);
   const [rates, setRates] = useState<
     Record<string, { closingRate: string; averageRate: string; historicalRate: string; byDate: boolean }>
   >({});
@@ -172,6 +200,12 @@ export default function ConsolidationRunPage() {
         .then(setIc)
         .catch((e: Error) => setError(e.message));
   }, [tab, ic, id]);
+  useEffect(() => {
+    if (tab === "segments" && segments?.by !== segmentBy)
+      api<Segments>(`/consolidation/runs/${id}/segments?by=${segmentBy}`)
+        .then(setSegments)
+        .catch((e: Error) => setError(e.message));
+  }, [tab, segments, segmentBy, id]);
 
   async function run_(action: () => Promise<unknown>) {
     setError(null);
@@ -344,6 +378,7 @@ export default function ConsolidationRunPage() {
                 report: l("Laporan konsolidasian", "Consolidated statements"),
                 equity: l("Perubahan ekuitas", "Changes in equity"),
                 cashflow: l("Arus kas", "Cash flows"),
+                segments: l("Segmen", "Segments"),
                 worksheet: l("Kertas kerja", "Worksheet"),
                 entries: l("Jurnal eliminasi", "Elimination entries"),
                 intercompany: l("Rekonsiliasi antar perusahaan", "Intercompany reconciliation"),
@@ -490,6 +525,10 @@ export default function ConsolidationRunPage() {
                           "Selisih kurs penjabaran (penghasilan komprehensif lain)",
                           "Translation differences (other comprehensive income)",
                         ),
+                        reclassification: l(
+                          "Reklasifikasi selisih kurs penjabaran ke laba rugi (pelepasan entitas asing)",
+                          "Translation reserve reclassified to profit or loss (disposal of foreign operation)",
+                        ),
                         dividends: l("Dividen", "Dividends"),
                         transactions: l("Transaksi dengan KNP", "Transactions with NCI"),
                         other: l(
@@ -576,6 +615,74 @@ export default function ConsolidationRunPage() {
         ) : (
           noOpening
         ))}
+
+      {tab === "segments" && (
+        <section className="table-wrap report">
+          <div className="no-print" style={{ padding: 12 }}>
+            <label>
+              {l("Segmen menurut", "Segment by")}{" "}
+              <select value={segmentBy} onChange={(e) => setSegmentBy(e.target.value as SegmentBy)}>
+                <option value="company">{l("Perusahaan", "Company")}</option>
+                <option value="business_unit">{l("Unit bisnis", "Business unit")}</option>
+                <option value="branch">{l("Cabang", "Branch")}</option>
+              </select>
+            </label>
+          </div>
+          {segments && segments.by === segmentBy && (
+            <table>
+              <caption>
+                {l(
+                  "Laba rugi per segmen (sebelum eliminasi) dan rekonsiliasi ke konsolidasian",
+                  "Profit or loss by segment (before eliminations) reconciled to consolidated",
+                )}
+              </caption>
+              <thead>
+                <tr>
+                  <th>{l("Segmen", "Segment")}</th>
+                  <th className="num">{l("Pendapatan", "Revenue")}</th>
+                  <th className="num">{l("Beban pokok", "Cost of sales")}</th>
+                  <th className="num">{l("Laba kotor", "Gross profit")}</th>
+                  <th className="num">{l("Beban usaha", "Operating expenses")}</th>
+                  <th className="num">{l("Lain-lain neto", "Other, net")}</th>
+                  <th className="num">{l("Laba bersih", "Net profit")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...segments.segments, segments.eliminations].map((r) => (
+                  <tr key={r.key} className={r.key === "eliminations" ? "muted" : ""}>
+                    <td>
+                      {r.key === "eliminations"
+                        ? l("Eliminasi & penyesuaian", "Eliminations & adjustments")
+                        : r.key === "none"
+                          ? segmentBy === "branch"
+                            ? l("Tanpa cabang", "No branch")
+                            : l("Tanpa unit bisnis", "No business unit")
+                          : r.name}
+                    </td>
+                    {(
+                      ["income", "directCost", "grossProfit", "expense", "otherNet", "netProfit"] as const
+                    ).map((f) => (
+                      <td key={f} className="num">
+                        {m(r[f])}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                <tr className="subtotal">
+                  <td>{l("Konsolidasian", "Consolidated")}</td>
+                  {(["income", "directCost", "grossProfit", "expense", "otherNet", "netProfit"] as const).map(
+                    (f) => (
+                      <td key={f} className="num">
+                        {m(segments.total[f])}
+                      </td>
+                    ),
+                  )}
+                </tr>
+              </tbody>
+            </table>
+          )}
+        </section>
+      )}
 
       {tab === "worksheet" && ws && (
         <div className="table-wrap">

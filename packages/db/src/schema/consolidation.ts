@@ -16,6 +16,8 @@ export const GROUP_ACCOUNT_ROLES = [
   "dividends",
   "equity_transactions",
   "disposal_gain",
+  "cta_reclassified",
+  "remeasurement_gain",
 ] as const;
 
 export const CONSOLIDATION_ENTRY_KINDS = [

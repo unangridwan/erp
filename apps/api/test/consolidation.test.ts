@@ -170,6 +170,8 @@ describe.skipIf(!hasDb)("Fase 5b: konsolidasi grup", () => {
       dividends: "3-3000",
       equity_transactions: "3-8300",
       disposal_gain: "4-9400",
+      cta_reclassified: "4-9600",
+      remeasurement_gain: "4-9700",
     });
     expect((await hq.post("/consolidation/bootstrap").expect(200)).body).toMatchObject({
       created: 0,

@@ -80,7 +80,12 @@ export default function ConsolidationRunsPage() {
       {can(me.permissions, "consolidation.manage") && (
         <form className="inline-panel" onSubmit={create}>
           <label className="field">
-            <span>{l("Perusahaan induk", "Parent company")}</span>
+            <span>
+              {l(
+                "Perusahaan induk (pilih sub-holding untuk konsolidasi sub-grup)",
+                "Parent company (pick a sub-holding for a sub-group consolidation)",
+              )}
+            </span>
             <select value={rootCompanyId} onChange={(e) => setRoot(e.target.value)}>
               {me.companies.map((c) => (
                 <option key={c.id} value={c.id}>
