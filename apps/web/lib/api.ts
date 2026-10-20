@@ -1,5 +1,7 @@
 "use client";
 
+import { setErrorUser } from "./error-reporting";
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 const TOKEN_KEY = "erp.token";
 const REFRESH_KEY = "erp.refresh";
@@ -39,6 +41,7 @@ export const session = {
     write(TOKEN_KEY, null);
     write(REFRESH_KEY, null);
     write(COMPANY_KEY, null);
+    setErrorUser(null);
   },
   async logout() {
     const refreshToken = read(REFRESH_KEY);
@@ -138,6 +141,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
 
 export interface Me {
   tenantId: string;
+  userId: string;
   name: string;
   email: string;
   twoFactorEnabled: boolean;

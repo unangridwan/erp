@@ -485,6 +485,10 @@ export function consolidate(
     const share = D(e.effectivePct).div(100);
     const profit = r2(share.times(profitOf.get(e.companyId)!));
     const prior = r2(share.times(priorProfit(e)));
+    // Asosiasi asing: bagian investor atas selisih kurs penjabaran kumulatif menambah investasi & cadangan OCI grup.
+    const ctaShare = e.disposal
+      ? D(0)
+      : r2(share.times(D(translated.get(e.companyId)!.get(role("cta"))).negated()));
     const lines = nonZero(
       e.disposal
         ? [
@@ -493,11 +497,14 @@ export function consolidate(
             line(retained, null, prior.negated()),
           ]
         : [
-            line(role("associate_investment"), null, profit.plus(prior)),
+            line(role("associate_investment"), null, profit.plus(prior).plus(ctaShare)),
             line(role("associate_income"), null, profit.negated()),
             line(retained, null, prior.negated()),
+            line(role("cta"), null, ctaShare.negated()),
           ],
     );
+    // Pengaruh signifikan hilang: bagian investor atas selisih kurs kumulatif direklasifikasi ke laba rugi.
+    if (e.disposal) recycle(e, share);
     if (lines.length)
       entries.push({
         kind: "equity_method",

@@ -799,9 +799,9 @@ export class ConsolidationService {
           amount: b.amount,
           ...(dated && isEquity(b.groupAccountId) ? { translated: b.translated } : {}),
         }));
-      // Entitas asing yang dilepas: selisih kurs penjabaran kumulatif pada tanggal pelepasan (dari posisi lengkapnya).
+      // Entitas/asosiasi asing yang dilepas: selisih kurs penjabaran kumulatif pada tanggal pelepasan (posisi lengkapnya).
       let disposalCta: string | undefined;
-      if (e.disposalDate && e.method !== "equity" && e.currencyCode !== p.currency) {
+      if (e.disposalDate && e.currencyCode !== p.currency) {
         const full = await this.loadEntity(tx, {
           companyId: e.companyId,
           companyName: e.name,

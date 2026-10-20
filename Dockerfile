@@ -9,7 +9,11 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 # URL API publik ditanam saat build Next.js.
 ARG NEXT_PUBLIC_API_URL=http://localhost:3001
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL NEXT_OUTPUT=standalone NEXT_TELEMETRY_DISABLED=1
+# Opsional: laporan error browser ke Sentry/GlitchTip.
+ARG NEXT_PUBLIC_SENTRY_DSN=
+ARG NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN \
+  NEXT_PUBLIC_SENTRY_ENVIRONMENT=$NEXT_PUBLIC_SENTRY_ENVIRONMENT NEXT_OUTPUT=standalone NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
 # Dependensi produksi API saja (tanpa devDependencies & tanpa Next.js).

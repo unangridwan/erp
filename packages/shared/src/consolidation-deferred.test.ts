@@ -308,3 +308,53 @@ describe("laporan segmen", () => {
     expect(s.profitLoss.netProfit).toBe("300.00");
   });
 });
+
+describe("asosiasi asing (metode ekuitas)", () => {
+  // H memiliki 40% A (USD): modal 100 USD dijabarkan kurs historis 1, kas dengan kurs penutupan 1,5.
+  const build = (disposal?: EntityInput["disposal"]) =>
+    run([
+      entity({
+        companyId: "H",
+        isRoot: true,
+        balances: [
+          { groupAccountId: "cash", amount: 960 },
+          { groupAccountId: "assoc_inv", amount: 40 },
+          { groupAccountId: "capital", amount: -1000 },
+        ],
+      }),
+      entity({
+        companyId: "A",
+        method: "equity",
+        effectivePct: 40,
+        closingRate: 1.5,
+        averageRate: 1.5,
+        historicalRate: 1,
+        ...(disposal ? { disposal } : {}),
+        balances: disposal
+          ? [{ groupAccountId: "revenue", amount: -10 }]
+          : [
+              { groupAccountId: "cash", amount: 110 },
+              { groupAccountId: "capital", amount: -100 },
+              { groupAccountId: "revenue", amount: -10 },
+            ],
+      }),
+    ]);
+
+  it("bagian investor atas selisih kurs penjabaran menambah investasi dan cadangan OCI", () => {
+    const { r, s } = build();
+    const e = r.entries.find((x) => x.kind === "equity_method")!;
+    // CTA A: kas 110 × 1,5 − modal 100 × 1 − laba 10 × 1,5 = 50; bagian 40% = 20. Laba 40% × 15 = 6.
+    expect(sumLines(e, "cta")).toBe(-20);
+    expect(sumLines(e, "assoc_inv")).toBe(26);
+    expect(sumLines(e, "assoc_income")).toBe(-6);
+    expect(s.balanceSheet.difference).toBe("0.00");
+  });
+
+  it("pelepasan asosiasi: bagian selisih kurs kumulatif direklasifikasi ke laba rugi", () => {
+    const { r, s } = build({ date: "2026-06-30", cta: -50 });
+    const e = r.entries.find((x) => x.description.startsWith("Reklasifikasi"))!;
+    expect(sumLines(e, "recycled")).toBe(-20);
+    expect(sumLines(e, "disposal")).toBe(20);
+    expect(s.balanceSheet.difference).toBe("0.00");
+  });
+});
