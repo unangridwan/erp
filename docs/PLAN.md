@@ -338,7 +338,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   tenant (PKCE, verifikasi JWKS, domain, user otomatis, SSO wajib), impor/ekspor Excel (.xlsx) untuk resource master,
   sumber kurs otomatis (kurs referensi ECB lewat Frankfurter, manual/harian), pesan error API dua bahasa
   (`Accept-Language`)
-- [ ] Ditunda: kurs KMK (pajak) & JISDOR BI otomatis (tidak ada API resmi), SAML, terjemahan seluruh pesan error
+- [x] Platform (tunda, selesai): SSO SAML 2.0 per tenant (metadata SP, assertion bertanda tangan, InResponseTo lewat
+  RelayState terenkripsi, pengikat cookie peramban); terjemahan Inggris seluruh pesan error API dengan tes cakupan
+- [ ] Ditunda: kurs KMK (pajak) & JISDOR BI otomatis (tidak ada API resmi); SAML Single Logout & AuthnRequest bertanda
+  tangan; assertion terenkripsi
 
 ## 5. Roadmap Bertahap
 

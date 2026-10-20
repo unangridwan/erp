@@ -1325,17 +1325,8 @@ export const consolidationManualEntrySchema = z.object({
 
 // ---- Platform: SSO & kurs otomatis ----
 
-/** Konfigurasi SSO OpenID Connect (Google Workspace, Microsoft Entra ID, Keycloak, Okta, dsb.). */
-export const ssoConfigSchema = z.object({
+const ssoCommon = {
   label: z.string().trim().min(1).max(60).default("SSO"),
-  issuer: z
-    .string()
-    .trim()
-    .url("URL issuer tidak valid")
-    .transform((v) => v.replace(/\/+$/, "")),
-  clientId: z.string().trim().min(1).max(500),
-  /** Kosong/tidak dikirim = tetap memakai secret yang tersimpan. */
-  clientSecret: z.string().max(2000).nullish(),
   allowedDomains: z
     .array(
       z
@@ -1350,7 +1341,40 @@ export const ssoConfigSchema = z.object({
   defaultRoleId: z.string().uuid().nullish(),
   enforce: z.boolean().default(false),
   active: z.boolean().default(true),
-});
+};
+
+/**
+ * Konfigurasi SSO tenant: OpenID Connect (Google Workspace, Microsoft Entra ID, Keycloak, Okta, …) atau SAML 2.0
+ * (ADFS, Entra ID, Okta, OneLogin, JumpCloud, …). Tanpa `protocol` dianggap OpenID Connect.
+ */
+export const ssoConfigSchema = z.preprocess(
+  (v) => (v && typeof v === "object" && !("protocol" in v) ? { ...v, protocol: "oidc" } : v),
+  z.discriminatedUnion("protocol", [
+    z.object({
+      protocol: z.literal("oidc"),
+      issuer: z
+        .string()
+        .trim()
+        .url("URL issuer tidak valid")
+        .transform((v) => v.replace(/\/+$/, "")),
+      clientId: z.string().trim().min(1).max(500),
+      /** Kosong/tidak dikirim = tetap memakai secret yang tersimpan. */
+      clientSecret: z.string().max(2000).nullish(),
+      ...ssoCommon,
+    }),
+    z.object({
+      protocol: z.literal("saml"),
+      /** URL Single Sign-On IdP (binding HTTP-Redirect). */
+      samlEntryPoint: z.string().trim().url("URL SSO IdP tidak valid"),
+      /** Sertifikat penandatanganan IdP (PEM atau base64); beberapa blok PEM untuk masa rotasi. */
+      samlIdpCert: z.string().trim().min(100, "Sertifikat IdP tidak valid").max(20000),
+      samlIdpIssuer: z.string().trim().max(500).nullish(),
+      /** Atribut berisi email; kosong = NameID atau atribut email yang umum. */
+      samlEmailAttribute: z.string().trim().max(300).nullish(),
+      ...ssoCommon,
+    }),
+  ]),
+);
 
 export const fxSettingsSchema = z.object({
   source: z.enum(["manual", "frankfurter"]),

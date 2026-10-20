@@ -43,9 +43,16 @@ export const tenantSso = pgTable("tenant_sso", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
   label: text("label").notNull().default("SSO"),
-  issuer: text("issuer").notNull(),
-  clientId: text("client_id").notNull(),
+  protocol: text("protocol", { enum: ["oidc", "saml"] })
+    .notNull()
+    .default("oidc"),
+  issuer: text("issuer"),
+  clientId: text("client_id"),
   clientSecretEnc: text("client_secret_enc"),
+  samlEntryPoint: text("saml_entry_point"),
+  samlIdpCert: text("saml_idp_cert"),
+  samlIdpIssuer: text("saml_idp_issuer"),
+  samlEmailAttribute: text("saml_email_attribute"),
   allowedDomains: text("allowed_domains").array().notNull().default([]),
   autoProvision: boolean("auto_provision").notNull().default(false),
   defaultRoleId: uuid("default_role_id"),

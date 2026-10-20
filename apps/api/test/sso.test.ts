@@ -139,6 +139,7 @@ describe.skipIf(!hasDb)("Platform: SSO OpenID Connect", () => {
       enabled: true,
       label: "Google Workspace",
       enforce: false,
+      protocol: "oidc",
     });
   });
 

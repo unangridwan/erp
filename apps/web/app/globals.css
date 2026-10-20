@@ -60,6 +60,7 @@ h2 {
 }
 input,
 select,
+textarea,
 button,
 .button {
   font: inherit;
