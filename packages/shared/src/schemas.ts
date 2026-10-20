@@ -1320,3 +1320,43 @@ export const consolidationManualEntrySchema = z.object({
     )
     .min(2, "Minimal dua baris"),
 });
+
+// ---- Platform: SSO & kurs otomatis ----
+
+/** Konfigurasi SSO OpenID Connect (Google Workspace, Microsoft Entra ID, Keycloak, Okta, dsb.). */
+export const ssoConfigSchema = z.object({
+  label: z.string().trim().min(1).max(60).default("SSO"),
+  issuer: z
+    .string()
+    .trim()
+    .url("URL issuer tidak valid")
+    .transform((v) => v.replace(/\/+$/, "")),
+  clientId: z.string().trim().min(1).max(500),
+  /** Kosong/tidak dikirim = tetap memakai secret yang tersimpan. */
+  clientSecret: z.string().max(2000).nullish(),
+  allowedDomains: z
+    .array(
+      z
+        .string()
+        .trim()
+        .toLowerCase()
+        .regex(/^[a-z0-9.-]+\.[a-z]{2,}$/, "Domain tidak valid"),
+    )
+    .max(50)
+    .default([]),
+  autoProvision: z.boolean().default(false),
+  defaultRoleId: z.string().uuid().nullish(),
+  enforce: z.boolean().default(false),
+  active: z.boolean().default(true),
+});
+
+export const fxSettingsSchema = z.object({
+  source: z.enum(["manual", "frankfurter"]),
+  currencies: z
+    .array(z.string().trim().toUpperCase().length(3))
+    .max(30)
+    .transform((v) => [...new Set(v)].filter((c) => c !== "IDR")),
+  daily: z.boolean().default(false),
+});
+
+export const fxFetchSchema = z.object({ date: z.string().date().optional() });

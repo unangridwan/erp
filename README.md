@@ -260,11 +260,29 @@ transfer barang stok membuat jurnal di jurnal **STJ**: penerimaan Dr Persediaan 
 pengiriman Dr HPP / Cr Persediaan, opname ke Selisih Persediaan. Tagihan dari PO mendebit Barang Diterima Belum Ditagih.
 
 Resource master mendukung `GET /x?q=&limit=&offset=&active=all|false`, `GET/PATCH/DELETE /x/:id`, `POST /x`,
-`GET /x/export` (CSV) dan `POST /x/import` (`{ "csv": "..." }`; baris ber-`id` diperbarui, tanpa `id` dibuat; satu baris
-gagal membatalkan seluruh impor).
+`GET /x/export` (CSV; `?format=xlsx` untuk Excel) dan `POST /x/import` (`{ "csv": "..." }` atau `{ "xlsx": "<base64>" }`
+— lembar pertama, baris pertama berisi nama field; baris ber-`id` diperbarui, tanpa `id` dibuat; satu baris gagal
+membatalkan seluruh impor).
 
-Login dibatasi 10 percobaan gagal per akun dan 50 per IP per 15 menit (penyimpanan memori; pindah ke Redis saat
-berjalan lebih dari satu instance).
+Login dibatasi 10 percobaan gagal per akun dan 50 per IP per 15 menit. Dengan `RATE_LIMIT_REDIS_URL` (atau `REDIS_URL`
+di produksi) hitungan disimpan di Redis sehingga berlaku untuk semua instance API; bila Redis tidak terjangkau API
+sementara memakai memori instance.
+
+### Platform
+
+| Endpoint                                                                                | Keterangan                                                                  |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `GET /auth/sso/provider?tenant=`, `GET /auth/sso/start/:slug`, `GET /auth/sso/callback` | SSO OpenID Connect (Google Workspace, Entra ID, Keycloak, Okta…) + PKCE     |
+| `GET/PUT/DELETE /auth/sso/config`                                                       | Issuer, client ID/secret (terenkripsi), domain, user otomatis, SSO wajib    |
+| `GET/PUT /fx/settings`, `POST /fx/fetch {date?}`                                        | Kurs otomatis dari kurs referensi ECB (API Frankfurter), manual atau harian |
+
+SSO: daftarkan redirect URI `${API_ORIGIN}/auth/sso/callback` di penyedia identitas. User dicocokkan lewat email
+terverifikasi (domain bisa dibatasi); 2FA ditangani penyedia identitas. Saat SSO diwajibkan, login password hanya untuk
+administrator (akses darurat). Kurs KMK untuk pajak tetap diisi manual (tidak ada API resmi Kemenkeu).
+
+Pesan error API mengikuti `Accept-Language` (`en` → Inggris; bawaan Indonesia). Pesan umum (autentikasi, validasi,
+"… tidak ditemukan", batas paket, dsb.) sudah diterjemahkan di `apps/api/src/common/error-i18n.ts`; pesan lain dikirim
+dalam Bahasa Indonesia.
 
 ## Pemeriksaan
 

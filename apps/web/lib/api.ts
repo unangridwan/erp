@@ -1,6 +1,6 @@
 "use client";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 const TOKEN_KEY = "erp.token";
 const REFRESH_KEY = "erp.refresh";
 const COMPANY_KEY = "erp.company";
@@ -59,7 +59,11 @@ export class ApiError extends Error {
 }
 
 function rawFetch(path: string, method: string, body?: unknown): Promise<Response> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  // Pesan error API mengikuti bahasa tampilan.
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Accept-Language": read("erp.locale") === "en" ? "en" : "id",
+  };
   const token = read(TOKEN_KEY);
   if (token) headers.Authorization = `Bearer ${token}`;
   const companyId = read(COMPANY_KEY);

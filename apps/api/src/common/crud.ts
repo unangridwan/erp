@@ -38,7 +38,7 @@ import { ActivityService } from "../activity/activity.service.js";
 import { RequirePermission } from "../auth/decorators.js";
 import { TenantDb } from "./database.js";
 import { currentContext } from "./request-context.js";
-import { coerceCsvRow, exportColumns } from "./csv-import.js";
+import { coerceCsvRow, exportColumns, parseXlsx, toXlsx } from "./csv-import.js";
 import { parse } from "./zod.js";
 
 type Table = PgTable & { id: PgColumn };
@@ -96,7 +96,13 @@ export async function assertRefsVisible(
 const MAX_LIMIT = 200;
 const MAX_IMPORT_ROWS = 5000;
 const EXPORT_LIMIT = 50_000;
-const importBody = z.object({ csv: z.string().min(1).max(10_000_000) });
+/** Isi CSV, atau berkas .xlsx dalam base64. */
+const importBody = z
+  .object({
+    csv: z.string().min(1).max(10_000_000).optional(),
+    xlsx: z.string().min(1).max(14_000_000).optional(),
+  })
+  .refine((b) => !!b.csv !== !!b.xlsx, "Kirim salah satu: csv atau xlsx");
 
 /**
  * Membuat controller REST standar (list/get/create/update/delete) untuk sebuah tabel master,
@@ -165,6 +171,11 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
       const rows = await this.tenantDb.run((tx) =>
         tx.select().from(table).where(listFilter(query)).orderBy(asc(opts.orderBy)).limit(EXPORT_LIMIT),
       );
+      if (query.format === "xlsx")
+        return res
+          .type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+          .attachment(`${opts.path}.xlsx`)
+          .send(await toXlsx(opts.path, exportColumns(opts.schema), rows as Record<string, unknown>[]));
       res
         .type("text/csv; charset=utf-8")
         .attachment(`${opts.path}.csv`)
@@ -179,13 +190,14 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
     @HttpCode(200)
     @RequirePermission(opts.write)
     async import(@Body() body: unknown) {
+      const input = parse(importBody, body);
       let rows: Record<string, string>[];
       try {
-        rows = parseCsv(parse(importBody, body).csv);
+        rows = input.xlsx ? await parseXlsx(input.xlsx) : parseCsv(input.csv!);
       } catch (e) {
-        throw new BadRequestException(e instanceof Error ? e.message : "CSV tidak valid");
+        throw new BadRequestException(e instanceof Error ? e.message : "Berkas tidak valid");
       }
-      if (rows.length === 0) throw new BadRequestException("CSV kosong");
+      if (rows.length === 0) throw new BadRequestException("Berkas impor kosong");
       if (rows.length > MAX_IMPORT_ROWS)
         throw new BadRequestException(`Maksimal ${MAX_IMPORT_ROWS} baris per impor`);
 
@@ -224,7 +236,7 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
                 resModel: opts.model,
                 resId: id,
                 action: "update",
-                message: "Impor CSV",
+                message: input.xlsx ? "Impor Excel" : "Impor CSV",
               });
               updated++;
             } else {
@@ -236,7 +248,7 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
                 resModel: opts.model,
                 resId: createdRow.id,
                 action: "create",
-                message: "Impor CSV",
+                message: input.xlsx ? "Impor Excel" : "Impor CSV",
               });
               created++;
             }

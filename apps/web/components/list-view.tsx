@@ -100,13 +100,15 @@ export function ListView({ resource }: { resource: Resource }) {
     return refLabels[name]?.get(String(v)) ?? String(v);
   };
 
-  async function exportCsv() {
-    const res = await apiRaw(`/${resource.path}/export${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+  async function exportFile(format: "csv" | "xlsx") {
+    const params = new URLSearchParams(q ? { q } : {});
+    if (format === "xlsx") params.set("format", "xlsx");
+    const res = await apiRaw(`/${resource.path}/export${params.size ? `?${params}` : ""}`);
     if (!res.ok) return setError(res.statusText);
     const url = URL.createObjectURL(await res.blob());
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${resource.path}.csv`;
+    a.download = `${resource.path}.${format}`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -118,7 +120,8 @@ export function ListView({ resource }: { resource: Resource }) {
     try {
       const result = await api<{ created: number; updated: number }>(`/${resource.path}/import`, {
         method: "POST",
-        body: { csv: await file.text() },
+        // .xlsx dikirim base64; selainnya dibaca sebagai teks CSV.
+        body: /\.xlsx$/i.test(file.name) ? { xlsx: await toBase64(file) } : { csv: await file.text() },
       });
       setNotice(t("list.imported", result));
       setReload((n) => n + 1);
@@ -151,14 +154,15 @@ export function ListView({ resource }: { resource: Resource }) {
           />
         </div>
         <div className="cp-right">
-          {resource.csv && <button onClick={exportCsv}>{t("list.export")}</button>}
+          {resource.csv && <button onClick={() => exportFile("csv")}>{t("list.export")}</button>}
+          {resource.csv && <button onClick={() => exportFile("xlsx")}>{t("list.exportXlsx")}</button>}
           {resource.csv && writable && (
             <>
               <button onClick={() => fileInput.current?.click()}>{t("list.import")}</button>
               <input
                 ref={fileInput}
                 type="file"
-                accept=".csv,text/csv"
+                accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 hidden
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -280,4 +284,14 @@ export function ListView({ resource }: { resource: Resource }) {
       )}
     </>
   );
+}
+
+/** Isi berkas sebagai base64 (tanpa awalan data URL). */
+function toBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",", 2)[1] ?? "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }

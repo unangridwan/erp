@@ -48,3 +48,52 @@ describe("DbExceptionFilter", () => {
     ).toBe(403);
   });
 });
+
+describe("pesan error dua bahasa", () => {
+  const runLang = (error: unknown, lang?: string) => {
+    let body: unknown;
+    const res = {
+      status() {
+        return this;
+      },
+      json(payload: unknown) {
+        body = payload;
+      },
+    };
+    const host = {
+      switchToHttp: () => ({
+        getResponse: () => res,
+        getRequest: () => ({ headers: { "accept-language": lang } }),
+      }),
+    } as unknown as ArgumentsHost;
+    new DbExceptionFilter().catch(error, host);
+    return body as { message: string; errors?: { message: string }[] };
+  };
+
+  it("Accept-Language en menerjemahkan pesan tetap, pola, dan pesan validasi; id/tanpa header tetap Indonesia", async () => {
+    const { BadRequestException, NotFoundException } = await import("@nestjs/common");
+    const v = new BadRequestException({
+      message: "Validasi gagal",
+      errors: [
+        { path: "qty", message: "Harus lebih dari 0" },
+        { path: "x", message: "Required" },
+      ],
+    });
+    expect(runLang(v, "en-US,en;q=0.9")).toMatchObject({
+      message: "Validation failed",
+      errors: [{ message: "Must be greater than 0" }, { message: "Required" }],
+    });
+    expect(runLang(v, "id-ID,id;q=0.9,en;q=0.8").message).toBe("Validasi gagal");
+    expect(runLang(v).message).toBe("Validasi gagal");
+    expect(runLang(new NotFoundException("Produk tidak ditemukan"), "en").message).toBe("Product not found");
+    expect(runLang(new NotFoundException("Gudang tidak ditemukan di perusahaan ini"), "en").message).toBe(
+      "Warehouse not found in this company",
+    );
+    expect(
+      runLang(new BadRequestException("Kurs USD pada/sebelum 2026-01-02 belum diisi"), "en").message,
+    ).toBe("No USD rate on or before 2026-01-02");
+    // Belum ada terjemahan: dikirim apa adanya.
+    expect(runLang(new BadRequestException("Pesan khusus modul"), "en").message).toBe("Pesan khusus modul");
+    expect(runLang(pgError({ code: "23505", message: "dup" }), "en").message).toBe("Duplicate record");
+  });
+});

@@ -31,7 +31,10 @@ docker compose -f infra/docker-compose.prod.yml --env-file .env.prod up -d --bui
 | `BILLING_BANK_INFO`                              |       | Instruksi transfer manual yang ditampilkan ke pelanggan                              |
 | `METRICS_TOKEN`                                  |       | Aktifkan `GET /metrics`                                                              |
 | `LOG_FORMAT`                                     |       | `json` (bawaan di image), `pretty`, `off`                                            |
-| `BODY_LIMIT`                                     |       | Batas body JSON, bawaan `10mb` (impor CSV)                                           |
+| `BODY_LIMIT`                                     |       | Batas body JSON, bawaan `10mb` (impor CSV/Excel)                                     |
+| `API_ORIGIN`                                     | SSO   | URL publik API `https://…` untuk redirect URI SSO (`/auth/sso/callback`)             |
+| `REDIS_URL` / `RATE_LIMIT_REDIS_URL`             |       | Rate limit bersama antar-instance (produksi memakai `REDIS_URL` bila ada)            |
+| `FX_FRANKFURTER_URL`, `FX_SCHEDULER`             |       | Sumber kurs otomatis (bawaan `https://api.frankfurter.app`); `off` mematikan jadwal  |
 
 Callback Xendit: arahkan _Invoice paid_ ke `https://api.erpku.id/billing/webhooks/xendit` dengan token verifikasi yang
 sama dengan `XENDIT_CALLBACK_TOKEN`.
@@ -70,8 +73,8 @@ sama dengan `XENDIT_CALLBACK_TOKEN`.
   dibuka. Rotasi kunci belum otomatis.
 - Header keamanan API: `nosniff`, `X-Frame-Options: DENY`, CSP `default-src 'none'`, `Cache-Control: no-store`,
   HSTS (produksi). Web: `nosniff`, `DENY`, `Referrer-Policy`, `Permissions-Policy`.
-- Rate limit login/refresh/undangan berbasis memori per instance — untuk lebih dari satu instance API, gunakan sticky
-  session atau pindahkan ke Redis (rencana).
+- Rate limit login/refresh/undangan/SSO disimpan di Redis bila `REDIS_URL` di-set (berlaku lintas instance); tanpa
+  Redis berbasis memori per instance (pakai sticky session bila menjalankan lebih dari satu instance).
 - Pengguna dapat melihat & mencabut sesi login di **Pengaturan → Keamanan**.
 - Kepatuhan UU PDP: data pribadi karyawan tersamar tanpa `hr.manage`; ekspor XML/CSV yang memuat NIK/NPWP butuh
   `tax.manage`/`payroll.manage`; hosting di region Indonesia disarankan.

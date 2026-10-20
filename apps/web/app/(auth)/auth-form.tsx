@@ -2,17 +2,39 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
-import { api, ApiError, session, type Session } from "../../lib/api";
+import { useEffect, useState, type FormEvent } from "react";
+import { api, API_URL, ApiError, session, type Session } from "../../lib/api";
 import { LocaleSwitch, useI18n, type MessageKey } from "../../lib/i18n";
 
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, l } = useI18n();
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [needCode, setNeedCode] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [tenant, setTenant] = useState("");
+  const [sso, setSso] = useState<{ enabled: boolean; label?: string; enforce?: boolean } | null>(null);
+
+  // Kembali dari SSO yang gagal: tampilkan pesannya dan isi ulang tenant.
+  useEffect(() => {
+    if (mode !== "login") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("ssoError")) setError(params.get("ssoError"));
+    if (params.get("tenant")) setTenant(params.get("tenant")!);
+  }, [mode]);
+  // Tombol SSO muncul bila tenant mengaktifkannya.
+  useEffect(() => {
+    if (mode !== "login" || !tenant.trim()) return setSso(null);
+    const timer = setTimeout(() => {
+      api<{ enabled: boolean; label?: string; enforce?: boolean }>(
+        `/auth/sso/provider?tenant=${encodeURIComponent(tenant.trim())}`,
+      )
+        .then(setSso)
+        .catch(() => setSso(null));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [mode, tenant]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -45,6 +67,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         type={type}
         required
         autoComplete={type === "password" ? "current-password" : name}
+        {...(name === "tenantSlug" ? { value: tenant, onChange: (e) => setTenant(e.target.value) } : {})}
       />
       {fieldErrors[name] && <small className="error">{fieldErrors[name]}</small>}
     </label>
@@ -75,7 +98,28 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           </label>
         )}
         {error && <p className="error">{error}</p>}
-        <button className="primary" disabled={busy}>
+        {mode === "login" && sso?.enabled && !needCode && (
+          <>
+            <button
+              type="button"
+              className={sso.enforce ? "primary" : ""}
+              onClick={() => {
+                window.location.href = `${API_URL}/auth/sso/start/${encodeURIComponent(tenant.trim())}`;
+              }}
+            >
+              {l(`Masuk dengan ${sso.label}`, `Sign in with ${sso.label}`)}
+            </button>
+            <p className="muted small">
+              {sso.enforce
+                ? l(
+                    "Tenant ini mewajibkan SSO; login password hanya untuk administrator.",
+                    "This tenant requires SSO; password sign-in is for administrators only.",
+                  )
+                : l("atau masuk dengan password:", "or sign in with a password:")}
+            </p>
+          </>
+        )}
+        <button className={mode === "login" && sso?.enforce ? "" : "primary"} disabled={busy}>
           {busy ? t("auth.processing") : mode === "login" ? t("auth.login") : t("auth.signupButton")}
         </button>
         <p className="muted">
