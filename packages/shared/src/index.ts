@@ -9,6 +9,7 @@ export * from "./bank-import.js";
 export * from "./sales.js";
 export * from "./inventory.js";
 export * from "./payroll.js";
+export * from "./payroll-advanced.js";
 export * from "./coretax.js";
 export * from "./coretax-extra.js";
 export * from "./billing.js";

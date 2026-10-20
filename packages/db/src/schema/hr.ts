@@ -27,10 +27,24 @@ export const departments = pgTable("departments", {
   ...audit,
 });
 
+/** Golongan upah (struktur & skala upah PP 36/2021). */
+export const salaryGrades = pgTable("salary_grades", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  minWage: numeric("min_wage", { precision: 20, scale: 2 }).notNull(),
+  maxWage: numeric("max_wage", { precision: 20, scale: 2 }).notNull(),
+  sequence: integer("sequence").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
 export const jobPositions = pgTable("job_positions", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
   name: text("name").notNull(),
+  gradeId: uuid("grade_id"),
   active: boolean("active").notNull().default(true),
   ...audit,
 });
@@ -216,6 +230,12 @@ export const payrollSettings = pgTable("payroll_settings", {
   leaveApprovalLevels: smallint("leave_approval_levels").notNull().default(1),
   overtimeApprovalLevels: smallint("overtime_approval_levels").notNull().default(0),
   casualFullBpjsMonths: smallint("casual_full_bpjs_months").notNull().default(3),
+  thrComponentId: uuid("thr_component_id"),
+  retroComponentId: uuid("retro_component_id"),
+  /** Rekening perusahaan yang didebet untuk transfer gaji (file unggah bank). */
+  transferSourceAccount: text("transfer_source_account"),
+  /** Kode perusahaan/corporate ID di internet banking bisnis. */
+  transferCompanyCode: text("transfer_company_code"),
   updatedAt: audit.updatedAt,
 });
 
@@ -261,6 +281,10 @@ export const payslips = pgTable("payslips", {
   annual: jsonb("annual"),
   branchId: uuid("branch_id"),
   businessUnitId: uuid("business_unit_id"),
+  /** Dasar upah iuran BPJS bulan ini. */
+  bpjsWage: numeric("bpjs_wage", { precision: 20, scale: 2 }).notNull().default("0"),
+  emailedAt: timestamp("emailed_at", { withTimezone: true }),
+  emailError: text("email_error"),
   ...audit,
 });
 
@@ -284,6 +308,11 @@ export const payslipInputs = pgTable("payslip_inputs", {
   componentId: uuid("component_id").notNull(),
   amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
   description: text("description"),
+  /** manual = diisi pengguna; thr/retro = dihitung otomatis (rincian di detail). */
+  source: text("source", { enum: ["manual", "thr", "retro"] })
+    .notNull()
+    .default("manual"),
+  detail: jsonb("detail"),
 });
 
 export const workSchedules = pgTable("work_schedules", {

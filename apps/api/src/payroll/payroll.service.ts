@@ -7,8 +7,14 @@ import {
 } from "@nestjs/common";
 import { and, asc, desc, eq, gte, inArray, isNull, lte, lt, ne, or, schema, sql, type Db } from "@erp/db";
 import {
+  bankTransferFile,
   computePayslip,
+  retroPay,
+  thrAmount,
   workingDays,
+  type BankFormat,
+  type payrollCostQuerySchema,
+  type thrComputeSchema,
   type PayslipItem,
   type payrollRunSchema,
   type payrollSettingsSchema,
@@ -100,6 +106,17 @@ export class PayrollService {
       }
     }
     await assertCompanyJournal(tx, companyId, input.journalId, ["general"]);
+    for (const path of ["thrComponentId", "retroComponentId"] as const) {
+      const componentId = input[path];
+      if (!componentId) continue;
+      const [c] = await tx
+        .select({ kind: schema.salaryComponents.kind })
+        .from(schema.salaryComponents)
+        .where(
+          and(eq(schema.salaryComponents.id, componentId), eq(schema.salaryComponents.companyId, companyId)),
+        );
+      if (c?.kind !== "allowance") throw fieldError(path, "Pilih komponen tunjangan perusahaan ini");
+    }
     const [row] = await tx
       .update(schema.payrollSettings)
       .set({ ...input, updatedAt: sql`now()` })
@@ -505,12 +522,41 @@ export class PayrollService {
         annual: result.annual,
         branchId: employee.branchId,
         businessUnitId: employee.businessUnitId,
+        bpjsWage: casual
+          ? d(casual.bpjsWage).toFixed(2)
+          : allowances
+              .filter((a) => a.fixed)
+              .reduce((sum, a) => sum.plus(a.amount), wage)
+              .toFixed(2),
         updatedAt: sql`now()`,
       })
       .where(eq(SLIP.id, slipId));
   }
 
-  /** Ganti komponen tidak tetap (THR, bonus, potongan) pada slip lalu hitung ulang slip itu. */
+  /** Hitung ulang satu slip draft (setelah input slip berubah). */
+  private async recomputeSlip(tx: Db, run: typeof RUN.$inferSelect, slip: typeof SLIP.$inferSelect) {
+    const [employee] = await tx
+      .select()
+      .from(schema.employees)
+      .where(eq(schema.employees.id, slip.employeeId));
+    const [contract] = await tx
+      .select()
+      .from(schema.contracts)
+      .where(eq(schema.contracts.id, slip.contractId));
+    const holidays = await holidaysBetween(tx, run.periodStart, run.periodEnd);
+    await this.computeSlip(
+      tx,
+      run,
+      slip.id,
+      employee!,
+      contract!,
+      await this.settings(tx, run.companyId),
+      holidays,
+      workingDays(run.periodStart, run.periodEnd, holidays),
+    );
+  }
+
+  /** Ganti input manual (bonus, potongan, dll.) pada slip lalu hitung ulang slip itu. */
   async setInputs(
     tx: Db,
     slipId: string,
@@ -531,30 +577,15 @@ export class PayrollService {
         );
       if (!c) throw fieldError(`inputs.${i}.componentId`, "Komponen gaji tidak ditemukan");
     }
-    await tx.delete(schema.payslipInputs).where(eq(schema.payslipInputs.payslipId, slipId));
+    // Input otomatis (THR/rapel) dikelola lewat perhitungannya masing-masing.
+    await tx
+      .delete(schema.payslipInputs)
+      .where(and(eq(schema.payslipInputs.payslipId, slipId), eq(schema.payslipInputs.source, "manual")));
     if (inputs.length)
       await tx
         .insert(schema.payslipInputs)
         .values(inputs.map((x) => ({ ...x, description: x.description ?? null, payslipId: slipId })));
-    const [employee] = await tx
-      .select()
-      .from(schema.employees)
-      .where(eq(schema.employees.id, slip.employeeId));
-    const [contract] = await tx
-      .select()
-      .from(schema.contracts)
-      .where(eq(schema.contracts.id, slip.contractId));
-    const holidays = await holidaysBetween(tx, run.periodStart, run.periodEnd);
-    await this.computeSlip(
-      tx,
-      run,
-      slipId,
-      employee!,
-      contract!,
-      await this.settings(tx, run.companyId),
-      holidays,
-      workingDays(run.periodStart, run.periodEnd, holidays),
-    );
+    await this.recomputeSlip(tx, run, slip);
     return this.payslip(tx, slipId);
   }
 
@@ -800,6 +831,9 @@ export class PayrollService {
         isFinal: r.slip.isFinal,
         gross: r.slip.gross,
         pph21: r.slip.pph21,
+        bpjsWage: d(r.slip.bpjsWage).toFixed(0),
+        birthDate: r.employee.birthDate,
+        joinDate: r.employee.joinDate,
         bpjsKesNo: r.employee.bpjsKesNo,
         bpjsTkNo: r.employee.bpjsTkNo,
         bpjs: {
@@ -814,6 +848,317 @@ export class PayrollService {
         },
       };
     });
+  }
+
+  // ---- THR & rapel ----
+
+  /**
+   * THR keagamaan (Permenaker 6/2016) untuk semua slip draft: masuk sebagai input komponen THR (kena PPh 21 lewat
+   * TER bulan berjalan / perhitungan setahun di masa terakhir). Dihitung ulang tiap kali dijalankan.
+   */
+  async computeThr(tx: Db, id: string, input: z.infer<typeof thrComputeSchema>) {
+    const run = await this.find(tx, id, true);
+    if (run.state !== "draft") throw new BadRequestException("Payroll sudah diposting");
+    const s = await this.settings(tx, run.companyId);
+    if (!s.thrComponentId) throw new BadRequestException("Komponen THR belum diatur di pengaturan payroll");
+    const slips = await tx
+      .select({ slip: SLIP, employee: schema.employees, contract: schema.contracts })
+      .from(SLIP)
+      .innerJoin(schema.employees, eq(schema.employees.id, SLIP.employeeId))
+      .innerJoin(schema.contracts, eq(schema.contracts.id, SLIP.contractId))
+      .where(eq(SLIP.runId, id));
+    const results = [];
+    for (const { slip, employee, contract } of slips) {
+      const fixed = await this.fixedAllowances(tx, contract.id);
+      let history: string[] = [];
+      if (contract.wageType !== "monthly")
+        history = (
+          await tx
+            .select({ earnings: SLIP.earnings })
+            .from(SLIP)
+            .innerJoin(RUN, eq(RUN.id, SLIP.runId))
+            .where(
+              and(
+                eq(SLIP.employeeId, employee.id),
+                inArray(RUN.state, ["done", "paid"]),
+                lt(RUN.periodStart, run.periodStart),
+              ),
+            )
+            .orderBy(desc(RUN.periodStart))
+            .limit(12)
+        ).map((r) => r.earnings);
+      const thr = thrAmount({
+        wageType: contract.wageType,
+        monthlyWage: d(contract.wage).plus(fixed),
+        joinDate: employee.joinDate,
+        holidayDate: input.holidayDate,
+        history,
+      });
+      await this.replaceAutoInput(tx, run, slip, "thr", s.thrComponentId, thr.amount, {
+        description: `${input.holiday || "THR"} — masa kerja ${thr.serviceMonths} bulan`,
+        detail: { ...thr, holidayDate: input.holidayDate, holiday: input.holiday ?? null },
+      });
+      results.push({ employeeId: employee.id, name: employee.name, ...thr });
+    }
+    await this.activity.log(tx, {
+      resModel: "payroll_run",
+      resId: id,
+      action: "update",
+      message: `THR dihitung (hari raya ${input.holidayDate})`,
+    });
+    return { items: results, total: results.reduce((sum, r) => sum.plus(r.amount), d(0)).toFixed(0) };
+  }
+
+  /**
+   * Rapel kenaikan upah berlaku mundur: selisih upah kontrak berjalan (gaji pokok + tunjangan tetap) terhadap yang
+   * sudah dibayar di payroll terposting sejak tanggal mulai kontrak, dikurangi rapel yang sudah dibayar.
+   */
+  async computeRetro(tx: Db, id: string) {
+    const run = await this.find(tx, id, true);
+    if (run.state !== "draft") throw new BadRequestException("Payroll sudah diposting");
+    const s = await this.settings(tx, run.companyId);
+    if (!s.retroComponentId)
+      throw new BadRequestException("Komponen rapel belum diatur di pengaturan payroll");
+    const slips = await tx
+      .select({ slip: SLIP, employee: schema.employees, contract: schema.contracts })
+      .from(SLIP)
+      .innerJoin(schema.employees, eq(schema.employees.id, SLIP.employeeId))
+      .innerJoin(schema.contracts, eq(schema.contracts.id, SLIP.contractId))
+      .where(eq(SLIP.runId, id));
+    const results = [];
+    for (const { slip, employee, contract } of slips) {
+      let retro: ReturnType<typeof retroPay> = { lines: [], total: "0" };
+      if (contract.wageType === "monthly" && contract.dateStart < run.periodStart) {
+        const prior = await tx
+          .select({ id: SLIP.id, periodStart: RUN.periodStart })
+          .from(SLIP)
+          .innerJoin(RUN, eq(RUN.id, SLIP.runId))
+          .where(
+            and(
+              eq(SLIP.employeeId, employee.id),
+              inArray(RUN.state, ["done", "paid"]),
+              gte(RUN.periodStart, `${contract.dateStart.slice(0, 7)}-01`),
+              lt(RUN.periodStart, run.periodStart),
+            ),
+          );
+        if (prior.length) {
+          const ids = prior.map((p) => p.id);
+          const paidLines = await tx
+            .select({
+              payslipId: schema.payslipLines.payslipId,
+              amount: sql<string>`sum(${schema.payslipLines.amount})::text`,
+            })
+            .from(schema.payslipLines)
+            .leftJoin(
+              schema.salaryComponents,
+              eq(schema.salaryComponents.id, schema.payslipLines.componentId),
+            )
+            .where(
+              and(
+                inArray(schema.payslipLines.payslipId, ids),
+                or(
+                  eq(schema.payslipLines.category, "basic"),
+                  and(eq(schema.payslipLines.category, "allowance"), eq(schema.salaryComponents.fixed, true)),
+                ),
+              ),
+            )
+            .groupBy(schema.payslipLines.payslipId);
+          // Rapel terdahulu per bulan (dari rincian input rapel slip terposting).
+          const earlier = await tx
+            .select({ detail: schema.payslipInputs.detail })
+            .from(schema.payslipInputs)
+            .innerJoin(SLIP, eq(SLIP.id, schema.payslipInputs.payslipId))
+            .innerJoin(RUN, eq(RUN.id, SLIP.runId))
+            .where(
+              and(
+                eq(SLIP.employeeId, employee.id),
+                eq(schema.payslipInputs.source, "retro"),
+                inArray(RUN.state, ["done", "paid"]),
+              ),
+            );
+          const already = new Map<string, Decimal>();
+          for (const e of earlier)
+            for (const l of (e.detail as { lines?: { period: string; diff: string }[] } | null)?.lines ?? [])
+              already.set(l.period, (already.get(l.period) ?? d(0)).plus(l.diff));
+          retro = retroPay({
+            effectiveDate: contract.dateStart,
+            monthlyDue: d(contract.wage).plus(await this.fixedAllowances(tx, contract.id)),
+            months: prior.map((p) => {
+              const period = p.periodStart.slice(0, 7);
+              return {
+                period,
+                paid: paidLines.find((l) => l.payslipId === p.id)?.amount ?? 0,
+                alreadyPaid: already.get(period) ?? 0,
+              };
+            }),
+          });
+        }
+      }
+      await this.replaceAutoInput(tx, run, slip, "retro", s.retroComponentId, retro.total, {
+        description: !retro.lines.length
+          ? null
+          : retro.lines.length === 1
+            ? retro.lines[0]!.period
+            : `${retro.lines[0]!.period} s.d. ${retro.lines.at(-1)!.period}`,
+        detail: { effectiveDate: contract.dateStart, lines: retro.lines },
+      });
+      if (d(retro.total).gt(0))
+        results.push({
+          employeeId: employee.id,
+          name: employee.name,
+          total: retro.total,
+          lines: retro.lines,
+        });
+    }
+    return { items: results, total: results.reduce((sum, r) => sum.plus(r.total), d(0)).toFixed(0) };
+  }
+
+  private async fixedAllowances(tx: Db, contractId: string) {
+    const [row] = await tx
+      .select({ amount: sql<string>`coalesce(sum(${schema.contractAllowances.amount}), 0)::text` })
+      .from(schema.contractAllowances)
+      .innerJoin(
+        schema.salaryComponents,
+        eq(schema.salaryComponents.id, schema.contractAllowances.componentId),
+      )
+      .where(
+        and(
+          eq(schema.contractAllowances.contractId, contractId),
+          eq(schema.salaryComponents.kind, "allowance"),
+          eq(schema.salaryComponents.fixed, true),
+        ),
+      );
+    return d(row?.amount);
+  }
+
+  /** Ganti input otomatis (THR/rapel) satu slip lalu hitung ulang slipnya; nilai nol menghapus input. */
+  private async replaceAutoInput(
+    tx: Db,
+    run: typeof RUN.$inferSelect,
+    slip: typeof SLIP.$inferSelect,
+    source: "thr" | "retro",
+    componentId: string,
+    amount: string,
+    extra: { description: string | null; detail: unknown },
+  ) {
+    await tx
+      .delete(schema.payslipInputs)
+      .where(and(eq(schema.payslipInputs.payslipId, slip.id), eq(schema.payslipInputs.source, source)));
+    if (d(amount).gt(0))
+      await tx.insert(schema.payslipInputs).values({
+        payslipId: slip.id,
+        componentId,
+        amount,
+        source,
+        description: extra.description,
+        detail: extra.detail,
+      });
+    await this.recomputeSlip(tx, run, slip);
+  }
+
+  // ---- Transfer bank & laporan ----
+
+  /** File transfer gaji per bank (atau CSV umum) beserta karyawan yang tidak termasuk. */
+  async bankFile(tx: Db, id: string, format: BankFormat) {
+    const run = await this.find(tx, id);
+    const s = await this.settings(tx, run.companyId);
+    if (format !== "csv" && !s.transferSourceAccount)
+      throw new BadRequestException("Rekening sumber transfer gaji belum diatur di pengaturan payroll");
+    return bankTransferFile(
+      format,
+      {
+        sourceAccount: s.transferSourceAccount ?? "",
+        companyCode: s.transferCompanyCode,
+        date: run.paymentDate,
+        remark: `Gaji ${run.periodStart.slice(0, 7)}`,
+      },
+      await this.bankTransfer(tx, id),
+    );
+  }
+
+  /** Biaya tenaga kerja (payroll terposting) per departemen, cabang, atau bulan. */
+  async costReport(tx: Db, q: z.infer<typeof payrollCostQuerySchema>) {
+    const companyId = currentContext().companyId;
+    const key =
+      q.groupBy === "department"
+        ? sql<string | null>`${schema.departments.name}`
+        : q.groupBy === "branch"
+          ? sql<string | null>`${schema.branches.name}`
+          : sql<string>`to_char(${RUN.periodStart}, 'YYYY-MM')`;
+    const rows = await tx
+      .select({
+        key,
+        employees: sql<number>`count(distinct ${SLIP.employeeId})::int`,
+        earnings: sql<string>`sum(${SLIP.earnings})::text`,
+        employerBpjs: sql<string>`sum(${SLIP.employerBpjs})::text`,
+        pph21: sql<string>`sum(${SLIP.pph21})::text`,
+        net: sql<string>`sum(${SLIP.net})::text`,
+      })
+      .from(SLIP)
+      .innerJoin(RUN, eq(RUN.id, SLIP.runId))
+      .innerJoin(schema.employees, eq(schema.employees.id, SLIP.employeeId))
+      .leftJoin(schema.departments, eq(schema.departments.id, schema.employees.departmentId))
+      .leftJoin(schema.branches, eq(schema.branches.id, SLIP.branchId))
+      .where(
+        and(
+          eq(SLIP.companyId, companyId),
+          inArray(RUN.state, ["done", "paid"]),
+          gte(RUN.periodStart, `${q.from}-01`),
+          lte(RUN.periodStart, `${q.to}-01`),
+        ),
+      )
+      .groupBy(key)
+      .orderBy(key);
+    const items = rows.map((r) => ({
+      key: r.key,
+      employees: r.employees,
+      earnings: d(r.earnings).toFixed(0),
+      employerBpjs: d(r.employerBpjs).toFixed(0),
+      cost: d(r.earnings).plus(r.employerBpjs).toFixed(0),
+      pph21: d(r.pph21).toFixed(0),
+      net: d(r.net).toFixed(0),
+    }));
+    const total = (k: "earnings" | "employerBpjs" | "cost" | "pph21" | "net") =>
+      items.reduce((sum, r) => sum.plus(r[k]), d(0)).toFixed(0);
+    return {
+      ...q,
+      items,
+      totals: {
+        earnings: total("earnings"),
+        employerBpjs: total("employerBpjs"),
+        cost: total("cost"),
+        pph21: total("pph21"),
+        net: total("net"),
+      },
+    };
+  }
+
+  /** Slip payroll terposting yang akan dikirim via email (karyawan dengan email kerja). */
+  async emailTargets(tx: Db, id: string, onlyPending: boolean) {
+    const run = await this.find(tx, id);
+    if (run.state !== "done" && run.state !== "paid")
+      throw new BadRequestException("Posting payroll sebelum mengirim slip");
+    const rows = await tx
+      .select({ id: SLIP.id, emailedAt: SLIP.emailedAt, employee: schema.employees })
+      .from(SLIP)
+      .innerJoin(schema.employees, eq(schema.employees.id, SLIP.employeeId))
+      .where(eq(SLIP.runId, id))
+      .orderBy(asc(schema.employees.name));
+    return rows
+      .filter((r) => !onlyPending || !r.emailedAt)
+      .map((r) => ({
+        slipId: r.id,
+        name: r.employee.name,
+        email: r.employee.workEmail,
+        birthDate: r.employee.birthDate,
+      }));
+  }
+
+  async markEmailed(tx: Db, slipId: string, error: string | null) {
+    await tx
+      .update(SLIP)
+      .set(error ? { emailError: error } : { emailedAt: sql`now()`, emailError: null })
+      .where(eq(SLIP.id, slipId));
   }
 
   // ---- Slip gaji ----

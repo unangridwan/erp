@@ -8,6 +8,7 @@ const COMPONENTS: [string, string, "allowance" | "deduction", boolean, string | 
   ["MAKAN", "Tunjangan makan", "allowance", false, null],
   ["THR", "Tunjangan Hari Raya", "allowance", false, null],
   ["BONUS", "Bonus", "allowance", false, null],
+  ["RAPEL", "Rapel kenaikan upah", "allowance", false, null],
   ["PINJ", "Potongan pinjaman karyawan", "deduction", false, "1-1800"],
 ];
 
@@ -57,6 +58,22 @@ export async function installPayroll(tx: Db, companyId: string) {
       })),
     )
     .onConflictDoNothing();
+  const components = await tx
+    .select({ id: schema.salaryComponents.id, code: schema.salaryComponents.code })
+    .from(schema.salaryComponents)
+    .where(
+      and(
+        eq(schema.salaryComponents.companyId, companyId),
+        inArray(schema.salaryComponents.code, ["THR", "RAPEL"]),
+      ),
+    );
+  await tx
+    .update(schema.payrollSettings)
+    .set({
+      thrComponentId: components.find((c) => c.code === "THR")?.id ?? null,
+      retroComponentId: components.find((c) => c.code === "RAPEL")?.id ?? null,
+    })
+    .where(eq(schema.payrollSettings.companyId, companyId));
 }
 
 export const DEFAULT_LEAVE_TYPES: [string, boolean, boolean][] = [

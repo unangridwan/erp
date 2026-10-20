@@ -23,8 +23,10 @@ export class Mailer {
   }
 
   async send(mail: Mail) {
+    // Salin lampiran: nodemailer mengubah objek lampiran (konten menjadi base64) saat mengirim.
+    const copy = { ...mail, attachments: mail.attachments?.map((a) => ({ ...a })) };
     await this.transport.sendMail({ from: this.config.mailFrom, ...mail });
-    if (this.config.mailTransport === "json") this.outbox.push(mail);
+    if (this.config.mailTransport === "json") this.outbox.push(copy);
   }
 }
 

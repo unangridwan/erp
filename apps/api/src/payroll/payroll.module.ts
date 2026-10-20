@@ -13,8 +13,13 @@ import {
   Query,
   Res,
 } from "@nestjs/common";
-import { eq, schema } from "@erp/db";
+import { eq, schema, type Db } from "@erp/db";
 import {
+  BANK_FORMATS,
+  BANK_LABELS,
+  bankOf,
+  payrollCostQuerySchema,
+  thrComputeSchema,
   employeeLoanSchema,
   hasPermission,
   loanDisburseSchema,
@@ -27,19 +32,21 @@ import {
   toCsv,
 } from "@erp/shared";
 import type { Response } from "express";
+import { z } from "zod";
 import { AccountingModule } from "../accounting/accounting.module.js";
 import { assertCompanyAccounts } from "../accounting/context.js";
 import { ActivityService } from "../activity/activity.service.js";
 import { RequirePermission } from "../auth/decorators.js";
 import { createCrudController } from "../common/crud.js";
 import { TenantDb } from "../common/database.js";
+import { Mailer } from "../common/mailer.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { HrModule } from "../hr/hr.module.js";
 import { LoanService } from "./loan.service.js";
 import { PayrollService } from "./payroll.service.js";
 import { SeveranceService } from "./severance.service.js";
-import { renderPayslipPdf } from "./payslip-pdf.js";
+import { payslipFilename, payslipPassword, payslipPdfData, renderPayslipPdf } from "./payslip-pdf.js";
 
 const SalaryComponentsController = createCrudController({
   path: "salary-components",
@@ -82,6 +89,7 @@ class PayrollController {
   constructor(
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(PayrollService) private readonly payroll: PayrollService,
+    @Inject(Mailer) private readonly mailer: Mailer,
   ) {}
 
   @Get("payroll/settings")
@@ -146,7 +154,10 @@ class PayrollController {
     return { ok: true };
   }
 
-  /** File transfer gaji (CSV) — berisi nomor rekening, khusus payroll.manage. */
+  /**
+   * Transfer gaji — berisi nomor rekening, khusus payroll.manage. Tanpa format: JSON per karyawan; `csv` = CSV
+   * umum; `bca|mandiri|bri|bni` = file unggah massal bank (hanya rekening bank itu).
+   */
   @Get("payroll-runs/:id/bank-transfer")
   @RequirePermission("payroll.manage")
   async bank(
@@ -154,21 +165,123 @@ class PayrollController {
     @Query("format") format: string | undefined,
     @Res() res: Response,
   ) {
-    const rows = await this.tenantDb.run((tx) => this.payroll.bankTransfer(tx, id));
-    if (format !== "csv") return res.json(rows);
-    csv(
-      res,
-      "transfer-gaji.csv",
-      [
-        { key: "employeeNumber", header: "NIK Karyawan" },
-        { key: "name", header: "Nama" },
-        { key: "bankName", header: "Bank" },
-        { key: "bankAccount", header: "No Rekening" },
-        { key: "bankAccountName", header: "Atas Nama" },
-        { key: "amount", header: "Jumlah" },
-      ],
-      rows,
-    );
+    if (!format || format === "json") {
+      const rows = await this.tenantDb.run((tx) => this.payroll.bankTransfer(tx, id));
+      return res.json(rows.map((r) => ({ ...r, bank: bankOf(r.bankName) })));
+    }
+    const kind = parse(z.enum(BANK_FORMATS), format);
+    const file = await this.tenantDb.run((tx) => this.payroll.bankFile(tx, id, kind));
+    res
+      .type(file.contentType)
+      .attachment(file.filename)
+      .setHeader("X-Transfer-Count", String(file.count))
+      .setHeader("X-Transfer-Total", file.total)
+      .setHeader("X-Transfer-Skipped", String(file.skipped.length))
+      .send(kind === "csv" ? "\uFEFF" + file.content : file.content);
+  }
+
+  /** Ringkasan file transfer per bank (jumlah, total, karyawan yang tidak termasuk). */
+  @Get("payroll-runs/:id/bank-transfer/summary")
+  @RequirePermission("payroll.manage")
+  bankSummary(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run(async (tx) => {
+      const rows = await this.payroll.bankTransfer(tx, id);
+      const banks = (["bca", "mandiri", "bri", "bni"] as const).map((bank) => {
+        const mine = rows.filter((r) => bankOf(r.bankName) === bank);
+        return {
+          bank,
+          label: BANK_LABELS[bank],
+          count: mine.length,
+          total: mine.reduce((sum, r) => sum + Number(r.amount), 0).toFixed(0),
+        };
+      });
+      const other = rows.filter((r) => !bankOf(r.bankName));
+      return {
+        banks,
+        other: {
+          count: other.length,
+          total: other.reduce((sum, r) => sum + Number(r.amount), 0).toFixed(0),
+          employees: other.map((r) => ({
+            employeeNumber: r.employeeNumber,
+            name: r.name,
+            bankName: r.bankName,
+          })),
+        },
+      };
+    });
+  }
+
+  @Post("payroll-runs/:id/thr")
+  @HttpCode(200)
+  @RequirePermission("payroll.write")
+  thr(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(thrComputeSchema, body);
+    return this.tenantDb.run((tx) => this.payroll.computeThr(tx, id, input));
+  }
+
+  @Post("payroll-runs/:id/retro")
+  @HttpCode(200)
+  @RequirePermission("payroll.write")
+  retro(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.payroll.computeRetro(tx, id));
+  }
+
+  /**
+   * Kirim slip gaji (PDF berkata sandi tanggal lahir DDMMYYYY bila diisi) ke email kerja karyawan. Email dikirim di
+   * luar transaksi database; status kirim per slip disimpan.
+   */
+  @Post("payroll-runs/:id/email-payslips")
+  @HttpCode(200)
+  @RequirePermission("payroll.manage")
+  async emailPayslips(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const { onlyPending } = parse(z.object({ onlyPending: z.boolean().default(false) }), body ?? {});
+    const targets = await this.tenantDb.run((tx) => this.payroll.emailTargets(tx, id, onlyPending));
+    const result = { sent: 0, failed: 0, skipped: [] as { name: string; reason: string }[] };
+    for (const t of targets) {
+      if (!t.email) {
+        result.skipped.push({ name: t.name, reason: "Email kerja kosong" });
+        continue;
+      }
+      const file = await this.tenantDb.run(async (tx) => {
+        const slip = await this.payroll.payslip(tx, t.slipId);
+        return {
+          period: slip.run.name,
+          company: await this.companyName(tx, slip.companyId),
+          filename: payslipFilename(slip),
+          content: await renderPayslipPdf(payslipPdfData(slip, await this.companyName(tx, slip.companyId)), {
+            password: payslipPassword(t.birthDate),
+          }),
+        };
+      });
+      let error: string | null = null;
+      try {
+        await this.mailer.send({
+          to: t.email,
+          subject: `Slip gaji ${file.period} — ${file.company}`,
+          text:
+            `Yth. ${t.name},\n\nTerlampir slip gaji ${file.period}.` +
+            (t.birthDate
+              ? " Berkas PDF dilindungi kata sandi berupa tanggal lahir Anda (format DDMMYYYY)."
+              : "") +
+            `\n\nSalam,\n${file.company}`,
+          attachments: [{ filename: file.filename, content: file.content, contentType: "application/pdf" }],
+        });
+        result.sent += 1;
+      } catch (e) {
+        error = e instanceof Error ? e.message.slice(0, 500) : String(e);
+        result.failed += 1;
+      }
+      await this.tenantDb.run((tx) => this.payroll.markEmailed(tx, t.slipId, error));
+    }
+    return result;
+  }
+
+  /** Biaya tenaga kerja (gaji + BPJS perusahaan) per departemen/cabang/bulan dari payroll terposting. */
+  @Get("payroll/reports/cost")
+  @RequirePermission("payroll.read")
+  cost(@Query() query: unknown) {
+    const input = parse(payrollCostQuerySchema, query);
+    return this.tenantDb.run((tx) => this.payroll.costReport(tx, input));
   }
 
   /** Rekap PPh 21 & BPJS per karyawan (memuat NIK/NPWP), khusus payroll.manage. */
@@ -180,6 +293,58 @@ class PayrollController {
     @Res() res: Response,
   ) {
     const rows = await this.tenantDb.run((tx) => this.payroll.recap(tx, id));
+    if (format === "edabu")
+      // BPJS Kesehatan e-Dabu: dasar upah & iuran per peserta.
+      return csv(
+        res,
+        "bpjs-kesehatan-edabu.csv",
+        [
+          { key: "nik", header: "NIK" },
+          { key: "bpjsKesNo", header: "No Kartu" },
+          { key: "name", header: "Nama" },
+          { key: "birthDate", header: "Tgl Lahir" },
+          { key: "joinDate", header: "TMT Kerja" },
+          { key: "bpjsWage", header: "Gaji Pokok + Tunjangan Tetap" },
+          { key: "kesEmployer", header: "Iuran Pemberi Kerja" },
+          { key: "kesEmployee", header: "Iuran Pekerja" },
+          { key: "kesTotal", header: "Total Iuran" },
+        ],
+        rows.map(({ bpjs, ...r }) => ({
+          ...r,
+          ...bpjs,
+          kesTotal: String(Number(bpjs.kesEmployer) + Number(bpjs.kesEmployee)),
+        })),
+      );
+    if (format === "sipp")
+      // BPJS Ketenagakerjaan SIPP: upah & iuran per program.
+      return csv(
+        res,
+        "bpjs-ketenagakerjaan-sipp.csv",
+        [
+          { key: "nik", header: "NIK" },
+          { key: "bpjsTkNo", header: "No KPJ" },
+          { key: "name", header: "Nama" },
+          { key: "birthDate", header: "Tgl Lahir" },
+          { key: "bpjsWage", header: "Upah" },
+          { key: "jhtEmployer", header: "JHT Pemberi Kerja" },
+          { key: "jhtEmployee", header: "JHT Pekerja" },
+          { key: "jkk", header: "JKK" },
+          { key: "jkm", header: "JKM" },
+          { key: "jpEmployer", header: "JP Pemberi Kerja" },
+          { key: "jpEmployee", header: "JP Pekerja" },
+          { key: "tkTotal", header: "Total Iuran" },
+        ],
+        rows.map(({ bpjs, ...r }) => ({
+          ...r,
+          ...bpjs,
+          tkTotal: String(
+            [bpjs.jhtEmployer, bpjs.jhtEmployee, bpjs.jkk, bpjs.jkm, bpjs.jpEmployer, bpjs.jpEmployee].reduce(
+              (sum, x) => sum + Number(x),
+              0,
+            ),
+          ),
+        })),
+      );
     if (format !== "csv") return res.json(rows);
     csv(
       res,
@@ -230,45 +395,9 @@ class PayrollController {
     const file = await this.tenantDb.run(async (tx) => {
       const slip = await this.payroll.payslip(tx, id);
       this.assertCanSee(slip);
-      const [company] = await tx
-        .select({ name: schema.companies.name })
-        .from(schema.companies)
-        .where(eq(schema.companies.id, slip.companyId));
-      const pick = (cats: string[]) =>
-        slip.lines
-          .filter((l) => cats.includes(l.category))
-          .map((l) => ({ name: l.name, amount: String(Math.abs(Number(l.amount))) }));
-      const earnings = slip.lines
-        .filter((l) => ["basic", "allowance", "overtime", "unpaid"].includes(l.category))
-        .map((l) => ({ name: l.name, amount: l.amount }));
-      const content = await renderPayslipPdf({
-        company: company?.name ?? "",
-        title: "Slip Gaji",
-        period: slip.run.name,
-        employee: {
-          name: slip.employee.name,
-          number: slip.employee.employeeNumber,
-          department: slip.employee.departmentName,
-          job: slip.employee.jobName,
-          ptkp: slip.ptkpStatus,
-        },
-        earnings,
-        // Potongan tampil positif; PPh 21 lebih potong (baris positif) tampil sebagai pengembalian (negatif).
-        deductions: slip.lines
-          .filter((l) => ["bpjs_employee", "tax", "deduction"].includes(l.category))
-          .map((l) => ({ name: l.name, amount: String(-Number(l.amount)) })),
-        employer: pick(["bpjs_employer"]),
-        net: slip.net,
-        pph21Info: slip.isFinal
-          ? `PPh 21 masa pajak terakhir dihitung setahun (tarif Pasal 17) dikurangi PPh 21 yang telah dipotong. Penghasilan bruto bulan ini Rp ${slip.gross}.`
-          : `PPh 21 metode TER kategori ${slip.terCategory} tarif ${slip.terRate ?? 0}% × penghasilan bruto Rp ${slip.gross} (termasuk premi JKK, JKM, BPJS Kesehatan yang dibayar perusahaan).`,
-      });
       return {
-        filename: `slip-${slip.employee.employeeNumber}-${slip.run.periodStart.slice(0, 7)}.pdf`.replace(
-          /[^\w.-]+/g,
-          "_",
-        ),
-        content,
+        filename: payslipFilename(slip),
+        content: await renderPayslipPdf(payslipPdfData(slip, await this.companyName(tx, slip.companyId))),
       };
     });
     res.type("application/pdf").attachment(file.filename).send(file.content);
@@ -277,6 +406,14 @@ class PayrollController {
   @Get("me/payslips")
   mine() {
     return this.tenantDb.run((tx) => this.payroll.mySlips(tx));
+  }
+
+  private async companyName(tx: Db, companyId: string) {
+    const [company] = await tx
+      .select({ name: schema.companies.name })
+      .from(schema.companies)
+      .where(eq(schema.companies.id, companyId));
+    return company?.name ?? "";
   }
 
   /** Slip sendiri (payroll yang sudah diposting) atau butuh payroll.read. */
