@@ -1062,3 +1062,109 @@ code.wrap {
   gap: 8px;
   flex-wrap: wrap;
 }
+
+/* ---- Grafik (dashboard HR): slot kategorikal tervalidasi untuk permukaan kartu terang & gelap ---- */
+.viz {
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --grid: color-mix(in srgb, var(--border) 70%, transparent);
+  position: relative;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz {
+    --series-1: #3987e5;
+    --series-2: #d95926;
+  }
+}
+:root[data-theme="dark"] .viz {
+  --series-1: #3987e5;
+  --series-2: #d95926;
+}
+.viz svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.viz text {
+  fill: var(--muted);
+  font-size: 11px;
+}
+.viz .legend {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.viz .legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+.viz-tip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  white-space: nowrap;
+  transform: translate(-50%, 0);
+  z-index: 2;
+}
+.hbar {
+  display: grid;
+  grid-template-columns: minmax(90px, 30%) 1fr auto;
+  gap: 4px 10px;
+  align-items: center;
+  font-size: 13px;
+}
+.hbar .track {
+  height: 10px;
+}
+.hbar .fill {
+  height: 10px;
+  border-radius: 0 4px 4px 0;
+  background: var(--series-1);
+  min-width: 2px;
+}
+.org-tree,
+.org-tree ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 22px;
+  border-left: 1px solid var(--border);
+}
+.org-tree {
+  border-left: none;
+  padding-left: 0;
+}
+.org-tree li {
+  margin: 6px 0;
+}
+.org-node {
+  display: inline-flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.viz-tip .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 4px;
+}
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}

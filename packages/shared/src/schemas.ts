@@ -1243,6 +1243,78 @@ export const checklistStartSchema = z.object({
   baseDate: z.string().date().nullish(),
 });
 
+// ---- Kinerja & pelatihan ----
+
+export const appraisalTemplateSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  jobId: optionalUuid,
+  active: z.boolean().default(true),
+  items: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(200),
+        description: z.string().trim().max(1000).nullish(),
+        weight: z.coerce.number().positive("Bobot harus lebih dari 0").max(1000),
+      }),
+    )
+    .min(1, "Minimal satu indikator")
+    .max(50),
+});
+
+export const appraisalCycleSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    dateStart: z.string().date(),
+    dateEnd: z.string().date(),
+  })
+  .refine((c) => c.dateEnd >= c.dateStart, { message: "Tanggal selesai sebelum mulai", path: ["dateEnd"] });
+
+export const appraisalStartSchema = z.object({
+  /** Kosong = semua karyawan aktif. */
+  employeeIds: z.array(z.string().uuid()).optional(),
+  /** Template untuk karyawan tanpa template jabatan. */
+  templateId: z.string().uuid().nullish(),
+});
+
+const score = z.coerce.number().int().min(1, "Skor 1–5").max(5, "Skor 1–5");
+export const appraisalReviewSchema = z.object({
+  lines: z
+    .array(z.object({ id: z.string().uuid(), score, comment: z.string().trim().max(1000).nullish() }))
+    .min(1),
+  comment: z.string().trim().max(2000).nullish(),
+});
+
+export const appraisalCalibrateSchema = z.object({
+  finalScore: z.coerce.number().min(1).max(5).nullish(),
+  rating: z.enum(["A", "B", "C", "D", "E"]).nullish(),
+  raisePercent: z.coerce.number().min(0).max(100).nullish(),
+  comment: z.string().trim().max(2000).nullish(),
+});
+
+export const trainingSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    provider: optionalText,
+    dateStart: z.string().date(),
+    dateEnd: z.string().date(),
+    cost: nonNegative(2).default("0"),
+    certificateValidMonths: z.coerce.number().int().min(1).max(240).nullish(),
+    state: z.enum(["planned", "done", "cancel"]).default("planned"),
+    description: z.string().trim().max(2000).nullish(),
+  })
+  .refine((t) => t.dateEnd >= t.dateStart, { message: "Tanggal selesai sebelum mulai", path: ["dateEnd"] });
+
+export const trainingParticipantsSchema = z.object({
+  employeeIds: z.array(z.string().uuid()).min(1).max(500),
+});
+
+export const trainingResultSchema = z.object({
+  state: z.enum(["enrolled", "completed", "absent"]),
+  certificate: fileUpload(5).nullish(),
+  /** Kosong = tanggal selesai pelatihan + masa berlaku sertifikat. */
+  certificateExpiry: z.string().date().nullish(),
+});
+
 export const thrComputeSchema = z.object({
   /** Tanggal hari raya keagamaan (masa kerja dihitung sampai tanggal ini). */
   holidayDate: z.string().date(),

@@ -48,6 +48,7 @@ import { parse } from "../common/zod.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { ApprovalService } from "./approval.service.js";
 import { ChecklistService } from "./checklist.service.js";
+import { HistoryService } from "./history.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { LeaveService } from "./leave.service.js";
 import { ScheduleService } from "./schedule.service.js";
@@ -378,6 +379,7 @@ class EmployeesController {
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(EmployeeService) private readonly employees: EmployeeService,
     @Inject(ChecklistService) private readonly checklists: ChecklistService,
+    @Inject(HistoryService) private readonly history: HistoryService,
   ) {}
 
   @Get()
@@ -400,6 +402,10 @@ class EmployeesController {
     const input = parse(employeeSchema, body);
     return this.tenantDb.run(async (tx) => {
       const employee = await this.employees.create(tx, input);
+      await this.history.record(tx, employee, "join", {
+        date: employee.joinDate,
+        newValue: employee.joinDate,
+      });
       // Onboarding otomatis untuk karyawan baru (bukan impor data lama).
       if (employee.joinDate >= addDays(new Date().toISOString().slice(0, 10), -30))
         await this.checklists.autoStart(tx, employee.id, "onboarding");
@@ -417,6 +423,7 @@ class EmployeesController {
     return this.tenantDb.run(async (tx) => {
       const before = await this.employees.find(tx, id);
       const employee = await this.employees.update(tx, id, sent);
+      await this.history.diff(tx, before, await this.employees.find(tx, id));
       // Tanggal keluar baru diisi → checklist offboarding.
       if (employee.resignDate && !before.resignDate) await this.checklists.autoStart(tx, id, "offboarding");
       return employee;
@@ -441,6 +448,7 @@ class ContractsController {
     @Inject(EmployeeService) private readonly employees: EmployeeService,
     @Inject(SequenceService) private readonly sequences: SequenceService,
     @Inject(ActivityService) private readonly activity: ActivityService,
+    @Inject(HistoryService) private readonly history: HistoryService,
   ) {}
 
   @Get()
@@ -577,6 +585,20 @@ class ContractsController {
         .update(C)
         .set({ state: "running", updatedAt: sql`now()` })
         .where(eq(C.id, id));
+      // Riwayat upah: dibanding kontrak sebelumnya.
+      const [previous] = await tx
+        .select({ wage: C.wage })
+        .from(C)
+        .where(and(eq(C.employeeId, contract.employeeId), eq(C.state, "closed")))
+        .orderBy(desc(C.dateStart))
+        .limit(1);
+      if (!previous || !new Decimal(previous.wage).eq(contract.wage))
+        await this.history.record(tx, { id: contract.employeeId, companyId: contract.companyId }, "wage", {
+          date: contract.dateStart,
+          oldValue: previous ? new Decimal(previous.wage).toFixed(0) : null,
+          newValue: new Decimal(contract.wage).toFixed(0),
+          note: contract.name,
+        });
       return this.load(tx, id);
     });
   }
@@ -946,7 +968,15 @@ class PortalController {
     ApprovalService,
     ScheduleService,
     ChecklistService,
+    HistoryService,
   ],
-  exports: [EmployeeService, LeaveService, ScheduleService, ApprovalService, ChecklistService],
+  exports: [
+    EmployeeService,
+    LeaveService,
+    ScheduleService,
+    ApprovalService,
+    ChecklistService,
+    HistoryService,
+  ],
 })
 export class HrModule {}
