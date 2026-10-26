@@ -659,4 +659,30 @@ export const MESSAGES_EN: Record<string, string> = {
   "Pilih minimal satu penilai": "Choose at least one reviewer",
   "Sasaran dari atasan hanya bisa dihapus atasan atau HR":
     "Goals set by a manager can only be deleted by the manager or HR",
+  // ---- Armada ----
+  "Kendaraan tidak ditemukan": "Vehicle not found",
+  "Servis tidak ditemukan": "Service not found",
+  "Tagihan untuk servis ini sudah dibuat": "A vendor bill was already created for this service",
+  "Servis dibatalkan tidak dapat ditagihkan": "A cancelled service cannot be billed",
+  "Servis yang sudah ditagihkan tidak dapat diubah biaya/vendor/kendaraannya":
+    "The cost, vendor or vehicle of a billed service cannot be changed",
+  "Servis yang sudah ditagihkan tidak dapat dihapus": "A billed service cannot be deleted",
+  "Kontrak sudah ditutup": "The contract is already closed",
+  "Kontrak tanpa tanggal berakhir tidak perlu diperpanjang":
+    "A contract without an end date does not need renewal",
+  "Butuh hak akuntansi untuk membuat tagihan vendor": "Accounting rights are required to create vendor bills",
+  "Hanya pengemudi kendaraan ini yang dapat mencatat odometer":
+    "Only this vehicle's driver can log the odometer",
+  "Kendaraan tidak ditemukan di perusahaan ini": "Vehicle not found in this company",
+  "Jenis layanan tidak ditemukan di perusahaan ini": "Service type not found in this company",
+  "Odometer tidak boleh lebih kecil dari pembacaan sebelumnya ({})":
+    "The odometer cannot be lower than the previous reading ({0})",
+  "Odometer melebihi pembacaan setelah tanggal ini ({})": "The odometer exceeds a later reading ({0})",
+  "Isi vendor sebelum membuat tagihan": "Set the vendor before creating a bill",
+  "Biaya servis harus lebih dari 0": "The service cost must be greater than 0",
+  "Produsen sudah ada": "Manufacturer already exists",
+  "Nomor polisi sudah terdaftar": "License plate is already registered",
+  "Tanggal berakhir sebelum tanggal mulai": "End date is before start date",
+  "Format nomor polisi tidak valid (mis. B 1234 XYZ)": "Invalid license plate format (e.g. B 1234 XYZ)",
+  "Tidak boleh negatif": "Must not be negative",
 };

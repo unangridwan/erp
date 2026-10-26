@@ -31,6 +31,7 @@ import { DataTransferModule } from "./hr/data-transfer/data-transfer.module.js";
 import { PerformanceAdvancedModule } from "./hr/performance-advanced.module.js";
 import { RecruitmentAdvancedModule } from "./hr/recruitment-advanced.module.js";
 import { NotificationsModule } from "./notifications/notifications.module.js";
+import { FleetModule } from "./fleet/fleet.module.js";
 import { RecruitmentModule } from "./hr/recruitment.module.js";
 import { PayrollModule } from "./payroll/payroll.module.js";
 import { TaxModule } from "./tax/tax.module.js";
@@ -65,6 +66,7 @@ import { UsersService } from "./users/users.service.js";
     RecruitmentAdvancedModule,
     PerformanceAdvancedModule,
     NotificationsModule,
+    FleetModule,
     PerformanceModule,
     ProfileModule,
     DataTransferModule,

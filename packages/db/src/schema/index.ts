@@ -9,3 +9,4 @@ export * from "./hr.js";
 export * from "./tax.js";
 export * from "./saas.js";
 export * from "./consolidation.js";
+export * from "./fleet.js";

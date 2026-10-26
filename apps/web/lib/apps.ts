@@ -318,6 +318,37 @@ export const APPS: App[] = [
     ],
   },
   {
+    id: "fleet",
+    name: L("Armada", "Fleet"),
+    home: "/fleet-vehicles",
+    prefixes: [
+      "/fleet",
+      "/fleet-vehicles",
+      "/fleet-contracts",
+      "/fleet-services",
+      "/fleet-models",
+      "/fleet-manufacturers",
+      "/fleet-service-types",
+    ],
+    menu: [
+      group("Armada", "Fleet", [
+        link("Kendaraan", "Vehicles", "/fleet-vehicles", "fleet.read"),
+        link("Kontrak", "Contracts", "/fleet-contracts", "fleet.read"),
+        link("Servis", "Services", "/fleet-services", "fleet.read"),
+      ]),
+      group("Laporan", "Reporting", [
+        link("Biaya & Odometer", "Costs & Odometer", "/fleet/reports", "fleet.read"),
+        link("Pengingat Dokumen", "Document Reminders", "/fleet/reminders", "fleet.read"),
+      ]),
+      group("Konfigurasi", "Configuration", [
+        link("Produsen", "Manufacturers", "/fleet-manufacturers", "fleet.read"),
+        link("Model Kendaraan", "Vehicle Models", "/fleet-models", "fleet.read"),
+        link("Jenis Layanan & Kontrak", "Service & Contract Types", "/fleet-service-types", "fleet.read"),
+        link("Pengaturan Armada", "Fleet Settings", "/fleet/settings", "fleet.manage"),
+      ]),
+    ],
+  },
+  {
     id: "contacts",
     name: L("Kontak", "Contacts"),
     home: "/partners",

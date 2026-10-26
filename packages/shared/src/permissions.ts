@@ -42,6 +42,10 @@ export const PERMISSIONS = [
   "tax.write",
   /** Ekspor XML Coretax (memuat NIK/NPWP), pengaturan pajak perusahaan. */
   "tax.manage",
+  "fleet.read",
+  "fleet.write",
+  /** Master & pengaturan armada, membuat tagihan vendor dari servis. */
+  "fleet.manage",
   "consolidation.read",
   /** Bagan akun grup, pemetaan akun, proses & finalisasi konsolidasi. */
   "consolidation.manage",
