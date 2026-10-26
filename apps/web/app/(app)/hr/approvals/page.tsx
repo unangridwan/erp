@@ -6,7 +6,13 @@ import { api, ApiError } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
 
 interface Pending {
-  model: "leave_request" | "overtime" | "expense_claim" | "approval_request";
+  model:
+    | "leave_request"
+    | "overtime"
+    | "expense_claim"
+    | "approval_request"
+    | "attendance_request"
+    | "shift_request";
   id: string;
   employeeName: string;
   summary: string;
@@ -45,11 +51,15 @@ export default function ApprovalsPage() {
     const path =
       r.model === "approval_request"
         ? `/approval-requests/${r.id}/${decision}`
-        : r.model === "leave_request"
-          ? `/leaves/${r.id}/${decision}`
-          : r.model === "expense_claim"
-            ? `/expense-claims/${r.id}/${decision}`
-            : `/approvals/overtime/${r.id}/${decision}`;
+        : r.model === "attendance_request"
+          ? `/attendance-requests/${r.id}/${decision}`
+          : r.model === "shift_request"
+            ? `/shift-requests/${r.id}/${decision}`
+            : r.model === "leave_request"
+              ? `/leaves/${r.id}/${decision}`
+              : r.model === "expense_claim"
+                ? `/expense-claims/${r.id}/${decision}`
+                : `/approvals/overtime/${r.id}/${decision}`;
     try {
       await api(path, { method: "POST", body: { note: notes[r.id] || null } });
       setVersion((v) => v + 1);
@@ -128,7 +138,13 @@ export default function ApprovalsPage() {
                 <Fragment key={r.id}>
                   <tr>
                     <td>
-                      {r.model === "approval_request" ? (
+                      {r.model === "attendance_request" || r.model === "shift_request" ? (
+                        <Link href="/hr/attendance-requests">
+                          {r.model === "attendance_request"
+                            ? l("Koreksi absensi", "Attendance correction")
+                            : l("Tukar shift", "Shift change")}
+                        </Link>
+                      ) : r.model === "approval_request" ? (
                         <Link href={`/hr/approval-requests/${r.id}`}>{l("Permintaan", "Request")}</Link>
                       ) : r.model === "leave_request" ? (
                         l("Cuti", "Time off")

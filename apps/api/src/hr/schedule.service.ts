@@ -74,6 +74,8 @@ export class ScheduleService {
       .where(
         and(
           inArray(schema.attendances.employeeId, ids),
+          // Hanya absensi tervalidasi yang dibaca payroll (validasi bisa diaktifkan di Pengaturan Payroll).
+          eq(schema.attendances.state, "validated"),
           gte(schema.attendances.checkIn, start),
           lte(schema.attendances.checkIn, end),
         ),

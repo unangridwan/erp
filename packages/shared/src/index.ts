@@ -12,6 +12,7 @@ export * from "./payroll.js";
 export * from "./payroll-advanced.js";
 export * from "./approval.js";
 export * from "./leave.js";
+export * from "./attendance.js";
 export {
   daysBetween,
   expiryStatus,

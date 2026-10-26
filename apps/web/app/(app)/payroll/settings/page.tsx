@@ -26,7 +26,11 @@ type Settings = Record<
   | "thrComponentId"
   | "retroComponentId"
   | "transferSourceAccount"
-  | "transferCompanyCode",
+  | "transferCompanyCode"
+  | "attendanceValidation"
+  | "attendanceLockDate"
+  | "autoCheckoutHours"
+  | "attendanceApprovalLevels",
   string
 >;
 
@@ -59,6 +63,10 @@ export default function PayrollSettingsPage() {
           retroComponentId: s.retroComponentId ?? "",
           transferSourceAccount: s.transferSourceAccount ?? "",
           transferCompanyCode: s.transferCompanyCode ?? "",
+          attendanceValidation: s.attendanceValidation ? "1" : "",
+          attendanceLockDate: s.attendanceLockDate ?? "",
+          autoCheckoutHours: s.autoCheckoutHours ? String(s.autoCheckoutHours) : "",
+          attendanceApprovalLevels: String(s.attendanceApprovalLevels ?? 1),
         }),
       )
       .catch((e: Error) => setError(e.message));
@@ -92,6 +100,10 @@ export default function PayrollSettingsPage() {
         retroComponentId,
         transferSourceAccount,
         transferCompanyCode,
+        attendanceValidation,
+        attendanceLockDate,
+        autoCheckoutHours,
+        attendanceApprovalLevels,
       } = form;
       await api("/payroll/settings", {
         method: "PUT",
@@ -117,6 +129,10 @@ export default function PayrollSettingsPage() {
           retroComponentId: retroComponentId || null,
           transferSourceAccount: transferSourceAccount || null,
           transferCompanyCode: transferCompanyCode || null,
+          attendanceValidation: attendanceValidation === "1",
+          attendanceLockDate: attendanceLockDate || null,
+          autoCheckoutHours: autoCheckoutHours ? Number(autoCheckoutHours) : null,
+          attendanceApprovalLevels: Number(attendanceApprovalLevels),
         },
       });
       setNotice(l("Pengaturan disimpan.", "Settings saved."));
@@ -283,6 +299,52 @@ export default function PayrollSettingsPage() {
           <option value="2">{l("2 — + atasan dari atasan", "2 — + manager's manager")}</option>
           <option value="3">{l("3 — + HR", "3 — + HR")}</option>
         </select>
+      </label>
+      <label className="field">
+        <span>
+          {l("Tahap persetujuan koreksi absensi & tukar shift", "Attendance correction & shift change steps")}
+        </span>
+        <select value={form.attendanceApprovalLevels} onChange={set("attendanceApprovalLevels")}>
+          <option value="1">{l("1 — atasan langsung", "1 — direct manager")}</option>
+          <option value="2">{l("2 — + atasan dari atasan", "2 — + manager's manager")}</option>
+          <option value="3">{l("3 — + HR", "3 — + HR")}</option>
+        </select>
+      </label>
+      <label className="field">
+        <span>{l("Validasi absensi", "Attendance validation")}</span>
+        <select value={form.attendanceValidation} onChange={set("attendanceValidation")}>
+          <option value="">
+            {l("Tidak — absensi langsung dipakai payroll", "No — attendance is used by payroll directly")}
+          </option>
+          <option value="1">
+            {l("Ya — absensi baru harus divalidasi HR", "Yes — new attendance must be validated by HR")}
+          </option>
+        </select>
+      </label>
+      <label className="field">
+        <span>
+          {l(
+            "Kunci absensi s.d. tanggal (maju otomatis saat payroll diposting)",
+            "Lock attendance up to (advances automatically when payroll is posted)",
+          )}
+        </span>
+        <input type="date" value={form.attendanceLockDate} onChange={set("attendanceLockDate")} />
+      </label>
+      <label className="field">
+        <span>
+          {l(
+            "Tutup otomatis absensi yang lupa pulang setelah (jam, kosong = tidak)",
+            "Auto check-out forgotten attendance after (hours, empty = off)",
+          )}
+        </span>
+        <input
+          className="num"
+          type="number"
+          min="4"
+          max="24"
+          value={form.autoCheckoutHours}
+          onChange={set("autoCheckoutHours")}
+        />
       </label>
       <label className="field">
         <span>

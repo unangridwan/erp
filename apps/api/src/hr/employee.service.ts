@@ -39,7 +39,7 @@ export class EmployeeService {
 
   /** Buka data sensitif hanya untuk pemegang hr.manage (atau karyawan itu sendiri); lainnya tersamar. */
   reveal(employee: Employee, full = hasPermission(currentContext().permissions, "hr.manage")) {
-    const { nikEnc, npwpEnc, bankAccountEnc, kkNoEnc, ...rest } = employee;
+    const { nikEnc, npwpEnc, bankAccountEnc, kkNoEnc, attendancePinHash, ...rest } = employee;
     const open = (v: string | null) => {
       if (!v) return null;
       const plain = decrypt(v, this.config.encryptionKey);
@@ -51,6 +51,7 @@ export class EmployeeService {
       npwp: open(npwpEnc),
       bankAccount: open(bankAccountEnc),
       kkNo: open(kkNoEnc),
+      hasAttendancePin: attendancePinHash !== null,
     };
   }
 
@@ -121,7 +122,14 @@ export class EmployeeService {
     return {
       items: rows.map((r) => {
         // Daftar tidak memuat data sensitif sama sekali.
-        const { nikEnc: _n, npwpEnc: _p, bankAccountEnc: _b, kkNoEnc: _k, ...rest } = r.employee;
+        const {
+          nikEnc: _n,
+          npwpEnc: _p,
+          bankAccountEnc: _b,
+          kkNoEnc: _k,
+          attendancePinHash: _pin,
+          ...rest
+        } = r.employee;
         return { ...rest, departmentName: r.departmentName, jobName: r.jobName, hasPhoto: r.hasPhoto };
       }),
       total,
@@ -238,6 +246,18 @@ export class EmployeeService {
           and(eq(schema.workSchedules.id, input.scheduleId), eq(schema.workSchedules.companyId, companyId)),
         );
       if (!schedule) throw fieldError("scheduleId", "Jadwal kerja tidak ditemukan di perusahaan ini");
+    }
+    if (input.workLocationId) {
+      const [location] = await tx
+        .select({ id: schema.workLocations.id })
+        .from(schema.workLocations)
+        .where(
+          and(
+            eq(schema.workLocations.id, input.workLocationId),
+            eq(schema.workLocations.companyId, companyId),
+          ),
+        );
+      if (!location) throw fieldError("workLocationId", "Lokasi kerja tidak ditemukan di perusahaan ini");
     }
     if (input.jobId) {
       const [job] = await tx

@@ -11,7 +11,8 @@ import { ActivityService } from "../activity/activity.service.js";
 import { currentContext } from "../common/request-context.js";
 import { ApprovalEngineService, hasLeft } from "./approval-engine.service.js";
 
-export type ApprovalModel = "leave_request" | "overtime" | "expense_claim";
+export type ApprovalModel =
+  "leave_request" | "overtime" | "expense_claim" | "attendance_request" | "shift_request";
 type Model = ApprovalModel;
 type Employee = typeof schema.employees.$inferSelect;
 
@@ -35,10 +36,12 @@ export class ApprovalService {
         leave: schema.payrollSettings.leaveApprovalLevels,
         overtime: schema.payrollSettings.overtimeApprovalLevels,
         expense: schema.payrollSettings.expenseApprovalLevels,
+        attendance: schema.payrollSettings.attendanceApprovalLevels,
       })
       .from(schema.payrollSettings)
       .where(eq(schema.payrollSettings.companyId, companyId));
     if (model === "expense_claim") return s?.expense ?? 1;
+    if (model === "attendance_request" || model === "shift_request") return s?.attendance ?? 1;
     return model === "leave_request" ? (s?.leave ?? 1) : (s?.overtime ?? 0);
   }
 
@@ -85,12 +88,13 @@ export class ApprovalService {
     });
     const last = doc.approvalStep >= doc.approvalLevels;
     const state = decision === "refused" ? "refused" : last ? "approved" : "confirm";
-    const table =
-      model === "leave_request"
-        ? schema.leaveRequests
-        : model === "overtime"
-          ? schema.overtimes
-          : schema.expenseClaims;
+    const table = {
+      leave_request: schema.leaveRequests,
+      overtime: schema.overtimes,
+      expense_claim: schema.expenseClaims,
+      attendance_request: schema.attendanceRequests,
+      shift_request: schema.shiftRequests,
+    }[model];
     await tx
       .update(table)
       .set({
@@ -102,7 +106,13 @@ export class ApprovalService {
         updatedAt: sql`now()`,
       })
       .where(eq(table.id, id));
-    const what = model === "leave_request" ? "Cuti" : model === "overtime" ? "Lembur" : "Klaim";
+    const what = {
+      leave_request: "Cuti",
+      overtime: "Lembur",
+      expense_claim: "Klaim",
+      attendance_request: "Koreksi absensi",
+      shift_request: "Tukar shift",
+    }[model];
     await this.activity.log(tx, {
       resModel: "employee",
       resId: doc.employeeId,
@@ -223,6 +233,57 @@ export class ApprovalService {
           mine: isMine(approver),
         });
     }
+    const corrections = await tx
+      .select({ doc: schema.attendanceRequests, employee: schema.employees })
+      .from(schema.attendanceRequests)
+      .innerJoin(schema.employees, eq(schema.employees.id, schema.attendanceRequests.employeeId))
+      .where(
+        and(
+          inArray(schema.attendanceRequests.companyId, ctx.companyIds),
+          eq(schema.attendanceRequests.state, "confirm"),
+        ),
+      );
+    for (const { doc, employee } of corrections) {
+      const approver = await this.approverFor(tx, employee, doc.approvalStep);
+      if (isMine(approver) || (hr && employee.userId !== ctx.userId) || (hr && !approver))
+        result.push({
+          model: "attendance_request" as const,
+          id: doc.id,
+          employeeName: employee.name,
+          summary: `Koreksi absensi ${doc.date}: ${doc.reason}`,
+          step: doc.approvalStep,
+          levels: doc.approvalLevels,
+          mine: isMine(approver),
+        });
+    }
+    const shifts = await tx
+      .select({
+        doc: schema.shiftRequests,
+        employee: schema.employees,
+        scheduleName: schema.workSchedules.name,
+      })
+      .from(schema.shiftRequests)
+      .innerJoin(schema.employees, eq(schema.employees.id, schema.shiftRequests.employeeId))
+      .innerJoin(schema.workSchedules, eq(schema.workSchedules.id, schema.shiftRequests.scheduleId))
+      .where(
+        and(
+          inArray(schema.shiftRequests.companyId, ctx.companyIds),
+          eq(schema.shiftRequests.state, "confirm"),
+        ),
+      );
+    for (const { doc, employee, scheduleName } of shifts) {
+      const approver = await this.approverFor(tx, employee, doc.approvalStep);
+      if (isMine(approver) || (hr && employee.userId !== ctx.userId) || (hr && !approver))
+        result.push({
+          model: "shift_request" as const,
+          id: doc.id,
+          employeeName: employee.name,
+          summary: `Tukar shift ke ${scheduleName} ${doc.dateFrom} s.d. ${doc.dateTo}`,
+          step: doc.approvalStep,
+          levels: doc.approvalLevels,
+          mine: isMine(approver),
+        });
+    }
     const users = new Map<string, string>();
     for (const r of await this.engine.reviewable(tx)) {
       const name = r.requestedBy
@@ -259,6 +320,24 @@ export class ApprovalService {
         .from(schema.leaveRequests)
         .where(and(eq(schema.leaveRequests.id, id), inArray(schema.leaveRequests.companyId, companyIds)));
       if (!r) throw new NotFoundException("Pengajuan cuti tidak ditemukan");
+      return { ...r, label: `${r.dateFrom} s.d. ${r.dateTo}` };
+    }
+    if (model === "attendance_request") {
+      const [a] = await tx
+        .select()
+        .from(schema.attendanceRequests)
+        .where(
+          and(eq(schema.attendanceRequests.id, id), inArray(schema.attendanceRequests.companyId, companyIds)),
+        );
+      if (!a) throw new NotFoundException("Koreksi absensi tidak ditemukan");
+      return { ...a, label: a.date };
+    }
+    if (model === "shift_request") {
+      const [r] = await tx
+        .select()
+        .from(schema.shiftRequests)
+        .where(and(eq(schema.shiftRequests.id, id), inArray(schema.shiftRequests.companyId, companyIds)));
+      if (!r) throw new NotFoundException("Permintaan tukar shift tidak ditemukan");
       return { ...r, label: `${r.dateFrom} s.d. ${r.dateTo}` };
     }
     if (model === "expense_claim") {
