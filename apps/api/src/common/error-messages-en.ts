@@ -541,4 +541,33 @@ export const MESSAGES_EN: Record<string, string> = {
   "Subjek wajib diisi": "Subject is required",
   "Lengkapi field wajib": "Fill in the required fields",
   "{} wajib diisi": "{0} is required",
+
+  // ---- Cuti lanjutan ----
+  "Rencana akrual tidak aktif": "The accrual plan is inactive",
+  "Rencana akrual tidak ditemukan": "Accrual plan not found",
+  "Jenis cuti ini tidak memakai jatah/saldo": "This time off type does not use allocations/balances",
+  "Karyawan tidak ditemukan atau tidak aktif di perusahaan ini":
+    "Employee not found or not active in this company",
+  "Tanggal tidak valid": "Invalid date",
+  "Tahun tidak valid": "Invalid year",
+  "Cuti massal tidak ditemukan atau sudah dibatalkan": "Mass time off not found or already cancelled",
+  "Hanya lembur yang sudah disetujui": "Only approved overtime",
+  "Cuti pengganti hanya untuk lembur di hari istirahat/libur":
+    "Compensatory leave is only for overtime on rest days/holidays",
+  "Lembur ini sudah dijadikan cuti pengganti":
+    "This overtime has already been converted to compensatory leave",
+  "Lembur sudah dibayar di slip gaji": "The overtime has already been paid in a payslip",
+  "Lembur kurang dari 4 jam tidak menjadi cuti pengganti":
+    "Overtime under 4 hours does not become compensatory leave",
+  "{} hanya bisa diajukan oleh HR": "{0} can only be requested by HR",
+  "{} wajib melampirkan bukti": "{0} requires a supporting document",
+  "Delegasi tugas tidak bisa ke diri sendiri": "Tasks cannot be delegated to yourself",
+  "Karyawan delegasi harus di perusahaan yang sama": "The delegate must be in the same company",
+  "{} tidak bisa diambil setengah hari": "{0} cannot be taken as a half day",
+  "{} maksimal {} hari per pengajuan (diminta {})": "{0} allows at most {1} days per request ({2} requested)",
+  "Cuti tidak bisa diambil {} s.d. {}: {}": "Time off cannot be taken from {0} to {1}: {2}",
+  "Saldo {} melebihi batas minus {} hari (sisa {}, diminta {})":
+    "{0} balance would exceed the negative limit of {1} days ({2} left, {3} requested)",
+  "Setengah hari hanya untuk cuti satu hari": "Half days are only for single-day time off",
+  "Isi batas hari yang dibawa": "Enter the carry-over day limit",
 };

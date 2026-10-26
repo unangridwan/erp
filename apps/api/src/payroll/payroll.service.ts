@@ -407,6 +407,8 @@ export class PayrollService {
           gte(schema.overtimes.date, run.periodStart),
           lte(schema.overtimes.date, run.periodEnd),
           eq(schema.overtimes.state, "approved"),
+          // Lembur yang dijadikan cuti pengganti tidak dibayar.
+          eq(schema.overtimes.compensated, false),
           or(isNull(schema.overtimes.payslipId), eq(schema.overtimes.payslipId, slipId)),
         ),
       );

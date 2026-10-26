@@ -87,9 +87,19 @@ export async function installPayroll(tx: Db, companyId: string) {
     .where(eq(schema.payrollSettings.companyId, companyId));
 }
 
-export const DEFAULT_LEAVE_TYPES: [string, boolean, boolean][] = [
+/** Jenis cuti bawaan tenant baru: [nama, dibayar, memakai jatah, aturan tambahan]. */
+export const DEFAULT_LEAVE_TYPES: [
+  string,
+  boolean,
+  boolean,
+  { requiresAttachment?: boolean; countCalendarDays?: boolean; allowHalfDay?: boolean }?,
+][] = [
   ["Cuti tahunan", true, true],
-  ["Sakit (dengan surat dokter)", true, false],
-  ["Cuti melahirkan", true, false],
+  ["Sakit (dengan surat dokter)", true, false, { requiresAttachment: true }],
+  ["Cuti melahirkan", true, false, { countCalendarDays: true, allowHalfDay: false }],
   ["Izin tanpa upah", false, false],
+  ["Cuti menikah", true, false],
+  ["Cuti ayah/paternitas", true, false],
+  ["Cuti duka", true, false],
+  ["Cuti pengganti", true, true],
 ];

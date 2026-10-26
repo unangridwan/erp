@@ -377,6 +377,12 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   nominal (DoA), atasan langsung sebagai tahap pertama, fallback HR, larangan menyetujui sendiri, delegasi penyetuju
   bertanggal (berlaku juga untuk cuti, lembur, klaim), pengajuan karyawan yang sudah resign tidak bisa diputuskan,
   kotak persetujuan gabungan, portal "Permintaan Saya"
+- [x] HR: cuti lanjutan (gap PRD Cuti) — aturan per jenis cuti (setengah hari, maks. hari per pengajuan, saldo minus
+  berbatas, wajib lampiran, hari kalender, khusus HR), buku besar saldo FIFO per jatah dengan kedaluwarsa, rencana akrual
+  bulanan/tahunan (mulai setelah N bulan masa kerja, saldo maksimum, otomatis tiap jam) dan carry-over berbatas yang
+  hangus setelah N bulan, tanggal blok cuti per departemen, cuti massal/cuti bersama, cuti pengganti dari lembur hari
+  libur (tidak dibayar lagi di payroll), delegasi tugas, laporan saldo & ledger, jenis cuti bawaan (menikah,
+  paternitas, duka, pengganti)
 
 ## 5. Roadmap Bertahap
 

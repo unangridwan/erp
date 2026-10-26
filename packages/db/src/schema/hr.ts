@@ -180,8 +180,19 @@ export const leaveTypes = pgTable("leave_types", {
   paid: boolean("paid").notNull().default(true),
   requiresAllocation: boolean("requires_allocation").notNull().default(true),
   active: boolean("active").notNull().default(true),
+  code: text("code"),
+  allowHalfDay: boolean("allow_half_day").notNull().default(true),
+  maxConsecutiveDays: numeric("max_consecutive_days", { precision: 6, scale: 2 }),
+  allowNegative: boolean("allow_negative").notNull().default(false),
+  negativeLimit: numeric("negative_limit", { precision: 6, scale: 2 }).notNull().default("0"),
+  requiresAttachment: boolean("requires_attachment").notNull().default(false),
+  /** true = durasi hari kalender (mis. cuti melahirkan), false = hari kerja. */
+  countCalendarDays: boolean("count_calendar_days").notNull().default(false),
+  employeeRequestable: boolean("employee_requestable").notNull().default(true),
   ...audit,
 });
+
+export const LEAVE_ALLOCATION_SOURCES = ["manual", "accrual", "carry_over", "compensatory"] as const;
 
 export const leaveAllocations = pgTable("leave_allocations", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -193,6 +204,11 @@ export const leaveAllocations = pgTable("leave_allocations", {
   dateFrom: date("date_from").notNull(),
   dateTo: date("date_to").notNull(),
   note: text("note"),
+  source: text("source", { enum: LEAVE_ALLOCATION_SOURCES }).notNull().default("manual"),
+  accrualPlanId: uuid("accrual_plan_id"),
+  /** Periode akrual/carry-over (YYYY atau YYYY-MM). */
+  period: text("period"),
+  overtimeId: uuid("overtime_id"),
   ...audit,
 });
 
@@ -213,7 +229,54 @@ export const leaveRequests = pgTable("leave_requests", {
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   approvalStep: smallint("approval_step").notNull().default(1),
   approvalLevels: smallint("approval_levels").notNull().default(1),
+  halfDay: text("half_day", { enum: ["am", "pm"] }),
+  attachment: bytea("attachment"),
+  attachmentName: text("attachment_name"),
+  attachmentType: text("attachment_type"),
+  delegateEmployeeId: uuid("delegate_employee_id"),
+  delegateNote: text("delegate_note"),
+  bulkId: uuid("bulk_id"),
   createdBy: uuid("created_by"),
+  ...audit,
+});
+
+export const leaveAccrualPlans = pgTable("leave_accrual_plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  leaveTypeId: uuid("leave_type_id").notNull(),
+  name: text("name").notNull(),
+  frequency: text("frequency", { enum: ["monthly", "yearly"] })
+    .notNull()
+    .default("yearly"),
+  daysPerPeriod: numeric("days_per_period", { precision: 6, scale: 2 }).notNull(),
+  startAfterMonths: integer("start_after_months").notNull().default(0),
+  maxBalance: numeric("max_balance", { precision: 6, scale: 2 }),
+  carryOver: text("carry_over", { enum: ["none", "all", "limited"] })
+    .notNull()
+    .default("none"),
+  carryOverMax: numeric("carry_over_max", { precision: 6, scale: 2 }),
+  carryOverExpiryMonths: integer("carry_over_expiry_months"),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const leaveAccrualAssignments = pgTable("leave_accrual_assignments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  planId: uuid("plan_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  dateFrom: date("date_from").notNull(),
+});
+
+export const leaveBlockDates = pgTable("leave_block_dates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  dateFrom: date("date_from").notNull(),
+  dateTo: date("date_to").notNull(),
+  departmentId: uuid("department_id"),
+  reason: text("reason").notNull(),
   ...audit,
 });
 
@@ -249,6 +312,8 @@ export const overtimes = pgTable("overtimes", {
     .default("approved"),
   approvalStep: smallint("approval_step").notNull().default(1),
   approvalLevels: smallint("approval_levels").notNull().default(0),
+  /** Dijadikan cuti pengganti: tidak dibayar di payroll. */
+  compensated: boolean("compensated").notNull().default(false),
   ...audit,
 });
 

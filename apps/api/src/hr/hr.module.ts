@@ -14,6 +14,7 @@ import {
   Post,
   Put,
   Query,
+  Res,
 } from "@nestjs/common";
 import { and, asc, desc, eq, gte, isNull, lte, schema, sql, type Db } from "@erp/db";
 import {
@@ -29,6 +30,7 @@ import {
   leaveAllocationSchema,
   leaveRequestSchema,
   leaveTypeSchema,
+  bulkLeaveSchema,
   overtimeSchema,
   approvalDecisionSchema,
   salaryGradeSchema,
@@ -37,6 +39,7 @@ import {
   workScheduleSchema,
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
+import type { Response } from "express";
 import { z } from "zod";
 import { fieldError } from "../accounting/context.js";
 import { ActivityService } from "../activity/activity.service.js";
@@ -641,11 +644,62 @@ class LeavesController {
     return this.tenantDb.run((tx) => this.leaves.balances(tx, employeeId, date));
   }
 
+  /** Laporan saldo cuti semua karyawan aktif pada tanggal (termasuk yang akan kedaluwarsa). */
+  @Get("balance-report")
+  @RequirePermission("hr.read")
+  balanceReport(@Query() query: { date?: string; departmentId?: string }) {
+    return this.tenantDb.run((tx) => this.leaves.balanceReport(tx, query));
+  }
+
+  /** Buku besar cuti satu karyawan × jenis cuti. */
+  @Get("ledger")
+  @RequirePermission("hr.read")
+  ledger(
+    @Query("employeeId", ParseUUIDPipe) employeeId: string,
+    @Query("leaveTypeId", ParseUUIDPipe) leaveTypeId: string,
+  ) {
+    return this.tenantDb.run((tx) => this.leaves.ledgerReport(tx, employeeId, leaveTypeId));
+  }
+
+  @Get("compensable-overtimes")
+  @RequirePermission("hr.read")
+  compensable() {
+    return this.tenantDb.run((tx) => this.leaves.compensableOvertimes(tx));
+  }
+
+  @Get("bulk")
+  @RequirePermission("hr.read")
+  bulkList() {
+    return this.tenantDb.run((tx) => this.leaves.bulkList(tx));
+  }
+
+  /** Cuti massal / cuti bersama (langsung disetujui). */
+  @Post("bulk")
+  @HttpCode(200)
+  @RequirePermission("hr.write")
+  bulk(@Body() body: unknown) {
+    const input = parse(bulkLeaveSchema, body);
+    return this.tenantDb.run((tx) => this.leaves.bulk(tx, input));
+  }
+
+  @Post("bulk/:bulkId/cancel")
+  @HttpCode(200)
+  @RequirePermission("hr.write")
+  cancelBulk(@Param("bulkId", ParseUUIDPipe) bulkId: string) {
+    return this.tenantDb.run((tx) => this.leaves.cancelBulk(tx, bulkId));
+  }
+
   /** Pengajuan cuti (diri sendiri tanpa permission khusus; untuk orang lain butuh hr.write). */
   @Post()
   create(@Body() body: unknown) {
     const input = parse(leaveRequestSchema, body);
     return this.tenantDb.run((tx) => this.leaves.request(tx, input));
+  }
+
+  @Get(":id/attachment")
+  async attachment(@Param("id", ParseUUIDPipe) id: string, @Res() res: Response) {
+    const file = await this.tenantDb.run((tx) => this.leaves.attachment(tx, id));
+    res.type(file.type).attachment(file.name).send(file.data);
   }
 
   /** Persetujuan berjenjang: atasan pada tahapnya, atau HR (hr.write) di tahap mana pun. */
@@ -850,13 +904,27 @@ class PortalController {
     });
   }
 
+  /** Rekan kerja aktif di perusahaan yang sama (pilihan delegasi tugas saat cuti). */
+  @Get("colleagues")
+  colleagues() {
+    return this.tenantDb.run(async (tx) => {
+      const employee = await this.employees.mine(tx);
+      const E = schema.employees;
+      return tx
+        .select({ id: E.id, name: E.name })
+        .from(E)
+        .where(and(eq(E.companyId, employee.companyId), eq(E.active, true), sql`${E.id} <> ${employee.id}`))
+        .orderBy(asc(E.name));
+    });
+  }
+
   @Get("leave-types")
   leaveTypes() {
     return this.tenantDb.run((tx) =>
       tx
         .select()
         .from(schema.leaveTypes)
-        .where(eq(schema.leaveTypes.active, true))
+        .where(and(eq(schema.leaveTypes.active, true), eq(schema.leaveTypes.employeeRequestable, true)))
         .orderBy(asc(schema.leaveTypes.name)),
     );
   }

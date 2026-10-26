@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { download } from "../../../components/accounting/download";
 import {
   MyApprovalRequests,
@@ -13,8 +13,9 @@ import {
   MyProfile,
   MyTaxSlips,
 } from "../../../components/hr/portal-extras";
+import { LeaveRequestForm, type LeaveTypeOption } from "../../../components/hr/leave-form";
 import { api, ApiError } from "../../../lib/api";
-import { formatDate, money, today } from "../../../lib/format";
+import { formatDate, money } from "../../../lib/format";
 import { useI18n } from "../../../lib/i18n";
 import { LEAVE_STATE_LABEL } from "../../../lib/resources";
 
@@ -40,6 +41,8 @@ interface Leaves {
     allocated: string;
     taken: string;
     remaining: string;
+    expiringSoon: string;
+    expiringOn: string | null;
   }[];
 }
 interface Slip {
@@ -56,8 +59,8 @@ export default function MyPortalPage() {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [leaves, setLeaves] = useState<Leaves | null>(null);
   const [slips, setSlips] = useState<Slip[]>([]);
-  const [types, setTypes] = useState<{ id: string; name: string }[]>([]);
-  const [form, setForm] = useState({ leaveTypeId: "", dateFrom: today(), dateTo: today(), reason: "" });
+  const [types, setTypes] = useState<LeaveTypeOption[]>([]);
+  const [colleagues, setColleagues] = useState<{ id: string; name: string }[]>([]);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [notLinked, setNotLinked] = useState(false);
@@ -69,7 +72,8 @@ export default function MyPortalPage() {
         return Promise.all([
           api<Leaves>("/me/leaves").then(setLeaves),
           api<Slip[]>("/me/payslips").then(setSlips),
-          api<{ id: string; name: string }[]>("/me/leave-types").then(setTypes),
+          api<LeaveTypeOption[]>("/me/leave-types").then(setTypes),
+          api<{ id: string; name: string }[]>("/me/colleagues").then(setColleagues),
         ]);
       })
       .catch((e) => {
@@ -93,10 +97,6 @@ export default function MyPortalPage() {
       );
     }
   }
-  const requestLeave = (e: FormEvent) => {
-    e.preventDefault();
-    void run(() => api("/leaves", { method: "POST", body: { ...form, reason: form.reason || null } }));
-  };
 
   if (notLinked)
     return (
@@ -180,74 +180,47 @@ export default function MyPortalPage() {
               <strong>
                 {Number(b.remaining)} / {Number(b.allocated)} {l("hari tersisa", "days left")}
               </strong>
+              {Number(b.expiringSoon) > 0 && (
+                <small className="muted">
+                  {l(
+                    `${Number(b.expiringSoon)} hari hangus ${formatDate(b.expiringOn, locale)}`,
+                    `${Number(b.expiringSoon)} days expire ${formatDate(b.expiringOn, locale)}`,
+                  )}
+                </small>
+              )}
             </li>
           ))}
         </ul>
-        <form className="inline-panel" onSubmit={requestLeave}>
-          <label className="field">
-            <span>{l("Jenis", "Type")}</span>
-            <select
-              required
-              value={form.leaveTypeId}
-              onChange={(e) => setForm((f) => ({ ...f, leaveTypeId: e.target.value }))}
-            >
-              <option value="">—</option>
-              {types.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
+        <LeaveRequestForm types={types} colleagues={colleagues} onSaved={() => setVersion((v) => v + 1)} />
+        <div className="table-wrap">
+          <table>
+            <tbody>
+              {leaves?.requests.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.leaveTypeName}</td>
+                  <td>
+                    {formatDate(r.dateFrom, locale)} – {formatDate(r.dateTo, locale)}
+                  </td>
+                  <td className="num">
+                    {Number(r.days)} {l("hari", "days")}
+                  </td>
+                  <td>{tx(LEAVE_STATE_LABEL[r.state]!)}</td>
+                  <td>
+                    {(r.state === "confirm" || r.state === "approved") && (
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() => run(() => api(`/leaves/${r.id}/cancel`, { method: "POST" }))}
+                      >
+                        {l("Batalkan", "Cancel")}
+                      </button>
+                    )}
+                  </td>
+                </tr>
               ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>{l("Dari", "From")}</span>
-            <input
-              type="date"
-              value={form.dateFrom}
-              onChange={(e) => setForm((f) => ({ ...f, dateFrom: e.target.value }))}
-            />
-          </label>
-          <label className="field">
-            <span>{l("Sampai", "To")}</span>
-            <input
-              type="date"
-              value={form.dateTo}
-              onChange={(e) => setForm((f) => ({ ...f, dateTo: e.target.value }))}
-            />
-          </label>
-          <label className="field">
-            <span>{l("Alasan", "Reason")}</span>
-            <input value={form.reason} onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))} />
-          </label>
-          <button className="primary">{l("Ajukan cuti", "Request time off")}</button>
-        </form>
-        <table>
-          <tbody>
-            {leaves?.requests.map((r) => (
-              <tr key={r.id}>
-                <td>{r.leaveTypeName}</td>
-                <td>
-                  {formatDate(r.dateFrom, locale)} – {formatDate(r.dateTo, locale)}
-                </td>
-                <td className="num">
-                  {Number(r.days)} {l("hari", "days")}
-                </td>
-                <td>{tx(LEAVE_STATE_LABEL[r.state]!)}</td>
-                <td>
-                  {(r.state === "confirm" || r.state === "approved") && (
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={() => run(() => api(`/leaves/${r.id}/cancel`, { method: "POST" }))}
-                    >
-                      {l("Batalkan", "Cancel")}
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <MyProfile name={employee.name} />

@@ -225,6 +225,7 @@ export const APPS: App[] = [
       "/job-positions",
       "/leave-allocations",
       "/leave-types",
+      "/leave-block-dates",
       "/overtimes",
       "/public-holidays",
       "/work-schedules",
@@ -254,6 +255,7 @@ export const APPS: App[] = [
       group("Cuti & Klaim", "Time Off & Expenses", [
         link("Pengajuan Cuti", "Time Off Requests", "/hr/leaves", "hr.read"),
         link("Jatah Cuti", "Allocations", "/leave-allocations", "hr.read"),
+        link("Saldo Cuti", "Time Off Balances", "/hr/leave-balances", "hr.read"),
         link("Klaim Biaya", "Expenses", "/hr/expenses", "hr.read"),
       ]),
       group("Persetujuan", "Approvals", [
@@ -278,6 +280,8 @@ export const APPS: App[] = [
         link("Golongan Upah", "Salary Grades", "/salary-grades", "hr.read"),
         link("Struktur & Skala Upah", "Wage Scale", "/hr/wage-scale", "hr.manage"),
         link("Jenis Cuti", "Time Off Types", "/leave-types", "hr.read"),
+        link("Rencana Akrual Cuti", "Accrual Plans", "/hr/leave-plans", "hr.read"),
+        link("Tanggal Blok Cuti", "Blackout Dates", "/leave-block-dates", "hr.read"),
         link("Kategori Klaim", "Expense Categories", "/expense-categories", "hr.read"),
         link("Kategori Persetujuan", "Approval Categories", "/hr/approval-categories", "hr.manage"),
         link("Template Checklist", "Checklist Templates", "/hr/checklist-templates", "hr.read"),

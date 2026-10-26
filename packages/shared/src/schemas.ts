@@ -998,6 +998,17 @@ export const leaveTypeSchema = z.object({
   paid: z.boolean().default(true),
   requiresAllocation: z.boolean().default(true),
   active: z.boolean().default(true),
+  code: optionalText,
+  allowHalfDay: z.boolean().default(true),
+  /** Maksimal hari berturut-turut per pengajuan (kosong = tanpa batas). */
+  maxConsecutiveDays: nonNegative(2)
+    .refine((v) => Number(v) > 0, "Harus lebih dari 0")
+    .nullish(),
+  allowNegative: z.boolean().default(false),
+  negativeLimit: nonNegative(2).default("0"),
+  requiresAttachment: z.boolean().default(false),
+  countCalendarDays: z.boolean().default(false),
+  employeeRequestable: z.boolean().default(true),
 });
 
 export const leaveAllocationSchema = z.object({
@@ -1016,6 +1027,71 @@ export const leaveRequestSchema = z
     dateFrom: z.string().date(),
     dateTo: z.string().date(),
     reason: z.string().trim().max(1000).nullish(),
+    /** Setengah hari pagi/siang (hanya cuti sehari). */
+    halfDay: z.enum(["am", "pm"]).nullish(),
+    /** Bukti (mis. surat dokter) PDF/JPG/PNG maks. 2 MB. */
+    attachment: z
+      .object({
+        name: z.string().trim().min(1).max(200),
+        type: z.enum(["application/pdf", "image/jpeg", "image/png"], {
+          message: "Berkas harus PDF, JPG, atau PNG",
+        }),
+        data: z.string().regex(/^[A-Za-z0-9+/=\s]+$/, "Berkas tidak valid"),
+      })
+      .nullish(),
+    /** Rekan yang menerima delegasi tugas selama cuti. */
+    delegateEmployeeId: z.string().uuid().nullish(),
+    delegateNote: z.string().trim().max(500).nullish(),
+  })
+  .refine((r) => r.dateTo >= r.dateFrom, { message: "Tanggal selesai sebelum mulai", path: ["dateTo"] })
+  .refine((r) => !r.halfDay || r.dateFrom === r.dateTo, {
+    message: "Setengah hari hanya untuk cuti satu hari",
+    path: ["halfDay"],
+  });
+
+export const leaveAccrualPlanSchema = z
+  .object({
+    leaveTypeId: z.string().uuid(),
+    name: z.string().trim().min(1).max(120),
+    frequency: z.enum(["monthly", "yearly"]).default("yearly"),
+    daysPerPeriod: nonNegative(2).refine((v) => Number(v) > 0, "Harus lebih dari 0"),
+    startAfterMonths: z.coerce.number().int().min(0).max(600).default(0),
+    maxBalance: nonNegative(2)
+      .refine((v) => Number(v) > 0, "Harus lebih dari 0")
+      .nullish(),
+    carryOver: z.enum(["none", "all", "limited"]).default("none"),
+    carryOverMax: nonNegative(2).nullish(),
+    carryOverExpiryMonths: z.coerce.number().int().min(1).max(12).nullish(),
+    active: z.boolean().default(true),
+  })
+  .refine((p) => p.carryOver !== "limited" || (p.carryOverMax !== null && p.carryOverMax !== undefined), {
+    path: ["carryOverMax"],
+    message: "Isi batas hari yang dibawa",
+  });
+
+export const leaveAccrualAssignSchema = z.object({
+  /** Kosong = semua karyawan aktif (atau per departemen). */
+  employeeIds: z.array(z.string().uuid()).max(2000).optional(),
+  departmentId: z.string().uuid().nullish(),
+  dateFrom: z.string().date(),
+});
+
+export const leaveBlockDateSchema = z.object({
+  dateFrom: z.string().date(),
+  dateTo: z.string().date(),
+  departmentId: optionalUuid,
+  reason: z.string().trim().min(1, "Alasan wajib diisi").max(255),
+});
+
+/** Cuti massal/cuti bersama: dibuat HR untuk banyak karyawan sekaligus dan langsung disetujui. */
+export const bulkLeaveSchema = z
+  .object({
+    leaveTypeId: z.string().uuid(),
+    dateFrom: z.string().date(),
+    dateTo: z.string().date(),
+    reason: z.string().trim().min(1, "Alasan wajib diisi").max(500),
+    departmentId: z.string().uuid().nullish(),
+    employeeIds: z.array(z.string().uuid()).max(2000).optional(),
   })
   .refine((r) => r.dateTo >= r.dateFrom, { message: "Tanggal selesai sebelum mulai", path: ["dateTo"] });
 
