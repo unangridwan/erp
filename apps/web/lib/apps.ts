@@ -255,7 +255,11 @@ export const APPS: App[] = [
         link("Pengajuan Cuti", "Time Off Requests", "/hr/leaves", "hr.read"),
         link("Jatah Cuti", "Allocations", "/leave-allocations", "hr.read"),
         link("Klaim Biaya", "Expenses", "/hr/expenses", "hr.read"),
-        link("Persetujuan", "Approvals", "/hr/approvals", "hr.read"),
+      ]),
+      group("Persetujuan", "Approvals", [
+        link("Kotak Persetujuan", "Approval Inbox", "/hr/approvals", "hr.read"),
+        link("Permintaan Persetujuan", "Approval Requests", "/hr/approval-requests", "hr.read"),
+        link("Delegasi", "Delegations", "/hr/approval-delegations", "hr.read"),
       ]),
       group("Talenta", "Talent", [
         link("Pelamar", "Applicants", "/hr/recruitment", "hr.read"),
@@ -275,6 +279,7 @@ export const APPS: App[] = [
         link("Struktur & Skala Upah", "Wage Scale", "/hr/wage-scale", "hr.manage"),
         link("Jenis Cuti", "Time Off Types", "/leave-types", "hr.read"),
         link("Kategori Klaim", "Expense Categories", "/expense-categories", "hr.read"),
+        link("Kategori Persetujuan", "Approval Categories", "/hr/approval-categories", "hr.manage"),
         link("Template Checklist", "Checklist Templates", "/hr/checklist-templates", "hr.read"),
         link("Template KPI", "KPI Templates", "/hr/appraisal-templates", "hr.read"),
         link("Hari Libur", "Public Holidays", "/public-holidays", "hr.read"),
@@ -343,6 +348,8 @@ export const APPS: App[] = [
     menu: [
       link("Portal Saya", "My Portal", "/me", ""),
       link("Persetujuan", "Approvals", "/hr/approvals", ""),
+      link("Permintaan Saya", "My Requests", "/hr/approval-requests", ""),
+      link("Delegasi", "Delegations", "/hr/approval-delegations", ""),
     ],
   },
   {

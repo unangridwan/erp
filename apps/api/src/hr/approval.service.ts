@@ -9,6 +9,7 @@ import { and, asc, eq, inArray, schema, sql, type Db } from "@erp/db";
 import { hasPermission } from "@erp/shared";
 import { ActivityService } from "../activity/activity.service.js";
 import { currentContext } from "../common/request-context.js";
+import { ApprovalEngineService, hasLeft } from "./approval-engine.service.js";
 
 export type ApprovalModel = "leave_request" | "overtime" | "expense_claim";
 type Model = ApprovalModel;
@@ -17,11 +18,15 @@ type Employee = typeof schema.employees.$inferSelect;
 /**
  * Persetujuan berjenjang cuti, lembur, dan klaim biaya. Tahap 1 = atasan langsung karyawan, tahap 2 = atasan dari atasan,
  * tahap 3 = HR. Tahap tanpa atasan (atau tahap 3) diputuskan HR (permission hr.write), yang juga boleh mengambil
- * alih tahap mana pun.
+ * alih tahap mana pun. Delegasi penyetuju yang aktif berlaku juga; pengajuan karyawan yang sudah resign tidak bisa
+ * diputuskan.
  */
 @Injectable()
 export class ApprovalService {
-  constructor(@Inject(ActivityService) private readonly activity: ActivityService) {}
+  constructor(
+    @Inject(ActivityService) private readonly activity: ActivityService,
+    @Inject(ApprovalEngineService) private readonly engine: ApprovalEngineService,
+  ) {}
 
   /** Jumlah tahap untuk dokumen baru (dari pengaturan payroll perusahaan). */
   async levels(tx: Db, companyId: string, model: Model) {
@@ -56,10 +61,13 @@ export class ApprovalService {
       .select()
       .from(schema.employees)
       .where(eq(schema.employees.id, doc.employeeId));
+    if (hasLeft(employee!))
+      throw new BadRequestException("Karyawan sudah resign; pengajuan tidak bisa diputuskan");
     const ctx = currentContext();
     const expected = await this.approverFor(tx, employee!, doc.approvalStep);
     const hr = hasPermission(ctx.permissions, "hr.write");
-    if (expected !== ctx.userId && !hr)
+    const acting = await this.engine.actsFor(tx, expected, ctx.userId);
+    if (!acting.ok && !hr)
       throw new ForbiddenException(
         expected
           ? "Menunggu persetujuan atasan pada tahap ini"
@@ -73,7 +81,7 @@ export class ApprovalService {
       step: doc.approvalStep,
       userId: ctx.userId,
       decision,
-      note: note ?? null,
+      note: acting.delegated ? `[delegasi] ${note ?? ""}`.trim() : (note ?? null),
     });
     const last = doc.approvalStep >= doc.approvalLevels;
     const state = decision === "refused" ? "refused" : last ? "approved" : "confirm";
@@ -137,10 +145,18 @@ export class ApprovalService {
     };
   }
 
-  /** Pengajuan yang menunggu keputusan user ini (HR melihat semua yang menunggu). */
+  /** `userId` penyetuju tahap berjalan dokumen ini (langsung atau sebagai delegasi). */
+  async isApprover(tx: Db, employee: Employee, step: number, userId: string) {
+    return (await this.engine.actsFor(tx, await this.approverFor(tx, employee, step), userId)).ok;
+  }
+
+  /** Pengajuan yang menunggu keputusan user ini (HR melihat semua yang menunggu), termasuk permintaan generik. */
   async pending(tx: Db) {
     const ctx = currentContext();
     const hr = hasPermission(ctx.permissions, "hr.write");
+    const delegators = await this.engine.delegatorsOf(tx, ctx.userId);
+    const isMine = (approver: string | null) =>
+      approver !== null && (approver === ctx.userId || delegators.has(approver));
     const leaves = await tx
       .select({ doc: schema.leaveRequests, employee: schema.employees, typeName: schema.leaveTypes.name })
       .from(schema.leaveRequests)
@@ -170,7 +186,7 @@ export class ApprovalService {
     const result = [];
     for (const { doc, employee } of claims) {
       const approver = await this.approverFor(tx, employee, doc.approvalStep);
-      if (approver === ctx.userId || (hr && employee.userId !== ctx.userId) || (hr && !approver))
+      if (isMine(approver) || (hr && employee.userId !== ctx.userId) || (hr && !approver))
         result.push({
           model: "expense_claim" as const,
           id: doc.id,
@@ -178,12 +194,12 @@ export class ApprovalService {
           summary: `Klaim ${doc.name} Rp ${Number(doc.total).toLocaleString("id-ID")}`,
           step: doc.approvalStep,
           levels: doc.approvalLevels,
-          mine: approver === ctx.userId,
+          mine: isMine(approver),
         });
     }
     for (const { doc, employee, typeName } of leaves) {
       const approver = await this.approverFor(tx, employee, doc.approvalStep);
-      if (approver === ctx.userId || (hr && employee.userId !== ctx.userId) || (hr && !approver))
+      if (isMine(approver) || (hr && employee.userId !== ctx.userId) || (hr && !approver))
         result.push({
           model: "leave_request" as const,
           id: doc.id,
@@ -191,12 +207,12 @@ export class ApprovalService {
           summary: `${typeName} ${doc.dateFrom} s.d. ${doc.dateTo} (${Number(doc.days)} hari)`,
           step: doc.approvalStep,
           levels: doc.approvalLevels,
-          mine: approver === ctx.userId,
+          mine: isMine(approver),
         });
     }
     for (const { doc, employee } of overtimes) {
       const approver = await this.approverFor(tx, employee, doc.approvalStep);
-      if (approver === ctx.userId || (hr && employee.userId !== ctx.userId) || (hr && !approver))
+      if (isMine(approver) || (hr && employee.userId !== ctx.userId) || (hr && !approver))
         result.push({
           model: "overtime" as const,
           id: doc.id,
@@ -204,8 +220,33 @@ export class ApprovalService {
           summary: `Lembur ${doc.date} ${Number(doc.hours)} jam`,
           step: doc.approvalStep,
           levels: doc.approvalLevels,
-          mine: approver === ctx.userId,
+          mine: isMine(approver),
         });
+    }
+    const users = new Map<string, string>();
+    for (const r of await this.engine.reviewable(tx)) {
+      const name = r.requestedBy
+        ? (users.get(r.requestedBy) ??
+          (
+            await tx
+              .select({ name: schema.users.name })
+              .from(schema.users)
+              .where(eq(schema.users.id, r.requestedBy))
+          )[0]?.name ??
+          "—")
+        : "—";
+      if (r.requestedBy) users.set(r.requestedBy, name);
+      result.push({
+        model: "approval_request" as const,
+        id: r.id,
+        employeeName: name,
+        summary: `${r.categoryName} ${r.number ?? ""}: ${r.subject}${
+          r.amount ? ` (Rp ${Number(r.amount).toLocaleString("id-ID")})` : ""
+        }`,
+        step: r.step,
+        levels: r.levels,
+        mine: r.mine,
+      });
     }
     return result;
   }

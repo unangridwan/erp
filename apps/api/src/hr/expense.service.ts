@@ -292,7 +292,7 @@ export class ExpenseService {
     if (employee?.userId === ctx.userId) return;
     if (
       claim.state === "confirm" &&
-      (await this.approvals.approverFor(tx, employee!, claim.approvalStep)) === ctx.userId
+      (await this.approvals.isApprover(tx, employee!, claim.approvalStep, ctx.userId))
     )
       return;
     throw new ForbiddenException("Butuh permission hr.read");

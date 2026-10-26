@@ -46,6 +46,7 @@ import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { SequenceService } from "../sequences/sequence.service.js";
+import { ApprovalEngineService } from "./approval-engine.service.js";
 import { ApprovalService } from "./approval.service.js";
 import { ChecklistService } from "./checklist.service.js";
 import { ContractService } from "./contract.service.js";
@@ -887,6 +888,7 @@ class PortalController {
     EmployeeService,
     LeaveService,
     ApprovalService,
+    ApprovalEngineService,
     ScheduleService,
     ChecklistService,
     HistoryService,
@@ -897,6 +899,7 @@ class PortalController {
     LeaveService,
     ScheduleService,
     ApprovalService,
+    ApprovalEngineService,
     ChecklistService,
     HistoryService,
     ContractService,

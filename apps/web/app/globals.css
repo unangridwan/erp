@@ -1180,6 +1180,32 @@ code.wrap {
   gap: 16px;
 }
 
+/* Form permintaan persetujuan: kotak bergaris, isian selebar form. */
+.request-form {
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 8px 0 16px;
+}
+
+/* Daftar isian (label – nilai), mis. detail permintaan persetujuan. */
+.details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 12px 24px;
+  margin: 12px 0 20px;
+}
+.details dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.details dd {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* ---- Profil karyawan ---- */
 .field-section {
   grid-column: 1 / -1;

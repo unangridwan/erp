@@ -371,6 +371,12 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   (Kesehatan: no. kartu, kelas, faskes, tanggal; Ketenagakerjaan: KPJ, tanggal, ikut JP), iuran & dasar upah per program
   di slip/total run/PDF, akun beban & utang per program di jurnal gaji, laporan biaya, dashboard SDM, rekap e-Dabu/SIPP,
   dan ekspor Excel
+- [x] HR: mesin persetujuan generik (gap PRD Persetujuan) — kategori permintaan dengan field wajib/opsional (8 kategori
+  bawaan: FPK, perjalanan dinas, uang muka, lembur terencana, peminjaman aset/kendaraan, kontrak, permohonan pembayaran,
+  umum), penomoran per kategori, penyetuju berurutan/paralel dengan minimum persetujuan, matriks otorisasi berdasarkan
+  nominal (DoA), atasan langsung sebagai tahap pertama, fallback HR, larangan menyetujui sendiri, delegasi penyetuju
+  bertanggal (berlaku juga untuk cuti, lembur, klaim), pengajuan karyawan yang sudah resign tidak bisa diputuskan,
+  kotak persetujuan gabungan, portal "Permintaan Saya"
 
 ## 5. Roadmap Bertahap
 

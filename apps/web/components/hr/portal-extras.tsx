@@ -13,6 +13,7 @@ import {
   RELIGION_OPTIONS,
 } from "../../lib/resources";
 import { EDUCATION_LABEL, PhotoBox, RELATION_OPTIONS } from "./profile-panels";
+import { REQUEST_STATE_LABEL } from "./approval-request-form";
 import { ExpenseClaimForm } from "./expense-form";
 
 const errorText = (e: unknown) =>
@@ -625,6 +626,64 @@ export function MyProfile({ name }: { name: string }) {
           </div>
         )}
       </div>
+    </section>
+  );
+}
+
+interface MyRequest {
+  id: string;
+  number: string | null;
+  subject: string;
+  categoryName: string;
+  state: string;
+}
+
+/** Permintaan persetujuan milik sendiri (FPK, dinas, uang muka, dll.) dan jumlah yang perlu saya tinjau. */
+export function MyApprovalRequests() {
+  const { l, tx } = useI18n();
+  const [rows, setRows] = useState<MyRequest[]>([]);
+  const [toReview, setToReview] = useState(0);
+  useEffect(() => {
+    api<MyRequest[]>("/approval-requests?mine=1").then(
+      (r) => setRows(r.slice(0, 5)),
+      () => setRows([]),
+    );
+    api<{ toReview: number }>("/approval-requests/summary").then(
+      (s) => setToReview(s.toReview),
+      () => setToReview(0),
+    );
+  }, []);
+  return (
+    <section className="panel">
+      <header className="toolbar">
+        <h2>{l("Permintaan persetujuan", "Approval requests")}</h2>
+        <Link className="button primary" href="/hr/approval-requests">
+          {l("Buat / lihat semua", "New / view all")}
+        </Link>
+        {toReview > 0 && (
+          <Link href="/hr/approvals">
+            {l(`${toReview} perlu Anda tinjau`, `${toReview} waiting for you`)}
+          </Link>
+        )}
+      </header>
+      {rows.length === 0 ? (
+        <p className="muted">{l("Belum ada permintaan.", "No requests yet.")}</p>
+      ) : (
+        <table>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td>
+                  <Link href={`/hr/approval-requests/${r.id}`}>{r.number ?? l("(draft)", "(draft)")}</Link>
+                </td>
+                <td>{r.categoryName}</td>
+                <td>{r.subject}</td>
+                <td>{tx(REQUEST_STATE_LABEL[r.state]!)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </section>
   );
 }

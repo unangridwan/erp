@@ -3,3 +3,4 @@ pnpm-lock.yaml
 **/.next
 **/drizzle/meta
 docs/PLAN.md
+docs/PRD *.md

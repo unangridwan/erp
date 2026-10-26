@@ -6,7 +6,7 @@ import { api, ApiError } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
 
 interface Pending {
-  model: "leave_request" | "overtime" | "expense_claim";
+  model: "leave_request" | "overtime" | "expense_claim" | "approval_request";
   id: string;
   employeeName: string;
   summary: string;
@@ -25,7 +25,7 @@ interface Status {
   }[];
 }
 
-/** Kotak persetujuan: cuti & lembur yang menunggu keputusan user ini (atasan per tahap, atau HR). */
+/** Kotak persetujuan: cuti, lembur, klaim, dan permintaan persetujuan yang menunggu keputusan user ini. */
 export default function ApprovalsPage() {
   const { l, locale } = useI18n();
   const [rows, setRows] = useState<Pending[] | null>(null);
@@ -43,11 +43,13 @@ export default function ApprovalsPage() {
   async function decide(r: Pending, decision: "approve" | "refuse") {
     setError(null);
     const path =
-      r.model === "leave_request"
-        ? `/leaves/${r.id}/${decision}`
-        : r.model === "expense_claim"
-          ? `/expense-claims/${r.id}/${decision}`
-          : `/approvals/overtime/${r.id}/${decision}`;
+      r.model === "approval_request"
+        ? `/approval-requests/${r.id}/${decision}`
+        : r.model === "leave_request"
+          ? `/leaves/${r.id}/${decision}`
+          : r.model === "expense_claim"
+            ? `/expense-claims/${r.id}/${decision}`
+            : `/approvals/overtime/${r.id}/${decision}`;
     try {
       await api(path, { method: "POST", body: { note: notes[r.id] || null } });
       setVersion((v) => v + 1);
@@ -58,6 +60,33 @@ export default function ApprovalsPage() {
   async function toggleHistory(r: Pending) {
     if (history[r.id]) {
       setHistory(({ [r.id]: _, ...rest }) => rest);
+      return;
+    }
+    if (r.model === "approval_request") {
+      const d = await api<{
+        steps: {
+          sequence: number;
+          state: string;
+          note: string | null;
+          decidedAt: string | null;
+          decidedByName: string | null;
+          approverName: string | null;
+        }[];
+      }>(`/approval-requests/${r.id}`);
+      const decided = d.steps.filter((x) => x.state === "approved" || x.state === "refused");
+      setHistory((h) => ({
+        ...h,
+        [r.id]: {
+          waitingFor: null,
+          history: decided.map((x) => ({
+            step: x.sequence,
+            decision: x.state,
+            note: x.note,
+            createdAt: x.decidedAt ?? "",
+            userName: x.decidedByName ?? x.approverName,
+          })),
+        },
+      }));
       return;
     }
     const s = await api<Status>(`/approvals/${r.model}/${r.id}`);
@@ -76,8 +105,8 @@ export default function ApprovalsPage() {
       </header>
       <p className="muted">
         {l(
-          "Tahap 1 disetujui atasan langsung, tahap 2 atasan dari atasan, tahap 3 HR. Jumlah tahap diatur di Pengaturan Payroll.",
-          "Step 1 is approved by the direct manager, step 2 by the manager's manager, step 3 by HR. The number of steps is set in Payroll Settings.",
+          "Cuti, lembur, dan klaim: tahap 1 atasan langsung, tahap 2 atasan dari atasan, tahap 3 HR (jumlah tahap di Pengaturan Payroll). Permintaan persetujuan mengikuti penyetuju kategorinya. Delegasi yang aktif ikut tampil di sini.",
+          "Time off, overtime and claims: step 1 is the direct manager, step 2 the manager's manager, step 3 HR (number of steps in Payroll Settings). Approval requests follow their category's approvers. Active delegations show up here too.",
         )}
       </p>
       {error && <p className="error">{error}</p>}
@@ -99,7 +128,9 @@ export default function ApprovalsPage() {
                 <Fragment key={r.id}>
                   <tr>
                     <td>
-                      {r.model === "leave_request" ? (
+                      {r.model === "approval_request" ? (
+                        <Link href={`/hr/approval-requests/${r.id}`}>{l("Permintaan", "Request")}</Link>
+                      ) : r.model === "leave_request" ? (
                         l("Cuti", "Time off")
                       ) : r.model === "expense_claim" ? (
                         <Link href={`/hr/expenses/${r.id}`}>{l("Klaim biaya", "Expense claim")}</Link>
