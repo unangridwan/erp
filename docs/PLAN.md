@@ -388,6 +388,11 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   (maju otomatis saat payroll diposting), koreksi absensi (lupa absen/dinas luar/WFH, lampiran) dan tukar shift lewat
   persetujuan berjenjang, mode kiosk (badge/No. karyawan + PIN, kamera opsional), API push mesin absensi dengan kunci
   per mesin (idempoten), auto-checkout absensi terbuka, dashboard hari ini dan rekap bulanan per status
+- [x] Payroll lanjutan (gap PRD Payroll) — gross-up PPh 21 per kontrak (tunjangan PPh 21 sebesar pajaknya, dilaporkan
+  di BPA1), payroll koreksi off-cycle untuk bulan yang sudah diposting (selisih saja, PPh 21 atas bruto gabungan masa,
+  jurnal & pembayaran sendiri), penahanan gaji per slip (keluar dari transfer & pembayaran, dilepas dengan pembayaran
+  terpisah), dashboard peringatan payroll (rekening/NPWP/BPJS kosong, gaji ≤ 0 atau berubah tajam, absensi belum
+  divalidasi, pengajuan tertunda, kontrak berakhir), saldo cuti di slip & PDF
 
 ## 5. Roadmap Bertahap
 

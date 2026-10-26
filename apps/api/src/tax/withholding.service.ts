@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { and, asc, desc, eq, inArray, schema, sql, type Db, type SQL } from "@erp/db";
 import {
+  GROSS_UP_CODE,
   PPH21_A1_OBJECT_CODE,
   PPH21_PERMANENT_OBJECT_CODE,
   bpa1Xml,
@@ -77,6 +78,7 @@ export class WithholdingService {
         and(
           eq(schema.payslips.companyId, companyId),
           eq(schema.payslips.isFinal, true),
+          eq(schema.payrollRuns.kind, "regular"),
           eq(schema.payrollRuns.periodStart, from),
           inArray(schema.payrollRuns.state, ["done", "paid"]),
           sql`not exists (select 1 from withholding_slips w where w.payslip_id = ${schema.payslips.id}
@@ -87,7 +89,23 @@ export class WithholdingService {
     const created: string[] = [];
     const skipped: { name: string; reason: string }[] = [];
     for (const { slip, run, employee, position } of finals) {
-      const annual = slip.annual as { tax?: string } | null;
+      // Payroll koreksi terakhir di masa yang sama memuat PPh 21 setahun yang terbaru.
+      const [corrected] = await tx
+        .select({ annual: schema.payslips.annual })
+        .from(schema.payslips)
+        .innerJoin(schema.payrollRuns, eq(schema.payrollRuns.id, schema.payslips.runId))
+        .where(
+          and(
+            eq(schema.payslips.employeeId, employee.id),
+            eq(schema.payslips.isFinal, true),
+            eq(schema.payrollRuns.kind, "correction"),
+            eq(schema.payrollRuns.periodStart, from),
+            inArray(schema.payrollRuns.state, ["done", "paid"]),
+          ),
+        )
+        .orderBy(desc(schema.payrollRuns.createdAt))
+        .limit(1);
+      const annual = (corrected?.annual ?? slip.annual) as { tax?: string } | null;
       if (!annual?.tax) {
         skipped.push({ name: employee.name, reason: "Slip terakhir tanpa perhitungan PPh 21 setahun" });
         continue;
@@ -96,6 +114,7 @@ export class WithholdingService {
         month_start: number;
         salary: string;
         other: string;
+        income_tax: string;
         bonus: string;
         insurance: string;
         pension: string;
@@ -103,8 +122,10 @@ export class WithholdingService {
         select min(extract(month from r.period_start))::int as month_start,
           coalesce(sum(pl.amount) filter (where pl.category in ('basic', 'unpaid')), 0)::text as salary,
           coalesce(sum(pl.amount) filter (where (pl.category = 'allowance' and coalesce(c.taxable, true)
+            and pl.code <> ${GROSS_UP_CODE}
             and not (pl.code ~* '^(THR|BONUS|TANTIEM)' or pl.name ~* '(THR|bonus|tantiem|gratifikasi)'))
             or pl.category = 'overtime'), 0)::text as other,
+          coalesce(sum(pl.amount) filter (where pl.code = ${GROSS_UP_CODE}), 0)::text as income_tax,
           coalesce(sum(pl.amount) filter (where pl.category = 'allowance' and coalesce(c.taxable, true)
             and (pl.code ~* '^(THR|BONUS|TANTIEM)' or pl.name ~* '(THR|bonus|tantiem|gratifikasi)')), 0)::text as bonus,
           coalesce(sum(pl.amount) filter (where pl.category = 'bpjs_employer' and pl.code in ('JKK', 'JKM', 'BPJS_KES_ER')), 0)::text as insurance,
@@ -121,6 +142,7 @@ export class WithholdingService {
       const details = {
         salary: new Decimal(t!.salary).toFixed(0),
         otherBenefit: new Decimal(t!.other).toFixed(0),
+        incomeTaxBenefit: new Decimal(t!.income_tax).toFixed(0),
         insurance: new Decimal(t!.insurance).toFixed(0),
         bonus: new Decimal(t!.bonus).toFixed(0),
         pensionContribution: new Decimal(t!.pension).toFixed(0),
@@ -352,6 +374,7 @@ export class WithholdingService {
               taxObjectCode: s.taxObjectCode!,
               salary: s.details?.salary ?? 0,
               otherBenefit: s.details?.otherBenefit ?? 0,
+              incomeTaxBenefit: s.details?.incomeTaxBenefit ?? 0,
               insurance: s.details?.insurance ?? 0,
               bonus: s.details?.bonus ?? 0,
               pensionContribution: s.details?.pensionContribution ?? 0,

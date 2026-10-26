@@ -336,6 +336,9 @@ export function workingDays(from: string, to: string, holidays: string[] = []): 
   return count;
 }
 
+/** Kode baris tunjangan PPh 21 (gross-up). */
+export const GROSS_UP_CODE = "TUNJ_PPH21";
+
 export interface PayslipItem {
   code: string;
   name: string;
@@ -369,6 +372,14 @@ export interface PayslipInput {
   casual?: { kind: "daily" | "piece"; days: number; bpjsWage: Decimal.Value; onlyJkkJkm: boolean };
   /** Kepesertaan BPJS Kesehatan / Ketenagakerjaan / JP (bawaan: ikut semua). */
   enrollment?: BpjsEnrollment;
+  /** Gross-up: perusahaan menanggung PPh 21 lewat tunjangan PPh 21 yang besarnya sama dengan pajaknya. */
+  grossUp?: boolean;
+  /**
+   * Slip koreksi: hanya selisih (tanpa gaji pokok & BPJS); PPh 21 dihitung atas bruto gabungan masa yang sama
+   * dikurangi PPh 21 yang sudah dipotong di slip sebelumnya (`sameMonth`).
+   */
+  correction?: boolean;
+  sameMonth?: { gross: Decimal.Value; pph21: Decimal.Value; employeePension: Decimal.Value };
 }
 
 export type PayslipCategory =
@@ -396,10 +407,12 @@ export function computePayslip(input: PayslipInput) {
     : input.casual.kind === "daily"
       ? `Upah harian (${input.casual.days} hari)`
       : "Upah borongan";
-  lines.push({ code: "BASIC", name: basicName, category: "basic", amount: rupiah(wage).toFixed(0) });
+  if (!input.correction || !wage.isZero())
+    lines.push({ code: "BASIC", name: basicName, category: "basic", amount: rupiah(wage).toFixed(0) });
   for (const a of input.allowances) {
     lines.push({ code: a.code, name: a.name, category: "allowance", amount: rupiah(d(a.amount)).toFixed(0) });
   }
+  const grossUpAt = lines.length;
   const overtime = input.overtime.reduce((s, o) => s.plus(overtimePay(baseWage, o.hours, o.day)), d(0));
   if (overtime.gt(0))
     lines.push({ code: "OT", name: "Lembur", category: "overtime", amount: overtime.toFixed(0) });
@@ -446,37 +459,71 @@ export function computePayslip(input: PayslipInput) {
     if (d(amount).gt(0))
       lines.push({ code, name, category: "bpjs_employee", amount: d(amount).negated().toFixed(0) });
 
-  const taxableEarnings = wage
+  const taxableBase = wage
     .plus(input.allowances.filter((a) => a.taxable !== false).reduce((s, a) => s.plus(a.amount), d(0)))
     .plus(overtime)
-    .minus(unpaid);
+    .minus(unpaid)
+    .plus(bpjs.employer.jkk)
+    .plus(bpjs.employer.jkm)
+    .plus(bpjs.employer.kes);
+  const pension = d(bpjs.employee.jht).plus(bpjs.employee.jp);
+  const prior = input.sameMonth ?? { gross: 0, pph21: 0, employeePension: 0 };
+
+  /** PPh 21 slip ini bila bruto ditambah tunjangan PPh 21 sebesar `extra`. */
+  const taxOn = (extra: Decimal) => {
+    const gross = rupiah(taxableBase.plus(extra));
+    const masaGross = gross.plus(prior.gross);
+    const monthly = pph21Monthly(masaGross, input.status, input.hasNpwp);
+    let pph21 = d(monthly.tax);
+    let annual: ReturnType<typeof pph21Annual> | null = null;
+    if (input.casual) {
+      // Pegawai tidak tetap: tarif harian atas rata-rata bruto per hari kerja.
+      const days = Math.max(input.casual.days, 1);
+      pph21 = d(pph21Daily(masaGross.div(days), input.hasNpwp)).times(days);
+    } else if (input.isFinal) {
+      annual = pph21Annual({
+        annualGross: d(input.ytd.gross).plus(masaGross),
+        months: input.ytd.months + 1,
+        employeePension: d(input.ytd.employeePension).plus(prior.employeePension).plus(pension),
+        status: input.status,
+        hasNpwp: input.hasNpwp,
+      });
+      // Bisa negatif: kelebihan potong dikembalikan ke karyawan.
+      pph21 = d(annual.tax).minus(input.ytd.pph21);
+    }
+    return { gross, monthly, annual, pph21: pph21.minus(prior.pph21) };
+  };
+  let taxAllowance = d(0);
+  let tax = taxOn(taxAllowance);
+  if (input.grossUp) {
+    // Iterasi titik tetap tunjangan = pajak; bila berputar di batas lapisan TER, ambil yang terbesar.
+    const seen = new Set<string>();
+    for (let i = 0; i < 100; i++) {
+      const next = Decimal.max(tax.pph21, 0);
+      if (next.eq(taxAllowance)) break;
+      if (seen.has(next.toFixed(0))) {
+        taxAllowance = Decimal.max(taxAllowance, next);
+        tax = taxOn(taxAllowance);
+        break;
+      }
+      seen.add(next.toFixed(0));
+      taxAllowance = next;
+      tax = taxOn(taxAllowance);
+    }
+    if (taxAllowance.gt(0))
+      lines.splice(grossUpAt, 0, {
+        code: GROSS_UP_CODE,
+        name: "Tunjangan PPh 21",
+        category: "allowance",
+        amount: taxAllowance.toFixed(0),
+      });
+  }
+  const { gross, monthly, annual, pph21 } = tax;
   const earnings = wage
     .plus(input.allowances.reduce((s, a) => s.plus(a.amount), d(0)))
+    .plus(taxAllowance)
     .plus(overtime)
     .minus(unpaid);
-  const gross = rupiah(
-    taxableEarnings.plus(bpjs.employer.jkk).plus(bpjs.employer.jkm).plus(bpjs.employer.kes),
-  );
-  const pension = d(bpjs.employee.jht).plus(bpjs.employee.jp);
-
-  const monthly = pph21Monthly(gross, input.status, input.hasNpwp);
-  let pph21 = d(monthly.tax);
-  let annual: ReturnType<typeof pph21Annual> | null = null;
-  if (input.casual) {
-    // Pegawai tidak tetap: tarif harian atas rata-rata bruto per hari kerja.
-    const days = Math.max(input.casual.days, 1);
-    pph21 = d(pph21Daily(gross.div(days), input.hasNpwp)).times(days);
-  } else if (input.isFinal) {
-    annual = pph21Annual({
-      annualGross: d(input.ytd.gross).plus(gross),
-      months: input.ytd.months + 1,
-      employeePension: d(input.ytd.employeePension).plus(pension),
-      status: input.status,
-      hasNpwp: input.hasNpwp,
-    });
-    // Bisa negatif: kelebihan potong dikembalikan ke karyawan.
-    pph21 = d(annual.tax).minus(input.ytd.pph21);
-  }
   if (!pph21.isZero())
     lines.push({ code: "PPH21", name: "PPh 21", category: "tax", amount: pph21.negated().toFixed(0) });
 

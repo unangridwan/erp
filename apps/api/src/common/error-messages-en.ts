@@ -599,4 +599,19 @@ export const MESSAGES_EN: Record<string, string> = {
   "Berkas maksimal 5 MB": "Files are at most 5 MB",
   "Format bulan YYYY-MM": "Month format YYYY-MM",
   "Alasan wajib diisi": "Reason is required",
+  // ---- Payroll lanjutan ----
+  "THR & rapel dihitung di payroll reguler, bukan payroll koreksi":
+    "THR & back pay are computed in the regular payroll, not a correction payroll",
+  "Koreksi dibuat dari payroll reguler": "Corrections are created from a regular payroll",
+  "Payroll belum diposting; ubah slipnya langsung":
+    "The payroll is not posted yet; edit its payslips directly",
+  "Karyawan tidak ada di payroll ini": "The employee is not in this payroll",
+  "Gaji payroll yang sudah dibayar tidak bisa ditahan": "Salary of a paid payroll cannot be held",
+  "Gaji yang ditahan sudah dilepas": "The held salary was already released",
+  "Gaji tidak sedang ditahan": "The salary is not on hold",
+  "Payroll sudah dibayar; lepas gaji yang ditahan dengan pembayaran terpisah":
+    "The payroll is already paid; release the held salary with a separate payment",
+  "Posting payroll sebelum melepas gaji yang ditahan": "Post the payroll before releasing a held salary",
+  "Slip gaji masih kosong; isi selisih koreksinya": "The payslip is empty; enter the correction amounts",
+  "Pilih minimal satu karyawan": "Select at least one employee",
 };

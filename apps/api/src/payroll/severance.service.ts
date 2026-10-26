@@ -170,6 +170,7 @@ export class SeveranceService {
         .where(
           and(
             eq(schema.payslips.employeeId, employee.id),
+            eq(schema.payrollRuns.kind, "regular"),
             inArray(schema.payrollRuns.state, ["done", "paid"]),
           ),
         )

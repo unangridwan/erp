@@ -123,6 +123,8 @@ export interface Bpa1Record {
   salary: Decimal.Value;
   /** Tunjangan lainnya, uang lembur, dsb. */
   otherBenefit: Decimal.Value;
+  /** Tunjangan PPh 21 (gross-up). */
+  incomeTaxBenefit?: Decimal.Value;
   /** Premi asuransi yang dibayar pemberi kerja (JKK, JKM, BPJS Kesehatan). */
   insurance: Decimal.Value;
   /** Tantiem, bonus, gratifikasi, jasa produksi & THR. */
@@ -143,10 +145,21 @@ export const PPH21_A1_OBJECT_CODE = "21-100-01";
 export function bpa1Summary(
   r: Pick<
     Bpa1Record,
-    "salary" | "otherBenefit" | "insurance" | "bonus" | "pensionContribution" | "monthStart" | "monthEnd"
+    | "salary"
+    | "otherBenefit"
+    | "incomeTaxBenefit"
+    | "insurance"
+    | "bonus"
+    | "pensionContribution"
+    | "monthStart"
+    | "monthEnd"
   >,
 ) {
-  const gross = D(r.salary).plus(r.otherBenefit).plus(r.insurance).plus(r.bonus);
+  const gross = D(r.salary)
+    .plus(r.otherBenefit)
+    .plus(r.incomeTaxBenefit ?? 0)
+    .plus(r.insurance)
+    .plus(r.bonus);
   const months = r.monthEnd - r.monthStart + 1;
   const position = Decimal.min(gross.times(0.05), D(500_000).times(months));
   return {
@@ -188,8 +201,8 @@ export function bpa1Xml(withholderTin: string, records: Bpa1Record[]): string {
             ["TaxObjectCode", r.taxObjectCode],
             ["NumberOfMonths", r.monthEnd - r.monthStart + 1],
             ["SalaryPensionJhtTht", whole(r.salary)],
-            ["GrossUpOpt", "No"],
-            ["IncomeTaxBenefit", "0"],
+            ["GrossUpOpt", D(r.incomeTaxBenefit ?? 0).gt(0) ? "Yes" : "No"],
+            ["IncomeTaxBenefit", whole(r.incomeTaxBenefit ?? 0)],
             ["OtherBenefit", whole(r.otherBenefit)],
             ["Honorarium", "0"],
             ["InsurancePaidByEmployer", whole(r.insurance)],

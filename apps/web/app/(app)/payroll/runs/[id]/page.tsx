@@ -6,8 +6,9 @@ import { useEffect, useState } from "react";
 import { download } from "../../../../../components/accounting/download";
 import { useOptions } from "../../../../../components/accounting/use-options";
 import { useMe } from "../../../../../components/me-context";
+import { CorrectionForm, PayrollWarnings } from "../../../../../components/payroll/run-extras";
 import { api } from "../../../../../lib/api";
-import { formatDate, money } from "../../../../../lib/format";
+import { formatDate, money, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can, PAYROLL_STATE_LABEL } from "../../../../../lib/resources";
 
@@ -18,6 +19,8 @@ interface Run {
   periodEnd: string;
   paymentDate: string;
   state: string;
+  kind: "regular" | "correction";
+  correctsRunId: string | null;
   totals: Record<
     | "earnings"
     | "gross"
@@ -32,6 +35,9 @@ interface Run {
   >;
   payslips: {
     id: string;
+    employeeId: string;
+    holdReason: string | null;
+    releasedAt: string | null;
     employeeName: string;
     employeeNumber: string;
     departmentName: string | null;
@@ -68,10 +74,14 @@ export default function PayrollRunPage() {
   const [holidayDate, setHolidayDate] = useState("");
   const [holiday, setHoliday] = useState("");
   const [bankFormat, setBankFormat] = useState("csv");
+  const [version, setVersion] = useState(0);
 
   const load = () =>
     api<Run>(`/payroll-runs/${id}`)
-      .then(setRun)
+      .then((r) => {
+        setRun(r);
+        setVersion((v) => v + 1);
+      })
       .catch((e: Error) => setError(e.message));
   useEffect(() => {
     void load();
@@ -98,6 +108,7 @@ export default function PayrollRunPage() {
     setError(null);
     try {
       setRun(await api<Run>(`/payroll-runs/${id}/${path}`, { method: "POST", body: body ?? {} }));
+      setVersion((v) => v + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -109,6 +120,36 @@ export default function PayrollRunPage() {
   const manage = can(me.permissions, "payroll.manage");
   const banks = journals.filter((j) => j.journalType === "bank" || j.journalType === "cash");
   const n = (v: string) => money(v, locale);
+  const correction = run.kind === "correction";
+  const pendingHold = run.payslips.filter((p) => p.holdReason && !p.releasedAt);
+  const payable = run.payslips
+    .filter((p) => !p.holdReason)
+    .reduce((s, p) => s + Number(p.net), 0)
+    .toFixed(2);
+
+  /** Tahan / batal tahan / lepas gaji satu slip. */
+  async function slipAction(slipId: string, path: "hold" | "unhold" | "release") {
+    let body: object = {};
+    if (path === "hold") {
+      const reason = prompt(l("Alasan gaji ditahan", "Reason for holding the salary"));
+      if (!reason) return;
+      body = { reason };
+    }
+    if (path === "release") {
+      if (!journalId) return setError(l("Pilih jurnal kas/bank pembayaran", "Choose the payment journal"));
+      body = { journalId, date: today() };
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/payslips/${slipId}/${path}`, { method: "POST", body });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="panel">
@@ -119,6 +160,18 @@ export default function PayrollRunPage() {
         >
           {tx(PAYROLL_STATE_LABEL[run.state]!)}
         </span>
+        {correction && <span className="badge">{l("Koreksi", "Correction")}</span>}
+        {!correction &&
+          (run.state === "done" || run.state === "paid") &&
+          can(me.permissions, "payroll.write") && (
+            <CorrectionForm
+              runId={run.id}
+              employees={run.payslips.map((p) => ({
+                employeeId: p.employeeId,
+                employeeName: p.employeeName,
+              }))}
+            />
+          )}
         {run.state === "draft" && can(me.permissions, "payroll.write") && (
           <button type="button" disabled={busy} onClick={() => act("compute")}>
             {l("Hitung ulang", "Recompute")}
@@ -234,7 +287,21 @@ export default function PayrollRunPage() {
       </header>
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
-      {run.state === "draft" && can(me.permissions, "payroll.write") && (
+      {run.state !== "cancel" && <PayrollWarnings runId={run.id} version={version} />}
+      {correction && (
+        <p className="muted">
+          {l("Payroll koreksi atas", "Correction of")}{" "}
+          <Link href={`/payroll/runs/${run.correctsRunId}`}>
+            {l("payroll reguler", "the regular payroll")}
+          </Link>
+          {". "}
+          {l(
+            "Isi selisih tunjangan/potongan di tiap slip; PPh 21 dihitung atas bruto gabungan bulan ini dikurangi yang sudah dipotong.",
+            "Enter allowance/deduction differences per payslip; PPh 21 uses this month's combined gross minus tax already withheld.",
+          )}
+        </p>
+      )}
+      {run.state === "draft" && !correction && can(me.permissions, "payroll.write") && (
         <div className="inline-panel">
           <label className="field">
             <span>{l("Tanggal hari raya", "Holiday date")}</span>
@@ -303,7 +370,7 @@ export default function PayrollRunPage() {
           </>
         )}
       </p>
-      {run.state === "done" && manage && (
+      {(run.state === "done" || (run.state === "paid" && pendingHold.length > 0)) && manage && (
         <div className="inline-panel">
           <label className="field">
             <span>{l("Bayar dari", "Pay from")}</span>
@@ -316,14 +383,24 @@ export default function PayrollRunPage() {
               ))}
             </select>
           </label>
-          <button
-            type="button"
-            className="primary"
-            disabled={!journalId || busy}
-            onClick={() => act("pay", { journalId, date: run.paymentDate })}
-          >
-            {l(`Bayar gaji bersih ${n(run.totals.net)}`, `Pay net salaries ${n(run.totals.net)}`)}
-          </button>
+          {run.state === "done" && (
+            <button
+              type="button"
+              className="primary"
+              disabled={!journalId || busy}
+              onClick={() => act("pay", { journalId, date: run.paymentDate })}
+            >
+              {l(`Bayar gaji bersih ${n(payable)}`, `Pay net salaries ${n(payable)}`)}
+            </button>
+          )}
+          {pendingHold.length > 0 && (
+            <small className="muted">
+              {l(
+                `${pendingHold.length} gaji ditahan dibayar terpisah saat dilepas.`,
+                `${pendingHold.length} held salaries are paid separately when released.`,
+              )}
+            </small>
+          )}
         </div>
       )}
       <ul className="grid">
@@ -371,6 +448,33 @@ export default function PayrollRunPage() {
                     {p.emailedAt ? ` · ${l("slip terkirim", "slip emailed")}` : ""}
                   </small>
                   {p.emailError && <small className="error"> {p.emailError}</small>}
+                  {p.holdReason && (
+                    <small className={p.releasedAt ? "muted" : "error"} title={p.holdReason}>
+                      {" "}
+                      {p.releasedAt
+                        ? l("· ditahan, sudah dilepas", "· held, released")
+                        : l("· ditahan", "· on hold")}
+                    </small>
+                  )}
+                  {manage && run.state !== "cancel" && (
+                    <span className="slip-actions">
+                      {!p.holdReason && (run.state === "draft" || run.state === "done") && (
+                        <button type="button" className="link" onClick={() => slipAction(p.id, "hold")}>
+                          {l("Tahan gaji", "Hold salary")}
+                        </button>
+                      )}
+                      {p.holdReason && !p.releasedAt && (run.state === "draft" || run.state === "done") && (
+                        <button type="button" className="link" onClick={() => slipAction(p.id, "unhold")}>
+                          {l("Batal tahan", "Unhold")}
+                        </button>
+                      )}
+                      {p.holdReason && !p.releasedAt && (run.state === "done" || run.state === "paid") && (
+                        <button type="button" className="link" onClick={() => slipAction(p.id, "release")}>
+                          {l("Lepas & bayar", "Release & pay")}
+                        </button>
+                      )}
+                    </span>
+                  )}
                 </td>
                 <td>
                   {p.ptkpStatus} ·{" "}

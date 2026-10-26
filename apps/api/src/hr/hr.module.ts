@@ -518,6 +518,7 @@ class ContractsController {
           wageType: input.wageType,
           dateStart: input.dateStart,
           dateEnd: input.dateEnd ?? null,
+          taxMethod: input.taxMethod,
           wage: input.wage,
           note: input.note ?? null,
           updatedAt: sql`now()`,

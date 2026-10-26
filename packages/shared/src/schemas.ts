@@ -981,6 +981,8 @@ export const contractSchema = z
     contractType: z.enum(["pkwt", "pkwtt"]).default("pkwtt"),
     /** monthly = gaji bulanan; daily = upah per hari; piece = tarif per satuan (borongan). */
     wageType: z.enum(["monthly", "daily", "piece"]).default("monthly"),
+    /** gross = PPh 21 dipotong dari gaji; gross_up = ditanggung perusahaan (tunjangan PPh 21). */
+    taxMethod: z.enum(["gross", "gross_up"]).default("gross"),
     dateStart: z.string().date(),
     dateEnd: z.string().date().nullish(),
     wage: nonNegative(2),
@@ -1666,6 +1668,15 @@ export const payrollRunSchema = z.object({
   paymentDate: z.string().date(),
   name: z.string().trim().max(100).nullish(),
 });
+
+/** Payroll koreksi (off-cycle) atas payroll reguler yang sudah diposting, untuk karyawan tertentu. */
+export const payrollCorrectionSchema = z.object({
+  paymentDate: z.string().date(),
+  name: z.string().trim().max(100).nullish(),
+  employeeIds: z.array(z.string().uuid()).min(1, "Pilih minimal satu karyawan"),
+});
+
+export const payslipHoldSchema = z.object({ reason: z.string().trim().min(1).max(200) });
 
 export const payslipInputsSchema = z.object({
   inputs: z.array(

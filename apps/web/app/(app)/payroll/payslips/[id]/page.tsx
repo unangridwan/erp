@@ -28,7 +28,10 @@ interface Slip {
   bpjsKesWage: string;
   bpjsTkWage: string;
   annual: { biayaJabatan: string; neto: string; ptkp: string; pkp: string; tax: string } | null;
-  run: { id: string; name: string; periodStart: string; state: string };
+  run: { id: string; name: string; periodStart: string; state: string; kind: "regular" | "correction" };
+  holdReason: string | null;
+  releasedAt: string | null;
+  leaveBalances: { leaveTypeName: string; remaining: string }[];
   employee: { name: string; employeeNumber: string; departmentName: string | null; jobName: string | null };
   lines: { id: string; code: string; name: string; category: string; amount: string }[];
   inputs: {
@@ -157,6 +160,16 @@ export default function PayslipPage() {
         </button>
       </header>
       {error && <p className="error">{error}</p>}
+      {slip.holdReason && (
+        <p className={slip.releasedAt ? "notice" : "error"}>
+          {slip.releasedAt
+            ? l(
+                `Gaji sempat ditahan (${slip.holdReason}), sudah dilepas.`,
+                `Salary was held (${slip.holdReason}), now released.`,
+              )
+            : l(`Gaji ditahan: ${slip.holdReason}`, `Salary on hold: ${slip.holdReason}`)}
+        </p>
+      )}
       <div className="split">
         {section(l("Pendapatan", "Earnings"), EARN)}
         <section>
@@ -274,6 +287,14 @@ export default function PayslipPage() {
           <dt>{l("PPh 21 masa ini (setahun − sudah dipotong)", "This period (annual − withheld)")}</dt>
           <dd>{n(slip.pph21)}</dd>
         </dl>
+      ) : slip.run.kind === "correction" ? (
+        <p>
+          {l(
+            `PPh 21 koreksi = TER kategori ${slip.terCategory} tarif ${Number(slip.terRate ?? 0)}% × bruto gabungan bulan ini (slip asli + koreksi) − PPh 21 yang sudah dipotong =`,
+            `Correction PPh 21 = TER category ${slip.terCategory} rate ${Number(slip.terRate ?? 0)}% × this month's combined gross (original + corrections) − PPh 21 already withheld =`,
+          )}{" "}
+          <strong>{n(slip.pph21)}</strong>
+        </p>
       ) : (
         <p>
           {l("Metode TER kategori", "TER category")} {slip.terCategory} · {l("tarif", "rate")}{" "}
@@ -282,6 +303,16 @@ export default function PayslipPage() {
           {!slip.hasNpwp && (
             <span className="error"> {l("(tanpa NPWP/NIK: tarif +20%)", "(no NPWP/NIK: +20%)")}</span>
           )}
+        </p>
+      )}
+      {slip.leaveBalances.length > 0 && (
+        <p className="leave-balances">
+          <strong>{l("Saldo cuti per akhir periode", "Leave balance at period end")}:</strong>{" "}
+          {slip.leaveBalances
+            .map(
+              (b) => `${b.leaveTypeName} ${Number(b.remaining).toLocaleString(locale)} ${l("hari", "days")}`,
+            )
+            .join(" · ")}
         </p>
       )}
       {slip.inputs.some((i) => i.source !== "manual") && (

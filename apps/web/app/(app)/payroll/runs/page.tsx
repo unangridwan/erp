@@ -15,6 +15,7 @@ interface Run {
   periodStart: string;
   paymentDate: string;
   state: string;
+  kind: "regular" | "correction";
   employees: number;
   net: string;
   pph21: string;
@@ -91,6 +92,7 @@ export default function PayrollRunsPage() {
                 <tr key={r.id}>
                   <td>
                     <Link href={`/payroll/runs/${r.id}`}>{r.name}</Link>
+                    {r.kind === "correction" && <span className="badge"> {l("Koreksi", "Correction")}</span>}
                   </td>
                   <td>{formatDate(r.paymentDate, locale)}</td>
                   <td className="num">{r.employees}</td>
