@@ -83,8 +83,16 @@ describe.skipIf(!hasDb)("HR: rekrutmen, dokumen, checklist, pengingat", () => {
     ).body.id;
     const tono = (await a.post("/applicants", { openingId: opening, name: "Tono" }).expect(201)).body.id;
     await a.post(`/applicants/${tono}/stage`, { stage: "refused" }).expect(400);
+    // Alasan dari master alasan penolakan (wajib), catatan teks opsional.
+    const reason = (await a.get("/refuse-reasons").expect(200)).body.find(
+      (r: { name: string }) => r.name === "Tidak memenuhi kualifikasi",
+    ).id;
     await a
-      .post(`/applicants/${tono}/stage`, { stage: "refused", refuseReason: "Pengalaman kurang" })
+      .post(`/applicants/${tono}/stage`, {
+        stage: "refused",
+        refuseReasonId: reason,
+        refuseReason: "Pengalaman kurang",
+      })
       .expect(200);
 
     await a

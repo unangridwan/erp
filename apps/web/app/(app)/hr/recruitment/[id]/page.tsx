@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { DocumentsPanel, errorText } from "../../../../../components/hr/hr-panels";
 import { useMe } from "../../../../../components/me-context";
+import { OffersPanel, RefuseForm } from "../../../../../components/hr/recruitment-extras";
 import { RefSelect } from "../../../../../components/ref-select";
 import { api } from "../../../../../lib/api";
 import { money, today } from "../../../../../lib/format";
@@ -21,6 +22,7 @@ interface Applicant {
   expectedWage: string | null;
   notes: string | null;
   refuseReason: string | null;
+  refuseReasonName: string | null;
   employeeId: string | null;
   openingName: string;
   interviews: {
@@ -47,7 +49,7 @@ export default function ApplicantPage() {
     interviewerId: "",
   });
   const [hire, setHire] = useState({
-    joinDate: today(),
+    joinDate: "",
     wage: "",
     contractType: "pkwtt",
     dateEnd: "",
@@ -101,18 +103,7 @@ export default function ApplicantPage() {
                   {tx(APPLICANT_STAGE_LABEL[s]!)}
                 </button>
               ))}
-          {!closed && (
-            <button
-              type="button"
-              className="danger"
-              onClick={() => {
-                const reason = prompt(l("Alasan penolakan", "Refusal reason"));
-                if (reason) void call("stage", { stage: "refused", refuseReason: reason });
-              }}
-            >
-              {l("Tolak", "Refuse")}
-            </button>
-          )}
+          {!closed && <RefuseForm onRefuse={(body) => call("stage", body)} />}
           <Link href="/hr/recruitment">{l("Kembali ke kanban", "Back to kanban")}</Link>
         </header>
         {error && <p className="error">{error}</p>}
@@ -120,7 +111,11 @@ export default function ApplicantPage() {
           {[a.email, a.phone].filter(Boolean).join(" · ")}
           {a.expectedWage ? ` · ${l("harapan gaji", "expected wage")} ${money(a.expectedWage, locale)}` : ""}
         </p>
-        {a.refuseReason && <p className="error">{a.refuseReason}</p>}
+        {(a.refuseReasonName || a.refuseReason) && (
+          <p className="error">
+            {l("Ditolak:", "Refused:")} {[a.refuseReasonName, a.refuseReason].filter(Boolean).join(" — ")}
+          </p>
+        )}
         {a.employeeId && (
           <p className="notice">
             {l("Sudah menjadi karyawan:", "Now an employee:")}{" "}
@@ -222,6 +217,10 @@ export default function ApplicantPage() {
         )}
       </section>
 
+      {can(me.permissions, "hr.manage") && (
+        <OffersPanel applicantId={a.id} closed={closed} onChange={() => void load()} />
+      )}
+
       {can(me.permissions, "hr.manage") && <DocumentsPanel applicantId={a.id} />}
 
       {!closed && can(me.permissions, "hr.manage") && (
@@ -229,8 +228,8 @@ export default function ApplicantPage() {
           <h2>{l("Terima menjadi karyawan", "Hire as employee")}</h2>
           <p className="muted">
             {l(
-              "Membuat data karyawan & kontrak draft, memindahkan dokumen pelamar, dan memulai checklist onboarding.",
-              "Creates the employee & a draft contract, moves the applicant's documents and starts onboarding.",
+              "Membuat data karyawan & kontrak draft, memindahkan dokumen pelamar, dan memulai checklist onboarding. Kosongkan gaji/tanggal untuk memakai nilai penawaran yang diterima.",
+              "Creates the employee & a draft contract, moves the applicant's documents and starts onboarding. Leave wage/date empty to use the accepted offer.",
             )}
           </p>
           <div className="inline-panel">
@@ -285,14 +284,19 @@ export default function ApplicantPage() {
             <button
               type="button"
               className="primary"
-              disabled={!hire.wage}
               onClick={async () => {
                 setError(null);
                 try {
                   setHired(
                     await api(`/applicants/${id}/hire`, {
                       method: "POST",
-                      body: { ...hire, dateEnd: hire.dateEnd || null },
+                      body: {
+                        ptkpStatus: hire.ptkpStatus,
+                        joinDate: hire.joinDate || undefined,
+                        wage: hire.wage || undefined,
+                        contractType: hire.wage ? hire.contractType : undefined,
+                        dateEnd: hire.dateEnd || null,
+                      },
                     }),
                   );
                   void load();

@@ -38,8 +38,11 @@ describe("SDM: kedaluwarsa & checklist", () => {
     ).toBe(false);
     expect(applicantStageSchema.safeParse({ stage: "refused" }).success).toBe(false);
     expect(
-      hireSchema.safeParse({ joinDate: "2026-11-01", wage: "5000000", contractType: "pkwt" }).success,
-    ).toBe(false);
+      applicantStageSchema.safeParse({ stage: "refused", refuseReasonId: crypto.randomUUID() }).success,
+    ).toBe(true);
+    // Nilai kosong diisi dari penawaran yang diterima; PKWT tanpa tanggal berakhir ditolak di API.
+    expect(hireSchema.safeParse({}).success).toBe(true);
+    expect(hireSchema.safeParse({ wage: "-1" }).success).toBe(false);
   });
 });
 

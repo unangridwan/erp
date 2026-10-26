@@ -269,6 +269,7 @@ export const APPS: App[] = [
       group("Talenta", "Talent", [
         link("Pelamar", "Applicants", "/hr/recruitment", "hr.read"),
         link("Lowongan", "Job Openings", "/job-openings", "hr.read"),
+        link("Laporan Rekrutmen & Turnover", "Recruitment & Turnover", "/hr/recruitment-report", "hr.read"),
         link("Penilaian Kinerja", "Appraisals", "/hr/appraisals", "hr.read"),
         link("Pelatihan", "Trainings", "/hr/trainings", "hr.read"),
       ]),
@@ -290,6 +291,7 @@ export const APPS: App[] = [
         link("Kategori Klaim", "Expense Categories", "/expense-categories", "hr.read"),
         link("Kategori Persetujuan", "Approval Categories", "/hr/approval-categories", "hr.manage"),
         link("Template Checklist", "Checklist Templates", "/hr/checklist-templates", "hr.read"),
+        link("Penawaran & Alasan Tolak", "Offers & Refusal Reasons", "/hr/recruitment-settings", "hr.read"),
         link("Template KPI", "KPI Templates", "/hr/appraisal-templates", "hr.read"),
         link("Hari Libur", "Public Holidays", "/public-holidays", "hr.read"),
         link("Impor & Ekspor Data", "Data Import & Export", "/hr/data", "hr.read"),

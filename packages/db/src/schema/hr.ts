@@ -17,6 +17,15 @@ const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () =>
 
 // FK di database berbentuk komposit (tenant_id, id); di sini cukup dideklarasikan kolomnya.
 
+export const RESIGN_REASONS = [
+  "resign",
+  "end_contract",
+  "termination",
+  "retirement",
+  "death",
+  "other",
+] as const;
+
 export const PTKP_STATUSES = ["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"] as const;
 
 export const RELIGIONS = [
@@ -97,6 +106,8 @@ export const employees = pgTable("employees", {
   bankAccountName: text("bank_account_name"),
   joinDate: date("join_date").notNull(),
   resignDate: date("resign_date"),
+  resignReason: text("resign_reason", { enum: RESIGN_REASONS }),
+  resignNote: text("resign_note"),
   address: text("address"),
   emergencyContact: text("emergency_contact"),
   emergencyPhone: text("emergency_phone"),
@@ -723,6 +734,21 @@ export const jobOpenings = pgTable("job_openings", {
     .default("open"),
   dateOpen: date("date_open").notNull().defaultNow(),
   dateClose: date("date_close"),
+  /** FPK (permintaan karyawan yang disetujui) asal lowongan. */
+  approvalRequestId: uuid("approval_request_id"),
+  targetDate: date("target_date"),
+  wageMin: numeric("wage_min", { precision: 20, scale: 2 }),
+  wageMax: numeric("wage_max", { precision: 20, scale: 2 }),
+  ...audit,
+});
+
+export const refuseReasons = pgTable("refuse_reasons", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  sequence: integer("sequence").notNull().default(10),
+  active: boolean("active").notNull().default(true),
   ...audit,
 });
 
@@ -743,7 +769,77 @@ export const applicants = pgTable("applicants", {
   expectedWage: numeric("expected_wage", { precision: 20, scale: 2 }),
   notes: text("notes"),
   refuseReason: text("refuse_reason"),
+  refuseReasonId: uuid("refuse_reason_id"),
   employeeId: uuid("employee_id"),
+  stageChangedAt: timestamp("stage_changed_at", { withTimezone: true }).notNull().defaultNow(),
+  hiredAt: timestamp("hired_at", { withTimezone: true }),
+  refusedStage: text("refused_stage", { enum: ["new", "screening", "interview", "offer"] }),
+  ...audit,
+});
+
+export const offerTemplates = pgTable("offer_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  body: text("body").notNull(),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const JOB_OFFER_STATES = ["draft", "sent", "accepted", "declined", "expired", "cancel"] as const;
+
+export const jobOffers = pgTable("job_offers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  applicantId: uuid("applicant_id").notNull(),
+  templateId: uuid("template_id"),
+  number: text("number"),
+  wage: numeric("wage", { precision: 20, scale: 2 }).notNull(),
+  benefits: text("benefits"),
+  contractType: text("contract_type", { enum: ["pkwt", "pkwtt"] })
+    .notNull()
+    .default("pkwtt"),
+  contractEnd: date("contract_end"),
+  startDate: date("start_date").notNull(),
+  validUntil: date("valid_until").notNull(),
+  body: text("body").notNull(),
+  state: text("state", { enum: JOB_OFFER_STATES }).notNull().default("draft"),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+  responseNote: text("response_note"),
+  createdBy: uuid("created_by"),
+  ...audit,
+});
+
+export const EXIT_REASONS = [
+  "compensation",
+  "career",
+  "manager",
+  "workload",
+  "environment",
+  "work_life",
+  "relocation",
+  "study",
+  "health",
+  "family",
+  "other",
+] as const;
+
+export const exitInterviews = pgTable("exit_interviews", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  date: date("date").notNull(),
+  interviewerId: uuid("interviewer_id"),
+  mainReason: text("main_reason", { enum: EXIT_REASONS }).notNull(),
+  scores: jsonb("scores").$type<Record<string, number>>().notNull().default({}),
+  wouldRejoin: boolean("would_rejoin"),
+  wouldRecommend: boolean("would_recommend"),
+  comment: text("comment"),
+  createdBy: uuid("created_by"),
   ...audit,
 });
 

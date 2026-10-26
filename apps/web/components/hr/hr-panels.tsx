@@ -279,28 +279,30 @@ export function ChecklistsPanel({ employeeId }: { employeeId: string }) {
       {rows.length === 0 ? (
         <p className="muted">{l("Belum ada checklist.", "No checklists yet.")}</p>
       ) : (
-        <table>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td>
-                  <Link href={`/hr/checklists/${r.id}`}>{r.name}</Link>
-                </td>
-                <td>{formatDate(r.baseDate, locale)}</td>
-                <td>
-                  {r.done}/{r.tasks} {l("selesai", "done")}
-                  {r.overdue > 0 && (
-                    <span className="error">
-                      {" "}
-                      · {r.overdue} {l("lewat tenggat", "overdue")}
-                    </span>
-                  )}
-                </td>
-                <td>{r.state === "done" ? l("Selesai", "Done") : l("Berjalan", "Open")}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-wrap">
+          <table>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    <Link href={`/hr/checklists/${r.id}`}>{r.name}</Link>
+                  </td>
+                  <td>{formatDate(r.baseDate, locale)}</td>
+                  <td>
+                    {r.done}/{r.tasks} {l("selesai", "done")}
+                    {r.overdue > 0 && (
+                      <span className="error">
+                        {" "}
+                        · {r.overdue} {l("lewat tenggat", "overdue")}
+                      </span>
+                    )}
+                  </td>
+                  <td>{r.state === "done" ? l("Selesai", "Done") : l("Berjalan", "Open")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
@@ -365,71 +367,77 @@ export function CareerPanel({ employeeId }: { employeeId: string }) {
           {c.history.length === 0 ? (
             <p className="muted">—</p>
           ) : (
-            <table>
-              <tbody>
-                {c.history.map((h) => (
-                  <tr key={h.id}>
-                    <td>{formatDate(h.date, locale)}</td>
-                    <td>{tx(HISTORY_LABEL[h.kind] ?? L(h.kind, h.kind))}</td>
-                    <td>
-                      {h.oldValue !== null && h.kind !== "join" && h.kind !== "resign" && (
-                        <>
-                          <span className="muted">{value(h.kind, h.oldValue)}</span> →{" "}
-                        </>
-                      )}
-                      <strong>{value(h.kind, h.newValue)}</strong>
-                      {h.note && <small className="muted"> · {h.note}</small>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {c.appraisals.length > 0 && (
-            <>
-              <h3>{l("Penilaian kinerja", "Appraisals")}</h3>
+            <div className="table-wrap">
               <table>
                 <tbody>
-                  {c.appraisals.map((a) => (
-                    <tr key={a.id}>
+                  {c.history.map((h) => (
+                    <tr key={h.id}>
+                      <td>{formatDate(h.date, locale)}</td>
+                      <td>{tx(HISTORY_LABEL[h.kind] ?? L(h.kind, h.kind))}</td>
                       <td>
-                        <Link href={`/hr/appraisal-forms/${a.id}`}>{a.cycleName}</Link>
-                      </td>
-                      <td>{a.finalScore ? Number(a.finalScore).toFixed(2) : "—"}</td>
-                      <td>
-                        <strong>{a.rating ?? ""}</strong>
+                        {h.oldValue !== null && h.kind !== "join" && h.kind !== "resign" && (
+                          <>
+                            <span className="muted">{value(h.kind, h.oldValue)}</span> →{" "}
+                          </>
+                        )}
+                        <strong>{value(h.kind, h.newValue)}</strong>
+                        {h.note && <small className="muted"> · {h.note}</small>}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          {c.appraisals.length > 0 && (
+            <>
+              <h3>{l("Penilaian kinerja", "Appraisals")}</h3>
+              <div className="table-wrap">
+                <table>
+                  <tbody>
+                    {c.appraisals.map((a) => (
+                      <tr key={a.id}>
+                        <td>
+                          <Link href={`/hr/appraisal-forms/${a.id}`}>{a.cycleName}</Link>
+                        </td>
+                        <td>{a.finalScore ? Number(a.finalScore).toFixed(2) : "—"}</td>
+                        <td>
+                          <strong>{a.rating ?? ""}</strong>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
           {c.trainings.length > 0 && (
             <>
               <h3>{l("Pelatihan", "Trainings")}</h3>
-              <table>
-                <tbody>
-                  {c.trainings.map((t) => (
-                    <tr key={t.id}>
-                      <td>
-                        <Link href={`/hr/trainings/${t.id}`}>{t.name}</Link>
-                      </td>
-                      <td>{formatDate(t.dateEnd, locale)}</td>
-                      <td>
-                        {t.state === "completed"
-                          ? l("lulus", "completed")
-                          : t.state === "absent"
-                            ? l("tidak hadir", "absent")
-                            : l("terdaftar", "enrolled")}
-                        {t.certificateExpiry
-                          ? ` · ${l("sertifikat s.d.", "certificate until")} ${formatDate(t.certificateExpiry, locale)}`
-                          : ""}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="table-wrap">
+                <table>
+                  <tbody>
+                    {c.trainings.map((t) => (
+                      <tr key={t.id}>
+                        <td>
+                          <Link href={`/hr/trainings/${t.id}`}>{t.name}</Link>
+                        </td>
+                        <td>{formatDate(t.dateEnd, locale)}</td>
+                        <td>
+                          {t.state === "completed"
+                            ? l("lulus", "completed")
+                            : t.state === "absent"
+                              ? l("tidak hadir", "absent")
+                              : l("terdaftar", "enrolled")}
+                          {t.certificateExpiry
+                            ? ` · ${l("sertifikat s.d.", "certificate until")} ${formatDate(t.certificateExpiry, locale)}`
+                            : ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
         </>

@@ -393,6 +393,12 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   jurnal & pembayaran sendiri), penahanan gaji per slip (keluar dari transfer & pembayaran, dilepas dengan pembayaran
   terpisah), dashboard peringatan payroll (rekening/NPWP/BPJS kosong, gaji ≤ 0 atau berubah tajam, absensi belum
   divalidasi, pengajuan tertunda, kontrak berakhir), saldo cuti di slip & PDF
+- [x] HR: rekrutmen hulu & offboarding (gap PRD Rekrutmen/Offboarding) — FPK yang disetujui menjadi lowongan (kuota,
+  target, rentang gaji), master alasan penolakan (wajib saat menolak, tahap terakhir dicatat), template & surat
+  penawaran kerja (placeholder, nomor otomatis, kirim/terima/tolak, kedaluwarsa, PDF; hire memakai nilai penawaran),
+  laporan time-to-fill/time-to-hire, funnel, sumber & alasan tolak; offboarding dengan alasan keluar + checklist,
+  exit interview (skor per aspek), Full & Final Statement (gaji belum dibayar/ditahan, pesangon, klaim, sisa pinjaman)
+  + PDF, laporan alasan keluar
 
 ## 5. Roadmap Bertahap
 
