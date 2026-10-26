@@ -614,4 +614,23 @@ export const MESSAGES_EN: Record<string, string> = {
   "Posting payroll sebelum melepas gaji yang ditahan": "Post the payroll before releasing a held salary",
   "Slip gaji masih kosong; isi selisih koreksinya": "The payslip is empty; enter the correction amounts",
   "Pilih minimal satu karyawan": "Select at least one employee",
+  // ---- Rekrutmen hulu & offboarding ----
+  "Alasan penolakan tidak ditemukan": "Refusal reason not found",
+  "Template penawaran tidak ditemukan": "Offer template not found",
+  "Pelamar sudah diterima/ditolak": "The applicant was already hired/refused",
+  "Pelamar masih punya penawaran aktif; batalkan dulu":
+    "The applicant still has an active offer; cancel it first",
+  "Penawaran tidak ditemukan": "Job offer not found",
+  "Penawaran sudah kedaluwarsa": "The job offer has expired",
+  "Status penawaran tidak sesuai": "Invalid job offer status for this action",
+  "Permintaan tidak ditemukan": "Request not found",
+  "Hanya Formulir Permintaan Karyawan (FPK)": "Only manpower requisitions (FPK)",
+  "FPK belum disetujui": "The manpower requisition is not approved yet",
+  "Lowongan untuk FPK ini sudah dibuat": "A job opening was already created for this requisition",
+  "Masa berlaku sudah lewat": "The validity date has passed",
+  "Pilih template atau isi surat penawaran": "Choose a template or write the offer letter",
+  "Isi tanggal mulai bekerja": "Enter the start date",
+  "Isi gaji": "Enter the wage",
+  "Pilih alasan penolakan": "Choose a refusal reason",
+  "Tanggal berakhir kontrak sebelum tanggal mulai": "The contract end date is before the start date",
 };

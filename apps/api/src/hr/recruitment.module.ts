@@ -503,11 +503,28 @@ class ApplicantsController {
     return this.tenantDb.run(async (tx) => {
       const a = await this.find(tx, id);
       if (a.stage === "hired") throw new BadRequestException("Pelamar sudah diterima menjadi karyawan");
+      if (input.refuseReasonId) {
+        const [reason] = await tx
+          .select({ id: schema.refuseReasons.id })
+          .from(schema.refuseReasons)
+          .where(
+            and(
+              eq(schema.refuseReasons.id, input.refuseReasonId),
+              eq(schema.refuseReasons.companyId, a.companyId),
+            ),
+          );
+        if (!reason) throw fieldError("refuseReasonId", "Alasan penolakan tidak ditemukan");
+      }
+      const refused = input.stage === "refused";
       await tx
         .update(AP)
         .set({
           stage: input.stage,
-          refuseReason: input.stage === "refused" ? (input.refuseReason ?? null) : null,
+          refuseReasonId: refused ? (input.refuseReasonId ?? null) : null,
+          refuseReason: refused ? (input.refuseReason ?? null) : null,
+          // Tahap terakhir sebelum ditolak (funnel laporan rekrutmen).
+          refusedStage: refused ? (a.stage === "refused" ? a.refusedStage : a.stage) : null,
+          ...(input.stage !== a.stage ? { stageChangedAt: sql`now()` } : {}),
           updatedAt: sql`now()`,
         })
         .where(eq(AP.id, id));
@@ -526,7 +543,7 @@ class ApplicantsController {
       if (a.stage === "new" || a.stage === "screening")
         await tx
           .update(AP)
-          .set({ stage: "interview", updatedAt: sql`now()` })
+          .set({ stage: "interview", stageChangedAt: sql`now()`, updatedAt: sql`now()` })
           .where(eq(AP.id, id));
       return this.load(tx, id);
     });
@@ -560,11 +577,29 @@ class ApplicantsController {
   @HttpCode(200)
   @RequirePermission("hr.manage")
   hire(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
-    const input = parse(hireSchema, body);
+    const parsed = parse(hireSchema, body);
     return this.tenantDb.run(async (tx) => {
       const a = await this.find(tx, id, true);
       if (a.stage === "hired") throw new BadRequestException("Pelamar sudah diterima menjadi karyawan");
       if (a.stage === "refused") throw new BadRequestException("Pelamar sudah ditolak");
+      // Nilai bawaan dari penawaran kerja yang diterima pelamar.
+      const [offer] = await tx
+        .select()
+        .from(schema.jobOffers)
+        .where(and(eq(schema.jobOffers.applicantId, id), eq(schema.jobOffers.state, "accepted")))
+        .orderBy(desc(schema.jobOffers.respondedAt))
+        .limit(1);
+      const input = {
+        ...parsed,
+        joinDate: parsed.joinDate ?? offer?.startDate,
+        wage: parsed.wage ?? offer?.wage,
+        contractType: parsed.contractType ?? offer?.contractType ?? "pkwtt",
+        dateEnd: parsed.dateEnd ?? offer?.contractEnd ?? null,
+      };
+      if (!input.joinDate) throw fieldError("joinDate", "Isi tanggal mulai bekerja");
+      if (!input.wage) throw fieldError("wage", "Isi gaji");
+      if (input.contractType === "pkwt" && !input.dateEnd)
+        throw fieldError("dateEnd", "PKWT wajib punya tanggal berakhir");
       const opening = await this.opening(tx, a.openingId);
       const employee = await this.employees.create(
         tx,
@@ -604,7 +639,13 @@ class ApplicantsController {
         .where(eq(D.applicantId, id));
       await tx
         .update(AP)
-        .set({ stage: "hired", employeeId: employee.id, updatedAt: sql`now()` })
+        .set({
+          stage: "hired",
+          employeeId: employee.id,
+          hiredAt: sql`now()`,
+          stageChangedAt: sql`now()`,
+          updatedAt: sql`now()`,
+        })
         .where(eq(AP.id, id));
       const [hired] = await tx
         .select({ n: sql<number>`count(*)::int` })
@@ -643,6 +684,12 @@ class ApplicantsController {
       .select({ name: schema.jobOpenings.name })
       .from(schema.jobOpenings)
       .where(eq(schema.jobOpenings.id, a.openingId));
+    const [reason] = a.refuseReasonId
+      ? await tx
+          .select({ name: schema.refuseReasons.name })
+          .from(schema.refuseReasons)
+          .where(eq(schema.refuseReasons.id, a.refuseReasonId))
+      : [];
     const interviews = await tx
       .select({ interview: IV, interviewerName: schema.users.name })
       .from(IV)
@@ -652,6 +699,7 @@ class ApplicantsController {
     return {
       ...a,
       openingName: opening?.name ?? "",
+      refuseReasonName: reason?.name ?? null,
       interviews: interviews.map((r) => ({ ...r.interview, interviewerName: r.interviewerName })),
     };
   }

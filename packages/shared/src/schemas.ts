@@ -1425,6 +1425,9 @@ export const jobOpeningSchema = z.object({
   state: z.enum(["open", "closed"]).default("open"),
   dateOpen: z.string().date().optional(),
   dateClose: z.string().date().nullish(),
+  targetDate: z.string().date().nullish(),
+  wageMin: nonNegative(2).nullish(),
+  wageMax: nonNegative(2).nullish(),
 });
 
 export const applicantSchema = z.object({
@@ -1445,12 +1448,79 @@ export const applicantSchema = z.object({
 export const applicantStageSchema = z
   .object({
     stage: z.enum(["new", "screening", "interview", "offer", "refused"]),
+    /** Alasan dari master alasan penolakan (wajib saat ditolak); catatan tambahan opsional. */
+    refuseReasonId: optionalUuid,
     refuseReason: z.string().trim().max(500).nullish(),
   })
-  .refine((s) => s.stage !== "refused" || s.refuseReason, {
-    message: "Isi alasan penolakan",
-    path: ["refuseReason"],
+  .refine((s) => s.stage !== "refused" || s.refuseReasonId, {
+    message: "Pilih alasan penolakan",
+    path: ["refuseReasonId"],
   });
+
+export const refuseReasonSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  sequence: z.coerce.number().int().min(0).max(10000).default(10),
+  active: z.boolean().default(true),
+});
+
+export const offerTemplateSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  body: z.string().trim().min(1).max(20000),
+  active: z.boolean().default(true),
+});
+
+export const jobOfferSchema = z
+  .object({
+    templateId: optionalUuid,
+    wage: nonNegative(2),
+    benefits: z.string().trim().max(2000).nullish(),
+    contractType: z.enum(["pkwt", "pkwtt"]).default("pkwtt"),
+    contractEnd: z.string().date().nullish(),
+    startDate: z.string().date(),
+    validUntil: z.string().date(),
+    /** Isi surat; kosong = dari template. */
+    body: z.string().trim().max(20000).nullish(),
+  })
+  .refine((o) => o.contractType !== "pkwt" || o.contractEnd, {
+    message: "PKWT wajib punya tanggal berakhir",
+    path: ["contractEnd"],
+  })
+  .refine((o) => !o.contractEnd || o.contractEnd > o.startDate, {
+    message: "Tanggal berakhir kontrak sebelum tanggal mulai",
+    path: ["contractEnd"],
+  });
+
+export const offerResponseSchema = z.object({ note: z.string().trim().max(500).nullish() });
+
+export const offboardSchema = z.object({
+  resignDate: z.string().date(),
+  resignReason: z.enum(["resign", "end_contract", "termination", "retirement", "death", "other"]),
+  resignNote: z.string().trim().max(1000).nullish(),
+  /** Mulai checklist offboarding (template bawaan). */
+  startChecklist: z.boolean().default(true),
+});
+
+export const exitInterviewSchema = z.object({
+  date: z.string().date(),
+  interviewerId: optionalUuid,
+  mainReason: z.enum([
+    "compensation",
+    "career",
+    "manager",
+    "workload",
+    "environment",
+    "work_life",
+    "relocation",
+    "study",
+    "health",
+    "family",
+    "other",
+  ]),
+  scores: z.record(z.string(), z.coerce.number().int().min(1).max(5)).default({}),
+  wouldRejoin: z.boolean().nullish(),
+  wouldRecommend: z.boolean().nullish(),
+  comment: z.string().trim().max(2000).nullish(),
+});
 
 export const interviewSchema = z.object({
   scheduledAt: z.string().datetime({ offset: true }),
@@ -1461,18 +1531,14 @@ export const interviewSchema = z.object({
   done: z.boolean().default(false),
 });
 
-export const hireSchema = z
-  .object({
-    joinDate: z.string().date(),
-    wage: nonNegative(2),
-    contractType: z.enum(["pkwt", "pkwtt"]).default("pkwtt"),
-    dateEnd: z.string().date().nullish(),
-    ptkpStatus: z.enum(PTKP_STATUS_VALUES).default("TK/0"),
-  })
-  .refine((h) => h.contractType !== "pkwt" || h.dateEnd, {
-    message: "PKWT wajib punya tanggal berakhir",
-    path: ["dateEnd"],
-  });
+/** Terima pelamar; tanggal mulai, gaji & jenis kontrak bawaan dari penawaran yang diterima (bila ada). */
+export const hireSchema = z.object({
+  joinDate: z.string().date().optional(),
+  wage: nonNegative(2).optional(),
+  contractType: z.enum(["pkwt", "pkwtt"]).optional(),
+  dateEnd: z.string().date().nullish(),
+  ptkpStatus: z.enum(PTKP_STATUS_VALUES).default("TK/0"),
+});
 
 export const checklistTemplateSchema = z.object({
   kind: z.enum(["onboarding", "offboarding"]),

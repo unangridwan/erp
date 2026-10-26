@@ -144,6 +144,8 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  max-width: 100%;
+  min-width: 0;
 }
 .field > span {
   font-size: 12px;
@@ -1180,7 +1182,8 @@ code.wrap {
   gap: 16px;
 }
 
-input[type="file"] {
+input[type="file"],
+.field select {
   max-width: 100%;
 }
 
@@ -1471,4 +1474,58 @@ img.record-avatar {
   display: flex;
   gap: 10px;
   font-size: 12px;
+}
+
+/* Rekrutmen hulu & offboarding */
+.offer-letter,
+.offer-letter-input {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.offer-letter {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  max-width: 720px;
+}
+.offer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.funnel {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.funnel li {
+  display: grid;
+  grid-template-columns: 110px 1fr 40px;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+.funnel .bar {
+  height: 14px;
+  border-radius: 4px;
+  background: var(--accent);
+  min-width: 2px;
+}
+.funnel strong {
+  text-align: right;
+}
+.offboarding h3 {
+  margin-top: 16px;
+}
+.exit-interview .wide {
+  flex-basis: 100%;
+}
+.plain-list {
+  list-style: none;
+  padding: 0;
+}
+.num.negative {
+  color: var(--danger);
 }

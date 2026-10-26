@@ -11,9 +11,12 @@ import {
   type ApprovalCategory,
   type FieldKey,
 } from "../../../../../components/hr/approval-request-form";
+import { FpkOpeningButton } from "../../../../../components/hr/recruitment-extras";
+import { useMe } from "../../../../../components/me-context";
 import { api, ApiError } from "../../../../../lib/api";
 import { formatDate, money } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
+import { can } from "../../../../../lib/resources";
 
 interface Step {
   id: string;
@@ -65,6 +68,7 @@ export default function ApprovalRequestPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { l, tx, locale } = useI18n();
+  const me = useMe();
   const [request, setRequest] = useState<Request | null>(null);
   const [categories, setCategories] = useState<ApprovalCategory[]>([]);
   const [editing, setEditing] = useState(false);
@@ -135,6 +139,9 @@ export default function ApprovalRequestPage() {
         <span className={`badge ${REQUEST_BADGE[request.state] ?? ""}`}>
           {tx(REQUEST_STATE_LABEL[request.state]!)}
         </span>
+        {request.category.code === "FPK" &&
+          request.state === "approved" &&
+          can(me.permissions, "hr.manage") && <FpkOpeningButton requestId={request.id} />}
         {request.can.edit && !editing && (
           <>
             <button type="button" onClick={() => setEditing(true)}>

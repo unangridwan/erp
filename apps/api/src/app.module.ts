@@ -28,6 +28,7 @@ import { HrModule } from "./hr/hr.module.js";
 import { PerformanceModule } from "./hr/performance.module.js";
 import { ProfileModule } from "./hr/profile.module.js";
 import { DataTransferModule } from "./hr/data-transfer/data-transfer.module.js";
+import { RecruitmentAdvancedModule } from "./hr/recruitment-advanced.module.js";
 import { RecruitmentModule } from "./hr/recruitment.module.js";
 import { PayrollModule } from "./payroll/payroll.module.js";
 import { TaxModule } from "./tax/tax.module.js";
@@ -59,6 +60,7 @@ import { UsersService } from "./users/users.service.js";
     LeaveAccrualModule,
     AttendanceAdvancedModule,
     RecruitmentModule,
+    RecruitmentAdvancedModule,
     PerformanceModule,
     ProfileModule,
     DataTransferModule,

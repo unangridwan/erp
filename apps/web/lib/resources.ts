@@ -1408,6 +1408,9 @@ RESOURCES.push(
       },
       { name: "dateOpen", label: L("Tanggal dibuka", "Opening date"), type: "date" },
       { name: "dateClose", label: L("Tanggal ditutup", "Closing date"), type: "date" },
+      { name: "targetDate", label: L("Target terisi", "Target fill date"), type: "date" },
+      { name: "wageMin", label: L("Gaji minimum", "Minimum wage"), type: "number" },
+      { name: "wageMax", label: L("Gaji maksimum", "Maximum wage"), type: "number" },
       {
         name: "description",
         label: L("Deskripsi & kualifikasi", "Description & requirements"),

@@ -8,6 +8,7 @@ import { formatDate, money } from "../lib/format";
 import { useI18n } from "../lib/i18n";
 import { can } from "../lib/resources";
 import { CareerPanel, ChecklistsPanel, DocumentsPanel } from "./hr/hr-panels";
+import { OffboardingPanel } from "./hr/offboarding-panel";
 import {
   EducationPanel,
   ExperiencePanel,
@@ -489,6 +490,7 @@ function EmployeeExtras({ id }: { id: string }) {
       {manage && <WarningsPanel employeeId={id} />}
       {can(me.permissions, "hr.read") && <CareerPanel employeeId={id} />}
       {can(me.permissions, "hr.read") && <ChecklistsPanel employeeId={id} />}
+      {manage && <OffboardingPanel employeeId={id} />}
       {can(me.permissions, "payroll.read") && <SeverancePanel id={id} />}
     </>
   );
