@@ -21,6 +21,7 @@ import type { z } from "zod";
 import { fieldError } from "../accounting/context.js";
 import { ActivityService } from "../activity/activity.service.js";
 import { currentContext } from "../common/request-context.js";
+import { NotificationService } from "../notifications/notification.service.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 
 const CAT = schema.approvalCategories;
@@ -52,7 +53,26 @@ export class ApprovalEngineService {
   constructor(
     @Inject(ActivityService) private readonly activity: ActivityService,
     @Inject(SequenceService) private readonly sequences: SequenceService,
+    @Inject(NotificationService) private readonly notifications: NotificationService,
   ) {}
+
+  /** Beri tahu penyetuju yang sekarang bisa memutuskan (berurutan: tahap terdepan; paralel: semua tahap terbuka). */
+  private async notifyPending(tx: Db, request: typeof REQ.$inferSelect, mode: "sequential" | "parallel") {
+    const pending = (await this.steps(tx, request.id)).filter((s) => s.state === "pending");
+    const first = Math.min(...pending.map((s) => s.sequence));
+    const current = mode === "parallel" ? pending : pending.filter((s) => s.sequence === first);
+    await this.notifications.notify(
+      tx,
+      current.map((s) => s.approverUserId),
+      {
+        kind: "approval.pending",
+        title: `Permintaan ${request.number ?? ""} menunggu persetujuan Anda`.replace("  ", " "),
+        body: request.subject,
+        link: `/hr/approval-requests/${request.id}`,
+        companyId: request.companyId,
+      },
+    );
+  }
 
   // ---- Delegasi ----
 
@@ -439,6 +459,7 @@ export class ApprovalEngineService {
       action: "comment",
       message: `Permintaan ${number} diajukan (${planned.length} tahap)`,
     });
+    await this.notifyPending(tx, { ...request, number }, category.approvalMode);
     return this.getRequest(tx, id);
   }
 
@@ -510,6 +531,15 @@ export class ApprovalEngineService {
             : ""
       }${note ? `: ${note}` : ""}`,
     });
+    if (outcome.state === "submitted") await this.notifyPending(tx, request, category.approvalMode);
+    else
+      await this.notifications.notify(tx, [request.requestedBy], {
+        kind: `approval.${outcome.state}`,
+        title: `Permintaan ${request.number} ${outcome.state === "approved" ? "disetujui" : "ditolak"}`,
+        body: request.subject,
+        link: `/hr/approval-requests/${request.id}`,
+        companyId: request.companyId,
+      });
     return this.getRequest(tx, id);
   }
 

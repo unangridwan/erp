@@ -2236,3 +2236,64 @@ export const approvalDelegationSchema = z
     path: ["dateTo"],
     message: "Tanggal selesai tidak boleh sebelum tanggal mulai",
   });
+
+// ---- Kinerja lanjutan & layanan mandiri (PR-F) ----
+
+export const goalSchema = z
+  .object({
+    parentId: optionalUuid,
+    cycleId: optionalUuid,
+    employeeId: optionalUuid,
+    departmentId: optionalUuid,
+    title: z.string().trim().min(1).max(300),
+    description: z.string().trim().max(5000).nullish(),
+    metric: z.enum(["percent", "number", "currency", "boolean"]).default("percent"),
+    startValue: z.coerce.number().default(0),
+    targetValue: z.coerce.number().default(100),
+    currentValue: z.coerce.number().default(0),
+    unit: z.string().trim().max(30).nullish(),
+    weight: z.coerce.number().positive().max(1000).default(1),
+    dueDate: z.string().date().nullish(),
+    state: z.enum(["draft", "active", "done", "cancelled"]).default("active"),
+  })
+  .refine((g) => !(g.employeeId && g.departmentId), {
+    message: "Pilih karyawan atau departemen, bukan keduanya",
+    path: ["departmentId"],
+  })
+  .refine((g) => g.metric === "boolean" || g.targetValue !== g.startValue, {
+    message: "Target harus berbeda dari nilai awal",
+    path: ["targetValue"],
+  });
+
+export const goalCheckinSchema = z.object({
+  value: z.coerce.number(),
+  note: z.string().trim().max(1000).nullish(),
+});
+
+export const feedbackRequestSchema = z.object({
+  subjectEmployeeId: z.string().uuid(),
+  reviewerUserIds: z.array(z.string().uuid()).min(1, "Pilih minimal satu penilai").max(30),
+  relation: z.enum(["peer", "subordinate", "manager", "self", "other"]),
+  cycleId: optionalUuid,
+  dueDate: z.string().date().nullish(),
+});
+
+export const feedbackResponseSchema = z.object({
+  scores: z.record(z.string(), z.coerce.number().int().min(1).max(5)),
+  strengths: z.string().trim().max(2000).nullish(),
+  improvements: z.string().trim().max(2000).nullish(),
+});
+
+export const employeeNoteSchema = z.object({
+  body: z.string().trim().min(1).max(5000),
+  visibility: z.enum(["private", "hr"]).default("private"),
+});
+
+export const announcementSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  body: z.string().trim().min(1).max(20000),
+  departmentId: optionalUuid,
+  pinned: z.boolean().default(false),
+  expiresAt: z.string().date().nullish(),
+  publish: z.boolean().default(false),
+});

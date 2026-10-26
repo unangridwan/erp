@@ -399,6 +399,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   laporan time-to-fill/time-to-hire, funnel, sumber & alasan tolak; offboarding dengan alasan keluar + checklist,
   exit interview (skor per aspek), Full & Final Statement (gaji belum dibayar/ditahan, pesangon, klaim, sisa pinjaman)
   + PDF, laporan alasan keluar
+- [x] HR: kinerja lanjutan & layanan mandiri (gap PRD Kinerja/ESS) — sasaran & KRA bertingkat dengan progres berbobot
+  dan check-in, feedback 360 (permintaan ke banyak penilai, ringkasan anonim per kompetensi & relasi), catatan atasan/HR
+  privat, pengumuman (audiens departemen, pin, kedaluwarsa, tanda dibaca), Siapa yang Cuti, notifikasi in-app di navbar
 
 ## 5. Roadmap Bertahap
 

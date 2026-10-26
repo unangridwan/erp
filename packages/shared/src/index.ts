@@ -14,6 +14,7 @@ export * from "./approval.js";
 export * from "./leave.js";
 export * from "./attendance.js";
 export * from "./recruitment.js";
+export * from "./performance.js";
 export {
   daysBetween,
   expiryStatus,

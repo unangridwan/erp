@@ -8,6 +8,7 @@ import { visibleMenu, type App, type MenuEntry } from "../lib/apps";
 import { useI18n } from "../lib/i18n";
 import { useTheme, useThemeLabels } from "../lib/theme";
 import { AppIcon, AppsGlyph } from "./app-icon";
+import { NotificationBell } from "./notification-bell";
 
 /** Tutup dropdown saat klik di luar elemen atau setelah navigasi. */
 function useDropdown() {
@@ -112,6 +113,7 @@ export function Navbar({ me, app }: { me: Me; app: App | null }) {
         ) : (
           <span className="nav-company-name">{me.companies[0]?.name}</span>
         )}
+        <NotificationBell />
         <div className="nav-dropdown nav-user">
           <button className="avatar" title={me.name} onClick={() => toggle("user")}>
             {initials(me.name)}

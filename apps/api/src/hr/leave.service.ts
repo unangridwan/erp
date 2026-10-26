@@ -227,6 +227,7 @@ export class LeaveService {
       action: "comment",
       message: `Pengajuan ${type.name} ${input.dateFrom} s.d. ${input.dateTo} (${days} hari)`,
     });
+    await this.approvals.notifySubmitted(tx, employee, type.name, `${input.dateFrom} s.d. ${input.dateTo}`);
     return row!;
   }
 

@@ -271,12 +271,15 @@ export const APPS: App[] = [
         link("Lowongan", "Job Openings", "/job-openings", "hr.read"),
         link("Laporan Rekrutmen & Turnover", "Recruitment & Turnover", "/hr/recruitment-report", "hr.read"),
         link("Penilaian Kinerja", "Appraisals", "/hr/appraisals", "hr.read"),
+        link("Sasaran & KRA", "Goals & KRAs", "/hr/goals", "hr.read"),
+        link("Pengumuman", "Announcements", "/hr/announcements", "hr.read"),
         link("Pelatihan", "Trainings", "/hr/trainings", "hr.read"),
       ]),
       group("Laporan", "Reporting", [
         link("Dashboard SDM", "HR Dashboard", "/hr/dashboard", "hr.read"),
         link("Struktur Organisasi", "Org Chart", "/hr/org-chart", "hr.read"),
         link("Pengingat", "Reminders", "/hr/reminders", "hr.read"),
+        link("Siapa yang Cuti", "Who's Off", "/hr/whos-off", "hr.read"),
       ]),
       group("Konfigurasi", "Configuration", [
         link("Jadwal Kerja", "Work Schedules", "/work-schedules", "hr.read"),

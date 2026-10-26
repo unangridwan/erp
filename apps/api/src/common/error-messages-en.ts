@@ -633,4 +633,30 @@ export const MESSAGES_EN: Record<string, string> = {
   "Isi gaji": "Enter the wage",
   "Pilih alasan penolakan": "Choose a refusal reason",
   "Tanggal berakhir kontrak sebelum tanggal mulai": "The contract end date is before the start date",
+  // ---- Kinerja lanjutan & layanan mandiri ----
+  "Sasaran perusahaan/departemen hanya diatur HR (hr.manage)":
+    "Company/department goals are managed by HR (hr.manage)",
+  "Hanya karyawan, atasan langsung, atau HR": "Only the employee, their direct manager or HR",
+  "Sasaran tidak aktif": "The goal is not active",
+  "Sasaran tidak ditemukan": "Goal not found",
+  "Hanya atasan langsung atau HR": "Only the direct manager or HR",
+  "Permintaan feedback tidak ditemukan": "Feedback request not found",
+  "Permintaan feedback sudah dijawab": "The feedback request was already answered",
+  "Catatan ini tidak tersedia untuk karyawan yang bersangkutan":
+    "These notes are not available to the employee concerned",
+  "Catatan tidak ditemukan": "Note not found",
+  "Pengumuman tidak ditemukan": "Announcement not found",
+  "Rentang tanggal maksimal 3 bulan": "The date range is at most 3 months",
+  "Induk tidak boleh sasaran ini atau turunannya": "The parent cannot be this goal or one of its descendants",
+  "Sasaran induk tidak ditemukan": "Parent goal not found",
+  "Penilai harus pengguna di perusahaan ini": "Reviewers must be users of this company",
+  "Karyawan menilai diri sendiri lewat relasi 'diri sendiri'":
+    "Employees review themselves with the 'self' relation",
+  "Kompetensi tidak dikenal: {}": "Unknown competency: {0}",
+  "Isi minimal satu skor kompetensi": "Enter at least one competency score",
+  "Pilih karyawan atau departemen, bukan keduanya": "Choose an employee or a department, not both",
+  "Target harus berbeda dari nilai awal": "The target must differ from the start value",
+  "Pilih minimal satu penilai": "Choose at least one reviewer",
+  "Sasaran dari atasan hanya bisa dihapus atasan atau HR":
+    "Goals set by a manager can only be deleted by the manager or HR",
 };
