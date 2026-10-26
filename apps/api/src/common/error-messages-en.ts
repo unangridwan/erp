@@ -570,4 +570,33 @@ export const MESSAGES_EN: Record<string, string> = {
     "{0} balance would exceed the negative limit of {1} days ({2} left, {3} requested)",
   "Setengah hari hanya untuk cuti satu hari": "Half days are only for single-day time off",
   "Isi batas hari yang dibawa": "Enter the carry-over day limit",
+
+  // ---- Absensi lanjutan ----
+  "Koreksi absensi tidak ditemukan": "Attendance correction not found",
+  "Permintaan tukar shift tidak ditemukan": "Shift change request not found",
+  "Absensi s.d. {} sudah dikunci; tanggal {} tidak bisa diubah":
+    "Attendance up to {0} is locked; {1} cannot be changed",
+  "Karyawan tidak aktif": "The employee is inactive",
+  "Di luar area {}: {} m dari lokasi (radius {} m)": "Outside {0}: {1} m from the location (radius {2} m)",
+  "Aktifkan lokasi (GPS) untuk absen di {}": "Turn on location (GPS) to check in at {0}",
+  "Absensi tidak ditemukan": "Attendance not found",
+  "Foto tidak ditemukan": "Photo not found",
+  "Kode badge atau PIN salah": "Wrong badge code or PIN",
+  "Mesin absensi tidak ditemukan": "Attendance device not found",
+  "Kunci mesin absensi tidak valid": "Invalid attendance device key",
+  "Jadwal karyawan sudah berubah sejak diajukan; pengajuan tidak bisa disetujui":
+    "The employee's schedule changed since the request; it cannot be approved",
+  "Jadwal yang diminta sama dengan jadwal saat ini": "The requested schedule is the current schedule",
+  "Lokasi kerja tidak ditemukan di perusahaan ini": "Work location not found in this company",
+  "Foto harus JPG atau PNG": "The photo must be JPG or PNG",
+  "Berkas harus PDF, JPG, PNG, CSV, atau XLSX": "The file must be PDF, JPG, PNG, CSV, or XLSX",
+  "Foto tidak valid": "Invalid photo",
+  "Radius minimal 10 m": "The radius must be at least 10 m",
+  "Alasan maksimal 200 karakter": "The reason is at most 200 characters",
+  "Pilih minimal satu absensi": "Select at least one attendance",
+  "PIN 4–8 digit angka": "PIN must be 4–8 digits",
+  "Kode badge wajib diisi": "Badge code is required",
+  "Berkas maksimal 5 MB": "Files are at most 5 MB",
+  "Format bulan YYYY-MM": "Month format YYYY-MM",
+  "Alasan wajib diisi": "Reason is required",
 };

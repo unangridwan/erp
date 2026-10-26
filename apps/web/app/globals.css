@@ -1184,6 +1184,79 @@ input[type="file"] {
   max-width: 100%;
 }
 
+/* Absensi: foto absen & matriks rekap bulanan. */
+.attendance-photo {
+  max-width: 240px;
+  border-radius: 8px;
+}
+.attendance-matrix td,
+.attendance-matrix th {
+  padding: 4px 6px;
+  font-size: 12px;
+}
+.attendance-matrix .status-late,
+.attendance-matrix .status-no_checkout,
+.attendance-matrix .status-absent {
+  color: var(--danger, #c0392b);
+  font-weight: 600;
+}
+.attendance-matrix .status-day_off,
+.attendance-matrix .status-holiday {
+  color: var(--muted);
+}
+
+.device-key {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  margin: 6px 0;
+}
+
+/* Mode kiosk absensi. */
+.kiosk {
+  max-width: 420px;
+  margin: 24px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: center;
+}
+.kiosk-clock strong {
+  display: block;
+  font-size: 44px;
+  font-variant-numeric: tabular-nums;
+}
+.kiosk-clock span {
+  color: var(--muted);
+}
+.kiosk-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+.kiosk-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.kiosk-keypad button {
+  min-height: 56px;
+  font-size: 22px;
+}
+.kiosk-result {
+  padding: 32px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+.kiosk-result.in h1 {
+  color: var(--accent);
+}
+.kiosk-video {
+  width: 100%;
+  border-radius: 8px;
+}
+
 /* Form permintaan persetujuan: kotak bergaris, isian selebar form. */
 .request-form {
   align-items: stretch;

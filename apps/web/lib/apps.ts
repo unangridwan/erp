@@ -226,6 +226,7 @@ export const APPS: App[] = [
       "/leave-allocations",
       "/leave-types",
       "/leave-block-dates",
+      "/work-locations",
       "/overtimes",
       "/public-holidays",
       "/work-schedules",
@@ -247,6 +248,8 @@ export const APPS: App[] = [
       ]),
       group("Kehadiran", "Attendance", [
         link("Absensi", "Attendances", "/hr/attendance", "hr.read"),
+        link("Koreksi & Tukar Shift", "Corrections & Shift Changes", "/hr/attendance-requests", "hr.read"),
+        link("Mode Kiosk", "Kiosk Mode", "/hr/kiosk", "hr.write"),
         link("Keterlambatan", "Lateness", "/hr/lateness", "hr.read"),
         link("Lembur", "Overtime", "/overtimes", "hr.read"),
         link("Penugasan Shift", "Shift Assignments", "/shift-assignments", "hr.read"),
@@ -276,6 +279,8 @@ export const APPS: App[] = [
       ]),
       group("Konfigurasi", "Configuration", [
         link("Jadwal Kerja", "Work Schedules", "/work-schedules", "hr.read"),
+        link("Lokasi Kerja", "Work Locations", "/work-locations", "hr.read"),
+        link("Mesin Absensi", "Attendance Devices", "/hr/attendance-devices", "hr.read"),
         link("Jabatan", "Job Positions", "/job-positions", "hr.read"),
         link("Golongan Upah", "Salary Grades", "/salary-grades", "hr.read"),
         link("Struktur & Skala Upah", "Wage Scale", "/hr/wage-scale", "hr.manage"),

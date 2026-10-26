@@ -14,9 +14,10 @@ import {
   Post,
   Put,
   Query,
+  Req,
   Res,
 } from "@nestjs/common";
-import { and, asc, desc, eq, gte, isNull, lte, schema, sql, type Db } from "@erp/db";
+import { and, asc, desc, eq, gte, isNull, lte, ne, schema, sql, type Db } from "@erp/db";
 import {
   attendanceSchema,
   checkInSchema,
@@ -39,7 +40,7 @@ import {
   workScheduleSchema,
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import { z } from "zod";
 import { fieldError } from "../accounting/context.js";
 import { ActivityService } from "../activity/activity.service.js";
@@ -50,13 +51,14 @@ import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { ApprovalEngineService } from "./approval-engine.service.js";
-import { ApprovalService } from "./approval.service.js";
+import { ATTENDANCE_COLUMNS, AttendanceService } from "./attendance.service.js";
+import { ApprovalService, type ApprovalModel } from "./approval.service.js";
 import { ChecklistService } from "./checklist.service.js";
 import { ContractService } from "./contract.service.js";
 import { HistoryService } from "./history.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { LeaveService } from "./leave.service.js";
-import { ScheduleService } from "./schedule.service.js";
+import { localDate, ScheduleService } from "./schedule.service.js";
 
 /** Karyawan yang dirujuk harus milik perusahaan yang sama. */
 const sameCompanyEmployee = async (tx: Db, values: Record<string, unknown>) => {
@@ -360,9 +362,11 @@ class ApprovalsController {
 
   @Get(":model/:id")
   status(@Param("model") model: string, @Param("id", ParseUUIDPipe) id: string) {
-    if (model !== "leave_request" && model !== "overtime" && model !== "expense_claim")
+    if (
+      !["leave_request", "overtime", "expense_claim", "attendance_request", "shift_request"].includes(model)
+    )
       throw new NotFoundException();
-    return this.tenantDb.run((tx) => this.approvals.status(tx, model, id));
+    return this.tenantDb.run((tx) => this.approvals.status(tx, model as ApprovalModel, id));
   }
 
   @Post("overtime/:id/:decision")
@@ -736,6 +740,7 @@ class AttendanceController {
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(EmployeeService) private readonly employees: EmployeeService,
     @Inject(ScheduleService) private readonly schedules: ScheduleService,
+    @Inject(AttendanceService) private readonly attendance: AttendanceService,
   ) {}
 
   /** Rekap keterlambatan per karyawan (jadwal/shift & aturan potongan). */
@@ -755,44 +760,47 @@ class AttendanceController {
     );
   }
 
-  /** Absen masuk untuk karyawan yang terhubung dengan user ini. */
+  /** Absen masuk (portal): lokasi & foto opsional, geofence lokasi kerja, IP & perangkat dicatat. */
   @Post("check-in")
   @HttpCode(200)
-  checkIn(@Body() body: unknown) {
+  checkIn(@Body() body: unknown, @Req() req: Request) {
     const input = parse(checkInSchema, body ?? {});
     return this.tenantDb.run(async (tx) => {
       const employee = await this.employees.mine(tx);
       const [open] = await tx
         .select({ id: AT.id })
         .from(AT)
-        .where(and(eq(AT.employeeId, employee.id), isNull(AT.checkOut)));
+        .where(and(eq(AT.employeeId, employee.id), isNull(AT.checkOut), ne(AT.state, "refused")));
       if (open) throw new BadRequestException("Anda sudah absen masuk; absen pulang dulu");
-      const [row] = await tx
-        .insert(AT)
-        .values({
-          companyId: employee.companyId,
-          employeeId: employee.id,
-          checkIn: new Date(),
-          latitude: input.latitude?.toString() ?? null,
-          longitude: input.longitude?.toString() ?? null,
-        })
-        .returning();
-      return row!;
+      const { attendance } = await this.attendance.punch(tx, employee, new Date(), {
+        source: "web",
+        latitude: input.latitude,
+        longitude: input.longitude,
+        photo: input.photo,
+        ip: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+      return attendance;
     });
   }
 
   @Post("check-out")
   @HttpCode(200)
-  checkOut() {
+  checkOut(@Body() body: unknown) {
+    const input = parse(checkInSchema, body ?? {});
     return this.tenantDb.run(async (tx) => {
       const employee = await this.employees.mine(tx);
       const [open] = await tx
-        .select()
+        .select({ id: AT.id })
         .from(AT)
-        .where(and(eq(AT.employeeId, employee.id), isNull(AT.checkOut)));
+        .where(and(eq(AT.employeeId, employee.id), isNull(AT.checkOut), ne(AT.state, "refused")));
       if (!open) throw new BadRequestException("Belum absen masuk");
-      const [row] = await tx.update(AT).set({ checkOut: new Date() }).where(eq(AT.id, open.id)).returning();
-      return { ...row!, workedHours: hoursOf(row!) };
+      const { attendance } = await this.attendance.punch(tx, employee, new Date(), {
+        source: "web",
+        latitude: input.latitude,
+        longitude: input.longitude,
+      });
+      return { ...attendance, workedHours: hoursOf(attendance) };
     });
   }
 
@@ -805,7 +813,7 @@ class AttendanceController {
     );
     const rows = await this.tenantDb.run((tx) =>
       tx
-        .select({ attendance: AT, employeeName: schema.employees.name })
+        .select({ attendance: ATTENDANCE_COLUMNS, employeeName: schema.employees.name })
         .from(AT)
         .innerJoin(schema.employees, eq(schema.employees.id, AT.employeeId))
         .where(
@@ -833,6 +841,8 @@ class AttendanceController {
     const input = parse(attendanceSchema, body);
     return this.tenantDb.run(async (tx) => {
       const employee = await this.employees.find(tx, input.employeeId);
+      const { tz } = await this.attendance.settings(tx, employee.companyId);
+      await this.attendance.assertUnlocked(tx, employee.companyId, localDate(new Date(input.checkIn), tz));
       const [row] = await tx
         .insert(AT)
         .values({
@@ -842,7 +852,7 @@ class AttendanceController {
           checkOut: input.checkOut ? new Date(input.checkOut) : null,
           source: "manual",
         })
-        .returning();
+        .returning(ATTENDANCE_COLUMNS);
       return { ...row!, workedHours: hoursOf(row!) };
     });
   }
@@ -851,9 +861,17 @@ class AttendanceController {
   @HttpCode(204)
   @RequirePermission("hr.write")
   async remove(@Param("id", ParseUUIDPipe) id: string) {
-    await this.tenantDb.run((tx) =>
-      tx.delete(AT).where(and(eq(AT.id, id), eq(AT.companyId, currentContext().companyId))),
-    );
+    await this.tenantDb.run(async (tx) => {
+      const companyId = currentContext().companyId;
+      const [row] = await tx
+        .select({ checkIn: AT.checkIn })
+        .from(AT)
+        .where(and(eq(AT.id, id), eq(AT.companyId, companyId)));
+      if (!row) return;
+      const { tz } = await this.attendance.settings(tx, companyId);
+      await this.attendance.assertUnlocked(tx, companyId, localDate(row.checkIn, tz));
+      await tx.delete(AT).where(and(eq(AT.id, id), eq(AT.companyId, companyId)));
+    });
   }
 }
 
@@ -871,9 +889,9 @@ class PortalController {
     return this.tenantDb.run(async (tx) => {
       const employee = await this.employees.mine(tx);
       const [open] = await tx
-        .select()
+        .select(ATTENDANCE_COLUMNS)
         .from(AT)
-        .where(and(eq(AT.employeeId, employee.id), isNull(AT.checkOut)));
+        .where(and(eq(AT.employeeId, employee.id), isNull(AT.checkOut), ne(AT.state, "refused")));
       // Data sensitif milik sendiri tetap tersamar di portal.
       return { ...this.employees.reveal(employee, false), openAttendance: open ?? null };
     });
@@ -884,7 +902,7 @@ class PortalController {
     return this.tenantDb.run(async (tx) => {
       const employee = await this.employees.mine(tx);
       const rows = await tx
-        .select()
+        .select(ATTENDANCE_COLUMNS)
         .from(AT)
         .where(eq(AT.employeeId, employee.id))
         .orderBy(desc(AT.checkIn))
@@ -957,6 +975,7 @@ class PortalController {
     LeaveService,
     ApprovalService,
     ApprovalEngineService,
+    AttendanceService,
     ScheduleService,
     ChecklistService,
     HistoryService,
@@ -968,6 +987,7 @@ class PortalController {
     ScheduleService,
     ApprovalService,
     ApprovalEngineService,
+    AttendanceService,
     ChecklistService,
     HistoryService,
     ContractService,

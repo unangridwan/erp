@@ -13,6 +13,7 @@ import {
   MyProfile,
   MyTaxSlips,
 } from "../../../components/hr/portal-extras";
+import { MyAttendance } from "../../../components/hr/attendance-extras";
 import { LeaveRequestForm, type LeaveTypeOption } from "../../../components/hr/leave-form";
 import { api, ApiError } from "../../../lib/api";
 import { formatDate, money } from "../../../lib/format";
@@ -227,6 +228,7 @@ export default function MyPortalPage() {
       <MyAppraisals />
       <MyChecklistTasks />
       <MyOvertime />
+      <MyAttendance />
       <MyClaims />
       <MyApprovalRequests />
       <MyLoans />

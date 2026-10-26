@@ -15,6 +15,7 @@ import type { ChecklistService } from "../checklist.service.js";
 import type { ContractService } from "../contract.service.js";
 import type { EmployeeService } from "../employee.service.js";
 import type { HistoryService } from "../history.service.js";
+import { ATTENDANCE_COLUMNS } from "../attendance.service.js";
 import { applyOvertimeApproval } from "../hr.module.js";
 import {
   bool,
@@ -682,7 +683,7 @@ const attendanceDataset: Dataset = {
     const { from, to } = period(query);
     // Rentang instan diperlebar sehari lalu disaring per tanggal lokal (zona waktu perusahaan).
     const rows = await tx
-      .select({ a: A, employeeNumber: E.employeeNumber, employeeName: E.name })
+      .select({ a: ATTENDANCE_COLUMNS, employeeNumber: E.employeeNumber, employeeName: E.name })
       .from(A)
       .innerJoin(E, eq(E.id, A.employeeId))
       .where(

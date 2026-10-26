@@ -434,6 +434,7 @@ export class PayrollService {
           .where(
             and(
               eq(schema.attendances.employeeId, employee.id),
+              eq(schema.attendances.state, "validated"),
               gte(schema.attendances.checkIn, new Date(`${from}T00:00:00Z`)),
               lte(schema.attendances.checkIn, new Date(`${to}T23:59:59Z`)),
             ),
@@ -826,6 +827,13 @@ export class PayrollService {
       .update(RUN)
       .set({ state: "done", accountMoveId: moveId, updatedAt: sql`now()` })
       .where(eq(RUN.id, id));
+    // Absensi periode yang sudah dibayar terkunci (tanggal kunci hanya maju).
+    await tx
+      .update(schema.payrollSettings)
+      .set({
+        attendanceLockDate: sql`greatest(coalesce(${schema.payrollSettings.attendanceLockDate}, ${run.periodEnd}::date), ${run.periodEnd}::date)`,
+      })
+      .where(eq(schema.payrollSettings.companyId, run.companyId));
     for (const l of claimLines)
       await tx
         .update(schema.expenseClaims)

@@ -383,6 +383,11 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   hangus setelah N bulan, tanggal blok cuti per departemen, cuti massal/cuti bersama, cuti pengganti dari lembur hari
   libur (tidak dibayar lagi di payroll), delegasi tugas, laporan saldo & ledger, jenis cuti bawaan (menikah,
   paternitas, duka, pengganti)
+- [x] HR: absensi lanjutan (gap PRD Absensi) — lokasi kerja dengan geofence (radius, wajib/tidak), IP/user-agent/foto
+  saat check-in, validasi absensi oleh HR (payroll & keterlambatan hanya membaca yang tervalidasi), tanggal kunci absensi
+  (maju otomatis saat payroll diposting), koreksi absensi (lupa absen/dinas luar/WFH, lampiran) dan tukar shift lewat
+  persetujuan berjenjang, mode kiosk (badge/No. karyawan + PIN, kamera opsional), API push mesin absensi dengan kunci
+  per mesin (idempoten), auto-checkout absensi terbuka, dashboard hari ini dan rekap bulanan per status
 
 ## 5. Roadmap Bertahap
 

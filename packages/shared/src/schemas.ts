@@ -946,6 +946,14 @@ export const employeeSchema = z.object({
   gradeId: optionalUuid,
   /** Jadwal kerja bawaan (shift). */
   scheduleId: z.string().uuid().nullish(),
+  workLocationId: z.string().uuid().nullish(),
+  /** Kode kartu/badge untuk kiosk & mesin absensi. */
+  badgeCode: z
+    .string()
+    .trim()
+    .max(64)
+    .nullish()
+    .transform((v) => (v ? v : null)),
   active: z.boolean().default(true),
 });
 
@@ -1114,9 +1122,109 @@ export const attendanceSchema = z
     path: ["checkOut"],
   });
 
+/** Foto absen JPG/PNG maks. 1 MB (base64). */
+const attendancePhoto = z
+  .object({
+    type: z.enum(["image/jpeg", "image/png"], { message: "Foto harus JPG atau PNG" }),
+    data: z
+      .string()
+      .regex(/^[A-Za-z0-9+/=\s]+$/, "Foto tidak valid")
+      .refine((v) => (v.replace(/\s/g, "").length * 3) / 4 <= 1024 * 1024, "Foto maksimal 1 MB"),
+  })
+  .nullish();
+
 export const checkInSchema = z.object({
   latitude: z.coerce.number().min(-90).max(90).nullish(),
   longitude: z.coerce.number().min(-180).max(180).nullish(),
+  photo: attendancePhoto,
+});
+
+export const workLocationSchema = z.object({
+  name: z.string().trim().min(1, "Nama wajib diisi").max(120),
+  branchId: optionalUuid,
+  latitude: z.coerce.number().min(-90).max(90).transform(String),
+  longitude: z.coerce.number().min(-180).max(180).transform(String),
+  radiusM: z.coerce.number().int().min(10, "Radius minimal 10 m").max(100000),
+  enforceGeofence: z.boolean().default(false),
+  active: z.boolean().default(true),
+});
+
+export const attendanceDeviceSchema = z.object({
+  name: z.string().trim().min(1, "Nama wajib diisi").max(120),
+  serial: optionalText,
+  workLocationId: optionalUuid,
+  active: z.boolean().default(true),
+});
+
+/** Koreksi absensi: jam lokal HH:MM pada tanggal tersebut (jam pulang boleh lewat tengah malam = hari berikutnya). */
+export const attendanceRequestSchema = z.object({
+  employeeId: z.string().uuid().optional(),
+  kind: z.enum(["correction", "business_trip", "wfh"]).default("correction"),
+  date: z.string().date(),
+  checkIn: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Format JJ:MM"),
+  checkOut: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Format JJ:MM")
+    .nullish(),
+  reason: z.string().trim().min(1, "Alasan wajib diisi").max(200, "Alasan maksimal 200 karakter"),
+  attachment: z
+    .object({
+      name: z.string().trim().min(1).max(200),
+      type: z.enum(
+        [
+          "application/pdf",
+          "image/jpeg",
+          "image/png",
+          "text/csv",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ],
+        { message: "Berkas harus PDF, JPG, PNG, CSV, atau XLSX" },
+      ),
+      data: z.string().regex(/^[A-Za-z0-9+/=\s]+$/, "Berkas tidak valid"),
+    })
+    .nullish(),
+});
+
+export const shiftRequestSchema = z
+  .object({
+    employeeId: z.string().uuid().optional(),
+    scheduleId: z.string().uuid(),
+    dateFrom: z.string().date(),
+    dateTo: z.string().date(),
+    reason: z.string().trim().max(500).nullish(),
+  })
+  .refine((v) => v.dateTo >= v.dateFrom, { message: "Tanggal selesai sebelum mulai", path: ["dateTo"] });
+
+export const attendanceValidateSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1, "Pilih minimal satu absensi").max(1000),
+  decision: z.enum(["validated", "refused"]).default("validated"),
+  note: z.string().trim().max(500).nullish(),
+});
+
+/** PIN kiosk 4–8 digit. */
+export const attendancePinSchema = z.object({
+  employeeId: z.string().uuid().optional(),
+  pin: z.string().regex(/^\d{4,8}$/, "PIN 4–8 digit angka"),
+});
+
+export const kioskPunchSchema = z.object({
+  /** Kode badge atau No. karyawan. */
+  code: z.string().trim().min(1, "Kode badge wajib diisi").max(64),
+  pin: z.string().regex(/^\d{4,8}$/, "PIN 4–8 digit angka"),
+  photo: attendancePhoto,
+});
+
+export const devicePushSchema = z.object({
+  punches: z
+    .array(
+      z.object({
+        /** Kode badge atau No. karyawan sesuai pendaftaran di mesin. */
+        code: z.string().trim().min(1).max(64),
+        timestamp: z.string().datetime({ offset: true }),
+      }),
+    )
+    .min(1)
+    .max(1000),
 });
 
 export const payrollSettingsSchema = z.object({
@@ -1136,6 +1244,10 @@ export const payrollSettingsSchema = z.object({
   leaveApprovalLevels: z.coerce.number().int().min(1).max(3).optional(),
   overtimeApprovalLevels: z.coerce.number().int().min(0).max(3).optional(),
   expenseApprovalLevels: z.coerce.number().int().min(1).max(3).optional(),
+  attendanceValidation: z.boolean().optional(),
+  attendanceLockDate: z.string().date().nullish(),
+  autoCheckoutHours: z.coerce.number().int().min(4).max(24).nullish(),
+  attendanceApprovalLevels: z.coerce.number().int().min(1).max(3).optional(),
   casualFullBpjsMonths: z.coerce.number().int().min(0).max(24).optional(),
   thrComponentId: z.string().uuid().nullish(),
   retroComponentId: z.string().uuid().nullish(),

@@ -116,6 +116,11 @@ export const employees = pgTable("employees", {
   gradeId: uuid("grade_id"),
   /** Jadwal kerja bawaan (dapat diganti per rentang tanggal lewat penugasan shift). */
   scheduleId: uuid("schedule_id"),
+  /** Lokasi kerja untuk geofence absensi. */
+  workLocationId: uuid("work_location_id"),
+  /** Kode kartu/badge untuk kiosk & mesin absensi. */
+  badgeCode: text("badge_code"),
+  attendancePinHash: text("attendance_pin_hash"),
   active: boolean("active").notNull().default(true),
   ...audit,
 });
@@ -289,10 +294,97 @@ export const attendances = pgTable("attendances", {
   checkOut: timestamp("check_out", { withTimezone: true }),
   latitude: numeric("latitude", { precision: 9, scale: 6 }),
   longitude: numeric("longitude", { precision: 9, scale: 6 }),
-  source: text("source", { enum: ["web", "manual", "import"] })
+  source: text("source", { enum: ["web", "manual", "import", "kiosk", "device", "request"] })
     .notNull()
     .default("web"),
+  state: text("state", { enum: ["draft", "validated", "refused"] })
+    .notNull()
+    .default("validated"),
+  checkOutLatitude: numeric("check_out_latitude", { precision: 9, scale: 6 }),
+  checkOutLongitude: numeric("check_out_longitude", { precision: 9, scale: 6 }),
+  ip: text("ip"),
+  userAgent: text("user_agent"),
+  photo: bytea("photo"),
+  photoType: text("photo_type"),
+  workLocationId: uuid("work_location_id"),
+  distanceM: integer("distance_m"),
+  autoCheckout: boolean("auto_checkout").notNull().default(false),
+  note: text("note"),
+  validatedBy: uuid("validated_by"),
+  validatedAt: timestamp("validated_at", { withTimezone: true }),
+  deviceId: uuid("device_id"),
   createdAt: audit.createdAt,
+});
+
+export const workLocations = pgTable("work_locations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  branchId: uuid("branch_id"),
+  latitude: numeric("latitude", { precision: 9, scale: 6 }).notNull(),
+  longitude: numeric("longitude", { precision: 9, scale: 6 }).notNull(),
+  radiusM: integer("radius_m").notNull().default(100),
+  enforceGeofence: boolean("enforce_geofence").notNull().default(false),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const attendanceDevices = pgTable("attendance_devices", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  serial: text("serial"),
+  workLocationId: uuid("work_location_id"),
+  keyHash: text("key_hash").notNull(),
+  active: boolean("active").notNull().default(true),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  ...audit,
+});
+
+export const REQUEST_STATES = ["confirm", "approved", "refused", "cancel"] as const;
+
+export const attendanceRequests = pgTable("attendance_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  kind: text("kind", { enum: ["correction", "business_trip", "wfh"] })
+    .notNull()
+    .default("correction"),
+  date: date("date").notNull(),
+  checkIn: timestamp("check_in", { withTimezone: true }).notNull(),
+  checkOut: timestamp("check_out", { withTimezone: true }),
+  reason: text("reason").notNull(),
+  attachment: bytea("attachment"),
+  attachmentName: text("attachment_name"),
+  attachmentType: text("attachment_type"),
+  state: text("state", { enum: REQUEST_STATES }).notNull().default("confirm"),
+  approvalStep: smallint("approval_step").notNull().default(1),
+  approvalLevels: smallint("approval_levels").notNull().default(1),
+  attendanceId: uuid("attendance_id"),
+  createdBy: uuid("created_by"),
+  ...audit,
+});
+
+export const shiftRequests = pgTable("shift_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  scheduleId: uuid("schedule_id").notNull(),
+  /** Jadwal karyawan saat diajukan (deteksi perubahan jadwal sebelum disetujui). */
+  currentScheduleId: uuid("current_schedule_id"),
+  dateFrom: date("date_from").notNull(),
+  dateTo: date("date_to").notNull(),
+  reason: text("reason"),
+  state: text("state", { enum: REQUEST_STATES }).notNull().default("confirm"),
+  approvalStep: smallint("approval_step").notNull().default(1),
+  approvalLevels: smallint("approval_levels").notNull().default(1),
+  assignmentId: uuid("assignment_id"),
+  createdBy: uuid("created_by"),
+  ...audit,
 });
 
 export const overtimes = pgTable("overtimes", {
@@ -343,6 +435,12 @@ export const payrollSettings = pgTable("payroll_settings", {
   transferSourceAccount: text("transfer_source_account"),
   /** Kode perusahaan/corporate ID di internet banking bisnis. */
   transferCompanyCode: text("transfer_company_code"),
+  /** Absensi baru berstatus draft sampai divalidasi; payroll hanya membaca yang tervalidasi. */
+  attendanceValidation: boolean("attendance_validation").notNull().default(false),
+  /** Absensi s.d. tanggal ini terkunci. */
+  attendanceLockDate: date("attendance_lock_date"),
+  autoCheckoutHours: smallint("auto_checkout_hours"),
+  attendanceApprovalLevels: smallint("attendance_approval_levels").notNull().default(1),
   updatedAt: audit.updatedAt,
 });
 
@@ -460,7 +558,9 @@ export const shiftAssignments = pgTable("shift_assignments", {
 export const approvals = pgTable("approvals", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
-  resModel: text("res_model", { enum: ["leave_request", "overtime", "expense_claim"] }).notNull(),
+  resModel: text("res_model", {
+    enum: ["leave_request", "overtime", "expense_claim", "attendance_request", "shift_request"],
+  }).notNull(),
   resId: uuid("res_id").notNull(),
   step: smallint("step").notNull(),
   userId: uuid("user_id"),
