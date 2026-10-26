@@ -39,6 +39,7 @@ import { RequirePermission } from "../auth/decorators.js";
 import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
+import { NotificationService } from "../notifications/notification.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { HistoryService } from "./history.service.js";
 import { HrModule } from "./hr.module.js";
@@ -351,6 +352,7 @@ class AppraisalsController {
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(EmployeeService) private readonly employees: EmployeeService,
     @Inject(ActivityService) private readonly activity: ActivityService,
+    @Inject(NotificationService) private readonly notifications: NotificationService,
   ) {}
 
   @Get()
@@ -389,6 +391,11 @@ class AppraisalsController {
           updatedAt: sql`now()`,
         })
         .where(eq(AP.id, id));
+      await this.notifications.notify(tx, [a.managerUserId], {
+        kind: "appraisal.manager",
+        title: `Penilaian diri ${a.employeeName} (${a.cycleName}) menunggu penilaian Anda`,
+        link: `/hr/appraisals/${id}`,
+      });
       return this.load(tx, id);
     });
   }

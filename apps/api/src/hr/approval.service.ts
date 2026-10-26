@@ -10,6 +10,7 @@ import { hasPermission } from "@erp/shared";
 import { ActivityService } from "../activity/activity.service.js";
 import { currentContext } from "../common/request-context.js";
 import { ApprovalEngineService, hasLeft } from "./approval-engine.service.js";
+import { NotificationService } from "../notifications/notification.service.js";
 
 export type ApprovalModel =
   "leave_request" | "overtime" | "expense_claim" | "attendance_request" | "shift_request";
@@ -27,7 +28,19 @@ export class ApprovalService {
   constructor(
     @Inject(ActivityService) private readonly activity: ActivityService,
     @Inject(ApprovalEngineService) private readonly engine: ApprovalEngineService,
+    @Inject(NotificationService) private readonly notifications: NotificationService,
   ) {}
+
+  /** Beri tahu penyetuju tahap pertama bahwa ada pengajuan baru. */
+  async notifySubmitted(tx: Db, employee: Employee, what: string, label: string) {
+    await this.notifications.notify(tx, [await this.approverFor(tx, employee, 1)], {
+      kind: "approval.pending",
+      title: `${what} ${employee.name} menunggu persetujuan Anda`,
+      body: label,
+      link: "/hr/approvals",
+      companyId: employee.companyId,
+    });
+  }
 
   /** Jumlah tahap untuk dokumen baru (dari pengaturan payroll perusahaan). */
   async levels(tx: Db, companyId: string, model: Model) {
@@ -119,6 +132,23 @@ export class ApprovalService {
       action: "comment",
       message: `${what} ${doc.label}: tahap ${doc.approvalStep}/${doc.approvalLevels} ${decision === "approved" ? "disetujui" : "ditolak"}${state === "approved" ? " — selesai" : ""}`,
     });
+    // Keputusan akhir ke karyawan; tahap berikutnya ke penyetuju berikut.
+    if (state === "confirm")
+      await this.notifications.notify(tx, [await this.approverFor(tx, employee!, doc.approvalStep + 1)], {
+        kind: "approval.pending",
+        title: `${what} ${employee!.name} menunggu persetujuan Anda`,
+        body: doc.label,
+        link: "/hr/approvals",
+        companyId: employee!.companyId,
+      });
+    else
+      await this.notifications.notify(tx, [employee!.userId], {
+        kind: `approval.${state}`,
+        title: `${what} ${doc.label} ${state === "approved" ? "disetujui" : "ditolak"}`,
+        body: note ?? null,
+        link: "/me",
+        companyId: employee!.companyId,
+      });
     return this.status(tx, model, id);
   }
 

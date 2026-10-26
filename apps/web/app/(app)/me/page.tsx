@@ -14,6 +14,7 @@ import {
   MyTaxSlips,
 } from "../../../components/hr/portal-extras";
 import { MyAttendance } from "../../../components/hr/attendance-extras";
+import { AnnouncementsFeed, FeedbackInbox, GoalTree, WhosOffPanel } from "../../../components/hr/ess-panels";
 import { LeaveRequestForm, type LeaveTypeOption } from "../../../components/hr/leave-form";
 import { api, ApiError } from "../../../lib/api";
 import { formatDate, money } from "../../../lib/format";
@@ -115,6 +116,7 @@ export default function MyPortalPage() {
 
   return (
     <div className="stack-wide">
+      <AnnouncementsFeed />
       <section className="panel">
         <header className="toolbar">
           <h1>
@@ -226,6 +228,12 @@ export default function MyPortalPage() {
 
       <MyProfile name={employee.name} />
       <MyAppraisals />
+      <section className="panel">
+        <h2>{l("Sasaran saya", "My goals")}</h2>
+        <GoalTree path="/me/goals" allowCreate={false} />
+      </section>
+      <FeedbackInbox />
+      <WhosOffPanel />
       <MyChecklistTasks />
       <MyOvertime />
       <MyAttendance />

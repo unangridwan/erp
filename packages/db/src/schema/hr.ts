@@ -1025,6 +1025,112 @@ export const appraisalLines = pgTable("appraisal_lines", {
   comment: text("comment"),
 });
 
+export const GOAL_METRICS = ["percent", "number", "currency", "boolean"] as const;
+
+/** Sasaran bertingkat (perusahaan → departemen → karyawan) dengan check-in progres. */
+export const performanceGoals = pgTable("performance_goals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  parentId: uuid("parent_id"),
+  cycleId: uuid("cycle_id"),
+  employeeId: uuid("employee_id"),
+  departmentId: uuid("department_id"),
+  title: text("title").notNull(),
+  description: text("description"),
+  metric: text("metric", { enum: GOAL_METRICS }).notNull().default("percent"),
+  startValue: numeric("start_value", { precision: 20, scale: 2 }).notNull().default("0"),
+  targetValue: numeric("target_value", { precision: 20, scale: 2 }).notNull().default("100"),
+  currentValue: numeric("current_value", { precision: 20, scale: 2 }).notNull().default("0"),
+  unit: text("unit"),
+  weight: numeric("weight", { precision: 6, scale: 2 }).notNull().default("1"),
+  dueDate: date("due_date"),
+  state: text("state", { enum: ["draft", "active", "done", "cancelled"] })
+    .notNull()
+    .default("active"),
+  createdBy: uuid("created_by"),
+  ...audit,
+});
+
+export const goalCheckins = pgTable("goal_checkins", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  goalId: uuid("goal_id").notNull(),
+  value: numeric("value", { precision: 20, scale: 2 }).notNull(),
+  note: text("note"),
+  createdBy: uuid("created_by"),
+  createdAt: audit.createdAt,
+});
+
+export const FEEDBACK_RELATIONS = ["peer", "subordinate", "manager", "self", "other"] as const;
+
+export const feedbackRequests = pgTable("feedback_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  cycleId: uuid("cycle_id"),
+  subjectEmployeeId: uuid("subject_employee_id").notNull(),
+  reviewerUserId: uuid("reviewer_user_id").notNull(),
+  relation: text("relation", { enum: FEEDBACK_RELATIONS }).notNull(),
+  state: text("state", { enum: ["pending", "submitted", "declined"] })
+    .notNull()
+    .default("pending"),
+  scores: jsonb("scores").$type<Record<string, number>>().notNull().default({}),
+  strengths: text("strengths"),
+  improvements: text("improvements"),
+  dueDate: date("due_date"),
+  requestedBy: uuid("requested_by"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  ...audit,
+});
+
+export const employeeNotes = pgTable("employee_notes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  authorUserId: uuid("author_user_id").notNull(),
+  body: text("body").notNull(),
+  visibility: text("visibility", { enum: ["private", "hr"] })
+    .notNull()
+    .default("private"),
+  ...audit,
+});
+
+export const announcements = pgTable("announcements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  departmentId: uuid("department_id"),
+  pinned: boolean("pinned").notNull().default(false),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  expiresAt: date("expires_at"),
+  createdBy: uuid("created_by"),
+  ...audit,
+});
+
+export const announcementReads = pgTable("announcement_reads", {
+  tenantId: tenantId(),
+  announcementId: uuid("announcement_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  readAt: timestamp("read_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  kind: text("kind").notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  link: text("link"),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  createdAt: audit.createdAt,
+});
+
 export const trainings = pgTable("trainings", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),

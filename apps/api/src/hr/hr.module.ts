@@ -53,6 +53,7 @@ import { SequenceService } from "../sequences/sequence.service.js";
 import { ApprovalEngineService } from "./approval-engine.service.js";
 import { ATTENDANCE_COLUMNS, AttendanceService } from "./attendance.service.js";
 import { ApprovalService, type ApprovalModel } from "./approval.service.js";
+import { NotificationService } from "../notifications/notification.service.js";
 import { ChecklistService } from "./checklist.service.js";
 import { ContractService } from "./contract.service.js";
 import { HistoryService } from "./history.service.js";
@@ -981,8 +982,10 @@ class PortalController {
     ChecklistService,
     HistoryService,
     ContractService,
+    NotificationService,
   ],
   exports: [
+    NotificationService,
     EmployeeService,
     LeaveService,
     ScheduleService,
