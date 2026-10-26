@@ -2,6 +2,7 @@ export * from "./client.js";
 export { loadEnv } from "./load-env.js";
 export * as schema from "./schema/index.js";
 export {
+  aliasedTable,
   and,
   asc,
   count,

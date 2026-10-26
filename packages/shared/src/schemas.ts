@@ -1891,3 +1891,83 @@ export const employeeWarningSchema = z
     message: "Masa berlaku berakhir sebelum tanggal SP",
     path: ["validUntil"],
   });
+
+// ---- Mesin persetujuan generik ----
+
+const approvalFieldMode = z.enum(["required", "optional", "none"]);
+
+export const approvalCategorySchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9_]{2,20}$/, "Kode 2–20 huruf besar/angka"),
+  name: z.string().trim().min(1, "Nama wajib diisi").max(120),
+  description: z.string().trim().max(1000).nullish(),
+  prefix: z.string().trim().min(1, "Prefix wajib diisi").max(20),
+  fields: z
+    .object({
+      date: approvalFieldMode,
+      period: approvalFieldMode,
+      quantity: approvalFieldMode,
+      amount: approvalFieldMode,
+      reference: approvalFieldMode,
+      location: approvalFieldMode,
+      contact: approvalFieldMode,
+      description: approvalFieldMode,
+      attachment: approvalFieldMode,
+    })
+    .partial()
+    .default({}),
+  managerFirst: z.boolean().default(true),
+  approvalMode: z.enum(["sequential", "parallel"]).default("sequential"),
+  minApprovals: z.coerce.number().int().min(0).max(20).default(0),
+  sequence: z.coerce.number().int().min(0).max(9999).default(10),
+  active: z.boolean().default(true),
+  approvers: z
+    .array(
+      z.object({
+        userId: z.string().uuid(),
+        label: z.string().trim().max(80).nullish(),
+        required: z.boolean().default(true),
+        minAmount: nonNegative(2).nullish(),
+      }),
+    )
+    .max(20)
+    .default([]),
+});
+
+export const approvalRequestSchema = z
+  .object({
+    categoryId: z.string().uuid(),
+    subject: z.string().trim().min(1, "Subjek wajib diisi").max(200),
+    date: z.string().date().nullish(),
+    dateFrom: z.string().date().nullish(),
+    dateTo: z.string().date().nullish(),
+    quantity: nonNegative(2).nullish(),
+    amount: nonNegative(2).nullish(),
+    reference: optionalText,
+    location: optionalText,
+    contact: optionalText,
+    description: z.string().trim().max(5000).nullish(),
+    /** Tidak dikirim = lampiran lama dipertahankan; `null` menghapusnya. */
+    attachment: fileUpload(2).nullish(),
+  })
+  .refine((v) => !v.dateFrom || !v.dateTo || v.dateTo >= v.dateFrom, {
+    path: ["dateTo"],
+    message: "Tanggal selesai tidak boleh sebelum tanggal mulai",
+  });
+
+export const approvalDelegationSchema = z
+  .object({
+    /** Kosong = user yang login. Mendelegasikan untuk user lain butuh hr.manage. */
+    userId: z.string().uuid().optional(),
+    delegateUserId: z.string().uuid(),
+    dateFrom: z.string().date(),
+    dateTo: z.string().date(),
+    reason: z.string().trim().max(500).nullish(),
+  })
+  .refine((v) => v.dateTo >= v.dateFrom, {
+    path: ["dateTo"],
+    message: "Tanggal selesai tidak boleh sebelum tanggal mulai",
+  });

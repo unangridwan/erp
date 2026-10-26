@@ -941,3 +941,109 @@ export const exportPresets = pgTable("export_presets", {
   shared: boolean("shared").notNull().default(false),
   ...audit,
 });
+
+// ---- Mesin persetujuan generik ----
+
+export const APPROVAL_FIELD_KEYS = [
+  "date",
+  "period",
+  "quantity",
+  "amount",
+  "reference",
+  "location",
+  "contact",
+  "description",
+  "attachment",
+] as const;
+export type ApprovalFieldKey = (typeof APPROVAL_FIELD_KEYS)[number];
+export type ApprovalFieldMode = "required" | "optional" | "none";
+
+export const approvalCategories = pgTable("approval_categories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  prefix: text("prefix").notNull(),
+  fields: jsonb("fields").$type<Partial<Record<ApprovalFieldKey, ApprovalFieldMode>>>().notNull().default({}),
+  managerFirst: boolean("manager_first").notNull().default(true),
+  approvalMode: text("approval_mode", { enum: ["sequential", "parallel"] })
+    .notNull()
+    .default("sequential"),
+  minApprovals: smallint("min_approvals").notNull().default(0),
+  sequence: integer("sequence").notNull().default(10),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const approvalCategoryApprovers = pgTable("approval_category_approvers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  categoryId: uuid("category_id").notNull(),
+  sequence: integer("sequence").notNull().default(10),
+  userId: uuid("user_id").notNull(),
+  label: text("label"),
+  required: boolean("required").notNull().default(true),
+  /** Batas nominal DoA: tahap berlaku bila nominal ≥ batas (null = selalu). */
+  minAmount: numeric("min_amount", { precision: 20, scale: 2 }),
+});
+
+export const APPROVAL_REQUEST_STATES = ["draft", "submitted", "approved", "refused", "cancel"] as const;
+
+export const approvalRequests = pgTable("approval_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  categoryId: uuid("category_id").notNull(),
+  number: text("number"),
+  subject: text("subject").notNull(),
+  employeeId: uuid("employee_id"),
+  requestedBy: uuid("requested_by"),
+  state: text("state", { enum: APPROVAL_REQUEST_STATES }).notNull().default("draft"),
+  date: date("date"),
+  dateFrom: date("date_from"),
+  dateTo: date("date_to"),
+  quantity: numeric("quantity", { precision: 12, scale: 2 }),
+  amount: numeric("amount", { precision: 20, scale: 2 }),
+  reference: text("reference"),
+  location: text("location"),
+  contact: text("contact"),
+  description: text("description"),
+  attachment: bytea("attachment"),
+  attachmentName: text("attachment_name"),
+  attachmentType: text("attachment_type"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  ...audit,
+});
+
+export const approvalRequestSteps = pgTable("approval_request_steps", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  requestId: uuid("request_id").notNull(),
+  sequence: integer("sequence").notNull(),
+  /** null = diputuskan HR (hr.manage). */
+  approverUserId: uuid("approver_user_id"),
+  label: text("label"),
+  required: boolean("required").notNull().default(true),
+  state: text("state", { enum: ["pending", "approved", "refused", "skipped"] })
+    .notNull()
+    .default("pending"),
+  decidedBy: uuid("decided_by"),
+  delegated: boolean("delegated").notNull().default(false),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  note: text("note"),
+});
+
+export const approvalDelegations = pgTable("approval_delegations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  delegateUserId: uuid("delegate_user_id").notNull(),
+  dateFrom: date("date_from").notNull(),
+  dateTo: date("date_to").notNull(),
+  reason: text("reason"),
+  ...audit,
+});

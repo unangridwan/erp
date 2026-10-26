@@ -20,6 +20,7 @@ import { InventoryModule } from "./inventory/inventory.module.js";
 import { PurchaseModule } from "./purchase/purchase.module.js";
 import { IntercompanyModule } from "./intercompany/intercompany.module.js";
 import { PortalModule } from "./portal/portal.module.js";
+import { ApprovalRequestModule } from "./hr/approval-request.module.js";
 import { ExpenseModule } from "./hr/expense.module.js";
 import { HrModule } from "./hr/hr.module.js";
 import { PerformanceModule } from "./hr/performance.module.js";
@@ -52,6 +53,7 @@ import { UsersService } from "./users/users.service.js";
     PortalModule,
     HrModule,
     ExpenseModule,
+    ApprovalRequestModule,
     RecruitmentModule,
     PerformanceModule,
     ProfileModule,

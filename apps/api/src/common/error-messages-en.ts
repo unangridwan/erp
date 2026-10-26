@@ -511,4 +511,34 @@ export const MESSAGES_EN: Record<string, string> = {
   "Kolom data pribadi hanya bisa diimpor pemegang hr.manage":
     "Personal data columns can only be imported with hr.manage",
   "Periode tidak valid": "Invalid period",
+
+  // ---- Mesin persetujuan ----
+  "Delegasi tidak ditemukan": "Delegation not found",
+  "Kategori persetujuan tidak ditemukan": "Approval category not found",
+  "Kategori sudah dipakai permintaan; nonaktifkan saja (Aktif = tidak)":
+    "The category is already used by requests; deactivate it instead (Active = no)",
+  "Hanya permintaan draft yang bisa diubah": "Only draft requests can be edited",
+  "Hanya permintaan draft yang bisa dihapus": "Only draft requests can be deleted",
+  "Permintaan sudah diajukan": "The request has already been submitted",
+  "Karyawan sudah resign; permintaan tidak bisa diproses":
+    "The employee has resigned; the request cannot be processed",
+  "Karyawan sudah resign; pengajuan tidak bisa diputuskan":
+    "The employee has resigned; the request cannot be decided",
+  "Permintaan sudah diputuskan": "The request has already been decided",
+  "Permintaan sudah diproses": "The request has already been processed",
+  "Tidak bisa menyetujui permintaan sendiri": "You cannot approve your own request",
+  "Menunggu persetujuan penyetuju lain pada tahap ini": "Waiting for another approver at this step",
+  "Lampiran tidak ditemukan": "Attachment not found",
+  "Permintaan persetujuan tidak ditemukan": "Approval request not found",
+  "Tidak bisa mendelegasikan kepada diri sendiri": "You cannot delegate to yourself",
+  "Kode kategori sudah dipakai": "The category code is already used",
+  "Kategori persetujuan tidak aktif": "The approval category is inactive",
+  "User tidak punya akses ke perusahaan ini": "The user has no access to this company",
+  "Tanggal selesai tidak boleh sebelum tanggal mulai": "The end date cannot be before the start date",
+  "Kode 2–20 huruf besar/angka": "Code must be 2–20 uppercase letters/digits",
+  "Nama wajib diisi": "Name is required",
+  "Prefix wajib diisi": "Prefix is required",
+  "Subjek wajib diisi": "Subject is required",
+  "Lengkapi field wajib": "Fill in the required fields",
+  "{} wajib diisi": "{0} is required",
 };
