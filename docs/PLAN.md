@@ -402,6 +402,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] HR: kinerja lanjutan & layanan mandiri (gap PRD Kinerja/ESS) — sasaran & KRA bertingkat dengan progres berbobot
   dan check-in, feedback 360 (permintaan ke banyak penilai, ringkasan anonim per kompetensi & relasi), catatan atasan/HR
   privat, pengumuman (audiens departemen, pin, kedaluwarsa, tanda dibaca), Siapa yang Cuti, notifikasi in-app di navbar
+- [x] Armada (PRD SDM §7) — kendaraan dengan status siklus, model/produsen, nilai aset, dokumen STNK/pajak tahunan/BPKB/KIR,
+  satu pengemudi aktif + riwayat, odometer (tidak boleh mundur, input pengemudi dari portal), kontrak sewa/asuransi
+  (biaya awal + berulang, kedaluwarsa otomatis, perpanjangan), servis → tagihan vendor draft dibebankan ke cabang/unit
+  bisnis kendaraan, laporan biaya & tren odometer, pengingat dokumen/kontrak harian lewat notifikasi in-app
 
 ## 5. Roadmap Bertahap
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidPlate, normalizePlate } from "./fleet.js";
 import { CONSOLIDATION_METHODS, ENTITY_TYPES } from "./group.js";
 
 const optionalText = z
@@ -2296,4 +2297,114 @@ export const announcementSchema = z.object({
   pinned: z.boolean().default(false),
   expiresAt: z.string().date().nullish(),
   publish: z.boolean().default(false),
+});
+
+// ---- Armada ----
+
+const plate = z
+  .string()
+  .trim()
+  .min(1, "Nomor polisi wajib diisi")
+  .max(20)
+  .transform(normalizePlate)
+  .refine(isValidPlate, "Format nomor polisi tidak valid (mis. B 1234 XYZ)");
+const optionalMoney = money.nullish();
+const optionalDate = z.string().date().nullish();
+
+export const FLEET_CATEGORIES = ["car", "motorcycle", "pickup", "truck", "bus", "other"] as const;
+
+export const fleetManufacturerSchema = z.object({
+  name: z.string().trim().min(1, "Nama wajib diisi").max(120),
+  active: z.boolean().default(true),
+});
+
+export const fleetModelSchema = z.object({
+  manufacturerId: z.string().uuid(),
+  name: z.string().trim().min(1, "Nama wajib diisi").max(120),
+  category: z.enum(FLEET_CATEGORIES).default("car"),
+  seats: z.coerce.number().int().min(1).max(100).nullish(),
+  doors: z.coerce.number().int().min(0).max(10).nullish(),
+  transmission: z.enum(["manual", "automatic"]).nullish(),
+  fuelType: z.enum(["gasoline", "diesel", "electric", "hybrid", "lpg", "other"]).nullish(),
+  horsepower: z.coerce.number().int().min(0).max(5000).nullish(),
+  active: z.boolean().default(true),
+});
+
+export const fleetServiceTypeSchema = z.object({
+  name: z.string().trim().min(1, "Nama wajib diisi").max(120),
+  category: z.enum(["contract", "service", "both"]).default("service"),
+  accountId: optionalUuid,
+  active: z.boolean().default(true),
+});
+
+export const fleetVehicleSchema = z.object({
+  licensePlate: plate,
+  modelId: z.string().uuid(),
+  state: z.enum(["new_request", "to_order", "registered", "downgraded"]).default("registered"),
+  branchId: optionalUuid,
+  businessUnitId: optionalUuid,
+  managerUserId: optionalUuid,
+  driverEmployeeId: optionalUuid,
+  nextDriverEmployeeId: optionalUuid,
+  vin: optionalText,
+  engineNo: optionalText,
+  modelYear: z.coerce.number().int().min(1950).max(2200).nullish(),
+  color: optionalText,
+  location: optionalText,
+  odometerUnit: z.enum(["km", "mi"]).default("km"),
+  orderDate: optionalDate,
+  registrationDate: optionalDate,
+  catalogValue: optionalMoney,
+  purchaseValue: optionalMoney,
+  residualValue: optionalMoney,
+  replacementDate: optionalDate,
+  assetId: optionalUuid,
+  stnkNo: optionalText,
+  stnkExpiry: optionalDate,
+  taxDueDate: optionalDate,
+  bpkbNo: optionalText,
+  kirNo: optionalText,
+  kirExpiry: optionalDate,
+  note: z.string().max(2000).nullish(),
+  active: z.boolean().default(true),
+});
+
+// Tanpa refine: dipakai CRUD generik (`.partial()`); urutan tanggal diperiksa di API.
+export const fleetContractSchema = z.object({
+  vehicleId: z.string().uuid(),
+  serviceTypeId: z.string().uuid(),
+  vendorId: optionalUuid,
+  reference: optionalText,
+  startDate: z.string().date(),
+  endDate: optionalDate,
+  initialCost: money.default("0"),
+  recurringCost: money.default("0"),
+  recurringInterval: z.enum(["none", "daily", "weekly", "monthly", "yearly"]).default("monthly"),
+  includedServices: z.string().max(2000).nullish(),
+  state: z.enum(["new", "running", "expired", "closed"]).default("running"),
+  reminderDays: z.coerce.number().int().min(0).max(365).nullish(),
+  note: z.string().max(2000).nullish(),
+});
+
+export const fleetServiceSchema = z.object({
+  vehicleId: z.string().uuid(),
+  serviceTypeId: z.string().uuid(),
+  vendorId: optionalUuid,
+  date: z.string().date(),
+  odometer: z.coerce.number().min(0).max(10_000_000).nullish(),
+  driverEmployeeId: optionalUuid,
+  cost: money.default("0"),
+  description: z.string().max(2000).nullish(),
+  state: z.enum(["new", "running", "done", "cancelled"]).default("new"),
+});
+
+export const fleetOdometerSchema = z.object({
+  date: z.string().date(),
+  value: z.coerce.number().min(0, "Tidak boleh negatif").max(10_000_000),
+  note: optionalText,
+});
+
+export const fleetSettingsSchema = z.object({
+  reminderDays: z.coerce.number().int().min(1).max(365).default(30),
+  expenseAccountId: optionalUuid,
 });

@@ -96,7 +96,7 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
 
   const recordName = isNew
     ? `${tx(resource.singular)} ${t("form.new")}`
-    : String(values.name ?? values.code ?? tx(resource.singular));
+    : String(values.name ?? values.code ?? values.licensePlate ?? values.reference ?? tx(resource.singular));
 
   return (
     <>

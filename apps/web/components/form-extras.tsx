@@ -9,6 +9,12 @@ import { useI18n } from "../lib/i18n";
 import { can } from "../lib/resources";
 import { CareerPanel, ChecklistsPanel, DocumentsPanel } from "./hr/hr-panels";
 import { FeedbackPanel, NotesPanel } from "./hr/ess-panels";
+import {
+  ContractActions,
+  EmployeeVehiclesPanel,
+  ServiceBillPanel,
+  VehicleExtras,
+} from "./fleet/fleet-panels";
 import { OffboardingPanel } from "./hr/offboarding-panel";
 import {
   EducationPanel,
@@ -495,6 +501,7 @@ function EmployeeExtras({ id }: { id: string }) {
       {can(me.permissions, "hr.read") && <ChecklistsPanel employeeId={id} />}
       {manage && <OffboardingPanel employeeId={id} />}
       {can(me.permissions, "payroll.read") && <SeverancePanel id={id} />}
+      {can(me.permissions, "fleet.read") && <EmployeeVehiclesPanel employeeId={id} />}
     </>
   );
 }
@@ -504,5 +511,8 @@ export function FormExtras({ path, id }: { path: string; id: string }) {
   if (path === "products") return <VariantsPanel id={id} />;
   if (path === "partners") return <PortalAccessPanel id={id} />;
   if (path === "employees") return <EmployeeExtras id={id} />;
+  if (path === "fleet-vehicles") return <VehicleExtras id={id} />;
+  if (path === "fleet-contracts") return <ContractActions id={id} />;
+  if (path === "fleet-services") return <ServiceBillPanel id={id} />;
   return null;
 }

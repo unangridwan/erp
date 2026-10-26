@@ -1678,3 +1678,52 @@ img.record-avatar {
     width: auto;
   }
 }
+
+/* ---- Armada ---- */
+.badge.warn {
+  background: #fff4d6;
+  color: #8a5a00;
+}
+.badge.danger {
+  background: #fde2e1;
+  color: #a4161a;
+}
+:root[data-theme="dark"] .badge.warn {
+  background: #4a3a10;
+  color: #ffd98a;
+}
+:root[data-theme="dark"] .badge.danger {
+  background: #4f1d1d;
+  color: #ffb4b0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .badge.warn {
+    background: #4a3a10;
+    color: #ffd98a;
+  }
+  :root:not([data-theme="light"]) .badge.danger {
+    background: #4f1d1d;
+    color: #ffb4b0;
+  }
+}
+.bar-col {
+  width: 30%;
+  min-width: 80px;
+}
+.cost-bar {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--accent);
+  min-width: 2px;
+}
+.my-vehicle {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.my-vehicle:last-child {
+  border-bottom: 0;
+}
