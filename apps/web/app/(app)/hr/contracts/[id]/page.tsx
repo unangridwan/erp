@@ -19,6 +19,7 @@ interface Contract {
   dateEnd: string | null;
   wage: string;
   wageType: "monthly" | "daily" | "piece";
+  taxMethod: "gross" | "gross_up";
   state: string;
   note: string | null;
   allowances: { componentId: string; amount: string; name: string; kind: string; fixed: boolean }[];
@@ -53,6 +54,7 @@ export default function ContractPage() {
     dateEnd: "",
     wage: "",
     wageType: "monthly",
+    taxMethod: "gross",
     note: "",
   });
   const [allowances, setAllowances] = useState<{ componentId: string; amount: string }[]>([]);
@@ -72,6 +74,7 @@ export default function ContractPage() {
           dateEnd: c.dateEnd ?? "",
           wage: String(Number(c.wage)),
           wageType: c.wageType,
+          taxMethod: c.taxMethod,
           note: c.note ?? "",
         });
         setAllowances(
@@ -210,6 +213,18 @@ export default function ContractPage() {
             <option value="daily">{l("Harian lepas (per hari hadir)", "Daily (per day present)")}</option>
             <option value="piece">
               {l("Borongan (per satuan hasil kerja)", "Piece rate (per unit of output)")}
+            </option>
+          </select>
+        </label>
+        <label className="field">
+          <span>{l("Metode PPh 21", "PPh 21 method")}</span>
+          <select
+            value={form.taxMethod}
+            onChange={(e) => setForm((f) => ({ ...f, taxMethod: e.target.value }))}
+          >
+            <option value="gross">{l("Gross — dipotong dari gaji", "Gross — withheld from pay")}</option>
+            <option value="gross_up">
+              {l("Gross-up — ditanggung perusahaan (tunjangan PPh 21)", "Gross-up — borne by the company")}
             </option>
           </select>
         </label>

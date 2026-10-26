@@ -11,6 +11,8 @@ export interface PayslipPdfData {
   bpjs: { title: string; wage: string; rows: { name: string; employee: string; employer: string }[] }[];
   net: string;
   pph21Info: string;
+  /** Saldo cuti per akhir periode, mis. "Cuti Tahunan 8 hari". */
+  leaveBalances?: { name: string; remaining: string }[];
 }
 
 const fmt = (v: string) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Number(v));
@@ -138,13 +140,23 @@ export function renderPayslipPdf(
     y = bottom;
     y += 8;
     doc.fontSize(8).fillColor("#555").text(data.pph21Info, left, y, { width });
+    if (data.leaveBalances?.length) {
+      const days = (v: string) =>
+        new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(v));
+      doc
+        .moveDown(0.5)
+        .text(
+          `Saldo cuti per akhir periode: ${data.leaveBalances.map((b) => `${b.name} ${days(b.remaining)} hari`).join(" · ")}`,
+          { width },
+        );
+    }
     doc.end();
   });
 }
 
 interface SlipForPdf {
   employee: { name: string; employeeNumber: string; departmentName: string | null; jobName: string | null };
-  run: { name: string; periodStart: string };
+  run: { name: string; periodStart: string; kind?: "regular" | "correction" };
   ptkpStatus: string;
   lines: { code: string; name: string; category: string; amount: string }[];
   bpjsKesWage: string;
@@ -154,6 +166,7 @@ interface SlipForPdf {
   isFinal: boolean;
   terCategory: string;
   terRate: string | null;
+  leaveBalances?: { leaveTypeName: string; remaining: string }[];
 }
 
 /** Data PDF slip gaji dari slip lengkap (`PayrollService.payslip`). */
@@ -215,9 +228,12 @@ export function payslipPdfData(slip: SlipForPdf, company: string): PayslipPdfDat
         .filter((r) => Number(r.employee) || Number(r.employer)),
     })),
     net: slip.net,
+    leaveBalances: slip.leaveBalances?.map((b) => ({ name: b.leaveTypeName, remaining: b.remaining })),
     pph21Info: slip.isFinal
-      ? `PPh 21 masa pajak terakhir dihitung setahun (tarif Pasal 17) dikurangi PPh 21 yang telah dipotong. Penghasilan bruto bulan ini Rp ${slip.gross}.`
-      : `PPh 21 metode TER kategori ${slip.terCategory} tarif ${slip.terRate ?? 0}% × penghasilan bruto Rp ${slip.gross} (termasuk premi JKK, JKM, BPJS Kesehatan yang dibayar perusahaan).`,
+      ? `PPh 21 masa pajak terakhir dihitung setahun (tarif Pasal 17) dikurangi PPh 21 yang telah dipotong (termasuk slip sebelumnya di bulan ini). Penghasilan bruto slip ini Rp ${slip.gross}.`
+      : slip.run.kind === "correction"
+        ? `Slip koreksi: PPh 21 = TER kategori ${slip.terCategory} tarif ${slip.terRate ?? 0}% × bruto gabungan bulan ini (slip asli + koreksi) dikurangi PPh 21 yang sudah dipotong. Bruto slip ini Rp ${slip.gross}.`
+        : `PPh 21 metode TER kategori ${slip.terCategory} tarif ${slip.terRate ?? 0}% × penghasilan bruto Rp ${slip.gross} (termasuk premi JKK, JKM, BPJS Kesehatan yang dibayar perusahaan).`,
   };
 }
 

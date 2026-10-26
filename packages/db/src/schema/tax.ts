@@ -140,6 +140,7 @@ export const withholdingSlips = pgTable("withholding_slips", {
   details: jsonb("details").$type<{
     salary: string;
     otherBenefit: string;
+    incomeTaxBenefit?: string;
     insurance: string;
     bonus: string;
     pensionContribution: string;

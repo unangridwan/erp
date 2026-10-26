@@ -159,6 +159,10 @@ export const contracts = pgTable("contracts", {
     .notNull()
     .default("draft"),
   note: text("note"),
+  /** gross = PPh 21 dipotong dari gaji; gross_up = ditanggung perusahaan lewat tunjangan PPh 21. */
+  taxMethod: text("tax_method", { enum: ["gross", "gross_up"] })
+    .notNull()
+    .default("gross"),
   ...audit,
 });
 
@@ -458,6 +462,11 @@ export const payrollRuns = pgTable("payroll_runs", {
   accountMoveId: uuid("account_move_id"),
   paymentMoveId: uuid("payment_move_id"),
   createdBy: uuid("created_by"),
+  /** correction = payroll koreksi (off-cycle) atas payroll reguler `correctsRunId` yang sudah diposting. */
+  kind: text("kind", { enum: ["regular", "correction"] })
+    .notNull()
+    .default("regular"),
+  correctsRunId: uuid("corrects_run_id"),
   ...audit,
 });
 
@@ -497,6 +506,12 @@ export const payslips = pgTable("payslips", {
   bpjsTkWage: numeric("bpjs_tk_wage", { precision: 20, scale: 2 }).notNull().default("0"),
   emailedAt: timestamp("emailed_at", { withTimezone: true }),
   emailError: text("email_error"),
+  /** Gaji ditahan: tidak ikut transfer & pembayaran payroll sampai dilepas (dibayar terpisah). */
+  holdReason: text("hold_reason"),
+  heldAt: timestamp("held_at", { withTimezone: true }),
+  heldBy: uuid("held_by"),
+  releasedAt: timestamp("released_at", { withTimezone: true }),
+  releaseMoveId: uuid("release_move_id"),
   ...audit,
 });
 

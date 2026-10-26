@@ -24,7 +24,9 @@ import {
   hasPermission,
   loanDisburseSchema,
   payRunSchema,
+  payrollCorrectionSchema,
   payrollRunSchema,
+  payslipHoldSchema,
   payrollSettingsSchema,
   payslipInputsSchema,
   salaryComponentSchema,
@@ -148,6 +150,21 @@ class PayrollController {
   pay(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
     const input = parse(payRunSchema, body);
     return this.tenantDb.run((tx) => this.payroll.pay(tx, id, input));
+  }
+
+  /** Payroll koreksi (off-cycle) atas payroll reguler yang sudah diposting. */
+  @Post("payroll-runs/:id/corrections")
+  @RequirePermission("payroll.write")
+  correction(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(payrollCorrectionSchema, body);
+    return this.tenantDb.run((tx) => this.payroll.createCorrection(tx, id, input));
+  }
+
+  /** Peringatan sebelum posting/transfer (data karyawan, gaji bersih, pengajuan tertunda, dll.). */
+  @Get("payroll-runs/:id/warnings")
+  @RequirePermission("payroll.read")
+  warnings(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.payroll.warnings(tx, id));
   }
 
   @Post("payroll-runs/:id/cancel")
@@ -404,6 +421,30 @@ class PayrollController {
   inputs(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
     const input = parse(payslipInputsSchema, body);
     return this.tenantDb.run((tx) => this.payroll.setInputs(tx, id, input.inputs));
+  }
+
+  @Post("payslips/:id/hold")
+  @HttpCode(200)
+  @RequirePermission("payroll.manage")
+  hold(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(payslipHoldSchema, body);
+    return this.tenantDb.run((tx) => this.payroll.hold(tx, id, input.reason));
+  }
+
+  @Post("payslips/:id/unhold")
+  @HttpCode(200)
+  @RequirePermission("payroll.manage")
+  unhold(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.payroll.unhold(tx, id));
+  }
+
+  /** Lepas gaji yang ditahan dengan pembayaran terpisah. */
+  @Post("payslips/:id/release")
+  @HttpCode(200)
+  @RequirePermission("payroll.manage")
+  release(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(payRunSchema, body);
+    return this.tenantDb.run((tx) => this.payroll.release(tx, id, input));
   }
 
   @Get("payslips/:id/pdf")

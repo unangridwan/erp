@@ -69,6 +69,7 @@ export class ContractService {
         name,
         contractType: input.contractType,
         wageType: input.wageType,
+        taxMethod: input.taxMethod,
         dateStart: input.dateStart,
         dateEnd: input.dateEnd ?? null,
         wage: input.wage,

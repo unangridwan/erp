@@ -1435,3 +1435,40 @@ img.record-avatar {
   border: 1px dashed var(--border);
   border-radius: 4px;
 }
+
+/* Peringatan payroll & payroll koreksi */
+.payroll-warnings {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 8px 0;
+}
+.payroll-warnings summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.payroll-warnings ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  columns: 2 320px;
+}
+.payroll-warnings li.error {
+  color: var(--danger);
+}
+.correction-form fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.correction-form .muted {
+  flex-basis: 100%;
+  margin: 0;
+}
+.slip-actions {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+}

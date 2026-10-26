@@ -4,6 +4,7 @@ import {
   bpjsContributions,
   bpjsProgram,
   computePayslip,
+  GROSS_UP_CODE,
   overtimePay,
   pph21Annual,
   pph21Monthly,
@@ -185,5 +186,42 @@ describe("slip gaji", () => {
     expect(r.lines.find((l) => l.code === "OT")?.amount).toBe("242775");
     expect(r.lines.find((l) => l.code === "UNPAID")?.amount).toBe("-1090909");
     expect(r.deductions).toBe("300000");
+  });
+
+  it("gross-up: tunjangan PPh 21 sama dengan pajaknya, gaji bersih tidak terpotong PPh 21", () => {
+    const r = computePayslip({ ...base, grossUp: true });
+    const allowance = r.lines.find((l) => l.code === GROSS_UP_CODE)!;
+    expect(allowance.category).toBe("allowance");
+    expect(allowance.amount).toBe(r.pph21);
+    expect(Number(r.pph21)).toBeGreaterThan(652_240);
+    // Penghasilan 12,5 jt − iuran BPJS karyawan; PPh 21 ditanggung perusahaan.
+    expect(r.net).toBe(String(12_500_000 - 465_474));
+    // Lapisan TER dihitung dari bruto termasuk tunjangan PPh 21.
+    expect(r.gross).toBe(String(13_044_800 + Number(r.pph21)));
+    // Masa terakhir: tunjangan mengikuti PPh 21 setahun.
+    const final = computePayslip({
+      ...base,
+      grossUp: true,
+      isFinal: true,
+      ytd: { gross: 11 * 13_044_800, pph21: 11 * 652_240, employeePension: 11 * 345_474, months: 11 },
+    });
+    expect(final.lines.find((l) => l.code === GROSS_UP_CODE)?.amount).toBe(final.pph21);
+  });
+
+  it("slip koreksi: PPh 21 atas bruto gabungan masa yang sama dikurangi yang sudah dipotong", () => {
+    const r = computePayslip({
+      ...base,
+      wage: 0,
+      allowances: [{ code: "BONUS", name: "Bonus kurang bayar", amount: 1_000_000 }],
+      correction: true,
+      enrollment: { kes: false, tk: false, jp: false },
+      sameMonth: { gross: 13_044_800, pph21: 652_240, employeePension: 300_000 },
+    });
+    expect(r.lines.some((l) => l.code === "BASIC")).toBe(false);
+    expect(r.employeeBpjs).toBe("0");
+    expect(r.gross).toBe("1000000");
+    const combined = pph21Monthly(14_044_800, "TK/0", true);
+    expect(r.pph21).toBe(String(Number(combined.tax) - 652_240));
+    expect(r.net).toBe(String(1_000_000 - Number(r.pph21)));
   });
 });
