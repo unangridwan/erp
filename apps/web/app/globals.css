@@ -1180,6 +1180,10 @@ code.wrap {
   gap: 16px;
 }
 
+input[type="file"] {
+  max-width: 100%;
+}
+
 /* Form permintaan persetujuan: kotak bergaris, isian selebar form. */
 .request-form {
   align-items: stretch;

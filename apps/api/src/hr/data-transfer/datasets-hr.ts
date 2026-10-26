@@ -925,8 +925,10 @@ const leavesDataset: Dataset = {
     { key: "dateFrom", header: "Dari", group: "Cuti" },
     { key: "dateTo", header: "Sampai", group: "Cuti" },
     { key: "days", header: "Hari", group: "Cuti", numeric: true },
+    { key: "halfDay", header: "Setengah Hari", group: "Cuti" },
     { key: "state", header: "Status", group: "Cuti" },
     { key: "reason", header: "Alasan", group: "Cuti" },
+    { key: "delegateName", header: "Delegasi Tugas", group: "Cuti" },
   ],
   async rows(tx, ctx, query) {
     const L = schema.leaveRequests;
@@ -946,11 +948,19 @@ const leavesDataset: Dataset = {
         ),
       )
       .orderBy(asc(L.dateFrom), asc(E.name));
-    return rows.map(({ l, ...r }) => ({
+    const delegates = new Map(
+      (await tx.select({ id: E.id, name: E.name }).from(E).where(eq(E.companyId, ctx.companyId))).map((e) => [
+        e.id,
+        e.name,
+      ]),
+    );
+    return rows.map(({ l: { attachment: _file, ...l }, ...r }) => ({
       ...l,
       ...r,
       leaveType: n.leaveTypes.get(l.leaveTypeId),
       state: label("leaveState", l.state),
+      halfDay: l.halfDay === "am" ? "Pagi" : l.halfDay === "pm" ? "Siang" : "",
+      delegateName: l.delegateEmployeeId ? (delegates.get(l.delegateEmployeeId) ?? "") : "",
     }));
   },
 };

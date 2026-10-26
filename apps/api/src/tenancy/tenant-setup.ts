@@ -107,11 +107,14 @@ export async function seedTenant(tx: Db, companyName: string): Promise<SeedResul
   await installChart(tx, company!.id);
   await installInventory(tx, company!.id);
   await installPayroll(tx, company!.id);
-  await tx
-    .insert(schema.leaveTypes)
-    .values(
-      DEFAULT_LEAVE_TYPES.map(([name, paid, requiresAllocation]) => ({ name, paid, requiresAllocation })),
-    );
+  await tx.insert(schema.leaveTypes).values(
+    DEFAULT_LEAVE_TYPES.map(([name, paid, requiresAllocation, rules]) => ({
+      name,
+      paid,
+      requiresAllocation,
+      ...rules,
+    })),
+  );
 
   await tx.insert(schema.crmStages).values(
     DEFAULT_STAGES.map(([name, probability, isWon], i) => ({

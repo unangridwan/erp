@@ -21,6 +21,7 @@ import { PurchaseModule } from "./purchase/purchase.module.js";
 import { IntercompanyModule } from "./intercompany/intercompany.module.js";
 import { PortalModule } from "./portal/portal.module.js";
 import { ApprovalRequestModule } from "./hr/approval-request.module.js";
+import { LeaveAccrualModule } from "./hr/leave-accrual.module.js";
 import { ExpenseModule } from "./hr/expense.module.js";
 import { HrModule } from "./hr/hr.module.js";
 import { PerformanceModule } from "./hr/performance.module.js";
@@ -54,6 +55,7 @@ import { UsersService } from "./users/users.service.js";
     HrModule,
     ExpenseModule,
     ApprovalRequestModule,
+    LeaveAccrualModule,
     RecruitmentModule,
     PerformanceModule,
     ProfileModule,

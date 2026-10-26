@@ -1524,7 +1524,12 @@ RESOURCES.push(
     permission: "hr",
     writePermission: "hr.manage",
     group: HR,
-    columns: [{ name: "name", label: L("Nama", "Name") }],
+    columns: [
+      { name: "name", label: L("Nama", "Name") },
+      { name: "paid", label: L("Dibayar", "Paid") },
+      { name: "requiresAllocation", label: L("Pakai saldo", "Uses balance") },
+      { name: "requiresAttachment", label: L("Wajib lampiran", "Attachment") },
+    ],
     fields: [
       name(),
       {
@@ -1533,7 +1538,67 @@ RESOURCES.push(
         type: "boolean",
       },
       { name: "requiresAllocation", label: L("Memakai jatah/saldo", "Requires allocation"), type: "boolean" },
+      { name: "code", label: L("Kode payroll", "Payroll code"), type: "text" },
+      { name: "allowHalfDay", label: L("Boleh setengah hari", "Half days allowed"), type: "boolean" },
+      {
+        name: "maxConsecutiveDays",
+        label: L("Maks. hari per pengajuan (kosong = bebas)", "Max days per request (empty = no limit)"),
+        type: "number",
+      },
+      { name: "allowNegative", label: L("Boleh saldo minus", "Negative balance allowed"), type: "boolean" },
+      {
+        name: "negativeLimit",
+        label: L("Batas saldo minus (hari)", "Negative limit (days)"),
+        type: "number",
+      },
+      {
+        name: "requiresAttachment",
+        label: L("Wajib lampiran (mis. surat dokter)", "Attachment required (e.g. doctor's note)"),
+        type: "boolean",
+      },
+      {
+        name: "countCalendarDays",
+        label: L("Hitung hari kalender (bukan hari kerja)", "Count calendar days (not working days)"),
+        type: "boolean",
+      },
+      {
+        name: "employeeRequestable",
+        label: L("Bisa diajukan karyawan (portal)", "Employees can request (portal)"),
+        type: "boolean",
+      },
       { name: "active", label: L("Aktif", "Active"), type: "boolean" },
+    ],
+  },
+  {
+    path: "leave-block-dates",
+    model: "leave_block_date",
+    title: L("Tanggal Blok Cuti", "Time Off Blackout Dates"),
+    singular: L("Tanggal blok cuti", "Blackout date"),
+    permission: "hr",
+    writePermission: "hr.manage",
+    group: HR,
+    columns: [
+      { name: "dateFrom", label: L("Dari", "From") },
+      { name: "dateTo", label: L("Sampai", "To") },
+      { name: "departmentId", label: L("Departemen", "Department") },
+      { name: "reason", label: L("Alasan", "Reason") },
+    ],
+    fields: [
+      { name: "dateFrom", label: L("Dari", "From"), type: "date", required: true },
+      { name: "dateTo", label: L("Sampai", "To"), type: "date", required: true },
+      {
+        name: "departmentId",
+        label: L("Departemen (kosong = semua)", "Department (empty = all)"),
+        type: "ref",
+        resource: "departments",
+        display: "name",
+      },
+      {
+        name: "reason",
+        label: L("Alasan (tampil ke karyawan)", "Reason (shown to employees)"),
+        type: "text",
+        required: true,
+      },
     ],
   },
   {
