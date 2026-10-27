@@ -19,6 +19,7 @@ export * from "./performance.js";
 export * from "./fleet.js";
 export * from "./rbac.js";
 export * from "./connected-apps.js";
+export * from "./projects.js";
 export {
   daysBetween,
   expiryStatus,

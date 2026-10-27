@@ -60,6 +60,8 @@ export interface Principal {
   companyId: string | undefined;
   permissions: string[];
   companies: { id: string; code: string; name: string; isDefault: boolean }[];
+  /** Aplikasi terhubung pemilik token akun layanan (oauth_clients.id). */
+  clientId?: string;
 }
 
 const MINUTE = 60_000;
@@ -422,6 +424,7 @@ export class AuthService {
         companyId,
         permissions: companyId ? effectivePermissions(grants, companyId) : [],
         companies,
+        ...(claims.typ === "service" && claims.cid ? { clientId: claims.cid } : {}),
       };
     });
   }

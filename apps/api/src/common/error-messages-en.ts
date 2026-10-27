@@ -758,4 +758,17 @@ export const MESSAGES_EN: Record<string, string> = {
   "code_challenge (PKCE) wajib": "code_challenge (PKCE) is required",
   "URL harus https:// (http:// hanya untuk localhost) dan tanpa #":
     "URL must be https:// (http:// only for localhost) without #",
+  // ---- Proyek dari aplikasi terhubung ----
+  "Perusahaan tidak dapat diakses akun layanan aplikasi":
+    "The app's service account cannot access this company",
+  "Proyek belum dikirim ke ERP": "The project has not been sent to the ERP yet",
+  "Task belum dikirim ke ERP": "The task has not been sent to the ERP yet",
+  "Hanya untuk akun layanan aplikasi terhubung": "Only for connected-app service accounts",
+  "externalId tidak valid": "Invalid externalId",
+  "Proyek tidak ditemukan": "Project not found",
+  "Isi employeeId, employeeEmail, atau employeeNumber": "Provide employeeId, employeeEmail or employeeNumber",
+  "Tanggal harus format YYYY-MM-DD": "Dates must use the YYYY-MM-DD format",
+  "Jam maksimal 24 per baris": "At most 24 hours per line",
+  "Jam harus lebih dari 0": "Hours must be greater than 0",
+  "Maksimal 1000 baris per batch": "At most 1000 lines per batch",
 };

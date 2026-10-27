@@ -32,6 +32,7 @@ import { PerformanceAdvancedModule } from "./hr/performance-advanced.module.js";
 import { RecruitmentAdvancedModule } from "./hr/recruitment-advanced.module.js";
 import { NotificationsModule } from "./notifications/notifications.module.js";
 import { FleetModule } from "./fleet/fleet.module.js";
+import { ProjectsModule } from "./projects/projects.module.js";
 import { ApprovalRulesModule } from "./approval-rules/approval-rules.module.js";
 import { RecruitmentModule } from "./hr/recruitment.module.js";
 import { PayrollModule } from "./payroll/payroll.module.js";
@@ -79,6 +80,7 @@ import { WebhookService } from "./oauth/webhook.service.js";
     PerformanceAdvancedModule,
     NotificationsModule,
     FleetModule,
+    ProjectsModule,
     ApprovalRulesModule,
     PerformanceModule,
     ProfileModule,

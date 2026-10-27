@@ -213,7 +213,75 @@ export async function POST(req: Request) {
 Event yang tersedia: `employee.created|updated|archived|reactivated|deleted`,
 `department.created|updated|archived|reactivated|deleted`.
 
-## 5. Menampilkan proyek di ERP
+## 5. Kirim proyek, task, & timesheet ke ERP
 
-Tahap berikutnya (PR terpisah): aplikasi proyek mengirim proyek, anggota, task, dan timesheet ke ERP memakai akun
-layanan, lalu ERP menampilkannya di form karyawan (tab _Proyek_) dan portal karyawan.
+Agar ERP menampilkan proyek yang sedang dikerjakan karyawan (form karyawan › tab **Proyek**, SDM › **Proyek**, dan
+portal karyawan › _Proyek saya_), aplikasi mengirim datanya dengan token akun layanan. Peran akun layanan perlu hak
+**Proyek dari aplikasi terhubung** (`project.write`) selain _Karyawan › Lihat_ (`hr.read`).
+
+Semua data dirujuk dengan **id dari aplikasi Anda** (`externalId`), jadi kirim ulang = perbarui (idempoten). Tiap
+aplikasi punya ruang id sendiri. Karyawan dirujuk dengan salah satu: `employeeId` (id ERP dari sinkron/login),
+`employeeEmail` (email kerja atau email akun ERP), atau `employeeNumber`.
+
+```ts
+// lib/erp.ts (lanjutan): kirim JSON dengan token akun layanan
+async function erpSend(method: "PUT" | "POST", path: string, body: unknown) {
+  const res = await fetch(`${process.env.ERP_ISSUER}${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${await serviceToken()}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`ERP ${path}: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+const erpPut = (path: string, body: unknown) => erpSend("PUT", path, body);
+const erpPost = (path: string, body: unknown) => erpSend("POST", path, body);
+
+// Proyek + anggota (daftar anggota mengganti yang lama; tidak dikirim = tidak diubah)
+await erpPut(`/integrations/projects/${project.id}`, {
+  name: project.name,
+  code: project.code, // opsional
+  status: "active", // active | on_hold | done | cancelled
+  startDate: "2026-01-01",
+  endDate: null,
+  url: `https://proyek.perusahaan.co.id/projects/${project.id}`, // tombol "Buka di aplikasi"
+  manager: { employeeEmail: "pm@perusahaan.co.id" },
+  members: [
+    { employeeId: "…", role: "Developer", allocation: 50 },
+    { employeeEmail: "dewi@perusahaan.co.id", role: "QA" },
+  ],
+});
+// → { project, skipped: [{ index, reason: "Karyawan tidak ditemukan" }] }
+
+// Task
+await erpPut(`/integrations/tasks/${task.id}`, {
+  projectExternalId: project.id,
+  title: task.title,
+  status: "in_progress", // todo | in_progress | review | done | cancelled
+  priority: "high", // low | normal | high | urgent
+  assignee: { employeeEmail: "dewi@perusahaan.co.id" },
+  dueDate: "2026-11-15",
+  url: `https://proyek.perusahaan.co.id/tasks/${task.id}`,
+});
+
+// Timesheet (≤ 1000 baris per kiriman; baris yang salah dilaporkan, baris lain tetap tersimpan)
+await erpPost("/integrations/timesheets/batch", {
+  entries: entries.map((e) => ({
+    externalId: e.id,
+    projectExternalId: e.projectId,
+    taskExternalId: e.taskId, // opsional
+    employeeEmail: e.userEmail,
+    date: e.date, // YYYY-MM-DD
+    hours: e.hours, // 0 < jam ≤ 24
+    description: e.note,
+    approved: e.approved,
+  })),
+});
+// → { upserted: 120, errors: [{ index, externalId, reason }] }
+```
+
+Hapus: `DELETE /integrations/projects/:externalId` (ikut menghapus task & timesheet proyek itu),
+`DELETE /integrations/tasks/:externalId`, `DELETE /integrations/timesheets/:externalId`.
+
+Saran: kirim proyek/task saat dibuat atau diubah (event di aplikasi Anda), timesheet per batch berkala (mis. tiap 15
+menit), lalu rekonsiliasi penuh malam hari. Data di ERP hanya untuk ditampilkan; ubah proyek di aplikasi asal.
