@@ -730,4 +730,10 @@ export const MESSAGES_EN: Record<string, string> = {
   "Paket sudah dipakai tenant atau tagihan; nonaktifkan saja":
     "The plan is used by tenants or invoices; deactivate it instead",
   "Kode paket sudah dipakai": "Plan code is already in use",
+  // ---- Form karyawan ----
+  "Karyawan sudah punya akun login": "The employee already has a login account",
+  "Isi email kerja atau email pribadi karyawan terlebih dahulu":
+    "Fill in the employee's work or personal email first",
+  "Email wajib diisi untuk undangan": "An email is required for the invitation",
+  "Maksimal 10 tag": "At most 10 tags",
 };

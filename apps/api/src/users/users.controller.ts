@@ -1,6 +1,16 @@
-import { Body, Controller, Get, Inject, Post } from "@nestjs/common";
-import { and, asc, desc, eq, isNull, schema, type Db } from "@erp/db";
-import { inviteSchema, userCreateSchema } from "@erp/shared";
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Inject,
+  NotFoundException,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from "@nestjs/common";
+import { and, asc, desc, eq, isNull, schema, sql, type Db } from "@erp/db";
+import { employeeInviteSchema, inviteSchema, userCreateSchema } from "@erp/shared";
 import { ActivityService } from "../activity/activity.service.js";
 import { RequirePermission } from "../auth/decorators.js";
 import { hashPassword } from "../auth/password.js";
@@ -129,6 +139,80 @@ export class UsersController {
       text: `Halo ${input.name},\n\nAnda diundang untuk bergabung. Buka tautan berikut untuk membuat password (berlaku ${INVITE_TTL_DAYS} hari):\n\n${link}\n`,
     });
     return invitation;
+  }
+
+  /**
+   * Undang karyawan ke portal (email kerja, atau email pribadi bila kosong). Bila email sudah dipakai user di tenant
+   * ini, karyawan langsung ditautkan ke user tersebut; selain itu undangan dikirim dan akun ditautkan saat diterima.
+   */
+  @Post("employees/:id/invite")
+  @RequirePermission("user.write")
+  async inviteEmployee(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(employeeInviteSchema, body ?? {});
+    const { tenantId, userId, companyId } = currentContext();
+    const { token, hash } = issueTenantToken(tenantId);
+    const result = await this.tenantDb.run(async (tx) => {
+      const E = schema.employees;
+      const [employee] = await tx
+        .select()
+        .from(E)
+        .where(and(eq(E.id, id), eq(E.companyId, companyId)));
+      if (!employee) throw new NotFoundException("Karyawan tidak ditemukan");
+      if (employee.userId) throw new BadRequestException("Karyawan sudah punya akun login");
+      const email = (input.email ?? employee.workEmail ?? employee.personalEmail)?.toLowerCase();
+      if (!email)
+        throw new BadRequestException({
+          message: "Isi email kerja atau email pribadi karyawan terlebih dahulu",
+          errors: [{ path: "workEmail", message: "Email wajib diisi untuk undangan" }],
+        });
+      const [existing] = await tx
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(eq(schema.users.email, email));
+      if (existing) {
+        await tx
+          .update(E)
+          .set({ userId: existing.id, updatedAt: sql`now()` })
+          .where(eq(E.id, id));
+        return { status: "linked" as const, email };
+      }
+      await assertUserLimit(tx);
+      await this.assertRolesDelegable(tx, input.roleIds);
+      for (const roleId of input.roleIds) await assertRefsVisible(tx, { roleId: schema.roles }, { roleId });
+      // Undangan lama yang belum diterima untuk karyawan ini dibatalkan (diganti yang baru).
+      await tx
+        .delete(schema.invitations)
+        .where(and(eq(schema.invitations.employeeId, id), isNull(schema.invitations.acceptedAt)));
+      const [row] = await tx
+        .insert(schema.invitations)
+        .values({
+          name: employee.name,
+          email,
+          roleIds: input.roleIds,
+          companyIds: [employee.companyId],
+          employeeId: id,
+          tokenHash: hash,
+          invitedBy: userId,
+          expiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 86_400_000),
+        })
+        .returning({ expiresAt: schema.invitations.expiresAt });
+      await this.activity.log(tx, {
+        resModel: "employee",
+        resId: id,
+        action: "comment",
+        message: `Undangan portal dikirim ke ${email}`,
+      });
+      return { status: "invited" as const, email, expiresAt: row!.expiresAt, name: employee.name };
+    });
+    if (result.status === "invited") {
+      const link = `${this.config.webOrigin}/accept-invite#token=${encodeURIComponent(token)}`;
+      await this.mailer.send({
+        to: result.email,
+        subject: "Undangan portal karyawan",
+        text: `Halo ${result.name},\n\nAnda diundang ke portal karyawan. Buka tautan berikut untuk membuat password (berlaku ${INVITE_TTL_DAYS} hari):\n\n${link}\n`,
+      });
+    }
+    return result;
   }
 
   @Get("invitations")

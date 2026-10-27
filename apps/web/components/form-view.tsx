@@ -18,7 +18,7 @@ type Values = Record<string, unknown>;
  * Field kosong dihilangkan saat membuat (agar default server berlaku) dan dikirim null saat mengubah
  * (mengosongkan nilai) — kecuali select, yang tidak bisa dikosongkan.
  */
-function toPayload(fields: Field[], values: Values, isNew: boolean): Values {
+export function toPayload(fields: Field[], values: Values, isNew: boolean): Values {
   const entries: [string, unknown][] = [];
   for (const f of fields) {
     const v = values[f.name];
@@ -156,7 +156,7 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
   );
 }
 
-function FieldInput({
+export function FieldInput({
   field,
   value,
   onChange,
