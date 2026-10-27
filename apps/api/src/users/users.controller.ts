@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Inject, Post } from "@nestjs/common";
-import { and, asc, desc, eq, isNull, schema } from "@erp/db";
+import { and, asc, desc, eq, isNull, schema, type Db } from "@erp/db";
 import { inviteSchema, userCreateSchema } from "@erp/shared";
 import { ActivityService } from "../activity/activity.service.js";
 import { RequirePermission } from "../auth/decorators.js";
@@ -12,6 +12,7 @@ import { Mailer } from "../common/mailer.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { CONFIG, type AppConfig } from "../config.js";
+import { AccessService } from "./access.controller.js";
 import { UsersService } from "./users.service.js";
 
 const INVITE_TTL_DAYS = 7;
@@ -22,6 +23,7 @@ export class UsersController {
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(ActivityService) private readonly activity: ActivityService,
     @Inject(UsersService) private readonly users: UsersService,
+    @Inject(AccessService) private readonly access: AccessService,
     @Inject(Mailer) private readonly mailer: Mailer,
     @Inject(CONFIG) private readonly config: AppConfig,
   ) {}
@@ -56,10 +58,13 @@ export class UsersController {
         .from(schema.users)
         .orderBy(asc(schema.users.name));
       const roles = await tx
-        .select({ userId: schema.userRoles.userId, code: schema.roles.code })
+        .select({ userId: schema.userRoles.userId, name: schema.roles.name })
         .from(schema.userRoles)
         .innerJoin(schema.roles, eq(schema.roles.id, schema.userRoles.roleId));
-      return users.map((u) => ({ ...u, roles: roles.filter((r) => r.userId === u.id).map((r) => r.code) }));
+      return users.map((u) => ({
+        ...u,
+        roles: [...new Set(roles.filter((r) => r.userId === u.id).map((r) => r.name))],
+      }));
     });
   }
 
@@ -69,6 +74,7 @@ export class UsersController {
     const input = parse(userCreateSchema, body);
     const passwordHash = await hashPassword(input.password);
     return this.tenantDb.run(async (tx) => {
+      await this.assertRolesDelegable(tx, input.roleIds);
       const user = await this.users.create(tx, { ...input, passwordHash });
       await this.activity.log(tx, { resModel: "user", resId: user.id, action: "create" });
       return user;
@@ -84,6 +90,7 @@ export class UsersController {
     const { token, hash } = issueTenantToken(tenantId);
     const invitation = await this.tenantDb.run(async (tx) => {
       await assertUserLimit(tx);
+      await this.assertRolesDelegable(tx, input.roleIds);
       for (const roleId of input.roleIds) await assertRefsVisible(tx, { roleId: schema.roles }, { roleId });
       for (const companyId of input.companyIds) {
         await assertRefsVisible(tx, { companyId: schema.companies }, { companyId });
@@ -131,11 +138,9 @@ export class UsersController {
     );
   }
 
-  @Get("roles")
-  @RequirePermission("user.read")
-  roles() {
-    return this.tenantDb.run((tx) =>
-      tx.select({ id: schema.roles.id, code: schema.roles.code, name: schema.roles.name }).from(schema.roles),
-    );
+  /** Admin terdelegasi hanya boleh memberi peran yang seluruh haknya ia miliki. */
+  private async assertRolesDelegable(tx: Db, roleIds: string[]) {
+    const perms = await this.access.rolePermissions(tx, roleIds);
+    this.access.assertDelegable([...perms.values()].flat());
   }
 }

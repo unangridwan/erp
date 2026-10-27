@@ -6,7 +6,7 @@ import { api, ApiError, apiRaw } from "../lib/api";
 import { AuthImage } from "./auth-image";
 import { ExportDialog, type ExportChoice } from "./export-dialog";
 import { useI18n } from "../lib/i18n";
-import { canWrite, type Resource } from "../lib/resources";
+import { canExport, canWrite, type Resource } from "../lib/resources";
 import { useMe } from "./me-context";
 
 type Row = Record<string, unknown> & { id: string };
@@ -167,7 +167,9 @@ export function ListView({ resource }: { resource: Resource }) {
           />
         </div>
         <div className="cp-right">
-          {resource.csv && <button onClick={openExport}>{t("list.export")}…</button>}
+          {resource.csv && canExport(me.permissions, resource) && (
+            <button onClick={openExport}>{t("list.export")}…</button>
+          )}
           {resource.csv && writable && (
             <>
               <button onClick={() => fileInput.current?.click()}>{t("list.import")}</button>

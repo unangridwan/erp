@@ -1727,3 +1727,60 @@ img.record-avatar {
 .my-vehicle:last-child {
   border-bottom: 0;
 }
+
+/* ---- RBAC: matriks hak akses ---- */
+.perm-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.perm-search {
+  max-width: 360px;
+  margin-bottom: 4px;
+}
+.perm-matrix details {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: var(--card);
+}
+.perm-matrix summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  cursor: pointer;
+}
+.perm-matrix summary strong {
+  min-width: 200px;
+}
+.perm-levels,
+.perm-specials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.perm-specials {
+  margin: 8px 0;
+}
+.perm-levels label,
+.perm-specials label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+.perm-table td.num,
+.perm-table th.num {
+  text-align: center;
+  width: 64px;
+}
+.perm-table input:disabled:checked {
+  opacity: 0.6;
+}
+@media (max-width: 700px) {
+  .perm-matrix summary strong {
+    min-width: 0;
+    width: 100%;
+  }
+}

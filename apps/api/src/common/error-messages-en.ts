@@ -685,4 +685,31 @@ export const MESSAGES_EN: Record<string, string> = {
   "Tanggal berakhir sebelum tanggal mulai": "End date is before start date",
   "Format nomor polisi tidak valid (mis. B 1234 XYZ)": "Invalid license plate format (e.g. B 1234 XYZ)",
   "Tidak boleh negatif": "Must not be negative",
+  // ---- RBAC ----
+  "Anda tidak dapat memberi atau mencabut hak yang tidak Anda miliki: {}":
+    "You cannot grant or revoke permissions you do not hold: {0}",
+  "Hak akses dan status akun sendiri tidak dapat diubah sendiri":
+    "You cannot change your own access or account status",
+  "Akun ini memiliki hak di atas hak Anda; hanya admin penuh yang dapat mengubahnya":
+    "This account has permissions beyond yours; only a full administrator can change it",
+  "Harus ada minimal satu administrator aktif": "There must be at least one active administrator",
+  "Hak peran Administrator bawaan tidak dapat diubah":
+    "The built-in Administrator role's permissions cannot be changed",
+  "Kode peran bawaan tidak dapat diubah": "The code of a built-in role cannot be changed",
+  "Peran bawaan tidak dapat dihapus": "Built-in roles cannot be deleted",
+  "Peran masih dipakai pengguna; lepaskan dari pengguna terlebih dahulu":
+    "The role is still assigned to users; remove it from them first",
+  "Peran tidak ditemukan": "Role not found",
+  "Tidak dapat memberi akses ke perusahaan yang tidak bisa Anda akses":
+    "You cannot grant access to a company you cannot access",
+  "Perusahaan default harus termasuk yang dipilih":
+    "The default company must be one of the selected companies",
+  "Peran per perusahaan hanya untuk perusahaan yang boleh diakses pengguna ini":
+    "Company-specific roles must target a company this user can access",
+  "Hak khusus per perusahaan hanya untuk perusahaan yang boleh diakses pengguna ini":
+    "Company-specific permissions must target a company this user can access",
+  "Kode 2–40 huruf kecil, angka, - atau _": "Code must be 2–40 lowercase letters, digits, - or _",
+  "Kode peran sudah dipakai": "Role code is already in use",
+  "Kode hak akses tidak dikenal": "Unknown permission code",
+  "Hak admin penuh hanya lewat peran": "Full admin access can only be given through a role",
 };

@@ -16,6 +16,7 @@ export * from "./attendance.js";
 export * from "./recruitment.js";
 export * from "./performance.js";
 export * from "./fleet.js";
+export * from "./rbac.js";
 export {
   daysBetween,
   expiryStatus,

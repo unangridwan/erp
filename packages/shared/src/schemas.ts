@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isValidPlate, normalizePlate } from "./fleet.js";
+import { ALL_PERMISSION_CODES } from "./rbac.js";
 import { CONSOLIDATION_METHODS, ENTITY_TYPES } from "./group.js";
 
 const optionalText = z
@@ -2407,4 +2408,45 @@ export const fleetOdometerSchema = z.object({
 export const fleetSettingsSchema = z.object({
   reminderDays: z.coerce.number().int().min(1).max(365).default(30),
   expenseAccountId: optionalUuid,
+});
+
+// ---- RBAC ----
+
+const permissionCode = z
+  .string()
+  .trim()
+  .refine((c) => c === "*" || ALL_PERMISSION_CODES.has(c), "Kode hak akses tidak dikenal");
+
+export const roleSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9_-]{2,40}$/, "Kode 2–40 huruf kecil, angka, - atau _"),
+  name: z.string().trim().min(2, "Nama wajib diisi").max(120),
+  description: z.string().trim().max(500).nullish(),
+  permissions: z.array(permissionCode).max(2000).default([]),
+});
+
+export const userRolesSchema = z.object({
+  roles: z.array(z.object({ roleId: z.string().uuid(), companyId: z.string().uuid().nullish() })).max(100),
+});
+
+export const userOverridesSchema = z.object({
+  overrides: z
+    .array(
+      z.object({
+        permission: permissionCode.refine((c) => c !== "*", "Hak admin penuh hanya lewat peran"),
+        effect: z.enum(["grant", "deny"]),
+        companyId: z.string().uuid().nullish(),
+        note: z.string().trim().max(300).nullish(),
+      }),
+    )
+    .max(500),
+});
+
+export const userUpdateSchema = z.object({
+  name: z.string().trim().min(2).max(200).optional(),
+  companyIds: z.array(z.string().uuid()).min(1, "Pilih minimal satu perusahaan").optional(),
+  defaultCompanyId: z.string().uuid().optional(),
 });

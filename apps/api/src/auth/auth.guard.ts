@@ -7,7 +7,7 @@ import {
   type ExecutionContext,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { hasPermission, permissionModule, type Permission } from "@erp/shared";
+import { allowedFor, permissionModule, type Permission } from "@erp/shared";
 import type { Request } from "express";
 import { setContext } from "../common/request-context.js";
 import { BillingService } from "../billing/billing.service.js";
@@ -34,15 +34,15 @@ export class AuthGuard implements CanActivate {
     const token = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
     if (!token) throw new UnauthorizedException("Butuh autentikasi");
 
-    const principal = await this.auth.loadPrincipal(await this.auth.verifyToken(token));
+    const requested = req.headers[COMPANY_HEADER];
+    const principal = await this.auth.loadPrincipal(
+      await this.auth.verifyToken(token),
+      typeof requested === "string" && requested ? requested : undefined,
+    );
     if (!principal) throw new UnauthorizedException("User tidak aktif");
 
     const companyIds = principal.companies.map((c) => c.id);
-    const requested = req.headers[COMPANY_HEADER];
-    const companyId =
-      typeof requested === "string" && requested
-        ? requested
-        : (principal.companies.find((c) => c.isDefault) ?? principal.companies[0])?.id;
+    const companyId = principal.companyId;
     if (!companyId || !companyIds.includes(companyId)) {
       throw new ForbiddenException("Tidak punya akses ke perusahaan ini");
     }
@@ -57,7 +57,8 @@ export class AuthGuard implements CanActivate {
     });
 
     const required = this.reflector.getAllAndOverride<Permission | undefined>(REQUIRED_PERMISSION, targets);
-    if (required && !hasPermission(principal.permissions, required)) {
+    // Permission modul diterjemahkan ke fitur pemilik path (mis. hr.read di /applicants → hr.recruitment.read).
+    if (required && !allowedFor(principal.permissions, required, { path: req.path, method: req.method })) {
       throw new ForbiddenException(`Butuh permission ${required}`);
     }
     if (this.reflector.getAllAndOverride<boolean>(PLATFORM_ADMIN, targets)) {
