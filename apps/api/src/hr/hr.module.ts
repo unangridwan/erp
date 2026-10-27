@@ -422,6 +422,8 @@ class EmployeesController {
         goals: number;
         hours: string;
         has_photo: boolean;
+        projects: number;
+        project_hours: string;
       }>(sql`
         select
           (select count(*) from appraisals a where a.employee_id = ${id})::int as appraisals,
@@ -431,7 +433,12 @@ class EmployeesController {
              from attendances a
             where a.employee_id = ${id} and a.check_out is not null and a.state <> 'refused'
               and a.check_in >= ${monthStart}::date) as hours,
-          exists (select 1 from employee_photos p where p.employee_id = ${id}) as has_photo`);
+          exists (select 1 from employee_photos p where p.employee_id = ${id}) as has_photo,
+          (select count(*) from external_projects p
+            where p.status = 'active' and (p.manager_employee_id = ${id}
+              or exists (select 1 from external_project_members m where m.project_id = p.id and m.employee_id = ${id})))::int as projects,
+          (select coalesce(sum(t.hours), 0)::text from external_timesheets t
+            where t.employee_id = ${id} and t.date >= ${monthStart}::date) as project_hours`);
       const [contract] = await tx
         .select()
         .from(C)
@@ -480,6 +487,8 @@ class EmployeesController {
         goals: stats?.goals ?? 0,
         hoursThisMonth: stats?.hours ?? "0",
         hasPhoto: stats?.has_photo ?? false,
+        projects: stats?.projects ?? 0,
+        projectHoursThisMonth: stats?.project_hours ?? "0",
         contract: contract
           ? {
               id: contract.id,

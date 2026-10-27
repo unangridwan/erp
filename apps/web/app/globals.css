@@ -2180,3 +2180,39 @@ fieldset.bare {
 .secret-box input {
   font-family: ui-monospace, monospace;
 }
+
+/* ---- Proyek dari aplikasi terhubung ---- */
+button.stat-button {
+  background: none;
+  border-top: none;
+  border-bottom: none;
+  border-left: none;
+  border-radius: 0;
+  font: inherit;
+  text-align: left;
+}
+.task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.o-dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1rem;
+  margin: 0;
+}
+.o-dl dt {
+  color: var(--muted);
+}
+.o-dl dd {
+  margin: 0;
+}
+/* Tabel lebar di panel proyek bergulir di dalam panel, bukan melebarkan halaman. */
+.proj-panel > .table-wrap,
+.proj-panel > .o-grid {
+  align-self: stretch;
+  max-width: 100%;
+}
