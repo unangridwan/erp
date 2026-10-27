@@ -1,4 +1,4 @@
-import { CORETAX_UOM_CODES, TRX_CODES as CORETAX_TRX_CODES } from "@erp/shared";
+import { allowedFor, CORETAX_UOM_CODES, TRX_CODES as CORETAX_TRX_CODES } from "@erp/shared";
 import { L, type Text } from "./i18n";
 
 /** Definisi tampilan list & form per resource — mirip "view" di Odoo. */
@@ -968,8 +968,25 @@ export const findResource = (path: string) => RESOURCES.find((r) => r.path === p
 /** Permission kosong = cukup login (mis. portal karyawan). */
 export const can = (permissions: string[], perm: string) =>
   perm === "" || permissions.includes("*") || permissions.includes(perm);
+/** Hak per path (modul → fitur pemilik halaman); DELETE butuh aksi hapus, ekspor butuh aksi ekspor. */
+export const canPath = (permissions: string[], perm: string, path: string, method = "GET") =>
+  perm === "" || allowedFor(permissions, perm, { path, method, side: "web" });
 export const canWrite = (permissions: string[], resource: Resource) =>
-  can(permissions, resource.writePermission ?? `${resource.permission}.write`);
+  canPath(
+    permissions,
+    resource.writePermission ?? `${resource.permission}.write`,
+    `/${resource.path}`,
+    "POST",
+  );
+export const canDelete = (permissions: string[], resource: Resource) =>
+  canPath(
+    permissions,
+    resource.writePermission ?? `${resource.permission}.write`,
+    `/${resource.path}`,
+    "DELETE",
+  );
+export const canExport = (permissions: string[], resource: Resource) =>
+  canPath(permissions, `${resource.permission}.read`, `/${resource.path}/export`);
 
 const ACCOUNT_TYPES: [string, Text][] = [
   ["asset_receivable", L("Piutang", "Receivable")],

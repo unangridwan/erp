@@ -1,6 +1,6 @@
 import type { Me } from "./api";
 import { L, type Text } from "./i18n";
-import { can } from "./resources";
+import { canPath } from "./resources";
 
 /** Satu entri menu: tautan langsung, atau dropdown berisi tautan. */
 export interface MenuLink {
@@ -405,6 +405,7 @@ export const APPS: App[] = [
     menu: [
       link("Panduan Awal", "Getting Started", "/onboarding", "company.write"),
       link("Pengguna", "Users", "/settings/users", "user.read"),
+      link("Peran & Hak Akses", "Roles & Permissions", "/settings/roles", "user.read"),
       link("Langganan", "Subscription", "/settings/billing", "billing.manage"),
       link("Keamanan", "Security", "/settings/security", ""),
       link("SSO", "Single Sign-On", "/settings/sso", "settings.manage"),
@@ -438,18 +439,22 @@ function planModule(permission: string) {
 }
 
 /** Menu boleh tampil: user punya permission dan modulnya termasuk paket langganan. */
-export function allowed(me: Me, permission: string) {
+export function allowed(me: Me, permission: string, href = "") {
   const module = planModule(permission);
-  return can(me.permissions, permission) && (!module || me.subscription.modules.includes(module));
+  return canPath(me.permissions, permission, href) && (!module || me.subscription.modules.includes(module));
 }
 
 /** Menu aplikasi yang terlihat untuk user ini (dropdown kosong disembunyikan). */
 export function visibleMenu(me: Me, app: App): MenuEntry[] {
   return app.menu
     .map((entry) =>
-      "items" in entry ? { ...entry, items: entry.items.filter((i) => allowed(me, i.permission)) } : entry,
+      "items" in entry
+        ? { ...entry, items: entry.items.filter((i) => allowed(me, i.permission, i.href)) }
+        : entry,
     )
-    .filter((entry) => ("items" in entry ? entry.items.length > 0 : allowed(me, entry.permission)));
+    .filter((entry) =>
+      "items" in entry ? entry.items.length > 0 : allowed(me, entry.permission, entry.href),
+    );
 }
 
 const links = (app: App) => app.menu.flatMap((e) => ("items" in e ? e.items : [e]));
@@ -458,7 +463,7 @@ const links = (app: App) => app.menu.flatMap((e) => ("items" in e ? e.items : [e
 export function visibleApps(me: Me) {
   return APPS.filter((app) => (!app.platformOnly || me.platformAdmin) && visibleMenu(me, app).length > 0).map(
     (app) => {
-      const permitted = links(app).filter((l) => allowed(me, l.permission));
+      const permitted = links(app).filter((l) => allowed(me, l.permission, l.href));
       const home = permitted.find((l) => l.href === app.home) ?? permitted[0]!;
       return { ...app, home: home.href };
     },

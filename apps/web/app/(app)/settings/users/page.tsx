@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { useMe } from "../../../../components/me-context";
 import { api, ApiError } from "../../../../lib/api";
@@ -88,15 +89,19 @@ export default function UsersPage() {
               <th>{t("auth.email")}</th>
               <th>{t("users.roles")}</th>
               <th>2FA</th>
+              <th>{t("users.status")}</th>
             </tr>
           </thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
-                <td>{u.name}</td>
+                <td>
+                  <Link href={`/settings/users/${u.id}`}>{u.name}</Link>
+                </td>
                 <td>{u.email}</td>
                 <td>{u.roles.join(", ")}</td>
                 <td>{u.twoFactorEnabled ? "✓" : "—"}</td>
+                <td>{u.active ? t("users.active") : <span className="muted">{t("users.inactive")}</span>}</td>
               </tr>
             ))}
           </tbody>

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../lib/api";
 import { useI18n } from "../lib/i18n";
-import { canWrite, type Field, type Resource } from "../lib/resources";
+import { canDelete, canWrite, type Field, type Resource } from "../lib/resources";
 import { Chatter } from "./chatter";
 import { FormExtras } from "./form-extras";
 import { useMe } from "./me-context";
@@ -112,7 +112,7 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
               {saving ? t("form.saving") : t("form.save")}
             </button>
           )}
-          {editable && !isNew && !resource.noDelete && (
+          {editable && !isNew && !resource.noDelete && canDelete(me.permissions, resource) && (
             <button type="button" className="danger" onClick={onDelete}>
               {t("form.delete")}
             </button>

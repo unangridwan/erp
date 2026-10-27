@@ -37,6 +37,9 @@ export const roles = pgTable("roles", {
   tenantId: tenantId(),
   code: text("code").notNull(),
   name: text("name").notNull(),
+  description: text("description"),
+  /** Peran bawaan (admin/user): tidak bisa dihapus; admin tidak bisa diubah haknya. */
+  isSystem: boolean("is_system").notNull().default(false),
   ...audit,
 });
 
@@ -52,19 +55,35 @@ export const rolePermissions = pgTable(
   (t) => [primaryKey({ columns: [t.roleId, t.permission] })],
 );
 
-export const userRoles = pgTable(
-  "user_roles",
-  {
-    tenantId: tenantId(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    roleId: uuid("role_id")
-      .notNull()
-      .references(() => roles.id, { onDelete: "cascade" }),
-  },
-  (t) => [primaryKey({ columns: [t.userId, t.roleId] })],
-);
+export const userRoles = pgTable("user_roles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  roleId: uuid("role_id")
+    .notNull()
+    .references(() => roles.id, { onDelete: "cascade" }),
+  /** null = berlaku di semua perusahaan yang boleh diakses pengguna. */
+  companyId: uuid("company_id"),
+  createdBy: uuid("created_by"),
+  createdAt: audit.createdAt,
+});
+
+/** Hak khusus per akun di atas peran: grant menambah, deny mencabut; company null = semua perusahaan. */
+export const userPermissionOverrides = pgTable("user_permission_overrides", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  permission: text("permission").notNull(),
+  effect: text("effect", { enum: ["grant", "deny"] }).notNull(),
+  companyId: uuid("company_id"),
+  note: text("note"),
+  createdBy: uuid("created_by"),
+  createdAt: audit.createdAt,
+});
 
 export const partners = pgTable("partners", {
   id: uuid("id").primaryKey().defaultRandom(),

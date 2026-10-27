@@ -7,7 +7,14 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { and, eq, gt, isNull, schema, sql, type Db } from "@erp/db";
-import { ALL_PERMISSIONS, type acceptInviteSchema, type LoginInput, type SignupInput } from "@erp/shared";
+import {
+  ALL_PERMISSIONS,
+  effectivePermissions,
+  type AccessGrants,
+  type acceptInviteSchema,
+  type LoginInput,
+  type SignupInput,
+} from "@erp/shared";
 import { SignJWT, jwtVerify } from "jose";
 import { randomUUID } from "node:crypto";
 import type { z } from "zod";
@@ -45,6 +52,8 @@ export interface Principal {
   email: string;
   twoFactorEnabled: boolean;
   platformAdmin: boolean;
+  /** Perusahaan aktif (header X-Company-Id atau default); hak efektif dihitung untuk perusahaan ini. */
+  companyId: string | undefined;
   permissions: string[];
   companies: { id: string; code: string; name: string; isDefault: boolean }[];
 }
@@ -348,8 +357,11 @@ export class AuthService {
     }
   }
 
-  /** Muat user aktif beserta permission dan perusahaan yang boleh diakses. */
-  async loadPrincipal(claims: TokenClaims): Promise<Principal | undefined> {
+  /**
+   * Muat user aktif beserta perusahaan yang boleh diakses dan hak efektifnya di perusahaan aktif (`requestedCompanyId`
+   * atau default): peran yang berlaku di perusahaan itu + tambah/cabut hak per akun.
+   */
+  async loadPrincipal(claims: TokenClaims, requestedCompanyId?: string): Promise<Principal | undefined> {
     return this.tenantDb.runAs(claims.tid, async (tx) => {
       const [user] = await tx
         .select({
@@ -363,12 +375,11 @@ export class AuthService {
         .where(and(eq(schema.users.id, claims.sub), eq(schema.users.active, true)));
       if (!user) return undefined;
 
-      const perms = await tx
-        .selectDistinct({ permission: schema.rolePermissions.permission })
-        .from(schema.rolePermissions)
-        .innerJoin(schema.userRoles, eq(schema.userRoles.roleId, schema.rolePermissions.roleId))
-        .where(eq(schema.userRoles.userId, user.id));
-      const permissions = perms.map((p) => p.permission);
+      const grants = await this.accessGrants(tx, user.id);
+      // Admin ('*') tanpa batas perusahaan otomatis dapat mengakses semua perusahaan dalam grup.
+      const globalAdmin = grants.roles.some(
+        (r) => r.companyId === null && r.permissions.includes(ALL_PERMISSIONS),
+      );
 
       const assigned = await tx
         .select({ companyId: schema.userCompanies.companyId, isDefault: schema.userCompanies.isDefault })
@@ -377,7 +388,6 @@ export class AuthService {
       const defaults = new Set(assigned.filter((a) => a.isDefault).map((a) => a.companyId));
       const allowed = new Set(assigned.map((a) => a.companyId));
 
-      // Admin ('*') otomatis dapat mengakses semua perusahaan dalam grup.
       const companies = (
         await tx
           .select({ id: schema.companies.id, code: schema.companies.code, name: schema.companies.name })
@@ -385,9 +395,10 @@ export class AuthService {
           .where(eq(schema.companies.active, true))
           .orderBy(schema.companies.code)
       )
-        .filter((c) => permissions.includes(ALL_PERMISSIONS) || allowed.has(c.id))
+        .filter((c) => globalAdmin || allowed.has(c.id))
         .map((c) => ({ ...c, isDefault: defaults.has(c.id) }));
 
+      const companyId = requestedCompanyId || (companies.find((c) => c.isDefault) ?? companies[0])?.id;
       return {
         tenantId: claims.tid,
         userId: user.id,
@@ -395,10 +406,39 @@ export class AuthService {
         email: user.email,
         twoFactorEnabled: user.totpEnabled,
         platformAdmin: user.platformAdmin,
-        permissions,
+        companyId,
+        permissions: companyId ? effectivePermissions(grants, companyId) : [],
         companies,
       };
     });
+  }
+
+  /** Peran (per perusahaan) & hak khusus per akun milik seorang user. */
+  async accessGrants(tx: Db, userId: string): Promise<AccessGrants> {
+    const rows = await tx
+      .select({
+        id: schema.userRoles.id,
+        companyId: schema.userRoles.companyId,
+        permission: schema.rolePermissions.permission,
+      })
+      .from(schema.userRoles)
+      .leftJoin(schema.rolePermissions, eq(schema.rolePermissions.roleId, schema.userRoles.roleId))
+      .where(eq(schema.userRoles.userId, userId));
+    const byAssignment = new Map<string, { companyId: string | null; permissions: string[] }>();
+    for (const r of rows) {
+      const a = byAssignment.get(r.id) ?? { companyId: r.companyId, permissions: [] };
+      if (r.permission) a.permissions.push(r.permission);
+      byAssignment.set(r.id, a);
+    }
+    const overrides = await tx
+      .select({
+        permission: schema.userPermissionOverrides.permission,
+        effect: schema.userPermissionOverrides.effect,
+        companyId: schema.userPermissionOverrides.companyId,
+      })
+      .from(schema.userPermissionOverrides)
+      .where(eq(schema.userPermissionOverrides.userId, userId));
+    return { roles: [...byAssignment.values()], overrides };
   }
 
   private async issueSession(

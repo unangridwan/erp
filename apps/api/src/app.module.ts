@@ -41,6 +41,12 @@ import { ConsolidationModule } from "./consolidation/consolidation.module.js";
 import { HealthController } from "./health/health.controller.js";
 import { MasterModule } from "./master/master.module.js";
 import { SequenceController, SequenceService } from "./sequences/sequence.service.js";
+import {
+  AccessService,
+  PermissionsController,
+  RolesController,
+  UserAccessController,
+} from "./users/access.controller.js";
 import { UsersController } from "./users/users.controller.js";
 import { UsersService } from "./users/users.service.js";
 
@@ -82,6 +88,9 @@ import { UsersService } from "./users/users.service.js";
     ActivityController,
     SequenceController,
     UsersController,
+    UserAccessController,
+    RolesController,
+    PermissionsController,
   ],
   providers: [
     AuthService,
@@ -89,6 +98,7 @@ import { UsersService } from "./users/users.service.js";
     ActivityService,
     SequenceService,
     UsersService,
+    AccessService,
     RateLimiter,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_FILTER, useClass: DbExceptionFilter },

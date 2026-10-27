@@ -406,6 +406,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   satu pengemudi aktif + riwayat, odometer (tidak boleh mundur, input pengemudi dari portal), kontrak sewa/asuransi
   (biaya awal + berulang, kedaluwarsa otomatis, perpanjangan), servis → tagihan vendor draft dibebankan ke cabang/unit
   bisnis kendaraan, laporan biaya & tren odometer, pengingat dokumen/kontrak harian lewat notifikasi in-app
+- [x] RBAC lengkap (H1) — peran kustom dengan matriks modul → fitur → aksi (lihat/ekspor/ubah/hapus/kelola) + templat,
+  peran per perusahaan, tambah/cabut hak per akun, hak efektif & sumbernya, admin terdelegasi (anti eskalasi), admin
+  terakhir terlindungi, nonaktif/aktifkan & reset 2FA, riwayat akses + notifikasi; menu & tombol mengikuti hak fitur
+- [ ] RBAC H2 — batas wewenang & aturan persetujuan per jenis dokumen (peran/pengguna, nominal, tahap bertingkat)
 
 ## 5. Roadmap Bertahap
 

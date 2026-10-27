@@ -55,12 +55,14 @@ export const PERMISSIONS = [
   "currency.write",
   "user.read",
   "user.write",
+  /** Membuat/mengubah peran & matriks haknya. */
+  "role.manage",
   "settings.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 export const ALL_PERMISSIONS = "*";
 
-export function hasPermission(granted: readonly string[], required: Permission): boolean {
+export function hasPermission(granted: readonly string[], required: Permission | (string & {})): boolean {
   return granted.includes(ALL_PERMISSIONS) || granted.includes(required);
 }
 
