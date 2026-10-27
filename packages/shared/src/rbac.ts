@@ -423,6 +423,12 @@ export const PERMISSION_CATALOG: readonly ModuleDef[] = [
     features: [],
     specials: [{ code: "role.manage", label: ["Kelola peran", "Manage roles"] }],
   },
+  {
+    key: "approval",
+    label: ["Aturan persetujuan & batas wewenang", "Approval rules & limits"],
+    features: [],
+    specials: [],
+  },
   { key: "settings", label: ["Pengaturan sistem", "System settings"], features: [], specials: [] },
   { key: "billing", label: ["Langganan", "Subscription"], features: [], specials: [] },
 ];

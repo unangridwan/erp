@@ -2193,12 +2193,18 @@ export const approvalCategorySchema = z.object({
   active: z.boolean().default(true),
   approvers: z
     .array(
-      z.object({
-        userId: z.string().uuid(),
-        label: z.string().trim().max(80).nullish(),
-        required: z.boolean().default(true),
-        minAmount: nonNegative(2).nullish(),
-      }),
+      z
+        .object({
+          userId: z.string().uuid().nullish(),
+          roleId: z.string().uuid().nullish(),
+          label: z.string().trim().max(80).nullish(),
+          required: z.boolean().default(true),
+          minAmount: nonNegative(2).nullish(),
+        })
+        .refine((a) => !!a.userId !== !!a.roleId, {
+          message: "Pilih satu: user atau peran",
+          path: ["userId"],
+        }),
     )
     .max(20)
     .default([]),

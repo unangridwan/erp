@@ -1364,7 +1364,9 @@ export const approvalCategoryApprovers = pgTable("approval_category_approvers", 
   tenantId: tenantId(),
   categoryId: uuid("category_id").notNull(),
   sequence: integer("sequence").notNull().default(10),
-  userId: uuid("user_id").notNull(),
+  /** Salah satu: user atau peran (semua pemegang peran itu di perusahaan). */
+  userId: uuid("user_id"),
+  roleId: uuid("role_id"),
   label: text("label"),
   required: boolean("required").notNull().default(true),
   /** Batas nominal DoA: tahap berlaku bila nominal ≥ batas (null = selalu). */
@@ -1405,8 +1407,9 @@ export const approvalRequestSteps = pgTable("approval_request_steps", {
   tenantId: tenantId(),
   requestId: uuid("request_id").notNull(),
   sequence: integer("sequence").notNull(),
-  /** null = diputuskan HR (hr.manage). */
+  /** Kedua approver null = diputuskan HR (hr.manage). */
   approverUserId: uuid("approver_user_id"),
+  approverRoleId: uuid("approver_role_id"),
   label: text("label"),
   required: boolean("required").notNull().default(true),
   state: text("state", { enum: ["pending", "approved", "refused", "skipped"] })
@@ -1428,4 +1431,56 @@ export const approvalDelegations = pgTable("approval_delegations", {
   dateTo: date("date_to").notNull(),
   reason: text("reason"),
   ...audit,
+});
+
+export const APPROVAL_LIMIT_DOC_TYPES = ["purchase_order", "expense_claim", "approval_request"] as const;
+export const APPROVAL_RULE_DOC_TYPES = [
+  "leave_request",
+  "overtime",
+  "expense_claim",
+  "attendance_request",
+  "shift_request",
+  "purchase_order",
+] as const;
+export const APPROVER_TYPES = ["manager", "manager_2", "department_head", "user", "role", "admin"] as const;
+
+/** Batas wewenang per pengguna/peran (keduanya null = default perusahaan); maxAmount null = tanpa batas. */
+export const approvalLimits = pgTable("approval_limits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  docType: text("doc_type", { enum: APPROVAL_LIMIT_DOC_TYPES }).notNull(),
+  categoryId: uuid("category_id"),
+  roleId: uuid("role_id"),
+  userId: uuid("user_id"),
+  maxAmount: numeric("max_amount", { precision: 20, scale: 2 }),
+  note: text("note"),
+  ...audit,
+});
+
+/** Tahap alur persetujuan per jenis dokumen; minValue = tahap berlaku bila nilai dokumen ≥ batas. */
+export const approvalRules = pgTable("approval_rules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  docType: text("doc_type", { enum: APPROVAL_RULE_DOC_TYPES }).notNull(),
+  sequence: integer("sequence").notNull().default(10),
+  approverType: text("approver_type", { enum: APPROVER_TYPES }).notNull(),
+  userId: uuid("user_id"),
+  roleId: uuid("role_id"),
+  minValue: numeric("min_value", { precision: 20, scale: 2 }),
+  label: text("label"),
+  ...audit,
+});
+
+/** Tahap hasil resolve aturan saat dokumen diajukan (approver null = admin jenis dokumen). */
+export const documentApprovalSteps = pgTable("document_approval_steps", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  resModel: text("res_model").notNull(),
+  resId: uuid("res_id").notNull(),
+  step: integer("step").notNull(),
+  approverUserId: uuid("approver_user_id"),
+  approverRoleId: uuid("approver_role_id"),
+  label: text("label"),
 });

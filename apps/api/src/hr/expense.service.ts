@@ -185,6 +185,11 @@ export class ExpenseService {
       action: "comment",
       message: `Klaim ${claim.name} Rp ${d(claim.total).toFixed(0)} diajukan`,
     });
+    const [employee] = await tx
+      .select()
+      .from(schema.employees)
+      .where(eq(schema.employees.id, claim.employeeId));
+    await this.approvals.submitted(tx, "expense_claim", id, employee!, "Klaim", claim.name);
     return this.get(tx, id);
   }
 
@@ -292,7 +297,14 @@ export class ExpenseService {
     if (employee?.userId === ctx.userId) return;
     if (
       claim.state === "confirm" &&
-      (await this.approvals.isApprover(tx, employee!, claim.approvalStep, ctx.userId))
+      (await this.approvals.isApprover(
+        tx,
+        "expense_claim",
+        claim.id,
+        employee!,
+        claim.approvalStep,
+        ctx.userId,
+      ))
     )
       return;
     throw new ForbiddenException("Butuh permission hr.read");

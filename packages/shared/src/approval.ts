@@ -4,7 +4,9 @@ export type ApprovalMode = "sequential" | "parallel";
 export type StepState = "pending" | "approved" | "refused" | "skipped";
 
 export interface CategoryApprover {
-  userId: string;
+  /** Salah satu: user tertentu, atau peran (semua pemegang peran di perusahaan). */
+  userId?: string | null;
+  roleId?: string | null;
   label?: string | null;
   required: boolean;
   /** Batas nominal DoA: tahap berlaku bila nominal ≥ batas; null = selalu. */
@@ -13,8 +15,9 @@ export interface CategoryApprover {
 
 export interface PlannedStep {
   sequence: number;
-  /** null = diputuskan HR. */
+  /** Keduanya null = diputuskan HR. */
   approverUserId: string | null;
+  approverRoleId?: string | null;
   label: string | null;
   required: boolean;
 }
@@ -43,19 +46,31 @@ export function buildApprovalSteps(input: {
       amount < Number(a.minAmount)
     )
       continue;
-    candidates.push({ approverUserId: a.userId, label: a.label ?? null, required: a.required });
+    candidates.push({
+      approverUserId: a.userId ?? null,
+      ...(a.roleId ? { approverRoleId: a.roleId } : {}),
+      label: a.label ?? null,
+      required: a.required,
+    });
   }
-  const seen = new Set<string>();
+  const seen = new Map<string, PlannedStep>();
   const steps: PlannedStep[] = [];
   for (const c of candidates) {
-    if (!c.approverUserId || c.approverUserId === input.requesterUserId) continue;
-    if (seen.has(c.approverUserId)) {
+    const key = c.approverUserId
+      ? `u:${c.approverUserId}`
+      : c.approverRoleId
+        ? `r:${c.approverRoleId}`
+        : null;
+    if (!key || c.approverUserId === input.requesterUserId) continue;
+    const prev = seen.get(key);
+    if (prev) {
       // Penyetuju yang sama muncul lagi: cukup sekali, tapi tetap wajib bila salah satunya wajib.
-      if (c.required) steps.find((s) => s.approverUserId === c.approverUserId)!.required = true;
+      if (c.required) prev.required = true;
       continue;
     }
-    seen.add(c.approverUserId);
-    steps.push({ ...c, sequence: steps.length + 1 });
+    const step: PlannedStep = { ...c, sequence: steps.length + 1 };
+    seen.set(key, step);
+    steps.push(step);
   }
   return steps.length ? steps : [{ sequence: 1, approverUserId: null, label: "HR", required: true }];
 }

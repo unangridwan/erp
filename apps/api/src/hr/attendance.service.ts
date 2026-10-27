@@ -583,6 +583,14 @@ export class AttendanceService {
         createdBy: ctx.userId,
       })
       .returning({ id: AR.id });
+    await this.approvals.submitted(
+      tx,
+      "attendance_request",
+      row!.id,
+      employee,
+      "Koreksi absensi",
+      input.date,
+    );
     return this.getAttendanceRequest(tx, row!.id);
   }
 
@@ -656,7 +664,14 @@ export class AttendanceService {
       const employee = await this.employees.find(tx, row.employeeId);
       const approver =
         row.state === "confirm" &&
-        (await this.approvals.isApprover(tx, employee, row.approvalStep, ctx.userId));
+        (await this.approvals.isApprover(
+          tx,
+          "attendance_request",
+          row.id,
+          employee,
+          row.approvalStep,
+          ctx.userId,
+        ));
       if (employee.userId !== ctx.userId && !approver)
         throw new ForbiddenException("Butuh permission hr.read");
     }
@@ -766,6 +781,14 @@ export class AttendanceService {
         createdBy: ctx.userId,
       })
       .returning({ id: SR.id });
+    await this.approvals.submitted(
+      tx,
+      "shift_request",
+      row!.id,
+      employee,
+      "Tukar shift",
+      `${input.dateFrom} s.d. ${input.dateTo}`,
+    );
     return this.getShiftRequest(tx, row!.id);
   }
 

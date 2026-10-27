@@ -712,4 +712,15 @@ export const MESSAGES_EN: Record<string, string> = {
   "Kode peran sudah dipakai": "Role code is already in use",
   "Kode hak akses tidak dikenal": "Unknown permission code",
   "Hak admin penuh hanya lewat peran": "Full admin access can only be given through a role",
+  // ---- Aturan persetujuan ----
+  "Nominal melebihi batas wewenang Anda ({})": "The amount exceeds your approval limit ({0})",
+  "Tidak bisa menyetujui PO sendiri": "You cannot approve your own purchase order",
+  "Jenis dokumen tidak dikenal": "Unknown document type",
+  "Pilih pengguna": "Select a user",
+  "Pilih peran": "Select a role",
+  "Pilih peran atau pengguna, bukan keduanya": "Select a role or a user, not both",
+  "Pilih satu: user atau peran": "Select one: a user or a role",
+  "Kategori hanya untuk permintaan persetujuan": "Categories only apply to approval requests",
+  "Batas untuk pihak ini sudah ada": "A limit for this party already exists",
+  "Harus angka ≥ 0": "Must be a number ≥ 0",
 };

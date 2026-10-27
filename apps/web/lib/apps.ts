@@ -406,6 +406,7 @@ export const APPS: App[] = [
       link("Panduan Awal", "Getting Started", "/onboarding", "company.write"),
       link("Pengguna", "Users", "/settings/users", "user.read"),
       link("Peran & Hak Akses", "Roles & Permissions", "/settings/roles", "user.read"),
+      link("Aturan Persetujuan", "Approval Rules", "/settings/approval-rules", "approval.manage"),
       link("Langganan", "Subscription", "/settings/billing", "billing.manage"),
       link("Keamanan", "Security", "/settings/security", ""),
       link("SSO", "Single Sign-On", "/settings/sso", "settings.manage"),

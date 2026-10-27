@@ -57,6 +57,8 @@ export const PERMISSIONS = [
   "user.write",
   /** Membuat/mengubah peran & matriks haknya. */
   "role.manage",
+  /** Mengatur alur persetujuan & batas wewenang (Pengaturan › Aturan Persetujuan). */
+  "approval.manage",
   "settings.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];

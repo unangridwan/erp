@@ -1,3 +1,4 @@
+import { NotificationService } from "../notifications/notification.service.js";
 import {
   Body,
   Controller,
@@ -154,9 +155,10 @@ class PurchaseOrdersController {
     });
   }
 
+  /** Penyetuju dicek di service: tahap aturan (pengguna/peran) atau `purchase.approve`. */
   @Post(":id/approve")
   @HttpCode(200)
-  @RequirePermission("purchase.approve")
+  @RequirePermission("purchase.read")
   approve(@Param("id", ParseUUIDPipe) id: string) {
     return this.tenantDb.run(async (tx) => {
       await this.orders.approve(tx, id);
@@ -220,7 +222,14 @@ class ReplenishmentController {
 @Module({
   imports: [MasterModule, AccountingModule, InventoryModule, SalesModule],
   controllers: [ProductSuppliersController, PurchaseOrdersController, ReplenishmentController],
-  providers: [ActivityService, SequenceService, PurchaseOrderService, ReplenishmentService, DropshipService],
+  providers: [
+    ActivityService,
+    SequenceService,
+    NotificationService,
+    PurchaseOrderService,
+    ReplenishmentService,
+    DropshipService,
+  ],
   exports: [PurchaseOrderService],
 })
 export class PurchaseModule {}
