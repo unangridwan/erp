@@ -2449,6 +2449,7 @@ export const INPUT_TAX_STATE_LABEL: Record<string, Text> = {
 export const SUBSCRIPTION_STATUS_LABEL: Record<string, Text> = {
   trialing: L("Masa uji coba", "Trial"),
   active: L("Aktif", "Active"),
+  complimentary: L("Gratis", "Complimentary"),
   past_due: L("Lewat jatuh tempo", "Past due"),
   cancelling: L("Berakhir di akhir periode", "Ends at period end"),
   expired: L("Berakhir", "Expired"),

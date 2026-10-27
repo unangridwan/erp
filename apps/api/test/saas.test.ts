@@ -205,6 +205,104 @@ describe.skipIf(!hasDb)("Fase 5: langganan SaaS & onboarding", () => {
     });
   });
 
+  describe("admin platform: paket & tenant gratis", () => {
+    // Paket bersifat global (lintas tenant & lintas run test) → kode unik per run.
+    const sfx = Math.random().toString(36).slice(2, 7);
+    const mitraCode = `mitra-${sfx}`;
+    const plan = {
+      code: `promo-${sfx}`,
+      name: "Promo",
+      priceMonthly: "100000",
+      priceYearly: "1000000",
+      maxUsers: 3,
+      maxCompanies: null,
+      modules: ["accounting"],
+      public: false,
+      sort: 90,
+      active: true,
+    };
+
+    it("CRUD paket: kode unik, ubah kode, hapus hanya bila belum dipakai, khusus admin platform", async () => {
+      await a.post("/platform/plans", plan).expect(403);
+      const created = (await ops.post("/platform/plans", plan).expect(201)).body;
+      const dup = await ops.post("/platform/plans", plan).expect(400);
+      expect(dup.body.errors[0].path).toBe("code");
+      const updated = (
+        await ops
+          .put(`/platform/plans/${created.id}`, { ...plan, code: mitraCode, name: "Mitra" })
+          .expect(200)
+      ).body;
+      expect(updated).toMatchObject({ code: mitraCode, name: "Mitra" });
+      const list = (await ops.get("/platform/plans").expect(200)).body as {
+        code: string;
+        tenantCount: number;
+      }[];
+      expect(list.find((p) => p.code === mitraCode)?.tenantCount).toBe(0);
+      expect(list.find((p) => p.code === "enterprise")!.tenantCount).toBeGreaterThan(0);
+      const temp = (await ops.post("/platform/plans", { ...plan, code: `tmp-${sfx}` }).expect(201)).body;
+      await ops.delete(`/platform/plans/${temp.id}`).expect(204);
+      const enterprise = list.find((p) => p.code === "enterprise") as unknown as { id: string };
+      await ops.delete(`/platform/plans/${enterprise.id}`).expect(400);
+    });
+
+    it("tenant gratis: tagihan terbuka dibatalkan, tetap aktif walau uji coba habis, tidak ditagih; cabut → berakhir", async () => {
+      const c = await signup(app, "gratis");
+      const cTenant = (await c.get("/auth/me")).body.tenantId as string;
+      await c.post("/billing/subscribe", { planCode: "starter" }).expect(200);
+      const past = new Date(Date.now() - 86_400_000).toISOString();
+      await ops
+        .patch(`/platform/tenants/${cTenant}/subscription`, { complimentary: true, complimentaryUntil: past })
+        .expect(400);
+      const until = new Date(Date.now() + 90 * 86_400_000).toISOString();
+      await ops
+        .patch(`/platform/tenants/${cTenant}/subscription`, {
+          planCode: mitraCode,
+          trialEndsAt: past,
+          complimentary: true,
+          complimentaryUntil: until,
+          complimentaryNote: "Mitra program UMKM",
+        })
+        .expect(200);
+      const billing = (await c.get("/billing").expect(200)).body;
+      expect(billing.subscription).toMatchObject({ status: "complimentary", complimentary: true });
+      expect(billing.invoices.every((i: { status: string }) => i.status === "void")).toBe(true);
+      const me = (await c.get("/auth/me").expect(200)).body;
+      expect(me.subscription).toMatchObject({ planCode: mitraCode, status: "complimentary", writable: true });
+      await c.post("/partners", { name: "Pelanggan Gratis" }).expect(201);
+      await c.get("/employees").expect(403); // modul SDM tidak termasuk paket Mitra
+      const tenants = (await ops.get("/platform/tenants").expect(200)).body;
+      expect(tenants.find((t: { id: string }) => t.id === cTenant)).toMatchObject({
+        complimentary: true,
+        complimentaryNote: "Mitra program UMKM",
+        planName: "Mitra",
+      });
+      // Penagihan perpanjangan melewati tenant gratis.
+      await ops
+        .patch(`/platform/tenants/${cTenant}/subscription`, {
+          status: "active",
+          currentPeriodEnd: new Date(Date.now() + 2 * 86_400_000).toISOString(),
+        })
+        .expect(200);
+      await ops.post("/platform/billing/run").expect(200);
+      const after = (await c.get("/billing").expect(200)).body.invoices;
+      expect(after.some((i: { status: string }) => i.status === "open")).toBe(false);
+      const mitra = (await ops.get("/platform/plans").expect(200)).body.find(
+        (p: { code: string }) => p.code === mitraCode,
+      );
+      await ops.delete(`/platform/plans/${mitra.id}`).expect(400); // dipakai tenant
+      // Cabut gratis: kembali ke aturan biasa (periode habis → baca saja).
+      await ops
+        .patch(`/platform/tenants/${cTenant}/subscription`, {
+          complimentary: false,
+          currentPeriodEnd: new Date(Date.now() - 10 * 86_400_000).toISOString(),
+        })
+        .expect(200);
+      expect((await c.post("/partners", { name: "Tidak bisa" }).expect(402)).body.subscriptionStatus).toBe(
+        "expired",
+      );
+    });
+  });
+
   describe("onboarding", () => {
     it("checklist, profil perusahaan non-PKP, saldo awal seimbang otomatis", async () => {
       const start = (await a.get("/onboarding").expect(200)).body;

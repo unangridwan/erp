@@ -413,6 +413,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   departemen, pengguna, peran, admin) dengan batas nilai (nominal/hari/jam) untuk cuti, lembur, klaim, koreksi absensi,
   tukar shift & PO; batas wewenang per pengguna/peran (pengguna > peran terbesar > default) untuk PO, klaim, dan
   permintaan generik per kategori; penyetuju kategori berupa peran; simulasi; tab Persetujuan di pengguna & peran
+- [x] Platform SaaS — CRUD paket langganan di `/platform` (harga, batas pengguna/perusahaan, modul, publik/aktif) dan
+  tenant gratis dari admin platform (paket apa pun, tanpa batas waktu atau sampai tanggal, tagihan terbuka dibatalkan,
+  perpanjangan tidak ditagih)
 
 ## 5. Roadmap Bertahap
 

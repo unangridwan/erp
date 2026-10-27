@@ -37,6 +37,11 @@ export const subscriptions = pgTable("subscriptions", {
   currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
   cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  /** Gratis dari admin platform; `complimentaryUntil` null = tanpa batas waktu. */
+  complimentary: boolean("complimentary").notNull().default(false),
+  complimentaryUntil: timestamp("complimentary_until", { withTimezone: true }),
+  complimentaryNote: text("complimentary_note"),
+  complimentaryBy: uuid("complimentary_by"),
   ...audit,
 });
 

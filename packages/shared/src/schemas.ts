@@ -1902,6 +1902,10 @@ export const adminSubscriptionSchema = z.object({
   status: z.enum(["trialing", "active", "cancelled", "suspended"]).optional(),
   trialEndsAt: z.string().datetime({ offset: true }).nullish(),
   currentPeriodEnd: z.string().datetime({ offset: true }).nullish(),
+  /** Beri/cabut langganan gratis; `complimentaryUntil` null = tanpa batas waktu. */
+  complimentary: z.boolean().optional(),
+  complimentaryUntil: z.string().datetime({ offset: true }).nullish(),
+  complimentaryNote: z.string().trim().max(300).nullish(),
 });
 
 // ---- Fase 5b: konsolidasi ----

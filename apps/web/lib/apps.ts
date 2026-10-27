@@ -418,7 +418,7 @@ export const APPS: App[] = [
     home: "/platform",
     prefixes: ["/platform"],
     platformOnly: true,
-    menu: [link("Tenant & Tagihan", "Tenants & Invoices", "/platform", "")],
+    menu: [link("Tenant, Paket & Tagihan", "Tenants, Plans & Invoices", "/platform", "")],
   },
 ];
 

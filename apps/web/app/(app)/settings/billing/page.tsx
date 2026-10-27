@@ -39,6 +39,7 @@ interface Billing {
     trialEndsAt: string | null;
     currentPeriodEnd: string | null;
     cancelAtPeriodEnd: boolean;
+    complimentaryUntil: string | null;
   };
   plan: Plan;
   usage: { users: number; companies: number };
@@ -115,7 +116,14 @@ export default function BillingPage() {
             {l("Uji coba berakhir", "Trial ends")} {date(sub.trialEndsAt, locale)}
           </span>
         )}
-        {sub.currentPeriodEnd && sub.status !== "trialing" && (
+        {sub.status === "complimentary" && (
+          <span>
+            {sub.complimentaryUntil
+              ? `${l("Gratis dari kami sampai", "Free from us until")} ${date(sub.complimentaryUntil, locale)}`
+              : l("Gratis dari kami tanpa batas waktu", "Free from us with no end date")}
+          </span>
+        )}
+        {sub.currentPeriodEnd && sub.status !== "trialing" && sub.status !== "complimentary" && (
           <span>
             {l("Periode sampai", "Period until")} {date(sub.currentPeriodEnd, locale)}
           </span>
@@ -180,23 +188,31 @@ export default function BillingPage() {
                 : l("Perusahaan tanpa batas", "Unlimited companies")}
             </span>
             <span className="small muted">{p.modules.map((m) => MODULE_LABEL[m] ?? m).join(", ")}</span>
-            <button
-              className="primary"
-              onClick={() =>
-                run(async () =>
-                  pay(
-                    await api("/billing/subscribe", {
-                      method: "POST",
-                      body: { planCode: p.code, billingCycle: cycle },
-                    }),
-                  ),
-                )
-              }
-            >
-              {p.code === plan.code && sub.status === "active"
-                ? l("Perpanjang", "Renew")
-                : l("Pilih paket", "Choose")}
-            </button>
+            {Number(cycle === "yearly" ? p.priceYearly : p.priceMonthly) <= 0 ? (
+              <span className="small muted">
+                {p.code === plan.code
+                  ? l("Paket Anda saat ini", "Your current plan")
+                  : l("Hubungi kami untuk paket ini", "Contact us for this plan")}
+              </span>
+            ) : (
+              <button
+                className="primary"
+                onClick={() =>
+                  run(async () =>
+                    pay(
+                      await api("/billing/subscribe", {
+                        method: "POST",
+                        body: { planCode: p.code, billingCycle: cycle },
+                      }),
+                    ),
+                  )
+                }
+              >
+                {p.code === plan.code && sub.status === "active"
+                  ? l("Perpanjang", "Renew")
+                  : l("Pilih paket", "Choose")}
+              </button>
+            )}
           </div>
         ))}
       </div>
