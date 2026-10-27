@@ -29,6 +29,8 @@ export interface AppConfig {
   fx: { frankfurterUrl: string; scheduler: boolean };
   /** Email pengingat HR harian (dokumen kedaluwarsa, kontrak PKWT berakhir). */
   hrReminder: { scheduler: boolean };
+  /** Pengirim webhook aplikasi terhubung (tiap 30 detik). */
+  webhook: { scheduler: boolean };
   /** Token untuk GET /metrics (Prometheus); kosong = endpoint dimatikan. */
   metricsToken: string | null;
   logFormat: "json" | "pretty" | "off";
@@ -71,6 +73,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     hrReminder: {
       scheduler: env.HR_REMINDER_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
+    },
+    webhook: {
+      scheduler: env.WEBHOOK_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
     },
     metricsToken: env.METRICS_TOKEN || null,
     logFormat: (env.LOG_FORMAT as "json" | "pretty" | "off" | undefined) ?? (env.VITEST ? "off" : "pretty"),

@@ -50,6 +50,11 @@ import {
 } from "./users/access.controller.js";
 import { UsersController } from "./users/users.controller.js";
 import { UsersService } from "./users/users.service.js";
+import { ConnectedAppsController } from "./oauth/connected-apps.controller.js";
+import { OAuthController } from "./oauth/oauth.controller.js";
+import { OAuthService } from "./oauth/oauth.service.js";
+import { OidcKeysService } from "./oauth/oidc-keys.service.js";
+import { WebhookService } from "./oauth/webhook.service.js";
 
 @Module({
   imports: [
@@ -93,6 +98,8 @@ import { UsersService } from "./users/users.service.js";
     UserAccessController,
     RolesController,
     PermissionsController,
+    OAuthController,
+    ConnectedAppsController,
   ],
   providers: [
     AuthService,
@@ -101,6 +108,9 @@ import { UsersService } from "./users/users.service.js";
     SequenceService,
     UsersService,
     AccessService,
+    OAuthService,
+    OidcKeysService,
+    WebhookService,
     RateLimiter,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_FILTER, useClass: DbExceptionFilter },

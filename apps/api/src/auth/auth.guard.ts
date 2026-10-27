@@ -16,6 +16,8 @@ import { ALLOW_INACTIVE, IS_PUBLIC, PLATFORM_ADMIN, REQUIRED_PERMISSION } from "
 
 export const COMPANY_HEADER = "x-company-id";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+/** Path yang boleh diakses token login aplikasi (`typ: oauth`): profil & portal karyawan (baca). */
+const OAUTH_USER_PATHS = /^\/(auth\/me|me)(\/|$)/;
 
 /** Guard global: verifikasi JWT, muat principal, tetapkan perusahaan aktif, cek permission. */
 @Injectable()
@@ -34,9 +36,13 @@ export class AuthGuard implements CanActivate {
     const token = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
     if (!token) throw new UnauthorizedException("Butuh autentikasi");
 
+    const claims = await this.auth.verifyToken(token);
+    // Token login aplikasi terhubung hanya untuk membaca profil sendiri; API memakai token akun layanan.
+    if (claims.typ === "oauth" && !(req.method === "GET" && OAUTH_USER_PATHS.test(req.path)))
+      throw new ForbiddenException("Token aplikasi hanya untuk profil; gunakan akun layanan untuk API");
     const requested = req.headers[COMPANY_HEADER];
     const principal = await this.auth.loadPrincipal(
-      await this.auth.verifyToken(token),
+      claims,
       typeof requested === "string" && requested ? requested : undefined,
     );
     if (!principal) throw new UnauthorizedException("User tidak aktif");

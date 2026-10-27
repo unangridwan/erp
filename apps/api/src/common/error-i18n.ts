@@ -119,6 +119,10 @@ const PATTERNS: [RegExp, (...m: string[]) => string | undefined][] = [
     (s) => `Too many attempts. Try again in ${s} seconds.`,
   ],
   [/^Butuh permission (.+)$/, (p) => `Permission required: ${p}`],
+  [
+    /^Anda tidak diizinkan masuk ke (.+); hubungi administrator$/,
+    (n) => `You are not allowed to sign in to ${n}; contact your administrator`,
+  ],
   [/^Mata uang (\S+) tidak dikenal$/, (c) => `Unknown currency ${c}`],
   [/^Mata uang tidak dikenal: (.+)$/, (c) => `Unknown currencies: ${c}`],
   [/^Kurs (\S+) pada\/sebelum (\S+) belum diisi$/, (c, d) => `No ${c} rate on or before ${d}`],

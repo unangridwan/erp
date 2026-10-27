@@ -736,4 +736,26 @@ export const MESSAGES_EN: Record<string, string> = {
     "Fill in the employee's work or personal email first",
   "Email wajib diisi untuk undangan": "An email is required for the invitation",
   "Maksimal 10 tag": "At most 10 tags",
+  // ---- Aplikasi terhubung ----
+  "Aplikasi tidak ditemukan atau nonaktif": "App not found or inactive",
+  "Aplikasi tidak ditemukan": "App not found",
+  "redirect_uri tidak terdaftar untuk aplikasi ini": "redirect_uri is not registered for this app",
+  "post_logout_redirect_uri tidak terdaftar untuk aplikasi ini":
+    "post_logout_redirect_uri is not registered for this app",
+  "Aplikasi ini terdaftar di tenant lain; masuk dengan akun tenant tersebut":
+    "This app belongs to another tenant; sign in with an account of that tenant",
+  "scope harus memuat openid": "scope must include openid",
+  "Akun ini tidak dapat masuk ke aplikasi": "This account cannot sign in to apps",
+  "Token aplikasi hanya untuk profil; gunakan akun layanan untuk API":
+    "App sign-in tokens are for the profile only; use the service account for the API",
+  "Butuh access token": "An access token is required",
+  "Webhook belum diatur": "Webhook is not configured",
+  "Pengiriman webhook tidak ditemukan": "Webhook delivery not found",
+  "updatedSince harus tanggal ISO 8601": "updatedSince must be an ISO 8601 date",
+  "cursor tidak valid": "Invalid cursor",
+  "response_type harus code": "response_type must be code",
+  "code_challenge_method harus S256": "code_challenge_method must be S256",
+  "code_challenge (PKCE) wajib": "code_challenge (PKCE) is required",
+  "URL harus https:// (http:// hanya untuk localhost) dan tanpa #":
+    "URL must be https:// (http:// only for localhost) without #",
 };

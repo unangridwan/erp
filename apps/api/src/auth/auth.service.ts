@@ -31,6 +31,10 @@ import { generateSecret, otpauthUrl, verifyTotp } from "./totp.js";
 export interface TokenClaims {
   sub: string;
   tid: string;
+  /** Token aplikasi terhubung: `oauth` = login user (hanya profil), `service` = akun layanan (API). */
+  typ?: "oauth" | "service";
+  /** id aplikasi terhubung (oauth_clients.id). */
+  cid?: string;
 }
 
 /** Asal permintaan login, dicatat untuk daftar sesi aktif. */
@@ -357,6 +361,9 @@ export class AuthService {
         throw new Error("klaim tidak lengkap");
       // Token portal pelanggan tidak berlaku untuk API internal.
       if (payload.typ === "portal") throw new Error("token portal");
+      if (payload.typ === "oauth" || payload.typ === "service")
+        return { sub: payload.sub, tid: payload.tid, typ: payload.typ, cid: String(payload.cid ?? "") };
+      if (payload.typ !== undefined) throw new Error("jenis token tidak dikenal");
       return { sub: payload.sub, tid: payload.tid };
     } catch {
       throw new UnauthorizedException("Token tidak valid atau kedaluwarsa");

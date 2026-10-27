@@ -1,5 +1,5 @@
 import { ForbiddenException } from "@nestjs/common";
-import { count, eq, schema, sql, type Db } from "@erp/db";
+import { and, count, eq, schema, sql, type Db } from "@erp/db";
 
 /** Batas paket tenant saat ini; dibaca dalam transaksi tenant (RLS membatasi ke langganan sendiri). */
 async function planLimits(tx: Db) {
@@ -19,7 +19,7 @@ export async function assertUserLimit(tx: Db, adding = 1) {
   const [{ n } = { n: 0 }] = await tx
     .select({ n: count() })
     .from(schema.users)
-    .where(eq(schema.users.active, true));
+    .where(and(eq(schema.users.active, true), eq(schema.users.kind, "human")));
   if (n + adding > plan.max_users)
     throw new ForbiddenException(
       `Paket ${plan.name} maksimal ${plan.max_users} pengguna aktif. Tingkatkan paket Anda.`,

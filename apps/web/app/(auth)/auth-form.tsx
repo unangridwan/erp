@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
-import { api, API_URL, ApiError, session, type Session } from "../../lib/api";
+import { api, API_URL, ApiError, pendingNext, safeNext, session, type Session } from "../../lib/api";
 import { LocaleSwitch, useI18n, type MessageKey } from "../../lib/i18n";
 import { ThemeSwitch } from "../../lib/theme";
 
@@ -16,6 +16,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const [busy, setBusy] = useState(false);
   const [tenant, setTenant] = useState("");
   const [sso, setSso] = useState<{ enabled: boolean; label?: string; enforce?: boolean } | null>(null);
+  const [next, setNext] = useState<string | null>(null);
 
   // Kembali dari SSO yang gagal: tampilkan pesannya dan isi ulang tenant.
   useEffect(() => {
@@ -23,6 +24,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     const params = new URLSearchParams(window.location.search);
     if (params.get("ssoError")) setError(params.get("ssoError"));
     if (params.get("tenant")) setTenant(params.get("tenant")!);
+    setNext(safeNext(params.get("next")));
   }, [mode]);
   // Tombol SSO muncul bila tenant mengaktifkannya.
   useEffect(() => {
@@ -47,7 +49,9 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       const result = await api<Session>(`/auth/${mode}`, { method: "POST", body });
       session.clear();
       session.set(result);
-      router.push("/");
+      // Tujuan dari aplikasi terhubung (/oauth/authorize) dibuka ulang penuh agar parameternya terbaca.
+      if (next) window.location.assign(next);
+      else router.push("/");
     } catch (err) {
       if (err instanceof ApiError && err.body.twoFactorRequired && !needCode) {
         setNeedCode(true);
@@ -105,6 +109,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
               type="button"
               className={sso.enforce ? "primary" : ""}
               onClick={() => {
+                pendingNext.set(next);
                 window.location.href = `${API_URL}/auth/sso/start/${encodeURIComponent(tenant.trim())}`;
               }}
             >

@@ -2171,3 +2171,12 @@ fieldset.bare {
     flex: 1;
   }
 }
+
+/* ---- Aplikasi terhubung ---- */
+.secret-box {
+  border-color: #b7791f;
+  margin-bottom: 1rem;
+}
+.secret-box input {
+  font-family: ui-monospace, monospace;
+}

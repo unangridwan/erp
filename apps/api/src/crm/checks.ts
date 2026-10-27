@@ -26,6 +26,7 @@ export async function assertCompanyUser(tx: Db, userId: string, path = "userId")
       and(
         eq(schema.users.id, userId),
         eq(schema.users.active, true),
+        eq(schema.users.kind, "human"),
         eq(schema.userCompanies.companyId, currentContext().companyId),
       ),
     );

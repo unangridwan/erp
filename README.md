@@ -399,6 +399,22 @@ dan `InResponseTo` (ID AuthnRequest yang disimpan terenkripsi di RelayState, seh
 diverifikasi. Login yang dimulai dari IdP (tanpa AuthnRequest) ditolak. Email diambil dari atribut yang dipilih, atribut
 email umum, atau NameID.
 
+### Aplikasi Terhubung (ERP sebagai penyedia login)
+
+| Endpoint                                                                                         | Keterangan                                                                                                    |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `GET /.well-known/openid-configuration`, `GET /oauth/jwks`                                       | Discovery OpenID Connect & kunci publik id_token (RS256, dibuat otomatis)                                     |
+| Web `/oauth/authorize` → `POST /oauth/authorize`, `POST /oauth/token`                            | Authorization code + PKCE S256; token: `authorization_code`, `refresh_token` (berotasi), `client_credentials` |
+| `GET /oauth/userinfo`, `POST /oauth/revoke`, web `/oauth/logout` → `POST /oauth/logout`          | Profil (scope `profile email employee`), cabut refresh token, logout dari aplikasi & ERP                      |
+| `/connected-apps`, `POST /connected-apps/:id/{rotate-secret,rotate-webhook-secret,webhook-test}` | Kelola aplikasi (`integration.manage`, admin penuh): redirect URI, peran boleh masuk, akun layanan, webhook   |
+| `GET /connected-apps/:id/deliveries`, `POST /webhook-deliveries/:id/retry`                       | Log & kirim ulang webhook                                                                                     |
+| `GET /integrations/{employees,departments}?updatedSince=&cursor=&limit=`                         | Sinkron data karyawan/departemen untuk aplikasi (tanpa data sensitif), `hr.read`                              |
+
+Aplikasi lain (mis. manajemen proyek) memakai akun ERP untuk login, token akun layanan (`client_credentials`; hak =
+peran akun layanan) untuk API, dan webhook bertanda tangan HMAC (`X-ERP-Signature`) saat karyawan/departemen berubah.
+Panduan lengkap + contoh Next.js (Auth.js): [docs/integrasi-aplikasi.md](docs/integrasi-aplikasi.md). Pengirim webhook
+berjalan tiap 30 detik (`WEBHOOK_SCHEDULER=off` untuk mematikan).
+
 Pesan error API mengikuti `Accept-Language` (`en` → Inggris; bawaan Indonesia). Seluruh pesan error di kode — exception,
 validasi zod, dan trigger database — punya terjemahan (`apps/api/src/common/error-messages-en.ts`); tes
 `error-i18n-coverage` gagal bila ada pesan baru tanpa terjemahan.

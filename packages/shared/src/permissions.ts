@@ -59,6 +59,8 @@ export const PERMISSIONS = [
   "role.manage",
   /** Mengatur alur persetujuan & batas wewenang (Pengaturan › Aturan Persetujuan). */
   "approval.manage",
+  /** Aplikasi terhubung: klien login (OIDC), akun layanan API, webhook. */
+  "integration.manage",
   "settings.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];

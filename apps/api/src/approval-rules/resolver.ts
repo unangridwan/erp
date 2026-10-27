@@ -120,6 +120,7 @@ export async function roleHolders(tx: Db, roleId: string, companyId: string) {
       and(
         eq(UR.roleId, roleId),
         eq(schema.users.active, true),
+        eq(schema.users.kind, "human"),
         sql`(${UR.companyId} = ${companyId} or (${UR.companyId} is null and (
           exists (select 1 from user_companies uc where uc.user_id = ${UR.userId} and uc.company_id = ${companyId})
           or exists (select 1 from role_permissions rp where rp.role_id = ${UR.roleId} and rp.permission = '*'))))`,
