@@ -1,5 +1,14 @@
-import { Global, Inject, Injectable, Module, type OnApplicationShutdown } from "@nestjs/common";
+import {
+  Global,
+  Inject,
+  Injectable,
+  Logger,
+  Module,
+  type OnApplicationBootstrap,
+  type OnApplicationShutdown,
+} from "@nestjs/common";
 import { createDb, withTenant, type Db } from "@erp/db";
+import { pendingMigrations } from "@erp/db/migrate";
 import { CONFIG, loadConfig, type AppConfig } from "../config.js";
 import { currentContext } from "./request-context.js";
 
@@ -22,8 +31,24 @@ export class TenantDb {
 }
 
 @Injectable()
-class DbLifecycle implements OnApplicationShutdown {
-  constructor(@Inject("PG_CLIENT") private readonly client: { end(): Promise<void> }) {}
+class DbLifecycle implements OnApplicationBootstrap, OnApplicationShutdown {
+  private readonly logger = new Logger("Database");
+
+  constructor(
+    @Inject("PG_CLIENT") private readonly client: { end(): Promise<void> },
+    @Inject(CONFIG) private readonly config: AppConfig,
+  ) {}
+
+  /** Peringatkan bila kode lebih baru dari skema database (mis. `pnpm db:setup` belum dijalankan setelah git pull). */
+  async onApplicationBootstrap() {
+    const pending = await pendingMigrations(this.config.databaseUrl).catch(() => []);
+    if (pending.length)
+      this.logger.error(
+        `Database belum dimigrasi (${pending.length} tertunda: ${pending.join(", ")}). ` +
+          "Hentikan server lalu jalankan `pnpm db:setup`; tanpa itu banyak halaman akan error 500.",
+      );
+  }
+
   async onApplicationShutdown() {
     await this.client.end();
   }
