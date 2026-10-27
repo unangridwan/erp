@@ -99,7 +99,14 @@ export class EmployeeService {
     const filters: (SQL | undefined)[] = [eq(E.companyId, currentContext().companyId)];
     if (query.q) {
       const term = `%${query.q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
-      filters.push(or(ilike(E.name, term), ilike(E.employeeNumber, term), ilike(E.workEmail, term)));
+      filters.push(
+        or(
+          ilike(E.name, term),
+          ilike(E.employeeNumber, term),
+          ilike(E.workEmail, term),
+          sql`array_to_string(${E.tags}, ' ') ilike ${term}`,
+        ),
+      );
     }
     if (query.departmentId) filters.push(eq(E.departmentId, query.departmentId));
     if (query.active !== "all") filters.push(eq(E.active, query.active !== "false"));

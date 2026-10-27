@@ -409,6 +409,99 @@ class EmployeesController {
     return this.tenantDb.run(async (tx) => this.employees.reveal(await this.employees.find(tx, id)));
   }
 
+  /** Ringkasan untuk kepala form karyawan: statistik, kontrak berjalan, status akun portal. */
+  @Get(":id/overview")
+  @RequirePermission("hr.read")
+  overview(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run(async (tx) => {
+      const employee = await this.employees.find(tx, id);
+      const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
+      const [stats] = await tx.execute<{
+        appraisals: number;
+        open_appraisals: number;
+        goals: number;
+        hours: string;
+        has_photo: boolean;
+      }>(sql`
+        select
+          (select count(*) from appraisals a where a.employee_id = ${id})::int as appraisals,
+          (select count(*) from appraisals a where a.employee_id = ${id} and a.state <> 'done')::int as open_appraisals,
+          (select count(*) from performance_goals g where g.employee_id = ${id} and g.state = 'active')::int as goals,
+          (select coalesce(sum(extract(epoch from (a.check_out - a.check_in))) / 3600, 0)::numeric(10,2)::text
+             from attendances a
+            where a.employee_id = ${id} and a.check_out is not null and a.state <> 'refused'
+              and a.check_in >= ${monthStart}::date) as hours,
+          exists (select 1 from employee_photos p where p.employee_id = ${id}) as has_photo`);
+      const [contract] = await tx
+        .select()
+        .from(C)
+        .where(and(eq(C.employeeId, id), eq(C.state, "running")))
+        .orderBy(desc(C.dateStart))
+        .limit(1);
+      let fixedAllowance = "0";
+      if (contract) {
+        const [row] = await tx
+          .select({ total: sql<string>`coalesce(sum(${schema.contractAllowances.amount}), 0)::text` })
+          .from(schema.contractAllowances)
+          .innerJoin(
+            schema.salaryComponents,
+            eq(schema.salaryComponents.id, schema.contractAllowances.componentId),
+          )
+          .where(
+            and(
+              eq(schema.contractAllowances.contractId, contract.id),
+              eq(schema.salaryComponents.fixed, true),
+              eq(schema.salaryComponents.kind, "allowance"),
+            ),
+          );
+        fixedAllowance = row?.total ?? "0";
+      }
+      const [user] = employee.userId
+        ? await tx
+            .select({ id: schema.users.id, name: schema.users.name, email: schema.users.email })
+            .from(schema.users)
+            .where(eq(schema.users.id, employee.userId))
+        : [];
+      const [invitation] = await tx
+        .select({
+          email: schema.invitations.email,
+          expiresAt: schema.invitations.expiresAt,
+          acceptedAt: schema.invitations.acceptedAt,
+          createdAt: schema.invitations.createdAt,
+        })
+        .from(schema.invitations)
+        .where(eq(schema.invitations.employeeId, id))
+        .orderBy(desc(schema.invitations.createdAt))
+        .limit(1);
+      const pending = invitation && !invitation.acceptedAt && invitation.expiresAt > new Date();
+      return {
+        appraisals: stats?.appraisals ?? 0,
+        openAppraisals: stats?.open_appraisals ?? 0,
+        goals: stats?.goals ?? 0,
+        hoursThisMonth: stats?.hours ?? "0",
+        hasPhoto: stats?.has_photo ?? false,
+        contract: contract
+          ? {
+              id: contract.id,
+              name: contract.name,
+              contractType: contract.contractType,
+              wage: contract.wage,
+              wageType: contract.wageType,
+              taxMethod: contract.taxMethod,
+              dateStart: contract.dateStart,
+              dateEnd: contract.dateEnd,
+              fixedAllowance,
+            }
+          : null,
+        account: user
+          ? { status: "linked" as const, userId: user.id, name: user.name, email: user.email }
+          : pending
+            ? { status: "invited" as const, email: invitation.email, expiresAt: invitation.expiresAt }
+            : { status: "none" as const },
+      };
+    });
+  }
+
   @Post()
   @RequirePermission("hr.write")
   create(@Body() body: unknown) {

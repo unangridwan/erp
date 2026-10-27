@@ -289,6 +289,12 @@ export class AuthService {
         .update(schema.invitations)
         .set({ acceptedAt: sql`now()` })
         .where(eq(schema.invitations.id, invitation.id));
+      // Undangan dari data karyawan: tautkan akun baru ke karyawan (bila belum punya akun).
+      if (invitation.employeeId)
+        await tx
+          .update(schema.employees)
+          .set({ userId: user.id, updatedAt: sql`now()` })
+          .where(and(eq(schema.employees.id, invitation.employeeId), isNull(schema.employees.userId)));
       return this.issueSession(tx, { sub: user.id, tid: parsed.tenantId }, meta);
     });
   }

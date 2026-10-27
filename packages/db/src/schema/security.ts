@@ -27,6 +27,8 @@ export const invitations = pgTable("invitations", {
   invitedBy: uuid("invited_by").references(() => users.id, { onDelete: "set null" }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  /** Undangan portal dari data karyawan: akun baru ditautkan ke karyawan ini. */
+  employeeId: uuid("employee_id"),
   createdAt: audit.createdAt,
 });
 

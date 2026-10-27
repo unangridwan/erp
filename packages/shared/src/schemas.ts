@@ -956,7 +956,19 @@ export const employeeSchema = z.object({
     .max(64)
     .nullish()
     .transform((v) => (v ? v : null)),
+  /** Tag bebas; duplikat & spasi dibuang. */
+  tags: z
+    .array(z.string().trim().min(1).max(40))
+    .max(10, "Maksimal 10 tag")
+    .default([])
+    .transform((t) => [...new Set(t)]),
   active: z.boolean().default(true),
+});
+
+/** Undang karyawan ke portal: email kerja/pribadi karyawan bila tidak diisi. */
+export const employeeInviteSchema = z.object({
+  email: z.string().trim().toLowerCase().email().optional(),
+  roleIds: z.array(z.string().uuid()).default([]),
 });
 
 export const salaryComponentSchema = z.object({

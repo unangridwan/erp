@@ -416,6 +416,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] Platform SaaS — CRUD paket langganan di `/platform` (harga, batas pengguna/perusahaan, modul, publik/aktif) dan
   tenant gratis dari admin platform (paket apa pun, tanpa batas waktu atau sampai tanggal, tagihan terbuka dibatalkan,
   perpanjangan tidak ditagih)
+- [x] Form karyawan ala Odoo — foto profil (juga saat membuat karyawan baru), nama besar inline, ikon kontak, tag,
+  tombol statistik, undang ke portal + status akun, tab Kerja/Pribadi/Penggajian/Dokumen & Riwayat/Kinerja/Pengaturan,
+  simpan/buang perubahan, mode baca untuk `hr.read`
 
 ## 5. Roadmap Bertahap
 

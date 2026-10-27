@@ -312,7 +312,7 @@ interface SeveranceRow {
 }
 
 /** Kalkulator & pencatatan hak akhir hubungan kerja (PP 35/2021) dengan PPh 21 final pesangon. */
-function SeverancePanel({ id }: { id: string }) {
+export function SeverancePanel({ id }: { id: string }) {
   const me = useMe();
   const { l, locale } = useI18n();
   const [rows, setRows] = useState<SeveranceRow[]>([]);

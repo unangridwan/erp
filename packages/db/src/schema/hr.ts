@@ -132,6 +132,8 @@ export const employees = pgTable("employees", {
   /** Kode kartu/badge untuk kiosk & mesin absensi. */
   badgeCode: text("badge_code"),
   attendancePinHash: text("attendance_pin_hash"),
+  /** Tag bebas (mis. "Remote", "Gedung B"). */
+  tags: text("tags").array().notNull().default([]),
   active: boolean("active").notNull().default(true),
   ...audit,
 });
