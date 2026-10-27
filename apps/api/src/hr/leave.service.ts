@@ -227,8 +227,16 @@ export class LeaveService {
       action: "comment",
       message: `Pengajuan ${type.name} ${input.dateFrom} s.d. ${input.dateTo} (${days} hari)`,
     });
-    await this.approvals.notifySubmitted(tx, employee, type.name, `${input.dateFrom} s.d. ${input.dateTo}`);
-    return row!;
+    await this.approvals.submitted(
+      tx,
+      "leave_request",
+      row!.id,
+      employee,
+      type.name,
+      `${input.dateFrom} s.d. ${input.dateTo}`,
+    );
+    const [fresh] = await tx.select(REQUEST_COLUMNS).from(R).where(eq(R.id, row!.id));
+    return fresh!;
   }
 
   /**
@@ -350,7 +358,14 @@ export class LeaveService {
       const employee = await this.employees.find(tx, row.employeeId);
       const approver =
         row.state === "confirm" &&
-        (await this.approvals.isApprover(tx, employee, row.approvalStep, ctx.userId));
+        (await this.approvals.isApprover(
+          tx,
+          "leave_request",
+          row.id,
+          employee,
+          row.approvalStep,
+          ctx.userId,
+        ));
       if (employee.userId !== ctx.userId && !approver)
         throw new ForbiddenException("Butuh permission hr.read");
     }

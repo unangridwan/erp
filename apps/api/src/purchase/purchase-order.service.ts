@@ -27,7 +27,9 @@ import {
   addDays,
   computeInvoice,
   hasPermission,
+  limitFor,
   pickSupplier,
+  withinLimit,
   type billFromOrderSchema,
   type purchaseOrderSchema,
 } from "@erp/shared";
@@ -45,6 +47,17 @@ import { uomRatio } from "../master/uom.js";
 import { assertNotTemplate } from "../master/variant.service.js";
 import { renderOrderPdf } from "../sales/order-pdf.js";
 import { SequenceService } from "../sequences/sequence.service.js";
+import { NotificationService } from "../notifications/notification.service.js";
+import {
+  actsForAny,
+  limitsFor,
+  planSteps,
+  roleNames,
+  saveSteps,
+  stepUsers,
+  storedSteps,
+  userRoleIds,
+} from "../approval-rules/resolver.js";
 
 export type PurchaseInput = z.infer<typeof purchaseOrderSchema>;
 export type Order = typeof schema.purchaseOrders.$inferSelect;
@@ -114,6 +127,7 @@ export class PurchaseOrderService implements OnModuleInit {
     @Inject(StockService) private readonly stock: StockService,
     @Inject(FxService) private readonly fx: FxService,
     @Inject(Mailer) private readonly mailer: Mailer,
+    @Inject(NotificationService) private readonly notifications: NotificationService,
   ) {}
 
   onModuleInit() {
@@ -219,7 +233,56 @@ export class PurchaseOrderService implements OnModuleInit {
       .innerJoin(OL, eq(OL.id, schema.accountMoveLines.purchaseLineId))
       .where(eq(OL.orderId, id))
       .orderBy(asc(schema.accountMoves.date));
-    return { ...order, ...extra, lines, taxes, pickings, bills };
+    return {
+      ...order,
+      ...extra,
+      lines,
+      taxes,
+      pickings,
+      bills,
+      approval: await this.approvalInfo(tx, order),
+    };
+  }
+
+  /** Tahap persetujuan PO (aturan) & apakah user login boleh menyetujui. */
+  private async approvalInfo(tx: Db, order: Order) {
+    if (order.state !== "to_approve") return null;
+    const ctx = currentContext();
+    const steps = await storedSteps(tx, "purchase_order", order.id);
+    const names = await roleNames(
+      tx,
+      steps.flatMap((s) => (s.approverRoleId ? [s.approverRoleId] : [])),
+    );
+    const users = new Map(
+      (
+        await tx
+          .select({ id: schema.users.id, name: schema.users.name })
+          .from(schema.users)
+          .where(
+            inArray(
+              schema.users.id,
+              steps.flatMap((s) => (s.approverUserId ? [s.approverUserId] : [])).concat(ctx.userId),
+            ),
+          )
+      ).map((u) => [u.id, u.name]),
+    );
+    return {
+      step: order.approvalStep,
+      levels: order.approvalLevels,
+      steps: steps.map((s) => ({
+        step: s.step,
+        label: s.label,
+        approver: s.approverUserId
+          ? (users.get(s.approverUserId) ?? "—")
+          : s.approverRoleId
+            ? `Peran ${names.get(s.approverRoleId) ?? ""}`.trim()
+            : "Pemegang hak Setujui PO",
+      })),
+      canApprove: await this.canApprove(tx, order).then(
+        () => true,
+        () => false,
+      ),
+    };
   }
 
   async compute(tx: Db, input: PurchaseInput) {
@@ -304,10 +367,13 @@ export class PurchaseOrderService implements OnModuleInit {
   }
 
   /**
-   * Konfirmasi RFQ menjadi PO. Bila total (mata uang perusahaan) melebihi batas persetujuan dan user tidak
-   * punya `purchase.approve`, PO menunggu persetujuan.
+   * Konfirmasi RFQ menjadi PO. Bila Pembelian punya aturan persetujuan, tahapnya dibentuk dari nominal (mata uang
+   * perusahaan). Tanpa aturan: PO di atas batas wewenang pembuat menunggu persetujuan. Batas pembuat = batas
+   * pengguna/peran-nya; tanpa itu pemegang `purchase.approve` tanpa batas, lainnya batas default perusahaan (Aturan
+   * Persetujuan, atau batas di Pengaturan Akuntansi).
    */
   async confirm(tx: Db, id: string) {
+    const ctx = currentContext();
     const order = await this.find(tx, id, true);
     if (order.state !== "draft" && order.state !== "sent")
       throw new BadRequestException("Hanya RFQ yang bisa dikonfirmasi");
@@ -315,34 +381,156 @@ export class PurchaseOrderService implements OnModuleInit {
     if (!lines.some((l) => d(l.quantity).gt(0)))
       throw new BadRequestException("PO harus punya minimal satu baris dengan kuantitas");
     const books = await loadBooks(tx, order.companyId);
-    const limit = books.settings.purchaseApprovalAmount;
-    if (limit !== null && !hasPermission(currentContext().permissions, "purchase.approve")) {
-      const rate = await this.rate(tx, order.currencyCode, books.currencyCode, order.dateOrder);
-      if (d(order.amountTotal).times(rate).gt(limit)) {
-        await tx
-          .update(O)
-          .set({ state: "to_approve", updatedAt: sql`now()` })
-          .where(eq(O.id, id));
-        await this.activity.log(tx, {
-          resModel: "purchase_order",
-          resId: id,
-          action: "update",
-          message: "Menunggu persetujuan",
-        });
-        return "to_approve" as const;
+    const amount = await this.companyAmount(tx, order, books.currencyCode);
+    const requester = order.createdBy ?? ctx.userId;
+    const [employee] = await tx
+      .select()
+      .from(schema.employees)
+      .where(and(eq(schema.employees.userId, requester), eq(schema.employees.companyId, order.companyId)));
+    const steps = await planSteps(tx, {
+      companyId: order.companyId,
+      docType: "purchase_order",
+      value: amount.toFixed(2),
+      employee: employee ?? null,
+      requesterUserId: requester,
+    });
+    let levels = 0;
+    if (steps) {
+      if (steps.length) {
+        await saveSteps(tx, "purchase_order", id, steps);
+        levels = steps.length;
       }
+    } else {
+      const limits = await limitsFor(tx, order.companyId, "purchase_order");
+      const roleIds = await userRoleIds(tx, ctx.userId, order.companyId);
+      const own = limitFor(
+        limits.filter((l) => l.userId || l.roleId),
+        { userId: ctx.userId, roleIds },
+      );
+      const fallback = limitFor(
+        limits.filter((l) => !l.userId && !l.roleId),
+        { userId: ctx.userId, roleIds },
+      );
+      const legacy = books.settings.purchaseApprovalAmount;
+      const limit =
+        own !== undefined
+          ? own
+          : hasPermission(ctx.permissions, "purchase.approve")
+            ? null
+            : fallback !== undefined
+              ? fallback
+              : legacy === null
+                ? undefined
+                : Number(legacy);
+      if (!withinLimit(limit, amount.toFixed(2))) levels = -1;
+    }
+    if (levels !== 0) {
+      await tx
+        .update(O)
+        .set({
+          state: "to_approve",
+          approvalStep: 1,
+          approvalLevels: Math.max(levels, 0),
+          updatedAt: sql`now()`,
+        })
+        .where(eq(O.id, id));
+      await this.activity.log(tx, {
+        resModel: "purchase_order",
+        resId: id,
+        action: "update",
+        message: levels > 0 ? `Menunggu persetujuan (${levels} tahap)` : "Menunggu persetujuan",
+      });
+      await this.notifyApprovers(tx, { ...order, approvalStep: 1, approvalLevels: Math.max(levels, 0) });
+      return "to_approve" as const;
     }
     await this.toPurchase(tx, order, lines, books.currencyCode, null);
     return "purchase" as const;
   }
 
+  /** Setujui tahap berjalan; tahap terakhir menjadikan PO. */
   async approve(tx: Db, id: string) {
-    if (!hasPermission(currentContext().permissions, "purchase.approve"))
-      throw new ForbiddenException("Butuh permission purchase.approve");
+    const ctx = currentContext();
     const order = await this.find(tx, id, true);
     if (order.state !== "to_approve") throw new BadRequestException("PO tidak sedang menunggu persetujuan");
+    const { delegated } = await this.canApprove(tx, order);
     const books = await loadBooks(tx, order.companyId);
-    await this.toPurchase(tx, order, await this.lines(tx, id), books.currencyCode, currentContext().userId);
+    const last = order.approvalStep >= order.approvalLevels;
+    if (last) {
+      // Penyetuju akhir harus punya batas wewenang yang cukup (bila batas pengguna/perannya diatur).
+      const limits = (await limitsFor(tx, order.companyId, "purchase_order")).filter(
+        (l) => l.userId || l.roleId,
+      );
+      const own = limitFor(limits, {
+        userId: ctx.userId,
+        roleIds: await userRoleIds(tx, ctx.userId, order.companyId),
+      });
+      const amount = await this.companyAmount(tx, order, books.currencyCode);
+      if (!withinLimit(own, amount.toFixed(2)))
+        throw new ForbiddenException(
+          `Nominal melebihi batas wewenang Anda (Rp ${Number(own).toLocaleString("id-ID")})`,
+        );
+    }
+    await this.activity.log(tx, {
+      resModel: "purchase_order",
+      resId: id,
+      action: "comment",
+      message: `Tahap ${order.approvalStep}${order.approvalLevels ? `/${order.approvalLevels}` : ""} disetujui${
+        delegated ? " sebagai delegasi" : ""
+      }`,
+    });
+    if (!last) {
+      await tx
+        .update(O)
+        .set({ approvalStep: order.approvalStep + 1, updatedAt: sql`now()` })
+        .where(eq(O.id, id));
+      await this.notifyApprovers(tx, { ...order, approvalStep: order.approvalStep + 1 });
+      return;
+    }
+    await this.toPurchase(tx, order, await this.lines(tx, id), books.currencyCode, ctx.userId);
+  }
+
+  /** Penyetuju tahap berjalan: pengguna/pemegang peran tahap (atau delegasinya); tahap admin = `purchase.approve`. */
+  private async canApprove(tx: Db, order: Order) {
+    const ctx = currentContext();
+    const step =
+      order.approvalLevels > 0
+        ? (await storedSteps(tx, "purchase_order", order.id)).find((s) => s.step === order.approvalStep)
+        : undefined;
+    if (step && (step.approverUserId || step.approverRoleId)) {
+      const users = (await stepUsers(tx, step, order.companyId)).filter((u) => u !== order.createdBy);
+      const acting = await actsForAny(tx, users, ctx.userId);
+      if (!acting.ok) throw new ForbiddenException("Menunggu persetujuan penyetuju lain pada tahap ini");
+      return acting;
+    }
+    if (!hasPermission(ctx.permissions, "purchase.approve"))
+      throw new ForbiddenException("Butuh permission purchase.approve");
+    if (order.createdBy === ctx.userId && order.approvalLevels > 0)
+      throw new ForbiddenException("Tidak bisa menyetujui PO sendiri");
+    return { ok: true, delegated: false };
+  }
+
+  /** Beri tahu penyetuju tahap berjalan (tahap admin: tidak ada penerima khusus). */
+  private async notifyApprovers(tx: Db, order: Order) {
+    if (order.approvalLevels === 0) return;
+    const step = (await storedSteps(tx, "purchase_order", order.id)).find(
+      (s) => s.step === order.approvalStep,
+    );
+    if (!step) return;
+    const users = (await stepUsers(tx, step, order.companyId)).filter((u) => u !== order.createdBy);
+    await this.notifications.notify(tx, users, {
+      kind: "approval.pending",
+      title: `PO ${order.name} menunggu persetujuan Anda`,
+      body: `Rp ${d(order.amountTotal).toNumber().toLocaleString("id-ID")} ${order.currencyCode}`,
+      link: `/purchase/orders/${order.id}`,
+      companyId: order.companyId,
+    });
+  }
+
+  /** Total PO dalam mata uang perusahaan. */
+  private async companyAmount(tx: Db, order: Order, companyCurrency: string) {
+    return d(order.amountTotal).times(
+      await this.rate(tx, order.currencyCode, companyCurrency, order.dateOrder),
+    );
   }
 
   /** Batalkan PO; ditolak bila sudah ada barang diterima atau tagihan. Penerimaan terbuka ikut dibatalkan. */
@@ -388,7 +576,15 @@ export class PurchaseOrderService implements OnModuleInit {
     if (order.state !== "cancel") throw new BadRequestException("Hanya PO batal yang bisa dijadikan draft");
     await tx
       .update(O)
-      .set({ state: "draft", confirmedAt: null, approvedAt: null, approvedBy: null, updatedAt: sql`now()` })
+      .set({
+        state: "draft",
+        confirmedAt: null,
+        approvedAt: null,
+        approvedBy: null,
+        approvalStep: 1,
+        approvalLevels: 0,
+        updatedAt: sql`now()`,
+      })
       .where(eq(O.id, id));
   }
 

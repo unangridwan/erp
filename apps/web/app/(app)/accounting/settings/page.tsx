@@ -125,8 +125,8 @@ export default function AccountingSettingsPage() {
           </label>
           <p className="muted">
             {l(
-              "PO dengan total di atas nilai ini (mata uang perusahaan) harus disetujui user ber-hak purchase.approve. Kosong = tanpa persetujuan.",
-              "Purchase orders above this total (company currency) need approval by a user with purchase.approve. Empty = no approval.",
+              "Batas default: PO dengan total di atas nilai ini (mata uang perusahaan) harus disetujui user ber-hak purchase.approve. Kosong = tanpa persetujuan. Batas per peran/pengguna dan alur bertingkat diatur di Pengaturan › Aturan Persetujuan.",
+              "Default limit: purchase orders above this total (company currency) need approval by a user with purchase.approve. Empty = no approval. Per-role/user limits and tiered flows are set in Settings › Approval Rules.",
             )}
           </p>
           <button className="primary">{l("Simpan", "Save")}</button>

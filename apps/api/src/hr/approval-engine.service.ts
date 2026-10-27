@@ -22,6 +22,7 @@ import { fieldError } from "../accounting/context.js";
 import { ActivityService } from "../activity/activity.service.js";
 import { currentContext } from "../common/request-context.js";
 import { NotificationService } from "../notifications/notification.service.js";
+import { assertWithinLimit, roleHolders, stepUsers, userRoleIds } from "../approval-rules/resolver.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 
 const CAT = schema.approvalCategories;
@@ -61,17 +62,16 @@ export class ApprovalEngineService {
     const pending = (await this.steps(tx, request.id)).filter((s) => s.state === "pending");
     const first = Math.min(...pending.map((s) => s.sequence));
     const current = mode === "parallel" ? pending : pending.filter((s) => s.sequence === first);
-    await this.notifications.notify(
-      tx,
-      current.map((s) => s.approverUserId),
-      {
-        kind: "approval.pending",
-        title: `Permintaan ${request.number ?? ""} menunggu persetujuan Anda`.replace("  ", " "),
-        body: request.subject,
-        link: `/hr/approval-requests/${request.id}`,
-        companyId: request.companyId,
-      },
-    );
+    const users = new Set<string>();
+    for (const s of current)
+      for (const u of await stepUsers(tx, s, request.companyId)) if (u !== request.requestedBy) users.add(u);
+    await this.notifications.notify(tx, [...users], {
+      kind: "approval.pending",
+      title: `Permintaan ${request.number ?? ""} menunggu persetujuan Anda`.replace("  ", " "),
+      body: request.subject,
+      link: `/hr/approval-requests/${request.id}`,
+      companyId: request.companyId,
+    });
   }
 
   // ---- Delegasi ----
@@ -196,13 +196,16 @@ export class ApprovalEngineService {
         id: APR.id,
         userId: APR.userId,
         userName: schema.users.name,
+        roleId: APR.roleId,
+        roleName: schema.roles.name,
         label: APR.label,
         required: APR.required,
         minAmount: APR.minAmount,
         sequence: APR.sequence,
       })
       .from(APR)
-      .innerJoin(schema.users, eq(schema.users.id, APR.userId))
+      .leftJoin(schema.users, eq(schema.users.id, APR.userId))
+      .leftJoin(schema.roles, eq(schema.roles.id, APR.roleId))
       .where(eq(APR.categoryId, id))
       .orderBy(asc(APR.sequence));
     return { ...category, approvers };
@@ -212,8 +215,18 @@ export class ApprovalEngineService {
     const companyId = currentContext().companyId;
     await this.assertCompanyUsers(
       tx,
-      input.approvers.map((a, i) => ({ path: `approvers.${i}.userId`, id: a.userId })),
+      input.approvers.flatMap((a, i) => (a.userId ? [{ path: `approvers.${i}.userId`, id: a.userId }] : [])),
     );
+    const roleIds = input.approvers.flatMap((a) => (a.roleId ? [a.roleId] : []));
+    if (roleIds.length) {
+      const found = new Set(
+        (
+          await tx.select({ id: schema.roles.id }).from(schema.roles).where(inArray(schema.roles.id, roleIds))
+        ).map((r) => r.id),
+      );
+      const bad = input.approvers.findIndex((a) => a.roleId && !found.has(a.roleId));
+      if (bad >= 0) throw fieldError(`approvers.${bad}.roleId`, "Peran tidak ditemukan");
+    }
     const [dup] = await tx
       .select({ id: CAT.id })
       .from(CAT)
@@ -248,7 +261,8 @@ export class ApprovalEngineService {
         approvers.map((a, i) => ({
           categoryId: categoryId!,
           sequence: (i + 1) * 10,
-          userId: a.userId,
+          userId: a.userId ?? null,
+          roleId: a.roleId ?? null,
           label: a.label ?? null,
           required: a.required,
           minAmount: a.minAmount ?? null,
@@ -328,7 +342,10 @@ export class ApprovalEngineService {
       request.requestedBy === ctx.userId ||
       hasPermission(ctx.permissions, "hr.read") ||
       act !== null ||
-      (await Promise.all(steps.map((s) => this.actsFor(tx, s.approverUserId, ctx.userId)))).some((a) => a.ok);
+      (await Promise.all(steps.map((s) => this.actsFor(tx, s.approverUserId, ctx.userId)))).some(
+        (a) => a.ok,
+      ) ||
+      (await this.myRoleIds(tx)).some((r) => steps.some((s) => s.approverRoleId === r));
     if (!visible) throw new ForbiddenException("Butuh permission hr.read");
     const [requester] = request.requestedBy
       ? await tx
@@ -495,6 +512,14 @@ export class ApprovalEngineService {
     const steps = await this.steps(tx, id);
     const act = await this.actionableStep(tx, request, category, steps);
     if (!act) throw new ForbiddenException("Menunggu persetujuan penyetuju lain pada tahap ini");
+    if (decision === "approved" && request.amount !== null)
+      await assertWithinLimit(tx, {
+        companyId: request.companyId,
+        docType: "approval_request",
+        categoryId: request.categoryId,
+        userId: ctx.userId,
+        amount: request.amount,
+      });
     await tx
       .update(STEP)
       .set({
@@ -560,6 +585,7 @@ export class ApprovalEngineService {
     const hr = hasPermission(ctx.permissions, "hr.manage");
     const delegators = await this.delegatorsOf(tx, ctx.userId);
     const approvers = [ctx.userId, ...delegators];
+    const roles = await this.myRoleIds(tx);
     const candidates = await tx
       .select({ request: REQ, category: CAT })
       .from(REQ)
@@ -572,7 +598,14 @@ export class ApprovalEngineService {
             and (s.approver_user_id in (${sql.join(
               approvers.map((u) => sql`${u}::uuid`),
               sql`, `,
-            )}) ${hr ? sql`or s.approver_user_id is null` : sql``}))`,
+            )}) ${
+              roles.length
+                ? sql`or s.approver_role_id in (${sql.join(
+                    roles.map((r) => sql`${r}::uuid`),
+                    sql`, `,
+                  )})`
+                : sql``
+            } ${hr ? sql`or (s.approver_user_id is null and s.approver_role_id is null)` : sql``}))`,
         ),
       );
     const result = [];
@@ -591,7 +624,7 @@ export class ApprovalEngineService {
           employeeId: request.employeeId,
           step: act.step.sequence,
           levels: steps.filter((s) => s.state !== "skipped").length,
-          mine: act.step.approverUserId !== null,
+          mine: act.step.approverUserId !== null || act.step.approverRoleId !== null,
           delegated: act.delegated,
         });
     }
@@ -647,7 +680,8 @@ export class ApprovalEngineService {
         id: STEP.id,
         sequence: STEP.sequence,
         approverUserId: STEP.approverUserId,
-        approverName: schema.users.name,
+        approverRoleId: STEP.approverRoleId,
+        approverName: sql<string | null>`coalesce(${schema.users.name}, ${schema.roles.name})`,
         label: STEP.label,
         required: STEP.required,
         state: STEP.state,
@@ -659,6 +693,7 @@ export class ApprovalEngineService {
       })
       .from(STEP)
       .leftJoin(schema.users, eq(schema.users.id, STEP.approverUserId))
+      .leftJoin(schema.roles, eq(schema.roles.id, STEP.approverRoleId))
       .leftJoin(D, eq(D.id, STEP.decidedBy))
       .where(eq(STEP.requestId, requestId))
       .orderBy(asc(STEP.sequence));
@@ -677,13 +712,26 @@ export class ApprovalEngineService {
     const open = new Set(requestOutcome(steps, category.approvalMode, category.minApprovals).open);
     const from = delegators ?? (await this.delegatorsOf(tx, ctx.userId));
     const hr = hasPermission(ctx.permissions, "hr.manage");
+    const roles = steps.some((s) => s.approverRoleId) ? await this.myRoleIds(tx) : [];
     for (const step of steps) {
       if (!open.has(step.sequence)) continue;
       if (step.approverUserId === ctx.userId) return { step, delegated: false };
       if (step.approverUserId && from.has(step.approverUserId)) return { step, delegated: true };
+      if (step.approverRoleId) {
+        if (roles.includes(step.approverRoleId)) return { step, delegated: false };
+        const holders = await roleHolders(tx, step.approverRoleId, currentContext().companyId);
+        if (holders.some((h) => from.has(h))) return { step, delegated: true };
+        continue;
+      }
       if (!step.approverUserId && hr) return { step, delegated: false };
     }
     return null;
+  }
+
+  /** Peran user login di perusahaan aktif. */
+  private myRoleIds(tx: Db) {
+    const ctx = currentContext();
+    return userRoleIds(tx, ctx.userId, ctx.companyId);
   }
 
   private canEdit(request: { requestedBy: string | null }) {

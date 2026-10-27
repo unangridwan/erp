@@ -11,6 +11,7 @@ import {
   useCatalog,
   usePermissionLabel,
 } from "../../../../../components/settings/access-panels";
+import { ApprovalSummary } from "../../../../../components/settings/approval-panels";
 import { api } from "../../../../../lib/api";
 import { formatDate } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
@@ -50,7 +51,7 @@ interface LogRow {
   by: string | null;
 }
 
-type Tab = "roles" | "overrides" | "effective" | "log";
+type Tab = "roles" | "overrides" | "effective" | "approvals" | "log";
 
 export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -237,6 +238,7 @@ export default function UserDetailPage() {
             ["roles", l("Peran", "Roles")],
             ["overrides", l("Hak khusus", "Specific permissions")],
             ["effective", l("Hak efektif", "Effective permissions")],
+            ["approvals", l("Persetujuan", "Approvals")],
             ["log", l("Riwayat akses", "Access history")],
           ] as [Tab, string][]
         ).map(([k, t]) => (
@@ -501,6 +503,12 @@ export default function UserDetailPage() {
               denied={current.denied}
             />
           )}
+        </section>
+      )}
+
+      {tab === "approvals" && (
+        <section className="panel">
+          <ApprovalSummary url={`/users/${id}/approvals`} />
         </section>
       )}
 

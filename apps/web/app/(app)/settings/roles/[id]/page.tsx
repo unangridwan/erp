@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { errorText } from "../../../../../components/hr/hr-panels";
 import { useMe } from "../../../../../components/me-context";
 import { PermissionMatrix, useCatalog } from "../../../../../components/settings/access-panels";
+import { ApprovalSummary } from "../../../../../components/settings/approval-panels";
 import { api } from "../../../../../lib/api";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
@@ -159,6 +160,12 @@ export default function RoleFormPage() {
           />
         )}
       </section>
+      {role && editable && (
+        <section className="panel">
+          <h2>{l("Persetujuan", "Approvals")}</h2>
+          <ApprovalSummary url={`/roles/${role.id}/approvals`} />
+        </section>
+      )}
       {role && role.users.length > 0 && (
         <section className="panel">
           <h2>{l("Pengguna dengan peran ini", "Users with this role")}</h2>

@@ -13,7 +13,8 @@ import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
 
 interface Approver {
-  userId: string;
+  /** `u:<id>` (pengguna) atau `r:<id>` (peran). */
+  who: string;
   label: string;
   required: boolean;
   minAmount: string;
@@ -56,16 +57,20 @@ export default function ApprovalCategoryPage() {
   const readOnly = !can(me.permissions, "hr.manage");
   const [form, setForm] = useState<Form | null>(isNew ? EMPTY : null);
   const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
+  const [roles, setRoles] = useState<{ id: string; name: string }[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     api<{ id: string; name: string }[]>("/users/options").then(setUsers, () => setUsers([]));
+    api<{ id: string; name: string }[]>("/roles/options").then(setRoles, () => setRoles([]));
     if (!isNew)
       api<
-        Form & {
-          approvers: (Omit<Approver, "label" | "minAmount"> & {
+        Omit<Form, "approvers"> & {
+          approvers: (Omit<Approver, "who" | "label" | "minAmount"> & {
+            userId: string | null;
+            roleId: string | null;
             label: string | null;
             minAmount: string | null;
           })[];
@@ -76,7 +81,7 @@ export default function ApprovalCategoryPage() {
             ...c,
             description: c.description ?? "",
             approvers: c.approvers.map((a) => ({
-              userId: a.userId,
+              who: a.userId ? `u:${a.userId}` : `r:${a.roleId}`,
               label: a.label ?? "",
               required: a.required,
               minAmount: a.minAmount ? String(Number(a.minAmount)) : "",
@@ -104,7 +109,8 @@ export default function ApprovalCategoryPage() {
           ...form,
           description: form.description || null,
           approvers: form.approvers.map((a) => ({
-            userId: a.userId,
+            userId: a.who.startsWith("u:") ? a.who.slice(2) : null,
+            roleId: a.who.startsWith("r:") ? a.who.slice(2) : null,
             label: a.label || null,
             required: a.required,
             minAmount: a.minAmount || null,
@@ -264,7 +270,7 @@ export default function ApprovalCategoryPage() {
             <thead>
               <tr>
                 <th>#</th>
-                <th>{l("User", "User")}</th>
+                <th>{l("User / peran", "User / role")}</th>
                 <th>{l("Label", "Label")}</th>
                 <th>{l("Wajib", "Required")}</th>
                 <th>{l("Berlaku bila nominal ≥", "Applies when amount ≥")}</th>
@@ -277,17 +283,26 @@ export default function ApprovalCategoryPage() {
                   <td>{i + 1}</td>
                   <td>
                     <select
-                      aria-label={l("User", "User")}
-                      value={a.userId}
-                      onChange={(e) => setApprover(i, { userId: e.target.value })}
+                      aria-label={l("User / peran", "User / role")}
+                      value={a.who}
+                      onChange={(e) => setApprover(i, { who: e.target.value })}
                       required
                     >
                       <option value="">—</option>
-                      {users.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name}
-                        </option>
-                      ))}
+                      <optgroup label={l("Pengguna", "Users")}>
+                        {users.map((u) => (
+                          <option key={u.id} value={`u:${u.id}`}>
+                            {u.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label={l("Peran (semua pemegangnya)", "Role (any holder)")}>
+                        {roles.map((r) => (
+                          <option key={r.id} value={`r:${r.id}`}>
+                            {r.name}
+                          </option>
+                        ))}
+                      </optgroup>
                     </select>
                     {err(`approvers.${i}.userId`)}
                   </td>
@@ -336,7 +351,7 @@ export default function ApprovalCategoryPage() {
             type="button"
             onClick={() =>
               set({
-                approvers: [...form.approvers, { userId: "", label: "", required: true, minAmount: "" }],
+                approvers: [...form.approvers, { who: "", label: "", required: true, minAmount: "" }],
               })
             }
           >

@@ -63,6 +63,13 @@ interface Order {
   billStatus: string;
   receiptStatus: string;
   approvedAt: string | null;
+  /** Tahap persetujuan (bila menunggu persetujuan). */
+  approval: {
+    step: number;
+    levels: number;
+    steps: { step: number; label: string | null; approver: string }[];
+    canApprove: boolean;
+  } | null;
   lines: Line[];
   taxes: { taxId: string; name: string; amount: string }[];
   pickings: { id: string; name: string; state: string; pickingType: string; scheduledDate: string }[];
@@ -300,7 +307,7 @@ export function PurchaseForm({ id }: { id: string }) {
                 </button>
               </>
             )}
-            {order?.state === "to_approve" && can(me.permissions, "purchase.approve") && (
+            {order?.state === "to_approve" && order.approval?.canApprove && (
               <button type="button" className="primary" disabled={busy} onClick={() => action("approve")}>
                 {l("Setujui", "Approve")}
               </button>
@@ -369,12 +376,28 @@ export function PurchaseForm({ id }: { id: string }) {
             </p>
           )}
           {order?.state === "to_approve" && (
-            <p className="notice">
-              {l(
-                "Total pesanan melebihi batas persetujuan; menunggu persetujuan.",
-                "The order total exceeds the approval limit; waiting for approval.",
+            <div className="notice">
+              {order.approval && order.approval.levels > 0 ? (
+                <>
+                  {l("Menunggu persetujuan", "Waiting for approval")} — {l("tahap", "step")}{" "}
+                  {order.approval.step}/{order.approval.levels}
+                  <ol className="approval-steps">
+                    {order.approval.steps.map((s) => (
+                      <li key={s.step} className={s.step === order.approval!.step ? "current" : ""}>
+                        {s.label ? `${s.label} — ` : ""}
+                        {s.approver}
+                        {s.step < order.approval!.step ? " ✓" : ""}
+                      </li>
+                    ))}
+                  </ol>
+                </>
+              ) : (
+                l(
+                  "Total pesanan melebihi batas wewenang pembuat; menunggu persetujuan.",
+                  "The order total exceeds the creator's approval limit; waiting for approval.",
+                )
               )}
-            </p>
+            </div>
           )}
 
           <fieldset className="fields" disabled={!editable}>

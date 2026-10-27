@@ -43,6 +43,17 @@ export class UsersController {
     );
   }
 
+  /** Pilihan peran (id & nama) untuk penyetuju berbasis peran. Tanpa daftar hak. */
+  @Get("roles/options")
+  roleOptions() {
+    return this.tenantDb.run((tx) =>
+      tx
+        .select({ id: schema.roles.id, name: schema.roles.name })
+        .from(schema.roles)
+        .orderBy(asc(schema.roles.name)),
+    );
+  }
+
   @Get("users")
   @RequirePermission("user.read")
   list() {

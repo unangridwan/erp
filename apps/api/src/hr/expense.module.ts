@@ -37,6 +37,7 @@ import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { SequenceService } from "../sequences/sequence.service.js";
+import { ApprovalService } from "./approval.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { ExpenseService } from "./expense.service.js";
 import { HrModule } from "./hr.module.js";
@@ -248,6 +249,7 @@ class PortalExtrasController {
   constructor(
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(EmployeeService) private readonly employees: EmployeeService,
+    @Inject(ApprovalService) private readonly approvals: ApprovalService,
   ) {}
 
   @Get("expense-categories")
@@ -307,7 +309,16 @@ class PortalExtrasController {
           approvalLevels: Math.max(s?.levels ?? 1, 1),
         })
         .returning();
-      return row!;
+      await this.approvals.submitted(
+        tx,
+        "overtime",
+        row!.id,
+        employee,
+        "Lembur",
+        `${input.date} (${input.hours} jam)`,
+      );
+      const [fresh] = await tx.select().from(schema.overtimes).where(eq(schema.overtimes.id, row!.id));
+      return fresh!;
     });
   }
 

@@ -52,7 +52,7 @@ import { parse } from "../common/zod.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { ApprovalEngineService } from "./approval-engine.service.js";
 import { ATTENDANCE_COLUMNS, AttendanceService } from "./attendance.service.js";
-import { ApprovalService, type ApprovalModel } from "./approval.service.js";
+import { ApprovalService, beginApproval, type ApprovalModel } from "./approval.service.js";
 import { NotificationService } from "../notifications/notification.service.js";
 import { ChecklistService } from "./checklist.service.js";
 import { ContractService } from "./contract.service.js";
@@ -252,6 +252,7 @@ const LeaveAllocationsController = createCrudController({
 
 /** Lembur baru menunggu persetujuan bila perusahaan mewajibkannya (pengaturan payroll). */
 export async function applyOvertimeApproval(tx: Db, row: { id: string; companyId?: unknown }) {
+  if (await beginApproval(tx, "overtime", row.id)) return;
   const [s] = await tx
     .select({ levels: schema.payrollSettings.overtimeApprovalLevels })
     .from(schema.payrollSettings)

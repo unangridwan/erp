@@ -409,7 +409,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] RBAC lengkap (H1) — peran kustom dengan matriks modul → fitur → aksi (lihat/ekspor/ubah/hapus/kelola) + templat,
   peran per perusahaan, tambah/cabut hak per akun, hak efektif & sumbernya, admin terdelegasi (anti eskalasi), admin
   terakhir terlindungi, nonaktif/aktifkan & reset 2FA, riwayat akses + notifikasi; menu & tombol mengikuti hak fitur
-- [ ] RBAC H2 — batas wewenang & aturan persetujuan per jenis dokumen (peran/pengguna, nominal, tahap bertingkat)
+- [x] RBAC H2 — batas wewenang & aturan persetujuan per jenis dokumen: alur tahap (atasan, atasan ke-2, kepala
+  departemen, pengguna, peran, admin) dengan batas nilai (nominal/hari/jam) untuk cuti, lembur, klaim, koreksi absensi,
+  tukar shift & PO; batas wewenang per pengguna/peran (pengguna > peran terbesar > default) untuk PO, klaim, dan
+  permintaan generik per kategori; penyetuju kategori berupa peran; simulasi; tab Persetujuan di pengguna & peran
 
 ## 5. Roadmap Bertahap
 

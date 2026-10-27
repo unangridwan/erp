@@ -11,11 +11,85 @@ import { ActivityService } from "../activity/activity.service.js";
 import { currentContext } from "../common/request-context.js";
 import { ApprovalEngineService, hasLeft } from "./approval-engine.service.js";
 import { NotificationService } from "../notifications/notification.service.js";
+import {
+  actsForAny,
+  assertWithinLimit,
+  delegatorsOf,
+  planSteps,
+  roleNames,
+  saveSteps,
+  stepUsers,
+  storedSteps,
+} from "../approval-rules/resolver.js";
 
 export type ApprovalModel =
   "leave_request" | "overtime" | "expense_claim" | "attendance_request" | "shift_request";
 type Model = ApprovalModel;
 type Employee = typeof schema.employees.$inferSelect;
+
+const TABLES = {
+  leave_request: schema.leaveRequests,
+  overtime: schema.overtimes,
+  expense_claim: schema.expenseClaims,
+  attendance_request: schema.attendanceRequests,
+  shift_request: schema.shiftRequests,
+} as const;
+
+/** Penyetuju sebuah tahap: daftar user (langsung/pemegang peran) atau admin (HR) bila kosong. */
+export interface StepApprover {
+  userIds: string[];
+  /** Diputuskan HR (hr.write). */
+  admin: boolean;
+  userId: string | null;
+  roleId: string | null;
+  label: string | null;
+}
+
+/** Atasan ke-`step` karyawan (perilaku tanpa aturan; null = HR). */
+async function legacyApprover(tx: Db, employee: Employee, step: number): Promise<string | null> {
+  if (step >= 3) return null;
+  let current: Employee | undefined = employee;
+  for (let i = 0; i < step; i++) {
+    if (!current?.managerId) return null;
+    [current] = await tx.select().from(schema.employees).where(eq(schema.employees.id, current.managerId));
+  }
+  return current?.userId ?? null;
+}
+
+/**
+ * Terapkan aturan persetujuan (bila jenis dokumen punya aturan) pada dokumen yang baru diajukan: tahap disimpan &
+ * jumlah tahap diganti. Tanpa aturan dokumen tetap memakai tingkat dari pengaturan payroll. Mengembalikan true bila
+ * aturan dipakai.
+ */
+export async function beginApproval(tx: Db, model: Model, id: string) {
+  const table = TABLES[model];
+  const [doc] = await tx.select().from(table).where(eq(table.id, id));
+  if (!doc) return false;
+  const [employee] = await tx.select().from(schema.employees).where(eq(schema.employees.id, doc.employeeId));
+  const value =
+    model === "leave_request"
+      ? (doc as typeof schema.leaveRequests.$inferSelect).days
+      : model === "overtime"
+        ? (doc as typeof schema.overtimes.$inferSelect).hours
+        : model === "expense_claim"
+          ? (doc as typeof schema.expenseClaims.$inferSelect).total
+          : null;
+  const steps = await planSteps(tx, {
+    companyId: doc.companyId,
+    docType: model,
+    value,
+    employee: employee ?? null,
+    requesterUserId: employee?.userId ?? null,
+  });
+  if (!steps) return false;
+  const final = steps.length ? steps : [{ step: 1, approverUserId: null, approverRoleId: null, label: null }];
+  await saveSteps(tx, model, id, final);
+  await tx
+    .update(table)
+    .set({ state: "confirm", approvalStep: 1, approvalLevels: final.length })
+    .where(eq(table.id, id));
+  return true;
+}
 
 /**
  * Persetujuan berjenjang cuti, lembur, dan klaim biaya. Tahap 1 = atasan langsung karyawan, tahap 2 = atasan dari atasan,
@@ -31,9 +105,13 @@ export class ApprovalService {
     @Inject(NotificationService) private readonly notifications: NotificationService,
   ) {}
 
-  /** Beri tahu penyetuju tahap pertama bahwa ada pengajuan baru. */
-  async notifySubmitted(tx: Db, employee: Employee, what: string, label: string) {
-    await this.notifications.notify(tx, [await this.approverFor(tx, employee, 1)], {
+  /**
+   * Dokumen baru diajukan: terapkan aturan persetujuan (bila ada) lalu beri tahu penyetuju tahap pertama.
+   */
+  async submitted(tx: Db, model: Model, id: string, employee: Employee, what: string, label: string) {
+    await beginApproval(tx, model, id);
+    const approver = await this.approverOf(tx, model, id, employee, 1);
+    await this.notifications.notify(tx, approver.userIds, {
       kind: "approval.pending",
       title: `${what} ${employee.name} menunggu persetujuan Anda`,
       body: label,
@@ -58,15 +136,27 @@ export class ApprovalService {
     return model === "leave_request" ? (s?.leave ?? 1) : (s?.overtime ?? 0);
   }
 
-  /** User penyetuju tahap tertentu (null = HR). */
-  async approverFor(tx: Db, employee: Employee, step: number): Promise<string | null> {
-    if (step >= 3) return null;
-    let current: Employee | undefined = employee;
-    for (let i = 0; i < step; i++) {
-      if (!current?.managerId) return null;
-      [current] = await tx.select().from(schema.employees).where(eq(schema.employees.id, current.managerId));
+  /** Penyetuju tahap tertentu: dari tahap aturan yang tersimpan, atau atasan ke-n / HR (tanpa aturan). */
+  async approverOf(
+    tx: Db,
+    model: Model,
+    id: string,
+    employee: Employee,
+    step: number,
+  ): Promise<StepApprover> {
+    const stored = (await storedSteps(tx, model, id)).find((s) => s.step === step);
+    if (stored) {
+      const userIds = (await stepUsers(tx, stored, employee.companyId)).filter((u) => u !== employee.userId);
+      return {
+        userIds,
+        admin: !stored.approverUserId && !stored.approverRoleId,
+        userId: stored.approverUserId,
+        roleId: stored.approverRoleId,
+        label: stored.label,
+      };
     }
-    return current?.userId ?? null;
+    const userId = await legacyApprover(tx, employee, step);
+    return { userIds: userId ? [userId] : [], admin: !userId, userId, roleId: null, label: null };
   }
 
   /** Setujui/tolak tahap berjalan; tahap terakhir yang disetujui menyelesaikan dokumen. */
@@ -80,17 +170,26 @@ export class ApprovalService {
     if (hasLeft(employee!))
       throw new BadRequestException("Karyawan sudah resign; pengajuan tidak bisa diputuskan");
     const ctx = currentContext();
-    const expected = await this.approverFor(tx, employee!, doc.approvalStep);
+    const expected = await this.approverOf(tx, model, id, employee!, doc.approvalStep);
     const hr = hasPermission(ctx.permissions, "hr.write");
-    const acting = await this.engine.actsFor(tx, expected, ctx.userId);
+    const acting = await actsForAny(tx, expected.userIds, ctx.userId);
     if (!acting.ok && !hr)
       throw new ForbiddenException(
-        expected
-          ? "Menunggu persetujuan atasan pada tahap ini"
-          : "Tahap ini disetujui oleh HR (butuh permission hr.write)",
+        expected.admin
+          ? "Tahap ini disetujui oleh HR (butuh permission hr.write)"
+          : "Menunggu persetujuan atasan pada tahap ini",
       );
     if (employee!.userId === ctx.userId && !hr)
       throw new ForbiddenException("Tidak bisa menyetujui pengajuan sendiri");
+    const last = doc.approvalStep >= doc.approvalLevels;
+    // Klaim: penyetuju tahap terakhir harus punya batas wewenang yang cukup (bila batas diatur).
+    if (model === "expense_claim" && decision === "approved" && last)
+      await assertWithinLimit(tx, {
+        companyId: employee!.companyId,
+        docType: "expense_claim",
+        userId: ctx.userId,
+        amount: (doc as { total: string }).total,
+      });
     await tx.insert(schema.approvals).values({
       resModel: model,
       resId: id,
@@ -99,15 +198,8 @@ export class ApprovalService {
       decision,
       note: acting.delegated ? `[delegasi] ${note ?? ""}`.trim() : (note ?? null),
     });
-    const last = doc.approvalStep >= doc.approvalLevels;
     const state = decision === "refused" ? "refused" : last ? "approved" : "confirm";
-    const table = {
-      leave_request: schema.leaveRequests,
-      overtime: schema.overtimes,
-      expense_claim: schema.expenseClaims,
-      attendance_request: schema.attendanceRequests,
-      shift_request: schema.shiftRequests,
-    }[model];
+    const table = TABLES[model];
     await tx
       .update(table)
       .set({
@@ -134,13 +226,17 @@ export class ApprovalService {
     });
     // Keputusan akhir ke karyawan; tahap berikutnya ke penyetuju berikut.
     if (state === "confirm")
-      await this.notifications.notify(tx, [await this.approverFor(tx, employee!, doc.approvalStep + 1)], {
-        kind: "approval.pending",
-        title: `${what} ${employee!.name} menunggu persetujuan Anda`,
-        body: doc.label,
-        link: "/hr/approvals",
-        companyId: employee!.companyId,
-      });
+      await this.notifications.notify(
+        tx,
+        (await this.approverOf(tx, model, id, employee!, doc.approvalStep + 1)).userIds,
+        {
+          kind: "approval.pending",
+          title: `${what} ${employee!.name} menunggu persetujuan Anda`,
+          body: doc.label,
+          link: "/hr/approvals",
+          companyId: employee!.companyId,
+        },
+      );
     else
       await this.notifications.notify(tx, [employee!.userId], {
         kind: `approval.${state}`,
@@ -171,32 +267,44 @@ export class ApprovalService {
       .leftJoin(schema.users, eq(schema.users.id, schema.approvals.userId))
       .where(and(eq(schema.approvals.resModel, model), eq(schema.approvals.resId, id)))
       .orderBy(asc(schema.approvals.createdAt));
-    const approver = doc.state === "confirm" ? await this.approverFor(tx, employee!, doc.approvalStep) : null;
-    const [approverUser] = approver
-      ? await tx.select({ name: schema.users.name }).from(schema.users).where(eq(schema.users.id, approver))
-      : [];
+    let waitingFor: string | null = null;
+    if (doc.state === "confirm") {
+      const approver = await this.approverOf(tx, model, id, employee!, doc.approvalStep);
+      if (approver.userId) {
+        const [user] = await tx
+          .select({ name: schema.users.name })
+          .from(schema.users)
+          .where(eq(schema.users.id, approver.userId));
+        waitingFor = user?.name ?? "HR";
+      } else if (approver.roleId)
+        waitingFor = `Peran ${(await roleNames(tx, [approver.roleId])).get(approver.roleId) ?? ""}`.trim();
+      else waitingFor = "HR";
+      if (approver.label) waitingFor = `${approver.label} (${waitingFor})`;
+    }
     return {
       id,
       state: doc.state,
       step: doc.approvalStep,
       levels: doc.approvalLevels,
-      waitingFor: doc.state === "confirm" ? (approverUser?.name ?? "HR") : null,
+      waitingFor,
       history,
     };
   }
 
   /** `userId` penyetuju tahap berjalan dokumen ini (langsung atau sebagai delegasi). */
-  async isApprover(tx: Db, employee: Employee, step: number, userId: string) {
-    return (await this.engine.actsFor(tx, await this.approverFor(tx, employee, step), userId)).ok;
+  async isApprover(tx: Db, model: Model, id: string, employee: Employee, step: number, userId: string) {
+    return (await actsForAny(tx, (await this.approverOf(tx, model, id, employee, step)).userIds, userId)).ok;
   }
 
   /** Pengajuan yang menunggu keputusan user ini (HR melihat semua yang menunggu), termasuk permintaan generik. */
   async pending(tx: Db) {
     const ctx = currentContext();
     const hr = hasPermission(ctx.permissions, "hr.write");
-    const delegators = await this.engine.delegatorsOf(tx, ctx.userId);
-    const isMine = (approver: string | null) =>
-      approver !== null && (approver === ctx.userId || delegators.has(approver));
+    const delegators = await delegatorsOf(tx, ctx.userId);
+    const isMine = (approver: StepApprover) =>
+      approver.userIds.some((u) => u === ctx.userId || delegators.has(u));
+    const visible = (approver: StepApprover, employee: Employee) =>
+      isMine(approver) || (hr && employee.userId !== ctx.userId) || (hr && approver.admin);
     const leaves = await tx
       .select({ doc: schema.leaveRequests, employee: schema.employees, typeName: schema.leaveTypes.name })
       .from(schema.leaveRequests)
@@ -225,8 +333,8 @@ export class ApprovalService {
       );
     const result = [];
     for (const { doc, employee } of claims) {
-      const approver = await this.approverFor(tx, employee, doc.approvalStep);
-      if (isMine(approver) || (hr && employee.userId !== ctx.userId) || (hr && !approver))
+      const approver = await this.approverOf(tx, "expense_claim", doc.id, employee, doc.approvalStep);
+      if (visible(approver, employee))
         result.push({
           model: "expense_claim" as const,
           id: doc.id,
@@ -238,8 +346,8 @@ export class ApprovalService {
         });
     }
     for (const { doc, employee, typeName } of leaves) {
-      const approver = await this.approverFor(tx, employee, doc.approvalStep);
-      if (isMine(approver) || (hr && employee.userId !== ctx.userId) || (hr && !approver))
+      const approver = await this.approverOf(tx, "leave_request", doc.id, employee, doc.approvalStep);
+      if (visible(approver, employee))
         result.push({
           model: "leave_request" as const,
           id: doc.id,
@@ -251,8 +359,8 @@ export class ApprovalService {
         });
     }
     for (const { doc, employee } of overtimes) {
-      const approver = await this.approverFor(tx, employee, doc.approvalStep);
-      if (isMine(approver) || (hr && employee.userId !== ctx.userId) || (hr && !approver))
+      const approver = await this.approverOf(tx, "overtime", doc.id, employee, doc.approvalStep);
+      if (visible(approver, employee))
         result.push({
           model: "overtime" as const,
           id: doc.id,
@@ -274,8 +382,8 @@ export class ApprovalService {
         ),
       );
     for (const { doc, employee } of corrections) {
-      const approver = await this.approverFor(tx, employee, doc.approvalStep);
-      if (isMine(approver) || (hr && employee.userId !== ctx.userId) || (hr && !approver))
+      const approver = await this.approverOf(tx, "attendance_request", doc.id, employee, doc.approvalStep);
+      if (visible(approver, employee))
         result.push({
           model: "attendance_request" as const,
           id: doc.id,
@@ -302,8 +410,8 @@ export class ApprovalService {
         ),
       );
     for (const { doc, employee, scheduleName } of shifts) {
-      const approver = await this.approverFor(tx, employee, doc.approvalStep);
-      if (isMine(approver) || (hr && employee.userId !== ctx.userId) || (hr && !approver))
+      const approver = await this.approverOf(tx, "shift_request", doc.id, employee, doc.approvalStep);
+      if (visible(approver, employee))
         result.push({
           model: "shift_request" as const,
           id: doc.id,
