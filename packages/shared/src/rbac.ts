@@ -429,6 +429,12 @@ export const PERMISSION_CATALOG: readonly ModuleDef[] = [
     features: [],
     specials: [],
   },
+  {
+    key: "integration",
+    label: ["Aplikasi terhubung (login & API)", "Connected apps (sign-in & API)"],
+    features: [],
+    specials: [],
+  },
   { key: "settings", label: ["Pengaturan sistem", "System settings"], features: [], specials: [] },
   { key: "billing", label: ["Langganan", "Subscription"], features: [], specials: [] },
 ];
@@ -562,6 +568,7 @@ export const ADMIN_ONLY_PERMISSIONS: ReadonlySet<string> = new Set([
   "user.write",
   "user.manage",
   "role.manage",
+  "integration.manage",
   "settings.manage",
   "billing.manage",
 ]);

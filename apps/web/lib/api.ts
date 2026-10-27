@@ -122,7 +122,9 @@ export async function apiRaw(
   }
   if (res.status === 401 && !isPublic && typeof window !== "undefined") {
     session.clear();
-    window.location.href = "/login";
+    // Kembali ke halaman semula setelah masuk lagi.
+    const here = window.location.pathname + window.location.search;
+    window.location.href = here.startsWith("/login") ? "/login" : `/login?next=${encodeURIComponent(here)}`;
   }
   return res;
 }
@@ -159,3 +161,32 @@ export interface Me {
     maxCompanies: number | null;
   };
 }
+
+const NEXT_KEY = "erp.next";
+
+/** Tujuan setelah login (`?next=`): hanya path internal, bukan URL luar. */
+export function safeNext(value: string | null | undefined): string | null {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return null;
+  return value;
+}
+
+/** Simpan tujuan setelah login yang melewati penyedia identitas (SSO) — kembali lewat /login/sso. */
+export const pendingNext = {
+  set(value: string | null) {
+    try {
+      if (value) sessionStorage.setItem(NEXT_KEY, value);
+      else sessionStorage.removeItem(NEXT_KEY);
+    } catch {
+      // Penyimpanan tidak tersedia: setelah SSO kembali ke beranda.
+    }
+  },
+  take(): string | null {
+    try {
+      const value = sessionStorage.getItem(NEXT_KEY);
+      sessionStorage.removeItem(NEXT_KEY);
+      return safeNext(value);
+    } catch {
+      return null;
+    }
+  },
+};

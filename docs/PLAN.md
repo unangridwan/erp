@@ -419,6 +419,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] Form karyawan ala Odoo — foto profil (juga saat membuat karyawan baru), nama besar inline, ikon kontak, tag,
   tombol statistik, undang ke portal + status akun, tab Kerja/Pribadi/Penggajian/Dokumen & Riwayat/Kinerja/Pengaturan,
   simpan/buang perubahan, mode baca untuk `hr.read`
+- [x] Aplikasi terhubung (K1) — ERP sebagai penyedia login OpenID Connect (authorization code + PKCE, refresh token
+  berotasi, logout), akun layanan API (`client_credentials`, hak = peran), webhook keluar bertanda tangan HMAC untuk
+  karyawan & departemen (outbox + coba ulang), sinkron `/integrations/*`, Pengaturan › Aplikasi Terhubung
+- [ ] Aplikasi terhubung (K2) — proyek, anggota, task, timesheet dari aplikasi proyek tampil di form karyawan & portal
 
 ## 5. Roadmap Bertahap
 

@@ -112,7 +112,14 @@ export class AccessService {
       .from(UR)
       .innerJoin(RP, eq(RP.roleId, UR.roleId))
       .innerJoin(U, eq(U.id, UR.userId))
-      .where(and(eq(RP.permission, ALL_PERMISSIONS), sql`${UR.companyId} is null`, eq(U.active, true)));
+      .where(
+        and(
+          eq(RP.permission, ALL_PERMISSIONS),
+          sql`${UR.companyId} is null`,
+          eq(U.active, true),
+          eq(U.kind, "human"),
+        ),
+      );
     if (!row?.n) throw new BadRequestException("Harus ada minimal satu administrator aktif");
   }
 

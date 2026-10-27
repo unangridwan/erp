@@ -934,6 +934,7 @@ export class FleetReminderService implements OnApplicationBootstrap, OnApplicati
               .where(
                 and(
                   eq(schema.users.active, true),
+                  eq(schema.users.kind, "human"),
                   eq(schema.userCompanies.companyId, company.id),
                   inArray(schema.rolePermissions.permission, ["fleet.manage", "*"]),
                 ),

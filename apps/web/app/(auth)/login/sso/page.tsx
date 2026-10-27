@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { api, session, type Session } from "../../../../lib/api";
+import { api, pendingNext, session, type Session } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
 
 /** Kembali dari penyedia identitas: tukar refresh token sekali pakai di fragmen URL menjadi sesi. */
@@ -23,7 +23,9 @@ export default function SsoReturnPage() {
       .then((s) => {
         session.clear();
         session.set(s);
-        router.replace("/");
+        const next = pendingNext.take();
+        if (next) window.location.replace(next);
+        else router.replace("/");
       })
       .catch((e: Error) => setError(e.message));
   }, [router]);

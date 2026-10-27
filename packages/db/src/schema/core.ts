@@ -139,6 +139,10 @@ export const users = pgTable(
     totpEnabled: boolean("totp_enabled").notNull().default(false),
     totpLastStep: bigint("totp_last_step", { mode: "number" }),
     platformAdmin: boolean("platform_admin").notNull().default(false),
+    /** `service` = akun layanan aplikasi terhubung (tanpa password, tidak bisa login, tidak dihitung batas paket). */
+    kind: text("kind", { enum: ["human", "service"] })
+      .notNull()
+      .default("human"),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     active: boolean("active").notNull().default(true),
     ...audit,

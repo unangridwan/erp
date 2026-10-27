@@ -184,7 +184,10 @@ export class BillingService implements OnApplicationBootstrap, OnApplicationShut
   async summary(tenantId: string) {
     const { sub, plan } = await this.subscription(tenantId);
     const usage = await this.tenantDb.runAs(tenantId, async (tx) => {
-      const [users] = await tx.select({ n: count() }).from(schema.users).where(eq(schema.users.active, true));
+      const [users] = await tx
+        .select({ n: count() })
+        .from(schema.users)
+        .where(and(eq(schema.users.active, true), eq(schema.users.kind, "human")));
       const [companies] = await tx
         .select({ n: count() })
         .from(schema.companies)

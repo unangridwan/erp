@@ -410,6 +410,7 @@ export const APPS: App[] = [
       link("Langganan", "Subscription", "/settings/billing", "billing.manage"),
       link("Keamanan", "Security", "/settings/security", ""),
       link("SSO", "Single Sign-On", "/settings/sso", "settings.manage"),
+      link("Aplikasi Terhubung", "Connected Apps", "/settings/connected-apps", "integration.manage"),
     ],
   },
   {

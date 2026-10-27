@@ -47,7 +47,11 @@ export class UsersController {
         .from(schema.users)
         .innerJoin(schema.userCompanies, eq(schema.userCompanies.userId, schema.users.id))
         .where(
-          and(eq(schema.users.active, true), eq(schema.userCompanies.companyId, currentContext().companyId)),
+          and(
+            eq(schema.users.active, true),
+            eq(schema.users.kind, "human"),
+            eq(schema.userCompanies.companyId, currentContext().companyId),
+          ),
         )
         .orderBy(asc(schema.users.name)),
     );
@@ -77,6 +81,7 @@ export class UsersController {
           twoFactorEnabled: schema.users.totpEnabled,
         })
         .from(schema.users)
+        .where(eq(schema.users.kind, "human"))
         .orderBy(asc(schema.users.name));
       const roles = await tx
         .select({ userId: schema.userRoles.userId, name: schema.roles.name })

@@ -60,7 +60,10 @@ class OnboardingService {
     );
     const products = await total(tx.select({ n: count() }).from(schema.products));
     const users = await total(
-      tx.select({ n: count() }).from(schema.users).where(eq(schema.users.active, true)),
+      tx
+        .select({ n: count() })
+        .from(schema.users)
+        .where(and(eq(schema.users.active, true), eq(schema.users.kind, "human"))),
     );
     const opening = await this.openingMove(tx, companyId);
     const access = await this.billing.access(tenantId);

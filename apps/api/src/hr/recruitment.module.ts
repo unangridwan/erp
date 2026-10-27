@@ -341,6 +341,7 @@ export class HrReminderService implements OnApplicationBootstrap, OnApplicationS
               .where(
                 and(
                   eq(schema.users.active, true),
+                  eq(schema.users.kind, "human"),
                   eq(schema.userCompanies.companyId, company.id),
                   inArray(schema.rolePermissions.permission, ["hr.manage", "*"]),
                 ),

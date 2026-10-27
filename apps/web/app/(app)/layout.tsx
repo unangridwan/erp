@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { MeContext } from "../../components/me-context";
 import { Navbar } from "../../components/navbar";
-import { api, session, type Me } from "../../lib/api";
+import { api, ApiError, session, type Me } from "../../lib/api";
 import { setErrorUser } from "../../lib/error-reporting";
 import { appForPath, rememberApp, rememberedApp, visibleApps } from "../../lib/apps";
 import { useI18n } from "../../lib/i18n";
@@ -35,7 +35,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         setErrorUser(data);
         setMe(data);
       })
-      .catch(() => {
+      .catch((e: unknown) => {
+        // Request dibatalkan karena pindah halaman (atau jaringan putus) bukan berarti sesi tidak sah.
+        if (!(e instanceof ApiError)) return;
         session.clear();
         router.replace("/login");
       });
