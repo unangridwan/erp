@@ -34,7 +34,20 @@ describe("status langganan", () => {
       "suspended",
     );
     expect(isWritable("past_due")).toBe(true);
+    expect(isWritable("complimentary")).toBe(true);
     expect(isWritable("expired")).toBe(false);
+  });
+
+  it("gratis dari admin platform: berlaku tanpa periode, kedaluwarsa kembali ke aturan biasa", () => {
+    const trialOver = { ...base, status: "trialing" as const, trialEndsAt: days(-30) };
+    expect(effectiveStatus({ ...trialOver, complimentary: true }, now, 7)).toBe("complimentary");
+    expect(effectiveStatus({ ...trialOver, complimentary: true, complimentaryUntil: days(10) }, now, 7)).toBe(
+      "complimentary",
+    );
+    expect(effectiveStatus({ ...trialOver, complimentary: true, complimentaryUntil: days(-1) }, now, 7)).toBe(
+      "expired",
+    );
+    expect(effectiveStatus({ ...base, status: "suspended", complimentary: true }, now, 7)).toBe("suspended");
   });
 
   it("periode bulanan/tahunan dan akhir bulan", () => {

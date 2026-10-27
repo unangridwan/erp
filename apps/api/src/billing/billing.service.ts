@@ -375,6 +375,7 @@ export class BillingService implements OnApplicationBootstrap, OnApplicationShut
              case when s.billing_cycle = 'yearly' then p.price_yearly else p.price_monthly end as price
       from subscriptions s join plans p on p.id = s.plan_id
       where s.status = 'active' and not s.cancel_at_period_end
+        and not (s.complimentary and (s.complimentary_until is null or s.complimentary_until > now()))
         and s.current_period_end <= ${new Date(now.getTime() + RENEWAL_LEAD_DAYS * DAY).toISOString()}::timestamptz
         and not exists (select 1 from billing_invoices b where b.tenant_id = s.tenant_id and b.status = 'open')`);
     let created = 0;
@@ -419,13 +420,17 @@ export class BillingService implements OnApplicationBootstrap, OnApplicationShut
       name: r.name,
       createdAt: r.createdAt,
       planCode: r.plan?.code ?? null,
+      planName: r.plan?.name ?? null,
       status: r.sub && r.plan ? this.toAccess(r.sub, r.plan).status : null,
+      complimentary: r.sub?.complimentary ?? false,
+      complimentaryUntil: r.sub?.complimentaryUntil ?? null,
+      complimentaryNote: r.sub?.complimentaryNote ?? null,
       trialEndsAt: r.sub?.trialEndsAt ?? null,
       currentPeriodEnd: r.sub?.currentPeriodEnd ?? null,
     }));
   }
 
-  async adminUpdate(tenantId: string, input: z.infer<typeof adminSubscriptionSchema>) {
+  async adminUpdate(tenantId: string, input: z.infer<typeof adminSubscriptionSchema>, actorUserId?: string) {
     const { sub } = await this.subscription(tenantId);
     const values: Partial<typeof S.$inferInsert> = {};
     if (input.planCode) {
@@ -438,16 +443,89 @@ export class BillingService implements OnApplicationBootstrap, OnApplicationShut
       values.trialEndsAt = input.trialEndsAt ? new Date(input.trialEndsAt) : null;
     if (input.currentPeriodEnd !== undefined)
       values.currentPeriodEnd = input.currentPeriodEnd ? new Date(input.currentPeriodEnd) : null;
-    await this.db
-      .update(S)
-      .set({ ...values, updatedAt: sql`now()` })
-      .where(eq(S.id, sub.id));
+    if (input.complimentary !== undefined) {
+      const until = input.complimentaryUntil ? new Date(input.complimentaryUntil) : null;
+      if (input.complimentary && until && until <= new Date())
+        throw new BadRequestException("Tanggal akhir gratis harus di masa depan");
+      values.complimentary = input.complimentary;
+      values.complimentaryUntil = input.complimentary ? until : null;
+      values.complimentaryNote = input.complimentary ? (input.complimentaryNote ?? null) : null;
+      values.complimentaryBy = input.complimentary ? (actorUserId ?? null) : null;
+    }
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(S)
+        .set({ ...values, updatedAt: sql`now()` })
+        .where(eq(S.id, sub.id));
+      // Tenant gratis tidak perlu membayar tagihan yang masih terbuka.
+      if (input.complimentary)
+        await tx
+          .update(BI)
+          .set({ status: "void", updatedAt: sql`now()` })
+          .where(and(eq(BI.tenantId, tenantId), eq(BI.status, "open")));
+    });
     this.invalidate(tenantId);
     return this.summary(tenantId);
   }
 
-  allPlans() {
-    return this.db.select().from(P).orderBy(asc(P.sort));
+  /** Semua paket + jumlah tenant yang memakainya. */
+  async allPlans() {
+    const rows = await this.db
+      .select({
+        plan: P,
+        tenants: sql<number>`(select count(*) from subscriptions s where s.plan_id = plans.id)::int`,
+      })
+      .from(P)
+      .orderBy(asc(P.sort), asc(P.name));
+    return rows.map((r) => ({ ...r.plan, tenantCount: r.tenants }));
+  }
+
+  async createPlan(input: z.infer<typeof planSchema>) {
+    await this.assertPlanCode(input.code, null);
+    const [plan] = await this.db.insert(P).values(input).returning();
+    this.cache.clear();
+    return plan!;
+  }
+
+  async updatePlan(id: string, input: z.infer<typeof planSchema>) {
+    await this.findPlan(id);
+    await this.assertPlanCode(input.code, id);
+    const [plan] = await this.db
+      .update(P)
+      .set({ ...input, updatedAt: sql`now()` })
+      .where(eq(P.id, id))
+      .returning();
+    this.cache.clear();
+    return plan!;
+  }
+
+  /** Hapus paket yang belum pernah dipakai; paket terpakai cukup dinonaktifkan. */
+  async removePlan(id: string) {
+    const plan = await this.findPlan(id);
+    if (plan.code === this.config.billing.trialPlan)
+      throw new BadRequestException("Paket uji coba tidak bisa dihapus; nonaktifkan saja");
+    const [used] = await this.db.execute<{ n: number }>(sql`
+      select (select count(*) from subscriptions where plan_id = ${id})
+           + (select count(*) from billing_invoices where plan_id = ${id}) as n`);
+    if (Number(used?.n ?? 0) > 0)
+      throw new BadRequestException("Paket sudah dipakai tenant atau tagihan; nonaktifkan saja");
+    await this.db.delete(P).where(eq(P.id, id));
+    this.cache.clear();
+  }
+
+  private async findPlan(id: string) {
+    const [plan] = await this.db.select().from(P).where(eq(P.id, id));
+    if (!plan) throw new NotFoundException("Paket tidak ditemukan");
+    return plan;
+  }
+
+  private async assertPlanCode(code: string, id: string | null) {
+    const [dup] = await this.db.select({ id: P.id }).from(P).where(eq(P.code, code));
+    if (dup && dup.id !== id)
+      throw new BadRequestException({
+        message: "Kode paket sudah dipakai",
+        errors: [{ path: "code", message: "Kode paket sudah dipakai" }],
+      });
   }
 
   async savePlan(input: z.infer<typeof planSchema>) {

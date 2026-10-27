@@ -723,4 +723,11 @@ export const MESSAGES_EN: Record<string, string> = {
   "Kategori hanya untuk permintaan persetujuan": "Categories only apply to approval requests",
   "Batas untuk pihak ini sudah ada": "A limit for this party already exists",
   "Harus angka ≥ 0": "Must be a number ≥ 0",
+  // ---- Platform SaaS ----
+  "Tanggal akhir gratis harus di masa depan": "The free-until date must be in the future",
+  "Paket uji coba tidak bisa dihapus; nonaktifkan saja":
+    "The trial plan cannot be deleted; deactivate it instead",
+  "Paket sudah dipakai tenant atau tagihan; nonaktifkan saja":
+    "The plan is used by tenants or invoices; deactivate it instead",
+  "Kode paket sudah dipakai": "Plan code is already in use",
 };

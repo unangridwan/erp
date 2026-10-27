@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Global,
   Headers,
@@ -128,7 +129,7 @@ class PlatformController {
 
   @Patch("tenants/:id/subscription")
   updateSubscription(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
-    return this.billing.adminUpdate(id, parse(adminSubscriptionSchema, body));
+    return this.billing.adminUpdate(id, parse(adminSubscriptionSchema, body), currentContext().userId);
   }
 
   @Get("plans")
@@ -136,9 +137,26 @@ class PlatformController {
     return this.billing.allPlans();
   }
 
+  @Post("plans")
+  createPlan(@Body() body: unknown) {
+    return this.billing.createPlan(parse(planSchema, body));
+  }
+
+  /** Upsert berdasarkan kode (kompatibel dengan versi lama). */
   @Put("plans")
   savePlan(@Body() body: unknown) {
     return this.billing.savePlan(parse(planSchema, body));
+  }
+
+  @Put("plans/:id")
+  updatePlan(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    return this.billing.updatePlan(id, parse(planSchema, body));
+  }
+
+  @Delete("plans/:id")
+  @HttpCode(204)
+  async removePlan(@Param("id", ParseUUIDPipe) id: string) {
+    await this.billing.removePlan(id);
   }
 
   @Get("invoices")

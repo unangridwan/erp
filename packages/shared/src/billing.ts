@@ -1,13 +1,17 @@
 import { Decimal } from "decimal.js";
 
 export type BillingCycle = "monthly" | "yearly";
-export type EffectiveStatus = "trialing" | "active" | "past_due" | "cancelling" | "expired" | "suspended";
+export type EffectiveStatus =
+  "trialing" | "active" | "complimentary" | "past_due" | "cancelling" | "expired" | "suspended";
 
 export interface SubscriptionState {
   status: "trialing" | "active" | "cancelled" | "suspended";
   trialEndsAt: Date | null;
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
+  /** Diberikan gratis oleh admin platform; `complimentaryUntil` null = tanpa batas waktu. */
+  complimentary?: boolean;
+  complimentaryUntil?: Date | null;
 }
 
 const DAY = 86_400_000;
@@ -18,6 +22,7 @@ const DAY = 86_400_000;
  */
 export function effectiveStatus(sub: SubscriptionState, now: Date, graceDays: number): EffectiveStatus {
   if (sub.status === "suspended") return "suspended";
+  if (sub.complimentary && (!sub.complimentaryUntil || sub.complimentaryUntil > now)) return "complimentary";
   if (sub.status === "trialing") return sub.trialEndsAt && sub.trialEndsAt > now ? "trialing" : "expired";
   const end = sub.currentPeriodEnd;
   if (!end) return "expired";

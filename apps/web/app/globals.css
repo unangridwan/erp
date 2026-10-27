@@ -1805,3 +1805,8 @@ fieldset.bare {
 .nowrap button + button {
   margin-left: 0.5rem;
 }
+.check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.4rem 1rem;
+}
