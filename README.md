@@ -71,6 +71,11 @@ Setelah mengubah kode atau `git pull`, cukup jalankan `pnpm start` lagi. Tips la
   `docker compose -f infra/docker-compose.yml up -d`, lalu cek `docker compose -f infra/docker-compose.yml ps` sampai
   postgres berstatus `healthy` dengan port `0.0.0.0:5433->5432`. Bila port masih `5432`, kontainer lama belum dibuat
   ulang — jalankan `up -d` lagi setelah `git pull`.
+- **"Terjadi kesalahan pada server" / log API `relation ... does not exist` atau `column ... does not exist`** setelah
+  `git pull`: migrasi database baru belum dijalankan. Hentikan `pnpm dev`, jalankan `pnpm db:setup`, lalu start ulang.
+  Saat start, API juga menulis `Database belum dimigrasi (...)` di log bila masih ada migrasi tertunda. Semua migrasi
+  tertunda berjalan dalam satu transaksi; bila satu gagal, pesan `Migrasi 00xx_….sql gagal` menyebut file-nya dan tidak
+  ada yang diterapkan.
 - **`docker` tidak dikenal**: pastikan Docker Desktop sudah berjalan (ikon di system tray) lalu buka terminal baru.
 - **Mulai dari awal**: `docker compose -f infra/docker-compose.yml down -v`, lalu ulangi `up -d` dan `pnpm db:setup`.
 - **`pnpm format:check` gagal di Windows karena akhir baris CRLF** (clone dibuat sebelum `.gitattributes` ada): hapus
