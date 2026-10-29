@@ -276,11 +276,14 @@ export const APPS: App[] = [
         link("Pengumuman", "Announcements", "/hr/announcements", "hr.read"),
         link("Pelatihan", "Trainings", "/hr/trainings", "hr.read"),
       ]),
+      group("Perencanaan", "Planning", [
+        link("Man Power Planning", "Manpower Planning", "/hr/manpower-plans", "hr.read"),
+        link("Anggaran Tenaga Kerja", "Manpower Budget", "/hr/manpower-budget", "hr.read"),
+      ]),
       group("Laporan", "Reporting", [
         link("Dashboard SDM", "HR Dashboard", "/hr/dashboard", "hr.read"),
         link("Pembuat Laporan", "Report Builder", "/hr/reports", "hr.read"),
         link("Analitik SDM", "HR Analytics", "/hr/analytics", "hr.read"),
-        link("Anggaran Tenaga Kerja", "Manpower Budget", "/hr/manpower-budget", "hr.read"),
         link("Struktur Organisasi", "Org Chart", "/hr/org-chart", "hr.read"),
         link("Pengingat", "Reminders", "/hr/reminders", "hr.read"),
         link("Siapa yang Cuti", "Who's Off", "/hr/whos-off", "hr.read"),

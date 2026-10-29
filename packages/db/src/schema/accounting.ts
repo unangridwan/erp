@@ -290,6 +290,11 @@ export const budgets = pgTable("budgets", {
   name: text("name").notNull(),
   dateFrom: date("date_from").notNull(),
   dateTo: date("date_to").notNull(),
+  /** `manpower` = dibangun otomatis dari Man Power Planning yang disetujui (baca saja). */
+  source: text("source", { enum: ["manual", "manpower"] })
+    .notNull()
+    .default("manual"),
+  sourceYear: smallint("source_year"),
   ...audit,
 });
 

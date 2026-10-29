@@ -44,6 +44,8 @@ export function hasLeft(employee: Pick<Employee, "active" | "resignDate">) {
   return !employee.active || (!!employee.resignDate && employee.resignDate < today());
 }
 
+type OutcomeHandler = (tx: Db, requestId: string, state: "approved" | "refused" | "cancel") => Promise<void>;
+
 /**
  * Mesin persetujuan generik: kategori permintaan dengan field wajib/opsional, tahap dari atasan + penyetuju kategori
  * menurut batas nominal (DoA), mode berurutan/paralel dengan minimum persetujuan, dan delegasi penyetuju.
@@ -56,6 +58,17 @@ export class ApprovalEngineService {
     @Inject(SequenceService) private readonly sequences: SequenceService,
     @Inject(NotificationService) private readonly notifications: NotificationService,
   ) {}
+
+  private readonly outcomeHandlers: OutcomeHandler[] = [];
+
+  /** Daftarkan penangan yang dipanggil (dalam transaksi yang sama) saat permintaan disetujui/ditolak/dibatalkan. */
+  onOutcome(handler: OutcomeHandler) {
+    this.outcomeHandlers.push(handler);
+  }
+
+  private async emitOutcome(tx: Db, id: string, state: "approved" | "refused" | "cancel") {
+    for (const h of this.outcomeHandlers) await h(tx, id, state);
+  }
 
   /** Beri tahu penyetuju yang sekarang bisa memutuskan (berurutan: tahap terdepan; paralel: semua tahap terbuka). */
   private async notifyPending(tx: Db, request: typeof REQ.$inferSelect, mode: "sequential" | "parallel") {
@@ -493,6 +506,7 @@ export class ApprovalEngineService {
       .update(REQ)
       .set({ state: "cancel", updatedAt: sql`now()` })
       .where(eq(REQ.id, id));
+    await this.emitOutcome(tx, id, "cancel");
     return this.getRequest(tx, id);
   }
 
@@ -541,6 +555,7 @@ export class ApprovalEngineService {
         .update(REQ)
         .set({ state: outcome.state, decidedAt: new Date(), updatedAt: sql`now()` })
         .where(eq(REQ.id, id));
+      await this.emitOutcome(tx, id, outcome.state);
     }
     await this.activity.log(tx, {
       resModel: "approval_request",

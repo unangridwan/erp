@@ -18,6 +18,7 @@ import { MyVehiclesPanel } from "../../../components/fleet/fleet-panels";
 import { ProjectsPanel } from "../../../components/hr/projects-panel";
 import { BenefitEnrollments } from "../../../components/payroll/benefits-panel";
 import { TeamCompensation } from "../../../components/payroll/team-compensation";
+import { MyManpowerPlans } from "../../../components/hr/manpower-plan";
 import { TotalRewardsPanel } from "../../../components/payroll/total-rewards";
 import { AnnouncementsFeed, FeedbackInbox, GoalTree, WhosOffPanel } from "../../../components/hr/ess-panels";
 import { LeaveRequestForm, type LeaveTypeOption } from "../../../components/hr/leave-form";
@@ -240,6 +241,7 @@ export default function MyPortalPage() {
       <BenefitEnrollments mine />
       <TotalRewardsPanel mine />
       <TeamCompensation />
+      <MyManpowerPlans />
       <ProjectsPanel mine />
       <FeedbackInbox />
       <WhosOffPanel />

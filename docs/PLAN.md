@@ -435,6 +435,8 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   hak pemilik & riwayat pengiriman
 - [x] Anggaran tenaga kerja vs aktual & analitik SDM (L4) — anggaran headcount/biaya per departemen/bulan + impor Excel,
   laporan rencana vs aktual (slip terposting, lowongan), turnover & retensi, demografi, kesetaraan gaji & compa-ratio
+- [x] Man Power Planning (M) — rencana posisi per departemen/tahun, persetujuan MPP, mengisi anggaran tenaga kerja &
+  anggaran akuntansi "Anggaran SDM" (baca saja di Akuntansi), lowongan dari posisi & realisasi, portal kepala departemen
 
 ## 5. Roadmap Bertahap
 

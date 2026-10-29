@@ -752,6 +752,8 @@ export const jobOpenings = pgTable("job_openings", {
   targetDate: date("target_date"),
   wageMin: numeric("wage_min", { precision: 20, scale: 2 }),
   wageMax: numeric("wage_max", { precision: 20, scale: 2 }),
+  /** Baris Man Power Planning asal lowongan. */
+  manpowerPlanLineId: uuid("manpower_plan_line_id"),
   ...audit,
 });
 
@@ -1604,5 +1606,46 @@ export const manpowerBudgets = pgTable("manpower_budgets", {
   headcount: numeric("headcount", { precision: 10, scale: 2 }).notNull().default("0"),
   cost: numeric("cost", { precision: 20, scale: 2 }).notNull().default("0"),
   note: text("note"),
+  /** Baris hasil Man Power Planning yang disetujui (null = diisi manual/impor). */
+  sourcePlanId: uuid("source_plan_id"),
   ...audit,
+});
+
+/** Man Power Planning: rencana posisi per departemen per tahun, disetujui lalu mengisi anggaran. */
+export const manpowerPlans = pgTable("manpower_plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  year: smallint("year").notNull(),
+  departmentId: uuid("department_id").notNull(),
+  name: text("name").notNull(),
+  state: text("state", { enum: ["draft", "in_approval", "approved", "cancel"] })
+    .notNull()
+    .default("draft"),
+  approvalRequestId: uuid("approval_request_id"),
+  thrMonth: smallint("thr_month"),
+  note: text("note"),
+  submittedBy: uuid("submitted_by"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  createdBy: uuid("created_by"),
+  ...audit,
+});
+
+export const manpowerPlanLines = pgTable("manpower_plan_lines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  planId: uuid("plan_id").notNull(),
+  sequence: smallint("sequence").notNull().default(0),
+  jobId: uuid("job_id").notNull(),
+  gradeId: uuid("grade_id"),
+  kind: text("kind", { enum: ["existing", "new", "replacement"] }).notNull(),
+  quantity: smallint("quantity").notNull(),
+  startMonth: smallint("start_month").notNull().default(1),
+  endMonth: smallint("end_month"),
+  monthlyWage: numeric("monthly_wage", { precision: 20, scale: 2 }).notNull().default("0"),
+  monthlyAllowance: numeric("monthly_allowance", { precision: 20, scale: 2 }).notNull().default("0"),
+  reason: text("reason"),
+  replacesEmployeeId: uuid("replaces_employee_id"),
+  jobOpeningId: uuid("job_opening_id"),
 });

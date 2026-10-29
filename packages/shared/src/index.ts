@@ -24,6 +24,7 @@ export * from "./benefits.js";
 export * from "./compensation.js";
 export * from "./reports.js";
 export * from "./workforce.js";
+export * from "./manpower-plan.js";
 export {
   daysBetween,
   expiryStatus,
