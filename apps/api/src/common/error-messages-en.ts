@@ -758,6 +758,21 @@ export const MESSAGES_EN: Record<string, string> = {
   "code_challenge (PKCE) wajib": "code_challenge (PKCE) is required",
   "URL harus https:// (http:// hanya untuk localhost) dan tanpa #":
     "URL must be https:// (http:// only for localhost) without #",
+  // ---- Kompensasi & benefit ----
+  "Paket benefit sudah dipakai di slip gaji; nonaktifkan saja paket ini":
+    "The benefit plan is already used in payslips; deactivate it instead",
+  "Paket & karyawan kepesertaan tidak bisa diganti; buat kepesertaan baru":
+    "The plan and employee of an enrollment cannot be changed; create a new enrollment",
+  "Paket benefit tidak ditemukan": "Benefit plan not found",
+  "Kepesertaan benefit tidak ditemukan": "Benefit enrollment not found",
+  "Pilih akun utang premi/iuran ke penyedia": "Choose the premium/contribution payable account",
+  "Tanggungan harus anggota keluarga karyawan ini": "Dependents must be family members of this employee",
+  "Karyawan sudah terdaftar di paket ini pada periode tersebut":
+    "The employee is already enrolled in this plan for that period",
+  "Kode paket benefit sudah dipakai": "The benefit plan code is already in use",
+  "Akun utang benefit {} belum diatur": "The payable account for benefit {0} is not set",
+  "Persentase maksimal 100": "At most 100 percent",
+  "Golongan tidak boleh dobel": "Each grade may appear only once",
   // ---- Proyek dari aplikasi terhubung ----
   "Perusahaan tidak dapat diakses akun layanan aplikasi":
     "The app's service account cannot access this company",

@@ -313,6 +313,7 @@ export const APPS: App[] = [
       link("Biaya Tenaga Kerja", "Labour Cost", "/payroll/cost", "payroll.read"),
       group("Konfigurasi", "Configuration", [
         link("Komponen Gaji", "Salary Rules", "/salary-components", "payroll.read"),
+        link("Paket Benefit", "Benefit Plans", "/payroll/benefits", "payroll.read"),
         link("Impor & Ekspor Data", "Data Import & Export", "/payroll/data", "payroll.read"),
         link("Pengaturan Payroll", "Settings", "/payroll/settings", "payroll.manage"),
       ]),

@@ -380,10 +380,25 @@ export interface PayslipInput {
    */
   correction?: boolean;
   sameMonth?: { gross: Decimal.Value; pph21: Decimal.Value; employeePension: Decimal.Value };
+  /**
+   * Benefit yang dibayar perusahaan ke pihak ketiga (premi asuransi, iuran DPLK, fasilitas): tidak menambah gaji
+   * bersih; yang `taxable` (natura) menambah penghasilan bruto PPh 21.
+   */
+  employerBenefits?: { code: string; name: string; amount: Decimal.Value; taxable: boolean }[];
+  /** Iuran pensiun dibayar karyawan di luar BPJS (DPLK): pengurang penghasilan bruto PPh 21 setahun. */
+  extraPension?: Decimal.Value;
 }
 
 export type PayslipCategory =
-  "basic" | "allowance" | "overtime" | "unpaid" | "deduction" | "bpjs_employee" | "bpjs_employer" | "tax";
+  | "basic"
+  | "allowance"
+  | "overtime"
+  | "unpaid"
+  | "deduction"
+  | "bpjs_employee"
+  | "bpjs_employer"
+  | "benefit_employer"
+  | "tax";
 
 export interface PayslipLine {
   code: string;
@@ -458,6 +473,14 @@ export function computePayslip(input: PayslipInput) {
   for (const [code, name, amount] of employee)
     if (d(amount).gt(0))
       lines.push({ code, name, category: "bpjs_employee", amount: d(amount).negated().toFixed(0) });
+  const benefits = (input.employerBenefits ?? []).filter((b) => d(b.amount).gt(0));
+  for (const b of benefits)
+    lines.push({
+      code: b.code,
+      name: b.name,
+      category: "benefit_employer",
+      amount: rupiah(d(b.amount)).toFixed(0),
+    });
 
   const taxableBase = wage
     .plus(input.allowances.filter((a) => a.taxable !== false).reduce((s, a) => s.plus(a.amount), d(0)))
@@ -465,8 +488,11 @@ export function computePayslip(input: PayslipInput) {
     .minus(unpaid)
     .plus(bpjs.employer.jkk)
     .plus(bpjs.employer.jkm)
-    .plus(bpjs.employer.kes);
+    .plus(bpjs.employer.kes)
+    .plus(benefits.filter((b) => b.taxable).reduce((s, b) => s.plus(rupiah(d(b.amount))), d(0)));
   const pension = d(bpjs.employee.jht).plus(bpjs.employee.jp);
+  // Pengurang PPh 21: iuran JHT & JP BPJS + iuran pensiun lain (DPLK) yang dibayar karyawan.
+  const taxPension = pension.plus(rupiah(Decimal.max(d(input.extraPension ?? 0), 0)));
   const prior = input.sameMonth ?? { gross: 0, pph21: 0, employeePension: 0 };
 
   /** PPh 21 slip ini bila bruto ditambah tunjangan PPh 21 sebesar `extra`. */
@@ -484,7 +510,7 @@ export function computePayslip(input: PayslipInput) {
       annual = pph21Annual({
         annualGross: d(input.ytd.gross).plus(masaGross),
         months: input.ytd.months + 1,
-        employeePension: d(input.ytd.employeePension).plus(prior.employeePension).plus(pension),
+        employeePension: d(input.ytd.employeePension).plus(prior.employeePension).plus(taxPension),
         status: input.status,
         hasNpwp: input.hasNpwp,
       });
@@ -560,7 +586,8 @@ export function computePayslip(input: PayslipInput) {
     tkEmployer: sum(employer, "tk"),
     kesWage: bpjs.kesWage,
     tkWage: bpjs.tkWage,
-    employeePension: pension.toFixed(0),
+    employeePension: taxPension.toFixed(0),
+    employerBenefits: benefits.reduce((s, b) => s.plus(rupiah(d(b.amount))), d(0)).toFixed(0),
     deductions: deductions.toFixed(0),
     net: rupiah(net).toFixed(0),
     annual,
