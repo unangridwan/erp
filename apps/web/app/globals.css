@@ -406,7 +406,9 @@ table.lines input.short {
   flex-direction: column;
   gap: 2px;
   font-size: 12px;
-  white-space: nowrap;
+  /* Nama pajak boleh turun baris agar kolom Subtotal tetap terlihat. */
+  white-space: normal;
+  min-width: 150px;
 }
 .totals {
   display: grid;
@@ -2402,7 +2404,7 @@ button.stat-button {
 /* Baris dokumen: kolom pertama (produk/akun) cukup lebar untuk membaca pilihannya. */
 table.lines td:first-child select,
 table.lines td:first-child input:not([type="checkbox"]) {
-  min-width: 200px;
+  min-width: 170px;
 }
 /* Jarak antara tabel dan field berikutnya (mis. Syarat & catatan di bawah baris pesanan). */
 .table-wrap + .field,
