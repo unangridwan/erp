@@ -25,16 +25,9 @@ import { TenantDb } from "../../common/database.js";
 import { currentContext } from "../../common/request-context.js";
 import { parse } from "../../common/zod.js";
 import { PayrollModule } from "../../payroll/payroll.module.js";
-import { PayrollService } from "../../payroll/payroll.service.js";
-import { ChecklistService } from "../checklist.service.js";
-import { ContractService } from "../contract.service.js";
-import { EmployeeService } from "../employee.service.js";
-import { HistoryService } from "../history.service.js";
 import { HrModule } from "../hr.module.js";
-import { ScheduleService } from "../schedule.service.js";
 import { Lookups, RowError, type Column, type Ctx, type Dataset, type Outcome, type Row } from "./core.js";
-import { hrDatasets } from "./datasets-hr.js";
-import { payrollDatasets } from "./datasets-payroll.js";
+import { DatasetRegistry } from "./registry.js";
 
 const P = schema.exportPresets;
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -67,68 +60,35 @@ const presetSchema = z.object({
  */
 @Controller("data-transfer")
 class DataTransferController {
-  private readonly datasets: Map<string, Dataset>;
-
   constructor(
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
-    @Inject(ScheduleService) private readonly schedules: ScheduleService,
-    @Inject(EmployeeService) employees: EmployeeService,
-    @Inject(HistoryService) history: HistoryService,
-    @Inject(ChecklistService) checklists: ChecklistService,
-    @Inject(ContractService) contracts: ContractService,
-    @Inject(PayrollService) payroll: PayrollService,
-  ) {
-    this.datasets = new Map(
-      [
-        ...hrDatasets({ employees, history, checklists, contracts }),
-        ...payrollDatasets(payroll, employees),
-      ].map((d) => [d.key, d]),
-    );
-  }
+    @Inject(DatasetRegistry) private readonly registry: DatasetRegistry,
+  ) {}
 
   private dataset(key: string, access: "read" | "write" = "read") {
-    const d = this.datasets.get(key);
-    if (!d) throw new NotFoundException("Dataset tidak ditemukan");
-    if (!can(d.read)) throw new ForbiddenException(`Butuh permission ${d.read}`);
-    if (access === "write") {
-      if (!d.write) throw new BadRequestException("Dataset ini hanya bisa diekspor");
-      if (!can(d.write)) throw new ForbiddenException(`Butuh permission ${d.write}`);
-    }
-    return d;
+    return this.registry.get(key, access);
   }
 
-  private async ctx(tx: Db, d: Dataset, runId?: string): Promise<Ctx> {
-    const companyId = currentContext().companyId;
-    if (d.needsRun && !runId) throw new BadRequestException("Pilih periode payroll");
-    if (runId && !z.string().uuid().safeParse(runId).success)
-      throw new BadRequestException("Payroll tidak ditemukan");
-    return {
-      companyId,
-      manage: can(d.app === "payroll" ? "payroll.write" : "hr.manage"),
-      timeZone: await this.schedules.timezone(tx, companyId),
-      runId,
-    };
+  private ctx(tx: Db, d: Dataset, runId?: string) {
+    return this.registry.ctx(tx, d, runId);
   }
 
-  /** Kolom yang boleh dilihat user (data sensitif hanya untuk pemegang hak kelola). */
-  private async visibleColumns(tx: Db, d: Dataset, ctx: Ctx) {
-    return (await d.columns(tx, ctx)).filter((c) => !c.sensitive || ctx.manage);
+  private visibleColumns(tx: Db, d: Dataset, ctx: Ctx) {
+    return this.registry.visibleColumns(tx, d, ctx);
   }
 
   @Get()
   list() {
-    return [...this.datasets.values()]
-      .filter((d) => can(d.read))
-      .map((d) => ({
-        key: d.key,
-        label: d.label,
-        description: d.description,
-        app: d.app,
-        canImport: Boolean(d.write && can(d.write)),
-        canShare: can(d.admin),
-        needsRun: Boolean(d.needsRun),
-        filters: d.filters ?? [],
-      }));
+    return this.registry.readable().map((d) => ({
+      key: d.key,
+      label: d.label,
+      description: d.description,
+      app: d.app,
+      canImport: Boolean(d.write && can(d.write)),
+      canShare: can(d.admin),
+      needsRun: Boolean(d.needsRun),
+      filters: d.filters ?? [],
+    }));
   }
 
   /** Kolom dataset (untuk dialog pemilih kolom). */
@@ -469,5 +429,7 @@ function normalize(row: Record<string, string>, columns: Column[]): Row {
 @Module({
   imports: [HrModule, PayrollModule],
   controllers: [DataTransferController],
+  providers: [DatasetRegistry],
+  exports: [DatasetRegistry],
 })
 export class DataTransferModule {}

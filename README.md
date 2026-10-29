@@ -318,6 +318,21 @@ tahunan = 13 × selisih upah (12 bulan + THR) + selisih iuran BPJS perusahaan 12
 mengakhiri kontrak berjalan sehari sebelum tanggal berlaku dan memulai kontrak baru (tunjangan disalin); bila tanggal
 berlaku di masa lalu, jalankan **Hitung rapel** di payroll berikutnya.
 
+#### Pembuat laporan kustom & laporan terjadwal
+
+| Endpoint                                                                                | Keterangan                                                                                             |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `GET /reports/datasets`, `POST /saved-reports/preview`                                  | Dataset HR/Payroll yang boleh dibaca user (kolom sensitif hanya untuk pemegang hak kelola) & pratinjau |
+| `/saved-reports`, `GET /saved-reports/:id/run`, `GET /saved-reports/:id/export?format=` | Laporan tersimpan (pribadi/dibagikan), jalankan, ekspor `xlsx`/`csv`/`pdf`                             |
+| `POST /saved-reports/:id/schedules`, `PATCH/DELETE /report-schedules/:id`               | Jadwal email harian/mingguan/bulanan (jam zona waktu perusahaan), hanya pemilik laporan                |
+| `POST /report-schedules/:id/send-now`, `GET /report-schedules/:id/deliveries`           | Kirim sekarang & riwayat pengiriman                                                                    |
+
+Konfigurasi laporan: kolom, filter dataset (dataset slip memakai `runId=latest` = payroll terposting terakhir), syarat
+per kolom, kelompok (≤ 3) + agregasi jumlah/banyaknya/rata-rata/min/maks, urutan, batas baris, grafik batang/garis/
+donat. Hak baca dataset & kolom sensitif dicek setiap laporan dijalankan (juga saat dikirim terjadwal, dengan hak
+pemilik saat itu — bila hak dicabut pengiriman gagal & tercatat). Pengirim berjalan tiap 5 menit dan mengklaim periode
+secara atomik sehingga tiap periode terkirim sekali (`REPORT_SCHEDULER=off` untuk mematikan).
+
 ### Pajak Coretax, Langganan & Operasional (Fase 5)
 
 | Endpoint                                                                                                                                                          | Keterangan                                                                                                                         |

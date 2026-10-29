@@ -31,6 +31,7 @@ export interface AppConfig {
   hrReminder: { scheduler: boolean };
   /** Pengirim webhook aplikasi terhubung (tiap 30 detik). */
   webhook: { scheduler: boolean };
+  reports: { scheduler: boolean };
   /** Token untuk GET /metrics (Prometheus); kosong = endpoint dimatikan. */
   metricsToken: string | null;
   logFormat: "json" | "pretty" | "off";
@@ -76,6 +77,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     webhook: {
       scheduler: env.WEBHOOK_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
+    },
+    reports: {
+      scheduler: env.REPORT_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
     },
     metricsToken: env.METRICS_TOKEN || null,
     logFormat: (env.LOG_FORMAT as "json" | "pretty" | "off" | undefined) ?? (env.VITEST ? "off" : "pretty"),

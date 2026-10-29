@@ -1069,6 +1069,10 @@ code.wrap {
 .viz {
   --series-1: #2a78d6;
   --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
   --grid: color-mix(in srgb, var(--border) 70%, transparent);
   position: relative;
 }
@@ -1076,11 +1080,19 @@ code.wrap {
   :root:where(:not([data-theme="light"])) .viz {
     --series-1: #3987e5;
     --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
   }
 }
 :root[data-theme="dark"] .viz {
   --series-1: #3987e5;
   --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
 }
 .viz svg {
   display: block;
@@ -2236,4 +2248,31 @@ button.stat-button {
 .total-row td {
   font-size: 1.05em;
   background: var(--hover);
+}
+
+/* Pembuat laporan */
+.viz .legend.wrap {
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+.report-editor .row-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: flex-end;
+}
+.report-editor .row-fields .field {
+  min-width: 160px;
+}
+.column-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 2px 12px;
+  max-height: 260px;
+  overflow: auto;
+  align-self: stretch;
+}
+.viz.pie svg {
+  width: 200px;
+  max-width: 100%;
 }

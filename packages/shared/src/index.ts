@@ -22,6 +22,7 @@ export * from "./connected-apps.js";
 export * from "./projects.js";
 export * from "./benefits.js";
 export * from "./compensation.js";
+export * from "./reports.js";
 export {
   daysBetween,
   expiryStatus,
