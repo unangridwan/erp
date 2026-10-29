@@ -2276,3 +2276,35 @@ button.stat-button {
   width: 200px;
   max-width: 100%;
 }
+
+/* Tombol pilihan bersebelahan (mis. Headcount / Biaya). */
+.segmented {
+  display: inline-flex;
+}
+.segmented button {
+  border-radius: 0;
+}
+.segmented button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+.segmented button:last-child {
+  border-radius: 0 6px 6px 0;
+}
+.segmented button + button {
+  margin-left: -1px;
+}
+.segmented button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+
+/* Editor anggaran: sel input ringkas per bulan. */
+.budget-grid td {
+  padding: 2px 3px;
+}
+.budget-grid input {
+  width: 100%;
+  min-width: 64px;
+  text-align: right;
+}

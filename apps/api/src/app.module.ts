@@ -39,6 +39,7 @@ import { PayrollModule } from "./payroll/payroll.module.js";
 import { BenefitsModule } from "./payroll/benefits.module.js";
 import { CompensationModule } from "./payroll/compensation.module.js";
 import { ReportsModule } from "./reports/reports.module.js";
+import { WorkforceModule } from "./hr/workforce.module.js";
 import { TaxModule } from "./tax/tax.module.js";
 import { BillingModule } from "./billing/billing.module.js";
 import { OnboardingModule } from "./onboarding/onboarding.module.js";
@@ -92,6 +93,7 @@ import { WebhookService } from "./oauth/webhook.service.js";
     BenefitsModule,
     CompensationModule,
     ReportsModule,
+    WorkforceModule,
     TaxModule,
     OnboardingModule,
     ConsolidationModule,

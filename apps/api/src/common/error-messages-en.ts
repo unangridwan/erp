@@ -801,6 +801,13 @@ export const MESSAGES_EN: Record<string, string> = {
   "Email penerima tidak valid": "Invalid recipient email",
   "Isi minimal satu penerima": "Enter at least one recipient",
   "Kolom laporan tidak dikenal: {}": "Unknown report column: {0}",
+  // ---- Anggaran tenaga kerja & analitik SDM ----
+  "Impor anggaran gagal": "Budget import failed",
+  "Baris anggaran dobel (departemen, jabatan, bulan sama)":
+    "Duplicate budget line (same department, job position and month)",
+  "Bulan harus 1–12": "Month must be 1–12",
+  'Departemen "{}" tidak ditemukan': 'Department "{0}" not found',
+  'Jabatan "{}" tidak ditemukan': 'Job position "{0}" not found',
   // ---- Proyek dari aplikasi terhubung ----
   "Perusahaan tidak dapat diakses akun layanan aplikasi":
     "The app's service account cannot access this company",

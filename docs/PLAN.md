@@ -433,6 +433,8 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] Pembuat laporan kustom & terjadwal (L3) — dataset HR/Payroll, kolom/syarat/kelompok/agregasi/urutan, grafik
   batang/garis/donat, laporan pribadi/dibagikan, ekspor Excel/CSV/PDF, jadwal email harian/mingguan/bulanan dengan
   hak pemilik & riwayat pengiriman
+- [x] Anggaran tenaga kerja vs aktual & analitik SDM (L4) — anggaran headcount/biaya per departemen/bulan + impor Excel,
+  laporan rencana vs aktual (slip terposting, lowongan), turnover & retensi, demografi, kesetaraan gaji & compa-ratio
 
 ## 5. Roadmap Bertahap
 

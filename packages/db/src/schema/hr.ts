@@ -1591,3 +1591,18 @@ export const compensationProposals = pgTable("compensation_proposals", {
   newContractId: uuid("new_contract_id"),
   ...audit,
 });
+
+/** Anggaran tenaga kerja: rencana headcount & biaya per departemen/jabatan/bulan. */
+export const manpowerBudgets = pgTable("manpower_budgets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  year: smallint("year").notNull(),
+  month: smallint("month").notNull(),
+  departmentId: uuid("department_id"),
+  jobId: uuid("job_id"),
+  headcount: numeric("headcount", { precision: 10, scale: 2 }).notNull().default("0"),
+  cost: numeric("cost", { precision: 20, scale: 2 }).notNull().default("0"),
+  note: text("note"),
+  ...audit,
+});
