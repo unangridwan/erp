@@ -252,92 +252,94 @@ export default function ContractPage() {
       </fieldset>
 
       <h2>{l("Tunjangan & potongan bulanan", "Monthly allowances & deductions")}</h2>
-      <table className="lines">
-        <thead>
-          <tr>
-            <th>{l("Komponen", "Component")}</th>
-            <th>{l("Jenis", "Kind")}</th>
-            <th className="num">{l("Jumlah / bulan", "Amount / month")}</th>
-            {editable && <th />}
-          </tr>
-        </thead>
-        <tbody>
-          {allowances.map((a, i) => {
-            const c = components.find((x) => x.id === a.componentId);
-            return (
-              <tr key={i}>
-                <td>
-                  <select
-                    disabled={!editable}
-                    value={a.componentId}
-                    onChange={(e) =>
-                      setAllowances((rs) =>
-                        rs.map((r, j) => (j === i ? { ...r, componentId: e.target.value } : r)),
-                      )
-                    }
-                  >
-                    <option value="">—</option>
-                    {components.map((x) => (
-                      <option key={x.id} value={x.id}>
-                        {x.code} — {x.name}
-                      </option>
-                    ))}
-                  </select>
-                  {err(`allowances.${i}.componentId`)}
-                </td>
-                <td>
-                  {c
-                    ? c.kind === "deduction"
-                      ? l("Potongan", "Deduction")
-                      : c.fixed
-                        ? l("Tunjangan tetap", "Fixed allowance")
-                        : l("Tunjangan tidak tetap", "Variable allowance")
-                    : ""}
-                </td>
-                <td>
-                  <input
-                    disabled={!editable}
-                    className="num"
-                    inputMode="decimal"
-                    value={a.amount}
-                    onChange={(e) =>
-                      setAllowances((rs) =>
-                        rs.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)),
-                      )
-                    }
-                  />
-                </td>
-                {editable && (
-                  <td>
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={() => setAllowances((rs) => rs.filter((_, j) => j !== i))}
-                    >
-                      ✕
-                    </button>
-                  </td>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
-        {editable && (
-          <tfoot>
+      <div className="table-scroll">
+        <table className="lines">
+          <thead>
             <tr>
-              <td colSpan={4}>
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() => setAllowances((rs) => [...rs, { componentId: "", amount: "0" }])}
-                >
-                  + {l("Tambah komponen", "Add component")}
-                </button>
-              </td>
+              <th>{l("Komponen", "Component")}</th>
+              <th>{l("Jenis", "Kind")}</th>
+              <th className="num">{l("Jumlah / bulan", "Amount / month")}</th>
+              {editable && <th />}
             </tr>
-          </tfoot>
-        )}
-      </table>
+          </thead>
+          <tbody>
+            {allowances.map((a, i) => {
+              const c = components.find((x) => x.id === a.componentId);
+              return (
+                <tr key={i}>
+                  <td>
+                    <select
+                      disabled={!editable}
+                      value={a.componentId}
+                      onChange={(e) =>
+                        setAllowances((rs) =>
+                          rs.map((r, j) => (j === i ? { ...r, componentId: e.target.value } : r)),
+                        )
+                      }
+                    >
+                      <option value="">—</option>
+                      {components.map((x) => (
+                        <option key={x.id} value={x.id}>
+                          {x.code} — {x.name}
+                        </option>
+                      ))}
+                    </select>
+                    {err(`allowances.${i}.componentId`)}
+                  </td>
+                  <td>
+                    {c
+                      ? c.kind === "deduction"
+                        ? l("Potongan", "Deduction")
+                        : c.fixed
+                          ? l("Tunjangan tetap", "Fixed allowance")
+                          : l("Tunjangan tidak tetap", "Variable allowance")
+                      : ""}
+                  </td>
+                  <td>
+                    <input
+                      disabled={!editable}
+                      className="num"
+                      inputMode="decimal"
+                      value={a.amount}
+                      onChange={(e) =>
+                        setAllowances((rs) =>
+                          rs.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)),
+                        )
+                      }
+                    />
+                  </td>
+                  {editable && (
+                    <td>
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() => setAllowances((rs) => rs.filter((_, j) => j !== i))}
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+          {editable && (
+            <tfoot>
+              <tr>
+                <td colSpan={4}>
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => setAllowances((rs) => [...rs, { componentId: "", amount: "0" }])}
+                  >
+                    + {l("Tambah komponen", "Add component")}
+                  </button>
+                </td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
       {form.wageType === "monthly" ? (
         <p className="muted">
           {l(

@@ -490,24 +490,26 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
           {orders.length > 0 && (
             <>
               <h2>{l("Penawaran & pesanan", "Quotations & orders")}</h2>
-              <table>
-                <tbody>
-                  {orders.map((o) => (
-                    <tr key={o.id}>
-                      <td>
-                        <Link href={`/sales/orders/${o.id}`}>{o.name}</Link>
-                      </td>
-                      <td>{formatDate(o.dateOrder, locale)}</td>
-                      <td>
-                        <span className={`badge state-${o.state}`}>{tx(ORDER_STATE_LABEL[o.state]!)}</span>
-                      </td>
-                      <td className="num">
-                        {o.currencyCode} {money(o.amountTotal, locale)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="table-scroll">
+                <table>
+                  <tbody>
+                    {orders.map((o) => (
+                      <tr key={o.id}>
+                        <td>
+                          <Link href={`/sales/orders/${o.id}`}>{o.name}</Link>
+                        </td>
+                        <td>{formatDate(o.dateOrder, locale)}</td>
+                        <td>
+                          <span className={`badge state-${o.state}`}>{tx(ORDER_STATE_LABEL[o.state]!)}</span>
+                        </td>
+                        <td className="num">
+                          {o.currencyCode} {money(o.amountTotal, locale)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
         </form>

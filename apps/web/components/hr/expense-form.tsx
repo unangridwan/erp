@@ -138,94 +138,96 @@ export function ExpenseClaimForm(props: {
           </select>
         </label>
       </div>
-      <table className="lines">
-        <thead>
-          <tr>
-            <th>{l("Kategori", "Category")}</th>
-            <th>{l("Tanggal", "Date")}</th>
-            <th className="num">{l("Jumlah", "Amount")}</th>
-            <th>{l("Catatan", "Note")}</th>
-            <th>{l("Bukti", "Receipt")}</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {form.lines.map((x, i) => (
-            <tr key={i}>
-              <td>
-                <select
-                  required
-                  aria-label={l("Kategori", "Category")}
-                  value={x.categoryId}
-                  onChange={(e) => setLine(i, { categoryId: e.target.value })}
-                >
-                  <option value="">—</option>
-                  {props.categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                <input
-                  type="date"
-                  required
-                  value={x.date}
-                  onChange={(e) => setLine(i, { date: e.target.value })}
-                />
-              </td>
-              <td>
-                <input
-                  className="num"
-                  inputMode="decimal"
-                  required
-                  aria-label={l("Jumlah", "Amount")}
-                  value={x.amount}
-                  onChange={(e) => setLine(i, { amount: e.target.value })}
-                />
-              </td>
-              <td>
-                <input
-                  aria-label={l("Catatan", "Note")}
-                  value={x.note}
-                  onChange={(e) => setLine(i, { note: e.target.value })}
-                />
-              </td>
-              <td>
-                <input
-                  type="file"
-                  accept="application/pdf,image/jpeg,image/png"
-                  aria-label={l("Bukti", "Receipt")}
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    if (file.size > 2 * 1024 * 1024) {
-                      setError(l("Berkas maksimal 2 MB", "Files may be at most 2 MB"));
-                      return;
-                    }
-                    setLine(i, {
-                      attachment: { name: file.name, type: file.type, data: await readFile(file) },
-                    });
-                  }}
-                />
-                {!x.attachment && x.attachmentName && <small className="muted"> {x.attachmentName}</small>}
-              </td>
-              <td>
-                {form.lines.length > 1 && (
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() => setForm((f) => ({ ...f, lines: f.lines.filter((_, j) => j !== i) }))}
-                  >
-                    ✕
-                  </button>
-                )}
-              </td>
+      <div className="table-scroll">
+        <table className="lines">
+          <thead>
+            <tr>
+              <th>{l("Kategori", "Category")}</th>
+              <th>{l("Tanggal", "Date")}</th>
+              <th className="num">{l("Jumlah", "Amount")}</th>
+              <th>{l("Catatan", "Note")}</th>
+              <th>{l("Bukti", "Receipt")}</th>
+              <th />
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {form.lines.map((x, i) => (
+              <tr key={i}>
+                <td>
+                  <select
+                    required
+                    aria-label={l("Kategori", "Category")}
+                    value={x.categoryId}
+                    onChange={(e) => setLine(i, { categoryId: e.target.value })}
+                  >
+                    <option value="">—</option>
+                    {props.categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td>
+                  <input
+                    type="date"
+                    required
+                    value={x.date}
+                    onChange={(e) => setLine(i, { date: e.target.value })}
+                  />
+                </td>
+                <td>
+                  <input
+                    className="num"
+                    inputMode="decimal"
+                    required
+                    aria-label={l("Jumlah", "Amount")}
+                    value={x.amount}
+                    onChange={(e) => setLine(i, { amount: e.target.value })}
+                  />
+                </td>
+                <td>
+                  <input
+                    aria-label={l("Catatan", "Note")}
+                    value={x.note}
+                    onChange={(e) => setLine(i, { note: e.target.value })}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png"
+                    aria-label={l("Bukti", "Receipt")}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 2 * 1024 * 1024) {
+                        setError(l("Berkas maksimal 2 MB", "Files may be at most 2 MB"));
+                        return;
+                      }
+                      setLine(i, {
+                        attachment: { name: file.name, type: file.type, data: await readFile(file) },
+                      });
+                    }}
+                  />
+                  {!x.attachment && x.attachmentName && <small className="muted"> {x.attachmentName}</small>}
+                </td>
+                <td>
+                  {form.lines.length > 1 && (
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => setForm((f) => ({ ...f, lines: f.lines.filter((_, j) => j !== i) }))}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {error && <p className="error">{error}</p>}
       <div className="form-actions">
         <button

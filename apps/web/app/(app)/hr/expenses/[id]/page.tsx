@@ -158,51 +158,53 @@ export default function ExpenseClaimPage() {
           onCancel={() => setEditing(false)}
         />
       ) : (
-        <table className="lines">
-          <thead>
-            <tr>
-              <th>{l("Kategori", "Category")}</th>
-              <th>{l("Tanggal", "Date")}</th>
-              <th>{l("Catatan", "Note")}</th>
-              <th>{l("Bukti", "Receipt")}</th>
-              <th className="num">{l("Jumlah", "Amount")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {claim.lines.map((x) => (
-              <tr key={x.id}>
-                <td>{x.categoryName}</td>
-                <td>{formatDate(x.date, locale)}</td>
-                <td>{x.note}</td>
-                <td>
-                  {x.attachmentName && (
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={() =>
-                        download(
-                          `/expense-claims/${claim.id}/lines/${x.id}/attachment`,
-                          x.attachmentName!,
-                        ).catch((e: Error) => setError(e.message))
-                      }
-                    >
-                      {x.attachmentName}
-                    </button>
-                  )}
-                </td>
-                <td className="num">{n(x.amount)}</td>
+        <div className="table-scroll">
+          <table className="lines">
+            <thead>
+              <tr>
+                <th>{l("Kategori", "Category")}</th>
+                <th>{l("Tanggal", "Date")}</th>
+                <th>{l("Catatan", "Note")}</th>
+                <th>{l("Bukti", "Receipt")}</th>
+                <th className="num">{l("Jumlah", "Amount")}</th>
               </tr>
-            ))}
-            <tr>
-              <td colSpan={4}>
-                <strong>{l("Total", "Total")}</strong>
-              </td>
-              <td className="num">
-                <strong>{n(claim.total)}</strong>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {claim.lines.map((x) => (
+                <tr key={x.id}>
+                  <td>{x.categoryName}</td>
+                  <td>{formatDate(x.date, locale)}</td>
+                  <td>{x.note}</td>
+                  <td>
+                    {x.attachmentName && (
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() =>
+                          download(
+                            `/expense-claims/${claim.id}/lines/${x.id}/attachment`,
+                            x.attachmentName!,
+                          ).catch((e: Error) => setError(e.message))
+                        }
+                      >
+                        {x.attachmentName}
+                      </button>
+                    )}
+                  </td>
+                  <td className="num">{n(x.amount)}</td>
+                </tr>
+              ))}
+              <tr>
+                <td colSpan={4}>
+                  <strong>{l("Total", "Total")}</strong>
+                </td>
+                <td className="num">
+                  <strong>{n(claim.total)}</strong>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       )}
       {claim.approval && (
         <>

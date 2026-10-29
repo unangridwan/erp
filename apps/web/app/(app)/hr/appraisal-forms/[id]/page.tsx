@@ -131,47 +131,49 @@ export default function AppraisalFormPage() {
         )}
       </p>
       {error && <p className="error">{error}</p>}
-      <table className="lines">
-        <thead>
-          <tr>
-            <th>{l("Indikator", "Indicator")}</th>
-            <th className="num">{l("Bobot", "Weight")}</th>
-            <th className="num">{l("Diri", "Self")}</th>
-            <th className="num">{l("Atasan", "Manager")}</th>
-            {mode && <th>{l("Nilai Anda (1–5)", "Your score (1–5)")}</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {a.lines.map((x) => (
-            <tr key={x.id}>
-              <td>
-                {x.name}
-                {x.comment && <small className="muted"> — {x.comment}</small>}
-              </td>
-              <td className="num">{Number(x.weight)}</td>
-              <td className="num">{x.selfScore ?? "—"}</td>
-              <td className="num">{x.managerScore ?? "—"}</td>
-              {mode && (
-                <td>
-                  <span role="radiogroup" aria-label={x.name}>
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <label key={s} className="check" style={{ marginRight: 8 }}>
-                        <input
-                          type="radio"
-                          name={`score-${x.id}`}
-                          checked={scores[x.id] === s}
-                          onChange={() => setScores((v) => ({ ...v, [x.id]: s }))}
-                        />
-                        {s}
-                      </label>
-                    ))}
-                  </span>
-                </td>
-              )}
+      <div className="table-scroll">
+        <table className="lines">
+          <thead>
+            <tr>
+              <th>{l("Indikator", "Indicator")}</th>
+              <th className="num">{l("Bobot", "Weight")}</th>
+              <th className="num">{l("Diri", "Self")}</th>
+              <th className="num">{l("Atasan", "Manager")}</th>
+              {mode && <th>{l("Nilai Anda (1–5)", "Your score (1–5)")}</th>}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {a.lines.map((x) => (
+              <tr key={x.id}>
+                <td>
+                  {x.name}
+                  {x.comment && <small className="muted"> — {x.comment}</small>}
+                </td>
+                <td className="num">{Number(x.weight)}</td>
+                <td className="num">{x.selfScore ?? "—"}</td>
+                <td className="num">{x.managerScore ?? "—"}</td>
+                {mode && (
+                  <td>
+                    <span role="radiogroup" aria-label={x.name}>
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <label key={s} className="check" style={{ marginRight: 8 }}>
+                          <input
+                            type="radio"
+                            name={`score-${x.id}`}
+                            checked={scores[x.id] === s}
+                            onChange={() => setScores((v) => ({ ...v, [x.id]: s }))}
+                          />
+                          {s}
+                        </label>
+                      ))}
+                    </span>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {(a.employeeComment || a.managerComment || a.hrComment) && (
         <dl>
           {a.employeeComment && (

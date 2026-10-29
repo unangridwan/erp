@@ -101,81 +101,83 @@ export default function TrainingPage() {
           {l("Tambah", "Add")}
         </button>
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th>{l("Peserta", "Participant")}</th>
-            <th>{l("Hasil", "Result")}</th>
-            <th>{l("Sertifikat", "Certificate")}</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {t.participants.map((p) => (
-            <tr key={p.id}>
-              <td>
-                <Link href={`/employees/${p.employeeId}`}>{p.employeeName}</Link>{" "}
-                <small className="muted">{p.employeeNumber}</small>
-              </td>
-              <td>
-                <select
-                  aria-label={l("Hasil", "Result")}
-                  value={p.state}
-                  onChange={(e) => call(`/participants/${p.id}`, "PUT", { state: e.target.value })}
-                >
-                  <option value="enrolled">{l("Terdaftar", "Enrolled")}</option>
-                  <option value="completed">{l("Selesai/lulus", "Completed")}</option>
-                  <option value="absent">{l("Tidak hadir", "Absent")}</option>
-                </select>
-              </td>
-              <td>
-                {p.certificateDocumentId ? (
-                  <span>
-                    {l("tersimpan di dokumen", "stored in documents")}
-                    {p.certificateExpiry
-                      ? ` · ${l("berlaku s.d.", "valid until")} ${formatDate(p.certificateExpiry, locale)}`
-                      : ""}
-                  </span>
-                ) : p.state === "completed" ? (
-                  <input
-                    type="file"
-                    accept="application/pdf,image/jpeg,image/png"
-                    aria-label={l("Unggah sertifikat", "Upload certificate")}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      if (file.size > 5 * 1024 * 1024)
-                        return setError(l("Berkas maksimal 5 MB", "Files may be at most 5 MB"));
-                      await call(`/participants/${p.id}`, "PUT", {
-                        state: "completed",
-                        certificate: { name: file.name, type: file.type, data: await readFile(file) },
-                      });
-                    }}
-                  />
-                ) : (
-                  "—"
-                )}
-              </td>
-              <td>
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() => call(`/participants/${p.id}`, "DELETE")}
-                >
-                  {l("Hapus", "Remove")}
-                </button>
-              </td>
-            </tr>
-          ))}
-          {t.participants.length === 0 && (
+      <div className="table-scroll">
+        <table>
+          <thead>
             <tr>
-              <td colSpan={4} className="muted">
-                {l("Belum ada peserta.", "No participants yet.")}
-              </td>
+              <th>{l("Peserta", "Participant")}</th>
+              <th>{l("Hasil", "Result")}</th>
+              <th>{l("Sertifikat", "Certificate")}</th>
+              <th />
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {t.participants.map((p) => (
+              <tr key={p.id}>
+                <td>
+                  <Link href={`/employees/${p.employeeId}`}>{p.employeeName}</Link>{" "}
+                  <small className="muted">{p.employeeNumber}</small>
+                </td>
+                <td>
+                  <select
+                    aria-label={l("Hasil", "Result")}
+                    value={p.state}
+                    onChange={(e) => call(`/participants/${p.id}`, "PUT", { state: e.target.value })}
+                  >
+                    <option value="enrolled">{l("Terdaftar", "Enrolled")}</option>
+                    <option value="completed">{l("Selesai/lulus", "Completed")}</option>
+                    <option value="absent">{l("Tidak hadir", "Absent")}</option>
+                  </select>
+                </td>
+                <td>
+                  {p.certificateDocumentId ? (
+                    <span>
+                      {l("tersimpan di dokumen", "stored in documents")}
+                      {p.certificateExpiry
+                        ? ` · ${l("berlaku s.d.", "valid until")} ${formatDate(p.certificateExpiry, locale)}`
+                        : ""}
+                    </span>
+                  ) : p.state === "completed" ? (
+                    <input
+                      type="file"
+                      accept="application/pdf,image/jpeg,image/png"
+                      aria-label={l("Unggah sertifikat", "Upload certificate")}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 5 * 1024 * 1024)
+                          return setError(l("Berkas maksimal 5 MB", "Files may be at most 5 MB"));
+                        await call(`/participants/${p.id}`, "PUT", {
+                          state: "completed",
+                          certificate: { name: file.name, type: file.type, data: await readFile(file) },
+                        });
+                      }}
+                    />
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => call(`/participants/${p.id}`, "DELETE")}
+                  >
+                    {l("Hapus", "Remove")}
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {t.participants.length === 0 && (
+              <tr>
+                <td colSpan={4} className="muted">
+                  {l("Belum ada peserta.", "No participants yet.")}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

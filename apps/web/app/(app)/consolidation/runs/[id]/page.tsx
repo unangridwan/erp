@@ -629,57 +629,59 @@ export default function ConsolidationRunPage() {
             </label>
           </div>
           {segments && segments.by === segmentBy && (
-            <table>
-              <caption>
-                {l(
-                  "Laba rugi per segmen (sebelum eliminasi) dan rekonsiliasi ke konsolidasian",
-                  "Profit or loss by segment (before eliminations) reconciled to consolidated",
-                )}
-              </caption>
-              <thead>
-                <tr>
-                  <th>{l("Segmen", "Segment")}</th>
-                  <th className="num">{l("Pendapatan", "Revenue")}</th>
-                  <th className="num">{l("Beban pokok", "Cost of sales")}</th>
-                  <th className="num">{l("Laba kotor", "Gross profit")}</th>
-                  <th className="num">{l("Beban usaha", "Operating expenses")}</th>
-                  <th className="num">{l("Lain-lain neto", "Other, net")}</th>
-                  <th className="num">{l("Laba bersih", "Net profit")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...segments.segments, segments.eliminations].map((r) => (
-                  <tr key={r.key} className={r.key === "eliminations" ? "muted" : ""}>
-                    <td>
-                      {r.key === "eliminations"
-                        ? l("Eliminasi & penyesuaian", "Eliminations & adjustments")
-                        : r.key === "none"
-                          ? segmentBy === "branch"
-                            ? l("Tanpa cabang", "No branch")
-                            : l("Tanpa unit bisnis", "No business unit")
-                          : r.name}
-                    </td>
+            <div className="table-scroll">
+              <table>
+                <caption>
+                  {l(
+                    "Laba rugi per segmen (sebelum eliminasi) dan rekonsiliasi ke konsolidasian",
+                    "Profit or loss by segment (before eliminations) reconciled to consolidated",
+                  )}
+                </caption>
+                <thead>
+                  <tr>
+                    <th>{l("Segmen", "Segment")}</th>
+                    <th className="num">{l("Pendapatan", "Revenue")}</th>
+                    <th className="num">{l("Beban pokok", "Cost of sales")}</th>
+                    <th className="num">{l("Laba kotor", "Gross profit")}</th>
+                    <th className="num">{l("Beban usaha", "Operating expenses")}</th>
+                    <th className="num">{l("Lain-lain neto", "Other, net")}</th>
+                    <th className="num">{l("Laba bersih", "Net profit")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...segments.segments, segments.eliminations].map((r) => (
+                    <tr key={r.key} className={r.key === "eliminations" ? "muted" : ""}>
+                      <td>
+                        {r.key === "eliminations"
+                          ? l("Eliminasi & penyesuaian", "Eliminations & adjustments")
+                          : r.key === "none"
+                            ? segmentBy === "branch"
+                              ? l("Tanpa cabang", "No branch")
+                              : l("Tanpa unit bisnis", "No business unit")
+                            : r.name}
+                      </td>
+                      {(
+                        ["income", "directCost", "grossProfit", "expense", "otherNet", "netProfit"] as const
+                      ).map((f) => (
+                        <td key={f} className="num">
+                          {m(r[f])}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  <tr className="subtotal">
+                    <td>{l("Konsolidasian", "Consolidated")}</td>
                     {(
                       ["income", "directCost", "grossProfit", "expense", "otherNet", "netProfit"] as const
                     ).map((f) => (
                       <td key={f} className="num">
-                        {m(r[f])}
+                        {m(segments.total[f])}
                       </td>
                     ))}
                   </tr>
-                ))}
-                <tr className="subtotal">
-                  <td>{l("Konsolidasian", "Consolidated")}</td>
-                  {(["income", "directCost", "grossProfit", "expense", "otherNet", "netProfit"] as const).map(
-                    (f) => (
-                      <td key={f} className="num">
-                        {m(segments.total[f])}
-                      </td>
-                    ),
-                  )}
-                </tr>
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       )}
@@ -1084,58 +1086,60 @@ function ManualEntry({
         <span>{l("Keterangan", "Description")}</span>
         <input required value={description} onChange={(e) => setDescription(e.target.value)} />
       </label>
-      <table className="lines">
-        <thead>
-          <tr>
-            <th>{l("Akun grup", "Group account")}</th>
-            <th>{l("Entitas (opsional)", "Entity (optional)")}</th>
-            <th className="num">Debit</th>
-            <th className="num">{l("Kredit", "Credit")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lines.map((x, i) => (
-            <tr key={i}>
-              <td>
-                <select value={x.groupAccountId} onChange={(e) => set(i, "groupAccountId", e.target.value)}>
-                  <option value="">—</option>
-                  {groups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.code} {g.name}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                <select value={x.companyId} onChange={(e) => set(i, "companyId", e.target.value)}>
-                  <option value="">{l("(grup)", "(group)")}</option>
-                  {entities.map((en) => (
-                    <option key={en.companyId} value={en.companyId}>
-                      {en.name}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                <input
-                  className="num"
-                  inputMode="decimal"
-                  value={x.debit}
-                  onChange={(e) => set(i, "debit", e.target.value)}
-                />
-              </td>
-              <td>
-                <input
-                  className="num"
-                  inputMode="decimal"
-                  value={x.credit}
-                  onChange={(e) => set(i, "credit", e.target.value)}
-                />
-              </td>
+      <div className="table-scroll">
+        <table className="lines">
+          <thead>
+            <tr>
+              <th>{l("Akun grup", "Group account")}</th>
+              <th>{l("Entitas (opsional)", "Entity (optional)")}</th>
+              <th className="num">Debit</th>
+              <th className="num">{l("Kredit", "Credit")}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {lines.map((x, i) => (
+              <tr key={i}>
+                <td>
+                  <select value={x.groupAccountId} onChange={(e) => set(i, "groupAccountId", e.target.value)}>
+                    <option value="">—</option>
+                    {groups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.code} {g.name}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td>
+                  <select value={x.companyId} onChange={(e) => set(i, "companyId", e.target.value)}>
+                    <option value="">{l("(grup)", "(group)")}</option>
+                    {entities.map((en) => (
+                      <option key={en.companyId} value={en.companyId}>
+                        {en.name}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td>
+                  <input
+                    className="num"
+                    inputMode="decimal"
+                    value={x.debit}
+                    onChange={(e) => set(i, "debit", e.target.value)}
+                  />
+                </td>
+                <td>
+                  <input
+                    className="num"
+                    inputMode="decimal"
+                    value={x.credit}
+                    onChange={(e) => set(i, "credit", e.target.value)}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <div className="form-actions">
         <button
           type="button"

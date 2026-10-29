@@ -542,92 +542,98 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
 
           <h2>{l("Produk", "Products")}</h2>
           {editable ? (
-            <table className="lines">
-              <thead>
-                <tr>
-                  <th>{l("Produk", "Product")}</th>
-                  <th className="num">{l("Kuantitas", "Quantity")}</th>
-                  {type === "incoming" && (
-                    <th className="num">
-                      {l("Biaya/unit (kosong = biaya saat ini)", "Unit cost (empty = current)")}
-                    </th>
-                  )}
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((x, i) => (
-                  <tr key={i}>
-                    <td>
-                      <select
-                        value={x.productId}
-                        onChange={(e) =>
-                          setLines((r) =>
-                            r.map((y, j) => (j === i ? { ...y, productId: e.target.value } : y)),
-                          )
-                        }
-                      >
-                        <option value="">—</option>
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.sku} {p.name}
-                          </option>
-                        ))}
-                      </select>
-                      {err(`moves.${i}.productId`)}
-                    </td>
-                    <td>
-                      <input
-                        className="num short"
-                        inputMode="decimal"
-                        value={x.quantity}
-                        onChange={(e) =>
-                          setLines((r) => r.map((y, j) => (j === i ? { ...y, quantity: e.target.value } : y)))
-                        }
-                      />
-                      {err(`moves.${i}.quantity`)}
-                    </td>
+            <div className="table-scroll">
+              <table className="lines">
+                <thead>
+                  <tr>
+                    <th>{l("Produk", "Product")}</th>
+                    <th className="num">{l("Kuantitas", "Quantity")}</th>
                     {type === "incoming" && (
+                      <th className="num">
+                        {l("Biaya/unit (kosong = biaya saat ini)", "Unit cost (empty = current)")}
+                      </th>
+                    )}
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {lines.map((x, i) => (
+                    <tr key={i}>
                       <td>
-                        <input
-                          className="num"
-                          inputMode="decimal"
-                          value={x.priceUnit}
+                        <select
+                          value={x.productId}
                           onChange={(e) =>
                             setLines((r) =>
-                              r.map((y, j) => (j === i ? { ...y, priceUnit: e.target.value } : y)),
+                              r.map((y, j) => (j === i ? { ...y, productId: e.target.value } : y)),
+                            )
+                          }
+                        >
+                          <option value="">—</option>
+                          {products.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.sku} {p.name}
+                            </option>
+                          ))}
+                        </select>
+                        {err(`moves.${i}.productId`)}
+                      </td>
+                      <td>
+                        <input
+                          className="num short"
+                          inputMode="decimal"
+                          value={x.quantity}
+                          onChange={(e) =>
+                            setLines((r) =>
+                              r.map((y, j) => (j === i ? { ...y, quantity: e.target.value } : y)),
                             )
                           }
                         />
+                        {err(`moves.${i}.quantity`)}
                       </td>
-                    )}
-                    <td>
+                      {type === "incoming" && (
+                        <td>
+                          <input
+                            className="num"
+                            inputMode="decimal"
+                            value={x.priceUnit}
+                            onChange={(e) =>
+                              setLines((r) =>
+                                r.map((y, j) => (j === i ? { ...y, priceUnit: e.target.value } : y)),
+                              )
+                            }
+                          />
+                        </td>
+                      )}
+                      <td>
+                        <button
+                          type="button"
+                          className="link"
+                          onClick={() => setLines((r) => r.filter((_, j) => j !== i))}
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={4}>
                       <button
                         type="button"
                         className="link"
-                        onClick={() => setLines((r) => r.filter((_, j) => j !== i))}
+                        onClick={() =>
+                          setLines((r) => [...r, { productId: "", quantity: "1", priceUnit: "" }])
+                        }
                       >
-                        ✕
+                        + {l("Tambah produk", "Add product")}
                       </button>
+                      {err("moves")}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td colSpan={4}>
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={() => setLines((r) => [...r, { productId: "", quantity: "1", priceUnit: "" }])}
-                    >
-                      + {l("Tambah produk", "Add product")}
-                    </button>
-                    {err("moves")}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+                </tfoot>
+              </table>
+            </div>
           ) : (
             picking && (
               <div className="table-wrap">

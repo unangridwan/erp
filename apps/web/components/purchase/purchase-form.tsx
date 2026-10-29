@@ -686,55 +686,59 @@ export function PurchaseForm({ id }: { id: string }) {
           {order && order.pickings.length > 0 && (
             <>
               <h2>{l("Penerimaan barang", "Receipts")}</h2>
-              <table>
-                <tbody>
-                  {order.pickings.map((p) => (
-                    <tr key={p.id}>
-                      <td>
-                        <Link href={`/inventory/pickings/${p.id}`}>{p.name}</Link>
-                        {p.pickingType === "outgoing" && (
-                          <small className="muted"> · {l("retur", "return")}</small>
-                        )}
-                      </td>
-                      <td>{formatDate(p.scheduledDate, locale)}</td>
-                      <td>
-                        <span className={`badge state-${p.state === "done" ? "posted" : p.state}`}>
-                          {tx(PICKING_STATE_LABEL[p.state]!)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="table-scroll">
+                <table>
+                  <tbody>
+                    {order.pickings.map((p) => (
+                      <tr key={p.id}>
+                        <td>
+                          <Link href={`/inventory/pickings/${p.id}`}>{p.name}</Link>
+                          {p.pickingType === "outgoing" && (
+                            <small className="muted"> · {l("retur", "return")}</small>
+                          )}
+                        </td>
+                        <td>{formatDate(p.scheduledDate, locale)}</td>
+                        <td>
+                          <span className={`badge state-${p.state === "done" ? "posted" : p.state}`}>
+                            {tx(PICKING_STATE_LABEL[p.state]!)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
           {order && order.bills.length > 0 && (
             <>
               <h2>{l("Tagihan", "Bills")}</h2>
-              <table>
-                <tbody>
-                  {order.bills.map((m) => (
-                    <tr key={m.id}>
-                      <td>
-                        <Link href={`/accounting/moves/${m.id}`}>{m.name ?? l("Draft", "Draft")}</Link>{" "}
-                        <small className="muted">{tx(MOVE_TYPE_LABEL[m.moveType]!)}</small>
-                      </td>
-                      <td>{formatDate(m.date, locale)}</td>
-                      <td>
-                        <span className={`badge state-${m.state}`}>
-                          {m.state === "posted" ? l("Diposting", "Posted") : l("Draft", "Draft")}
-                        </span>{" "}
-                        {m.state === "posted" && PAYMENT_STATE_LABEL[m.paymentState] && (
-                          <span className={`badge pay-${m.paymentState}`}>
-                            {tx(PAYMENT_STATE_LABEL[m.paymentState]!)}
-                          </span>
-                        )}
-                      </td>
-                      <td className="num">{money(m.amountTotal, locale)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="table-scroll">
+                <table>
+                  <tbody>
+                    {order.bills.map((m) => (
+                      <tr key={m.id}>
+                        <td>
+                          <Link href={`/accounting/moves/${m.id}`}>{m.name ?? l("Draft", "Draft")}</Link>{" "}
+                          <small className="muted">{tx(MOVE_TYPE_LABEL[m.moveType]!)}</small>
+                        </td>
+                        <td>{formatDate(m.date, locale)}</td>
+                        <td>
+                          <span className={`badge state-${m.state}`}>
+                            {m.state === "posted" ? l("Diposting", "Posted") : l("Draft", "Draft")}
+                          </span>{" "}
+                          {m.state === "posted" && PAYMENT_STATE_LABEL[m.paymentState] && (
+                            <span className={`badge pay-${m.paymentState}`}>
+                              {tx(PAYMENT_STATE_LABEL[m.paymentState]!)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="num">{money(m.amountTotal, locale)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
         </form>

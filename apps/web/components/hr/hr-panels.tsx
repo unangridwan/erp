@@ -134,52 +134,56 @@ export function DocumentsPanel({ employeeId, applicantId }: { employeeId?: strin
         </div>
       )}
       {docs.length > 0 && (
-        <table>
-          <tbody>
-            {docs.map((d) => (
-              <tr key={d.id}>
-                <td>{tx(DOCUMENT_KIND_LABEL[d.kind]!)}</td>
-                <td>
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() =>
-                      download(`/hr-documents/${d.id}/file`, d.fileName).catch((e) => setError(errorText(e)))
-                    }
-                  >
-                    {d.name}
-                  </button>{" "}
-                  {d.number && <span>· {d.number} </span>}
-                  <small className="muted">{Math.ceil(d.size / 1024)} KB</small>
-                </td>
-                <td>
-                  {d.expiryDate ? (
-                    <span className={d.expiry && d.expiry.status !== "ok" ? "error" : undefined}>
-                      {l("berlaku s.d.", "valid until")} {formatDate(d.expiryDate, locale)}
-                      {d.expiry?.status === "expired" ? ` — ${l("kedaluwarsa", "expired")}` : ""}
-                    </span>
-                  ) : (
-                    <span className="muted">{l("tanpa masa berlaku", "no expiry")}</span>
-                  )}
-                </td>
-                <td>
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() =>
-                      confirm(l("Hapus dokumen ini?", "Delete this document?")) &&
-                      api(`/hr-documents/${d.id}`, { method: "DELETE" }).then(load, (e) =>
-                        setError(errorText(e)),
-                      )
-                    }
-                  >
-                    {l("Hapus", "Delete")}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table>
+            <tbody>
+              {docs.map((d) => (
+                <tr key={d.id}>
+                  <td>{tx(DOCUMENT_KIND_LABEL[d.kind]!)}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() =>
+                        download(`/hr-documents/${d.id}/file`, d.fileName).catch((e) =>
+                          setError(errorText(e)),
+                        )
+                      }
+                    >
+                      {d.name}
+                    </button>{" "}
+                    {d.number && <span>· {d.number} </span>}
+                    <small className="muted">{Math.ceil(d.size / 1024)} KB</small>
+                  </td>
+                  <td>
+                    {d.expiryDate ? (
+                      <span className={d.expiry && d.expiry.status !== "ok" ? "error" : undefined}>
+                        {l("berlaku s.d.", "valid until")} {formatDate(d.expiryDate, locale)}
+                        {d.expiry?.status === "expired" ? ` — ${l("kedaluwarsa", "expired")}` : ""}
+                      </span>
+                    ) : (
+                      <span className="muted">{l("tanpa masa berlaku", "no expiry")}</span>
+                    )}
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() =>
+                        confirm(l("Hapus dokumen ini?", "Delete this document?")) &&
+                        api(`/hr-documents/${d.id}`, { method: "DELETE" }).then(load, (e) =>
+                          setError(errorText(e)),
+                        )
+                      }
+                    >
+                      {l("Hapus", "Delete")}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       <form className="inline-panel" onSubmit={upload}>
         <label className="field">

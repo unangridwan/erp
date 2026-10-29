@@ -252,25 +252,27 @@ export default function LoansPage() {
                             </div>
                           )}
                           {detail.installments.length > 0 ? (
-                            <table className="lines">
-                              <thead>
-                                <tr>
-                                  <th>{l("Penggajian", "Payroll")}</th>
-                                  <th className="num">{l("Cicilan", "Installment")}</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {detail.installments.map((i) => (
-                                  <tr key={i.runId}>
-                                    <td>
-                                      <Link href={`/payroll/runs/${i.runId}`}>{i.runName}</Link>
-                                      {i.state === "draft" && ` (${l("draft", "draft")})`}
-                                    </td>
-                                    <td className="num">{money(i.amount, locale)}</td>
+                            <div className="table-scroll">
+                              <table className="lines">
+                                <thead>
+                                  <tr>
+                                    <th>{l("Penggajian", "Payroll")}</th>
+                                    <th className="num">{l("Cicilan", "Installment")}</th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                                </thead>
+                                <tbody>
+                                  {detail.installments.map((i) => (
+                                    <tr key={i.runId}>
+                                      <td>
+                                        <Link href={`/payroll/runs/${i.runId}`}>{i.runName}</Link>
+                                        {i.state === "draft" && ` (${l("draft", "draft")})`}
+                                      </td>
+                                      <td className="num">{money(i.amount, locale)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
                           ) : (
                             <p className="muted">{l("Belum ada cicilan.", "No installments yet.")}</p>
                           )}

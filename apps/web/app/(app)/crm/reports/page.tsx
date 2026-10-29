@@ -83,34 +83,36 @@ export default function PipelineReportPage() {
           </ul>
           <section className="panel">
             <h2>{l("Pipeline per tahap", "Pipeline by stage")}</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>{l("Tahap", "Stage")}</th>
-                  <th className="num">{l("Jumlah", "Count")}</th>
-                  <th className="num">{l("Pendapatan harapan", "Expected revenue")}</th>
-                  <th className="num">{l("Tertimbang", "Weighted")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.stages.map((s) => (
-                  <tr key={s.stageId ?? "none"}>
-                    <td>{s.stageName ?? l("(tanpa tahap)", "(no stage)")}</td>
-                    <td className="num">{s.count}</td>
-                    <td className="num">{money(s.expected, locale)}</td>
-                    <td className="num">{money(s.weighted, locale)}</td>
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{l("Tahap", "Stage")}</th>
+                    <th className="num">{l("Jumlah", "Count")}</th>
+                    <th className="num">{l("Pendapatan harapan", "Expected revenue")}</th>
+                    <th className="num">{l("Tertimbang", "Weighted")}</th>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <th>{l("Total", "Total")}</th>
-                  <th className="num">{totals.count}</th>
-                  <th className="num">{money(totals.expected, locale)}</th>
-                  <th className="num">{money(totals.weighted, locale)}</th>
-                </tr>
-              </tfoot>
-            </table>
+                </thead>
+                <tbody>
+                  {data.stages.map((s) => (
+                    <tr key={s.stageId ?? "none"}>
+                      <td>{s.stageName ?? l("(tanpa tahap)", "(no stage)")}</td>
+                      <td className="num">{s.count}</td>
+                      <td className="num">{money(s.expected, locale)}</td>
+                      <td className="num">{money(s.weighted, locale)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th>{l("Total", "Total")}</th>
+                    <th className="num">{totals.count}</th>
+                    <th className="num">{money(totals.expected, locale)}</th>
+                    <th className="num">{money(totals.weighted, locale)}</th>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </section>
           <section className="panel">
             <h2>
@@ -119,16 +121,18 @@ export default function PipelineReportPage() {
             {data.lostByReason.length === 0 ? (
               <p className="muted">—</p>
             ) : (
-              <table>
-                <tbody>
-                  {data.lostByReason.map((r) => (
-                    <tr key={r.reason ?? "none"}>
-                      <td>{r.reason ?? l("(tanpa alasan)", "(no reason)")}</td>
-                      <td className="num">{r.count}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="table-scroll">
+                <table>
+                  <tbody>
+                    {data.lostByReason.map((r) => (
+                      <tr key={r.reason ?? "none"}>
+                        <td>{r.reason ?? l("(tanpa alasan)", "(no reason)")}</td>
+                        <td className="num">{r.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
         </>

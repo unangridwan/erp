@@ -258,28 +258,32 @@ export default function MyPortalPage() {
         {slips.length === 0 ? (
           <p className="muted">{l("Belum ada slip gaji.", "No payslips yet.")}</p>
         ) : (
-          <table>
-            <tbody>
-              {slips.map((s) => (
-                <tr key={s.id}>
-                  <td>{s.runName}</td>
-                  <td>{formatDate(s.paymentDate, locale)}</td>
-                  <td className="num">{money(s.net, locale)}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={() =>
-                        run(() => download(`/payslips/${s.id}/pdf`, `slip-${s.periodStart.slice(0, 7)}.pdf`))
-                      }
-                    >
-                      PDF
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table>
+              <tbody>
+                {slips.map((s) => (
+                  <tr key={s.id}>
+                    <td>{s.runName}</td>
+                    <td>{formatDate(s.paymentDate, locale)}</td>
+                    <td className="num">{money(s.net, locale)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() =>
+                          run(() =>
+                            download(`/payslips/${s.id}/pdf`, `slip-${s.periodStart.slice(0, 7)}.pdf`),
+                          )
+                        }
+                      >
+                        PDF
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
       <MyTaxSlips />

@@ -72,26 +72,28 @@ export default function ChangeRequestsPage() {
           <strong>
             {r.employeeName} <small className="muted">{new Date(r.createdAt).toLocaleString()}</small>
           </strong>
-          <table className="lines">
-            <thead>
-              <tr>
-                <th>{l("Data", "Field")}</th>
-                <th>{l("Saat ini", "Current")}</th>
-                <th>{l("Baru", "New")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(r.changes).map(([k, v]) => (
-                <tr key={k}>
-                  <td>{LABELS[k] ? l(...LABELS[k]) : k}</td>
-                  <td className="muted">{r.current[k] ?? "—"}</td>
-                  <td>
-                    <strong>{v ?? "—"}</strong>
-                  </td>
+          <div className="table-scroll">
+            <table className="lines">
+              <thead>
+                <tr>
+                  <th>{l("Data", "Field")}</th>
+                  <th>{l("Saat ini", "Current")}</th>
+                  <th>{l("Baru", "New")}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {Object.entries(r.changes).map(([k, v]) => (
+                  <tr key={k}>
+                    <td>{LABELS[k] ? l(...LABELS[k]) : k}</td>
+                    <td className="muted">{r.current[k] ?? "—"}</td>
+                    <td>
+                      <strong>{v ?? "—"}</strong>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {r.note && <p className="muted">{r.note}</p>}
           {r.state === "confirm" ? (
             <div className="inline-panel">
