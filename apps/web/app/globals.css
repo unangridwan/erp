@@ -882,6 +882,35 @@ label.check {
     max-width: 130px;
   }
 }
+
+/* Mode ringkas navbar (menu tidak muat; ditentukan komponen Navbar) = tampilan ponsel. */
+.navbar.compact .nav-burger {
+  display: block;
+}
+.navbar.compact .nav-menu {
+  display: none;
+}
+.navbar.compact .nav-menu.open {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  position: absolute;
+  top: 46px;
+  left: 0;
+  right: 0;
+  padding: 8px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 14%);
+  max-height: calc(100vh - 46px);
+  overflow-y: auto;
+}
+.navbar.compact .nav-menu.open .nav-items {
+  position: static;
+  border: none;
+  box-shadow: none;
+  padding-left: 12px;
+}
 .app.home {
   background:
     radial-gradient(circle at 15% 10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 45%),

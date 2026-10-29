@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { session, type Me } from "../lib/api";
 import { visibleMenu, type App, type MenuEntry } from "../lib/apps";
 import { useI18n } from "../lib/i18n";
@@ -26,6 +26,41 @@ function useDropdown() {
   return { open, setOpen, ref };
 }
 
+/**
+ * Menu tidak muat di satu baris (banyak item, layar laptop) → mode ringkas: tombol ☰ seperti di ponsel.
+ * Diukur ulang saat ukuran jendela, aplikasi aktif, atau bahasa berubah.
+ */
+function useCompactNav(ref: RefObject<HTMLElement | null>, key: string) {
+  const [compact, setCompact] = useState(false);
+  const [probe, setProbe] = useState(0);
+  useEffect(() => {
+    const onResize = () => {
+      setCompact(false);
+      setProbe((p) => p + 1);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  useEffect(() => {
+    setCompact(false);
+    setProbe((p) => p + 1);
+  }, [key]);
+  useLayoutEffect(() => {
+    const header = ref.current;
+    if (compact || !header) return;
+    const menu = header.querySelector<HTMLElement>(".nav-menu");
+    const right = header.querySelector<HTMLElement>(".nav-right");
+    const company = header.querySelector<HTMLElement>(".nav-company-name");
+    if (!menu || !right || getComputedStyle(menu).display === "none") return;
+    const crowded =
+      menu.getBoundingClientRect().right > right.getBoundingClientRect().left - 8 ||
+      header.scrollWidth > header.clientWidth + 1 ||
+      (!!company && company.scrollWidth > company.clientWidth + 1 && company.clientWidth < 120);
+    if (crowded) setCompact(true);
+  }, [compact, probe, ref]);
+  return compact;
+}
+
 const initials = (name: string) =>
   name
     .split(/\s+/)
@@ -45,9 +80,10 @@ export function Navbar({ me, app }: { me: Me; app: App | null }) {
   const menu: MenuEntry[] = app ? visibleMenu(me, app) : [];
   const active = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const toggle = (key: string) => setOpen(open === key ? null : key);
+  const compact = useCompactNav(ref, `${app?.id ?? ""}|${menu.length}|${locale}`);
 
   return (
-    <header className="navbar" ref={ref}>
+    <header className={`navbar${compact ? " compact" : ""}`} ref={ref}>
       <Link href="/" className="nav-apps" title={l("Semua aplikasi", "All apps")}>
         <AppsGlyph />
       </Link>
