@@ -320,12 +320,15 @@ berlaku di masa lalu, jalankan **Hitung rapel** di payroll berikutnya.
 
 #### Pembuat laporan kustom & laporan terjadwal
 
-| Endpoint                                                                                | Keterangan                                                                                             |
-| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `GET /reports/datasets`, `POST /saved-reports/preview`                                  | Dataset HR/Payroll yang boleh dibaca user (kolom sensitif hanya untuk pemegang hak kelola) & pratinjau |
-| `/saved-reports`, `GET /saved-reports/:id/run`, `GET /saved-reports/:id/export?format=` | Laporan tersimpan (pribadi/dibagikan), jalankan, ekspor `xlsx`/`csv`/`pdf`                             |
-| `POST /saved-reports/:id/schedules`, `PATCH/DELETE /report-schedules/:id`               | Jadwal email harian/mingguan/bulanan (jam zona waktu perusahaan), hanya pemilik laporan                |
-| `POST /report-schedules/:id/send-now`, `GET /report-schedules/:id/deliveries`           | Kirim sekarang & riwayat pengiriman                                                                    |
+| Endpoint                                                                                             | Keterangan                                                                                                                                             |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /reports/datasets`, `POST /saved-reports/preview`                                               | Dataset HR/Payroll yang boleh dibaca user (kolom sensitif hanya untuk pemegang hak kelola) & pratinjau                                                 |
+| `/saved-reports`, `GET /saved-reports/:id/run`, `GET /saved-reports/:id/export?format=`              | Laporan tersimpan (pribadi/dibagikan), jalankan, ekspor `xlsx`/`csv`/`pdf`                                                                             |
+| `POST /saved-reports/:id/schedules`, `PATCH/DELETE /report-schedules/:id`                            | Jadwal email harian/mingguan/bulanan (jam zona waktu perusahaan), hanya pemilik laporan                                                                |
+| `GET/PUT /manpower-budgets?year=`, `GET /manpower-budgets/template`, `POST /manpower-budgets/import` | Anggaran tenaga kerja per departemen/jabatan/bulan (headcount & biaya; biaya hanya `payroll.read`), template & impor Excel/CSV                         |
+| `GET /manpower-budgets/report?year=[&format=xlsx]`                                                   | Rencana vs aktual: headcount akhir bulan, biaya dari slip terposting, selisih %, lowongan terbuka                                                      |
+| `GET /hr/analytics?year=&departmentId=[&format=xlsx]`                                                | Turnover (sukarela/tidak) & retensi, per departemen/alasan/masa kerja, demografi, kesetaraan gaji per golongan × gender + compa-ratio (`payroll.read`) |
+| `POST /report-schedules/:id/send-now`, `GET /report-schedules/:id/deliveries`                        | Kirim sekarang & riwayat pengiriman                                                                                                                    |
 
 Konfigurasi laporan: kolom, filter dataset (dataset slip memakai `runId=latest` = payroll terposting terakhir), syarat
 per kolom, kelompok (≤ 3) + agregasi jumlah/banyaknya/rata-rata/min/maks, urutan, batas baris, grafik batang/garis/
