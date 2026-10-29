@@ -303,6 +303,21 @@ potongan, dan untuk DPLK menjadi pengurang PPh 21 tahunan (seperti iuran pensiun
 (kosong = beban gaji), kredit akun utang premi/iuran ke penyedia. Premi kehadiran hilang bila terlambat/tidak hadir
 melebihi batas atau tidak hadir sama sekali; nilai per karyawan dari tunjangan kontrak, atau nilai bawaan komponen.
 
+#### Siklus kenaikan gaji & total rewards
+
+| Endpoint                                                                            | Keterangan                                                                                              |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `/compensation-cycles`, `POST /compensation-cycles/:id/generate`                    | Siklus (tanggal berlaku, anggaran % upah peserta atau nominal, filter departemen/golongan) & isi usulan |
+| `PUT /compensation-proposals/:id`, `GET /me/team-compensation`                      | Ubah usulan (% atau upah baru) oleh HR (`payroll.manage`) atau atasan langsung lewat portal             |
+| `POST /compensation-cycles/:id/{submit,cancel,apply}`                               | Ajukan ke Persetujuan (kategori `KENAIKAN`), batalkan, terapkan ke kontrak baru                         |
+| `GET /employees/:id/total-rewards[/pdf]?year=`, `GET /me/total-rewards[/pdf]?year=` | Total kompensasi setahun: tunai (gaji, tunjangan, lembur, THR, rapel) + BPJS & benefit perusahaan       |
+
+Saran kenaikan = % kalibrasi penilaian kinerja terakhir yang selesai (atau bawaan predikat A 10%, B 7%, C 4%).
+Pengajuan ditolak bila tambahan upah bulanan melebihi anggaran; peringatan bila upah baru di luar skala golongan. Biaya
+tahunan = 13 × selisih upah (12 bulan + THR) + selisih iuran BPJS perusahaan 12 bulan. Setelah disetujui, **Terapkan**
+mengakhiri kontrak berjalan sehari sebelum tanggal berlaku dan memulai kontrak baru (tunjangan disalin); bila tanggal
+berlaku di masa lalu, jalankan **Hitung rapel** di payroll berikutnya.
+
 ### Pajak Coretax, Langganan & Operasional (Fase 5)
 
 | Endpoint                                                                                                                                                          | Keterangan                                                                                                                         |

@@ -2216,3 +2216,24 @@ button.stat-button {
   align-self: stretch;
   max-width: 100%;
 }
+
+/* Siklus kenaikan gaji: pemakaian anggaran. */
+.budget-bar {
+  align-self: stretch;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.budget-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.budget-bar > span.over {
+  background: var(--danger);
+}
+.total-row td {
+  font-size: 1.05em;
+  background: var(--hover);
+}

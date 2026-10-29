@@ -773,6 +773,25 @@ export const MESSAGES_EN: Record<string, string> = {
   "Akun utang benefit {} belum diatur": "The payable account for benefit {0} is not set",
   "Persentase maksimal 100": "At most 100 percent",
   "Golongan tidak boleh dobel": "Each grade may appear only once",
+  // ---- Siklus kenaikan gaji ----
+  "Hanya siklus draft yang bisa diubah": "Only draft cycles can be changed",
+  "Siklus yang sudah diajukan tidak bisa dihapus; batalkan saja":
+    "A submitted cycle cannot be deleted; cancel it instead",
+  "Usulan kenaikan tidak ditemukan": "Raise proposal not found",
+  "Hanya HR atau atasan langsung yang bisa mengubah usulan":
+    "Only HR or the direct manager can change the proposal",
+  "Siklus sudah diajukan; usulan terkunci": "The cycle has been submitted; proposals are locked",
+  "Siklus sudah diajukan": "The cycle has already been submitted",
+  "Belum ada usulan kenaikan": "There are no raise proposals yet",
+  "Usulan melebihi anggaran Rp {} (terpakai Rp {}); sesuaikan usulan atau anggaran":
+    "Proposals exceed the budget of Rp {0} (used Rp {1}); adjust the proposals or the budget",
+  "Siklus sudah diterapkan atau dibatalkan": "The cycle has already been applied or cancelled",
+  "Siklus belum disetujui": "The cycle has not been approved yet",
+  "Kontrak {} sudah berubah sejak usulan dibuat; perbarui usulan lewat siklus baru":
+    "The contract of {0} changed after the proposal was made; propose again in a new cycle",
+  "Siklus kenaikan gaji tidak ditemukan": "Salary review cycle not found",
+  "Departemen tidak ditemukan": "Department not found",
+  "Isi persentase kenaikan atau upah baru": "Enter a raise percentage or a new wage",
   // ---- Proyek dari aplikasi terhubung ----
   "Perusahaan tidak dapat diakses akun layanan aplikasi":
     "The app's service account cannot access this company",

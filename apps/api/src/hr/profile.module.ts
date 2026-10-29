@@ -18,7 +18,6 @@ import {
 } from "@nestjs/common";
 import { and, asc, desc, eq, inArray, schema, sql, type Db } from "@erp/db";
 import {
-  addDays,
   employeeEducationSchema,
   employeeExperienceSchema,
   employeeFamilySchema,
@@ -32,7 +31,6 @@ import {
   warningActive,
   warningValidUntil,
 } from "@erp/shared";
-import { Decimal } from "decimal.js";
 import type { Request, Response } from "express";
 import type { z } from "zod";
 import { fieldError } from "../accounting/context.js";
@@ -42,6 +40,7 @@ import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { SequenceService } from "../sequences/sequence.service.js";
+import { ContractService } from "./contract.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { HistoryService } from "./history.service.js";
 import { HrModule } from "./hr.module.js";
@@ -53,7 +52,6 @@ const ED = schema.employeeEducation;
 const EX = schema.employeeExperiences;
 const MV = schema.employeeMovements;
 const WR = schema.employeeWarnings;
-const C = schema.contracts;
 const today = () => new Date().toISOString().slice(0, 10);
 const companyId = () => currentContext().companyId;
 const canManage = () => hasPermission(currentContext().permissions, "hr.manage");
@@ -486,6 +484,7 @@ const MOVE_FIELDS = [
 class MovementsController {
   constructor(
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
+    @Inject(ContractService) private readonly contracts: ContractService,
     @Inject(EmployeeService) private readonly employees: EmployeeService,
     @Inject(HistoryService) private readonly history: HistoryService,
     @Inject(SequenceService) private readonly sequences: SequenceService,
@@ -607,7 +606,11 @@ class MovementsController {
       let contractId: string | null = null;
       let oldWage: string | null = null;
       if (m.newWage != null) {
-        const contract = await this.renewContract(tx, employee, m);
+        const contract = await this.contracts.renewWage(tx, employee, {
+          effectiveDate: m.effectiveDate,
+          newWage: m.newWage,
+          note: m.decreeNo && `SK ${m.decreeNo}`,
+        });
         contractId = contract.id;
         oldWage = contract.oldWage;
       }
@@ -641,67 +644,6 @@ class MovementsController {
       });
       return named;
     });
-  }
-
-  private async renewContract(tx: Db, employee: typeof E.$inferSelect, m: typeof MV.$inferSelect) {
-    const [running] = await tx
-      .select()
-      .from(C)
-      .where(and(eq(C.employeeId, employee.id), eq(C.state, "running")));
-    if (!running) throw new BadRequestException("Karyawan belum punya kontrak berjalan untuk diubah upahnya");
-    if (m.effectiveDate <= running.dateStart)
-      throw fieldError("effectiveDate", "Tanggal efektif harus setelah awal kontrak berjalan");
-    await tx
-      .update(C)
-      .set({ state: "closed", dateEnd: addDays(m.effectiveDate, -1), updatedAt: sql`now()` })
-      .where(eq(C.id, running.id));
-    const name = await this.sequences.next(
-      tx,
-      "hr.contract",
-      employee.companyId,
-      new Date(`${m.effectiveDate}T00:00:00Z`),
-      "KTR",
-    );
-    const [contract] = await tx
-      .insert(C)
-      .values({
-        companyId: employee.companyId,
-        employeeId: employee.id,
-        name,
-        contractType: running.contractType,
-        wageType: running.wageType,
-        dateStart: m.effectiveDate,
-        dateEnd: running.dateEnd && running.dateEnd > m.effectiveDate ? running.dateEnd : null,
-        wage: m.newWage!,
-        state: "running",
-        note: [m.decreeNo && `SK ${m.decreeNo}`, `menggantikan ${running.name}`].filter(Boolean).join(", "),
-      })
-      .returning();
-    const allowances = await tx
-      .select({
-        componentId: schema.contractAllowances.componentId,
-        amount: schema.contractAllowances.amount,
-      })
-      .from(schema.contractAllowances)
-      .where(eq(schema.contractAllowances.contractId, running.id));
-    if (allowances.length)
-      await tx
-        .insert(schema.contractAllowances)
-        .values(allowances.map((a) => ({ ...a, contractId: contract!.id })));
-    if (!new Decimal(running.wage).eq(m.newWage!))
-      await this.history.record(tx, employee, "wage", {
-        date: m.effectiveDate,
-        oldValue: new Decimal(running.wage).toFixed(0),
-        newValue: new Decimal(m.newWage!).toFixed(0),
-        note: contract!.name,
-      });
-    await this.activity.log(tx, {
-      resModel: "employee",
-      resId: employee.id,
-      action: "comment",
-      message: `Kontrak ${running.name} diakhiri, ${contract!.name} berlaku ${m.effectiveDate}`,
-    });
-    return { id: contract!.id, oldWage: running.wage };
   }
 
   private values(input: MovementInput) {

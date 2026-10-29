@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { and, desc, eq, schema, sql, type Db } from "@erp/db";
-import type { contractSchema } from "@erp/shared";
+import { addDays, type contractSchema } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
 import { fieldError } from "../accounting/context.js";
@@ -117,5 +117,75 @@ export class ContractService {
         newValue: new Decimal(contract.wage).toFixed(0),
         note: contract.name,
       });
+  }
+
+  /**
+   * Upah baru berlaku per tanggal efektif: akhiri kontrak berjalan sehari sebelumnya lalu mulai kontrak baru (tunjangan
+   * disalin) sehingga payroll memakai upah baru sejak tanggal efektif (tanggal lampau → rapel di payroll berikutnya).
+   */
+  async renewWage(
+    tx: Db,
+    employee: { id: string; companyId: string },
+    change: { effectiveDate: string; newWage: string; note?: string | null },
+  ) {
+    const [running] = await tx
+      .select()
+      .from(C)
+      .where(and(eq(C.employeeId, employee.id), eq(C.state, "running")));
+    if (!running) throw new BadRequestException("Karyawan belum punya kontrak berjalan untuk diubah upahnya");
+    if (change.effectiveDate <= running.dateStart)
+      throw fieldError("effectiveDate", "Tanggal efektif harus setelah awal kontrak berjalan");
+    await tx
+      .update(C)
+      .set({ state: "closed", dateEnd: addDays(change.effectiveDate, -1), updatedAt: sql`now()` })
+      .where(eq(C.id, running.id));
+    const name = await this.sequences.next(
+      tx,
+      "hr.contract",
+      employee.companyId,
+      new Date(`${change.effectiveDate}T00:00:00Z`),
+      "KTR",
+    );
+    const [contract] = await tx
+      .insert(C)
+      .values({
+        companyId: employee.companyId,
+        employeeId: employee.id,
+        name,
+        contractType: running.contractType,
+        wageType: running.wageType,
+        taxMethod: running.taxMethod,
+        dateStart: change.effectiveDate,
+        dateEnd: running.dateEnd && running.dateEnd > change.effectiveDate ? running.dateEnd : null,
+        wage: change.newWage,
+        state: "running",
+        note: [change.note, `menggantikan ${running.name}`].filter(Boolean).join(", "),
+      })
+      .returning();
+    const allowances = await tx
+      .select({
+        componentId: schema.contractAllowances.componentId,
+        amount: schema.contractAllowances.amount,
+      })
+      .from(schema.contractAllowances)
+      .where(eq(schema.contractAllowances.contractId, running.id));
+    if (allowances.length)
+      await tx
+        .insert(schema.contractAllowances)
+        .values(allowances.map((a) => ({ ...a, contractId: contract!.id })));
+    if (!new Decimal(running.wage).eq(change.newWage))
+      await this.history.record(tx, employee, "wage", {
+        date: change.effectiveDate,
+        oldValue: new Decimal(running.wage).toFixed(0),
+        newValue: new Decimal(change.newWage).toFixed(0),
+        note: contract!.name,
+      });
+    await this.activity.log(tx, {
+      resModel: "employee",
+      resId: employee.id,
+      action: "comment",
+      message: `Kontrak ${running.name} diakhiri, ${contract!.name} berlaku ${change.effectiveDate}`,
+    });
+    return { id: contract!.id, oldWage: running.wage };
   }
 }
