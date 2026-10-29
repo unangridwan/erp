@@ -14,6 +14,7 @@ import { FieldInput, toPayload } from "../form-view";
 import { EmployeeVehiclesPanel } from "../fleet/fleet-panels";
 import { useMe } from "../me-context";
 import { BenefitEnrollments } from "../payroll/benefits-panel";
+import { TotalRewardsPanel } from "../payroll/total-rewards";
 import { FeedbackPanel, NotesPanel } from "./ess-panels";
 import { CareerPanel, ChecklistsPanel, DocumentsPanel, errorText } from "./hr-panels";
 import { OffboardingPanel } from "./offboarding-panel";
@@ -672,6 +673,9 @@ export function EmployeeForm({ id }: { id: string }) {
               <FeedbackPanel employeeId={id} />
               <NotesPanel employeeId={id} />
             </>
+          )}
+          {!isNew && tab === "payroll" && can(me.permissions, "payroll.read") && (
+            <TotalRewardsPanel employeeId={id} />
           )}
           {!isNew && tab === "benefits" && <BenefitEnrollments employeeId={id} />}
           {!isNew && tab === "projects" && <ProjectsPanel employeeId={id} />}

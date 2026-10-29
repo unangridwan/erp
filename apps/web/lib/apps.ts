@@ -311,6 +311,7 @@ export const APPS: App[] = [
       link("Penggajian", "Payslip Batches", "/payroll/runs", "payroll.read"),
       link("Pinjaman Karyawan", "Employee Loans", "/payroll/loans", "payroll.read"),
       link("Biaya Tenaga Kerja", "Labour Cost", "/payroll/cost", "payroll.read"),
+      link("Kenaikan Gaji", "Salary Review", "/payroll/compensation", "payroll.read"),
       group("Konfigurasi", "Configuration", [
         link("Komponen Gaji", "Salary Rules", "/salary-components", "payroll.read"),
         link("Paket Benefit", "Benefit Plans", "/payroll/benefits", "payroll.read"),

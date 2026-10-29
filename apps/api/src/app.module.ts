@@ -37,6 +37,7 @@ import { ApprovalRulesModule } from "./approval-rules/approval-rules.module.js";
 import { RecruitmentModule } from "./hr/recruitment.module.js";
 import { PayrollModule } from "./payroll/payroll.module.js";
 import { BenefitsModule } from "./payroll/benefits.module.js";
+import { CompensationModule } from "./payroll/compensation.module.js";
 import { TaxModule } from "./tax/tax.module.js";
 import { BillingModule } from "./billing/billing.module.js";
 import { OnboardingModule } from "./onboarding/onboarding.module.js";
@@ -88,6 +89,7 @@ import { WebhookService } from "./oauth/webhook.service.js";
     DataTransferModule,
     PayrollModule,
     BenefitsModule,
+    CompensationModule,
     TaxModule,
     OnboardingModule,
     ConsolidationModule,

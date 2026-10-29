@@ -427,6 +427,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] Kompensasi & benefit (L1) — tunjangan per hari hadir & premi kehadiran, paket benefit (asuransi kesehatan swasta
   sebagai natura PPh 21, DPLK pengurang PPh 21, fasilitas), kepesertaan + tanggungan, jurnal utang premi, laporan premi
   per penyedia (Excel), plafon klaim per golongan, tab Benefit di form karyawan & portal "Benefit saya"
+- [x] Siklus kenaikan gaji & total rewards (L2) — usulan dari rating appraisal, anggaran & simulasi biaya tahunan,
+  usulan atasan di portal, persetujuan lewat mesin persetujuan, penerapan ke kontrak baru + rapel, total rewards
+  (web, portal, PDF)
 
 ## 5. Roadmap Bertahap
 

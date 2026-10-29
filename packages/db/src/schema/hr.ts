@@ -1548,3 +1548,46 @@ export const expenseCategoryLimits = pgTable("expense_category_limits", {
   gradeId: uuid("grade_id").notNull(),
   annualLimit: numeric("annual_limit", { precision: 20, scale: 2 }).notNull(),
 });
+
+const COMPENSATION_STATES = ["draft", "in_approval", "approved", "applied", "cancel"] as const;
+
+/** Siklus kenaikan gaji: anggaran, filter peserta, persetujuan, penerapan ke kontrak. */
+export const compensationCycles = pgTable("compensation_cycles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  effectiveDate: date("effective_date").notNull(),
+  budgetKind: text("budget_kind", { enum: ["percent", "amount"] })
+    .notNull()
+    .default("percent"),
+  budgetValue: numeric("budget_value", { precision: 20, scale: 2 }).notNull().default("0"),
+  departmentId: uuid("department_id"),
+  gradeId: uuid("grade_id"),
+  state: text("state", { enum: COMPENSATION_STATES }).notNull().default("draft"),
+  approvalRequestId: uuid("approval_request_id"),
+  note: text("note"),
+  createdBy: uuid("created_by"),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
+  appliedBy: uuid("applied_by"),
+  ...audit,
+});
+
+/** Usulan kenaikan per karyawan dalam satu siklus. */
+export const compensationProposals = pgTable("compensation_proposals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  cycleId: uuid("cycle_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  contractId: uuid("contract_id").notNull(),
+  currentWage: numeric("current_wage", { precision: 20, scale: 2 }).notNull(),
+  appraisalId: uuid("appraisal_id"),
+  rating: text("rating"),
+  suggestedPercent: numeric("suggested_percent", { precision: 6, scale: 2 }).notNull().default("0"),
+  proposedPercent: numeric("proposed_percent", { precision: 6, scale: 2 }).notNull().default("0"),
+  newWage: numeric("new_wage", { precision: 20, scale: 2 }).notNull(),
+  reason: text("reason"),
+  proposedBy: uuid("proposed_by"),
+  newContractId: uuid("new_contract_id"),
+  ...audit,
+});
