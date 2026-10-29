@@ -430,31 +430,8 @@ export class AuthService {
   }
 
   /** Peran (per perusahaan) & hak khusus per akun milik seorang user. */
-  async accessGrants(tx: Db, userId: string): Promise<AccessGrants> {
-    const rows = await tx
-      .select({
-        id: schema.userRoles.id,
-        companyId: schema.userRoles.companyId,
-        permission: schema.rolePermissions.permission,
-      })
-      .from(schema.userRoles)
-      .leftJoin(schema.rolePermissions, eq(schema.rolePermissions.roleId, schema.userRoles.roleId))
-      .where(eq(schema.userRoles.userId, userId));
-    const byAssignment = new Map<string, { companyId: string | null; permissions: string[] }>();
-    for (const r of rows) {
-      const a = byAssignment.get(r.id) ?? { companyId: r.companyId, permissions: [] };
-      if (r.permission) a.permissions.push(r.permission);
-      byAssignment.set(r.id, a);
-    }
-    const overrides = await tx
-      .select({
-        permission: schema.userPermissionOverrides.permission,
-        effect: schema.userPermissionOverrides.effect,
-        companyId: schema.userPermissionOverrides.companyId,
-      })
-      .from(schema.userPermissionOverrides)
-      .where(eq(schema.userPermissionOverrides.userId, userId));
-    return { roles: [...byAssignment.values()], overrides };
+  accessGrants(tx: Db, userId: string): Promise<AccessGrants> {
+    return loadAccessGrants(tx, userId);
   }
 
   private async issueSession(
@@ -531,4 +508,32 @@ export class AuthService {
     const [row] = await (lock ? query.for("update") : query);
     return row;
   }
+}
+
+/** Peran (per perusahaan) & hak khusus per akun milik seorang user (juga dipakai job atas nama user). */
+export async function loadAccessGrants(tx: Db, userId: string): Promise<AccessGrants> {
+  const rows = await tx
+    .select({
+      id: schema.userRoles.id,
+      companyId: schema.userRoles.companyId,
+      permission: schema.rolePermissions.permission,
+    })
+    .from(schema.userRoles)
+    .leftJoin(schema.rolePermissions, eq(schema.rolePermissions.roleId, schema.userRoles.roleId))
+    .where(eq(schema.userRoles.userId, userId));
+  const byAssignment = new Map<string, { companyId: string | null; permissions: string[] }>();
+  for (const r of rows) {
+    const a = byAssignment.get(r.id) ?? { companyId: r.companyId, permissions: [] };
+    if (r.permission) a.permissions.push(r.permission);
+    byAssignment.set(r.id, a);
+  }
+  const overrides = await tx
+    .select({
+      permission: schema.userPermissionOverrides.permission,
+      effect: schema.userPermissionOverrides.effect,
+      companyId: schema.userPermissionOverrides.companyId,
+    })
+    .from(schema.userPermissionOverrides)
+    .where(eq(schema.userPermissionOverrides.userId, userId));
+  return { roles: [...byAssignment.values()], overrides };
 }

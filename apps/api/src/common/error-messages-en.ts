@@ -792,6 +792,15 @@ export const MESSAGES_EN: Record<string, string> = {
   "Siklus kenaikan gaji tidak ditemukan": "Salary review cycle not found",
   "Departemen tidak ditemukan": "Department not found",
   "Isi persentase kenaikan atau upah baru": "Enter a raise percentage or a new wage",
+  // ---- Laporan kustom & terjadwal ----
+  "Belum ada payroll terposting": "There is no posted payroll yet",
+  "Laporan tidak ditemukan": "Report not found",
+  "Jadwal laporan tidak ditemukan": "Report schedule not found",
+  "Pilih hari pengiriman": "Choose the delivery day",
+  "Pilih tanggal pengiriman": "Choose the delivery date",
+  "Email penerima tidak valid": "Invalid recipient email",
+  "Isi minimal satu penerima": "Enter at least one recipient",
+  "Kolom laporan tidak dikenal: {}": "Unknown report column: {0}",
   // ---- Proyek dari aplikasi terhubung ----
   "Perusahaan tidak dapat diakses akun layanan aplikasi":
     "The app's service account cannot access this company",

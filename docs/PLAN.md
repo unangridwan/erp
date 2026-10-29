@@ -430,6 +430,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] Siklus kenaikan gaji & total rewards (L2) — usulan dari rating appraisal, anggaran & simulasi biaya tahunan,
   usulan atasan di portal, persetujuan lewat mesin persetujuan, penerapan ke kontrak baru + rapel, total rewards
   (web, portal, PDF)
+- [x] Pembuat laporan kustom & terjadwal (L3) — dataset HR/Payroll, kolom/syarat/kelompok/agregasi/urutan, grafik
+  batang/garis/donat, laporan pribadi/dibagikan, ekspor Excel/CSV/PDF, jadwal email harian/mingguan/bulanan dengan
+  hak pemilik & riwayat pengiriman
 
 ## 5. Roadmap Bertahap
 
