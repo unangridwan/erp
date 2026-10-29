@@ -53,7 +53,7 @@ export class BudgetService {
 
     let budgetId = id;
     if (id) {
-      await this.get(tx, id);
+      this.assertManual(await this.get(tx, id));
       await tx
         .update(schema.budgets)
         .set({ name: input.name, dateFrom: input.dateFrom, dateTo: input.dateTo, updatedAt: sql`now()` })
@@ -81,8 +81,14 @@ export class BudgetService {
   }
 
   async remove(tx: Db, id: string) {
-    await this.get(tx, id);
+    this.assertManual(await this.get(tx, id));
     await tx.delete(schema.budgets).where(eq(schema.budgets.id, id));
+  }
+
+  /** Anggaran dari Man Power Planning dibangun ulang otomatis; tidak boleh diubah manual. */
+  private assertManual(budget: { source: string }) {
+    if (budget.source === "manpower")
+      throw new BadRequestException("Anggaran ini dikelola dari Man Power Planning (SDM); ubah lewat MPP");
   }
 
   /** Anggaran vs realisasi per baris anggaran (realisasi dari entri posted, tanpa entri penutup). */

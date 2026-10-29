@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BarChart } from "../../../../components/hr/charts";
 import { errorText } from "../../../../components/hr/hr-panels";
@@ -17,6 +18,7 @@ interface Budget {
   headcount: string;
   cost: string | null;
   note: string | null;
+  sourcePlanId: string | null;
 }
 type Variance = { diff: number; percent: number | null };
 interface Report {
@@ -245,6 +247,16 @@ export default function ManpowerBudgetPage() {
         </header>
         {error && <p className="error">{error}</p>}
         {notice && <p className="muted">{notice}</p>}
+        {budgets.some((b) => b.sourcePlanId) && (
+          <p className="muted">
+            <span className="pill ok">{l("Dari MPP", "From MPP")}</span>{" "}
+            {l(
+              "Departemen dengan Man Power Planning yang disetujui diisi otomatis dari MPP; perubahan untuk departemen itu sebaiknya lewat revisi MPP.",
+              "Departments with an approved manpower plan are filled from the plan; change them by revising the plan.",
+            )}{" "}
+            <Link href={`/hr/manpower-plans?year=${year}`}>Man Power Planning</Link>
+          </p>
+        )}
         {report && totals && (
           <ul className="grid">
             {(() => {

@@ -13,6 +13,7 @@ interface Budget {
   name: string;
   dateFrom: string;
   dateTo: string;
+  source: "manual" | "manpower";
 }
 
 export default function BudgetsPage() {
@@ -49,6 +50,12 @@ export default function BudgetsPage() {
               <tr key={b.id}>
                 <td>
                   <Link href={`/accounting/budgets/${b.id}`}>{b.name}</Link>
+                  {b.source === "manpower" && (
+                    <>
+                      {" "}
+                      <span className="pill ok">{l("Dari MPP", "From MPP")}</span>
+                    </>
+                  )}
                 </td>
                 <td>
                   {formatDate(b.dateFrom, locale)} – {formatDate(b.dateTo, locale)}

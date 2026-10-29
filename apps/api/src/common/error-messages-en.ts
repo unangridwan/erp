@@ -808,6 +808,32 @@ export const MESSAGES_EN: Record<string, string> = {
   "Bulan harus 1–12": "Month must be 1–12",
   'Departemen "{}" tidak ditemukan': 'Department "{0}" not found',
   'Jabatan "{}" tidak ditemukan': 'Job position "{0}" not found',
+  // ---- Man Power Planning ----
+  "MPP tidak ditemukan": "Manpower plan not found",
+  "MPP departemen ini untuk tahun tersebut sudah ada":
+    "A manpower plan for this department and year already exists",
+  "Hanya MPP draft yang bisa diubah": "Only draft manpower plans can be edited",
+  "Hanya MPP draft yang bisa dihapus": "Only draft manpower plans can be deleted",
+  "MPP sudah diajukan": "Manpower plan already submitted",
+  "Belum ada posisi dalam MPP": "The manpower plan has no positions",
+  "MPP sudah dibatalkan": "Manpower plan already cancelled",
+  "Butuh permission hr.manage untuk membatalkan MPP yang disetujui":
+    "hr.manage permission is required to cancel an approved manpower plan",
+  "Hanya MPP yang disetujui yang bisa direvisi": "Only approved manpower plans can be revised",
+  "Baris MPP tidak ditemukan": "Manpower plan line not found",
+  "MPP belum disetujui": "Manpower plan not approved yet",
+  "Posisi terisi tidak perlu lowongan": "Existing positions do not need a job opening",
+  "Lowongan untuk posisi ini sudah dibuat": "A job opening for this position already exists",
+  "Karyawan yang diganti tidak ditemukan": "Replaced employee not found",
+  "Hanya HR (hr.manage) atau kepala departemen yang bisa mengubah MPP ini":
+    "Only HR (hr.manage) or the department head can change this manpower plan",
+  "Pengaturan payroll belum diisi; anggaran akuntansi belum dibuat":
+    "Payroll settings are missing; the accounting budget was not created",
+  "Anggaran ini dikelola dari Man Power Planning (SDM); ubah lewat MPP":
+    "This budget is managed by Manpower Planning (HR); change it through the plan",
+  "Bulan akhir sebelum bulan mulai": "End month is before start month",
+  "Jumlah posisi minimal 1": "At least 1 position",
+  "Bulan 1–12": "Month 1–12",
   // ---- Proyek dari aplikasi terhubung ----
   "Perusahaan tidak dapat diakses akun layanan aplikasi":
     "The app's service account cannot access this company",

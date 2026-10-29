@@ -2308,3 +2308,22 @@ button.stat-button {
   min-width: 64px;
   text-align: right;
 }
+
+/* Editor posisi MPP. */
+.mpp-lines td {
+  padding: 3px 4px;
+  vertical-align: top;
+}
+.mpp-lines select,
+.mpp-lines input {
+  min-width: 90px;
+}
+.mpp-lines td > input + select,
+.mpp-lines td > select + input {
+  margin-top: 4px;
+}
+.num-input {
+  width: 100%;
+  min-width: 70px;
+  text-align: right;
+}

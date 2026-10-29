@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { PROFIT_LOSS_TYPES } from "@erp/shared";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
@@ -49,13 +50,21 @@ export default function BudgetPage() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [version, setVersion] = useState(0);
-  const editable = can(me.permissions, "accounting.write");
+  const [source, setSource] = useState<"manual" | "manpower">("manual");
+  const editable = can(me.permissions, "accounting.write") && source === "manual";
 
   useEffect(() => {
     if (isNew) return;
-    api<{ name: string; dateFrom: string; dateTo: string; lines: BudgetLine[] }>(`/budgets/${id}`)
+    api<{
+      name: string;
+      dateFrom: string;
+      dateTo: string;
+      source: "manual" | "manpower";
+      lines: BudgetLine[];
+    }>(`/budgets/${id}`)
       .then((b) => {
         setHeader({ name: b.name, dateFrom: b.dateFrom, dateTo: b.dateTo });
+        setSource(b.source);
         setLines(b.lines.map((x) => ({ accountId: x.accountId, amount: String(Number(x.amount)) })));
       })
       .catch((e: Error) => setError(e.message));
@@ -100,6 +109,16 @@ export default function BudgetPage() {
           {editable && <button className="primary">{l("Simpan", "Save")}</button>}
         </header>
         {error && <p className="error">{error}</p>}
+        {source === "manpower" && (
+          <p className="muted">
+            <span className="pill ok">{l("Dikelola MPP", "Managed by MPP")}</span>{" "}
+            {l(
+              "Anggaran ini dibangun otomatis dari Man Power Planning yang disetujui (beban gaji & BPJS). Ubah lewat ",
+              "This budget is built automatically from approved Manpower Planning (salary & BPJS expense). Change it via ",
+            )}
+            <Link href="/hr/manpower-plans">Man Power Planning</Link>.
+          </p>
+        )}
         <fieldset disabled={!editable} className="fields">
           <label className="field">
             <span>{l("Nama *", "Name *")}</span>
