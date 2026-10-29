@@ -33,7 +33,14 @@ interface Slip {
   releasedAt: string | null;
   leaveBalances: { leaveTypeName: string; remaining: string }[];
   employee: { name: string; employeeNumber: string; departmentName: string | null; jobName: string | null };
-  lines: { id: string; code: string; name: string; category: string; amount: string }[];
+  lines: {
+    id: string;
+    code: string;
+    name: string;
+    category: string;
+    amount: string;
+    benefitPlanId: string | null;
+  }[];
   inputs: {
     componentId: string;
     componentName: string;
@@ -212,6 +219,44 @@ export default function PayslipPage() {
           </table>
         </section>
       </div>
+      {slip.lines.some((x) => x.benefitPlanId) && (
+        <section>
+          <h2>{l("Benefit & asuransi", "Benefits & insurance")}</h2>
+          <p className="muted">
+            {l(
+              "Porsi perusahaan dibayarkan ke penyedia (tidak tunai ke karyawan); porsi karyawan sudah termasuk di potongan.",
+              "The employer portion is paid to the provider (not in cash); the employee portion is included in deductions.",
+            )}
+          </p>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{l("Paket", "Plan")}</th>
+                  <th className="num">{l("Karyawan", "Employee")}</th>
+                  <th className="num">{l("Perusahaan", "Employer")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...new Set(slip.lines.filter((x) => x.benefitPlanId).map((x) => x.benefitPlanId!))].map(
+                  (plan) => {
+                    const of = (cat: string) =>
+                      slip.lines.find((x) => x.benefitPlanId === plan && x.category === cat);
+                    const any = of("benefit_employer") ?? of("deduction")!;
+                    return (
+                      <tr key={plan}>
+                        <td>{any.name.replace(/ \((perusahaan|karyawan)\)$/, "")}</td>
+                        <td className="num">{n(String(-Number(of("deduction")?.amount ?? 0)))}</td>
+                        <td className="num">{n(of("benefit_employer")?.amount ?? "0")}</td>
+                      </tr>
+                    );
+                  },
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
       <div className="split">
         {PROGRAMS.map((program) => {
           const amount = (code: string | null) =>

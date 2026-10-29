@@ -653,7 +653,23 @@ export class LeaveService {
   }
 
   /** Hari kerja cuti tanpa upah (disetujui) dalam periode payroll; setengah hari = 0,5. */
+  /** Hari kerja cuti disetujui (berbayar maupun tidak) dalam rentang. */
+  async leaveDays(tx: Db, employeeId: string, from: string, to: string, holidays: string[]) {
+    return this.daysOf(tx, employeeId, from, to, holidays, false);
+  }
+
   async unpaidDays(tx: Db, employeeId: string, from: string, to: string, holidays: string[]) {
+    return this.daysOf(tx, employeeId, from, to, holidays, true);
+  }
+
+  private async daysOf(
+    tx: Db,
+    employeeId: string,
+    from: string,
+    to: string,
+    holidays: string[],
+    unpaidOnly: boolean,
+  ) {
     const rows = await tx
       .select({ dateFrom: R.dateFrom, dateTo: R.dateTo, halfDay: R.halfDay })
       .from(R)
@@ -662,7 +678,7 @@ export class LeaveService {
         and(
           eq(R.employeeId, employeeId),
           eq(R.state, "approved"),
-          eq(T.paid, false),
+          unpaidOnly ? eq(T.paid, false) : undefined,
           lte(R.dateFrom, to),
           gte(R.dateTo, from),
         ),

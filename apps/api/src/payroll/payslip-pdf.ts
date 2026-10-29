@@ -9,6 +9,8 @@ export interface PayslipPdfData {
   deductions: { name: string; amount: string }[];
   /** BPJS Kesehatan & BPJS Ketenagakerjaan selalu ditampilkan terpisah. */
   bpjs: { title: string; wage: string; rows: { name: string; employee: string; employer: string }[] }[];
+  /** Benefit (asuransi, DPLK, fasilitas): porsi perusahaan tidak dibayarkan tunai, porsi karyawan sudah di potongan. */
+  benefits?: { name: string; employee: string; employer: string }[];
   net: string;
   pph21Info: string;
   /** Saldo cuti per akhir periode, mis. "Cuti Tahunan 8 hari". */
@@ -138,8 +140,24 @@ export function renderPayslipPdf(
       bottom = Math.max(bottom, yy + 14);
     });
     y = bottom;
+    if (data.benefits?.length) {
+      doc.font("Helvetica-Bold").fontSize(9).text("Benefit & asuransi", left, y, { width: col });
+      y += 12;
+      doc.fontSize(8).text("Paket", left, y, { width: col - 140 });
+      doc.text("Karyawan", left + col - 140, y, { width: 70, align: "right" });
+      doc.text("Perusahaan", left + col - 70, y, { width: 70, align: "right" });
+      y += 12;
+      doc.font("Helvetica");
+      for (const b of data.benefits) {
+        doc.text(b.name, left, y, { width: col - 140 });
+        doc.text(fmt(b.employee), left + col - 140, y, { width: 70, align: "right" });
+        doc.text(fmt(b.employer), left + col - 70, y, { width: 70, align: "right" });
+        y += 12;
+      }
+      y += 2;
+    }
     y += 8;
-    doc.fontSize(8).fillColor("#555").text(data.pph21Info, left, y, { width });
+    doc.font("Helvetica").fontSize(8).fillColor("#555").text(data.pph21Info, left, y, { width });
     if (data.leaveBalances?.length) {
       const days = (v: string) =>
         new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(v));
@@ -158,7 +176,7 @@ interface SlipForPdf {
   employee: { name: string; employeeNumber: string; departmentName: string | null; jobName: string | null };
   run: { name: string; periodStart: string; kind?: "regular" | "correction" };
   ptkpStatus: string;
-  lines: { code: string; name: string; category: string; amount: string }[];
+  lines: { code: string; name: string; category: string; amount: string; benefitPlanId?: string | null }[];
   bpjsKesWage: string;
   bpjsTkWage: string;
   net: string;
@@ -183,6 +201,23 @@ const BPJS_PROGRAMS: [string, [string, string | null, string | null][]][] = [
     ],
   ],
 ];
+
+/** Satu baris per paket benefit: porsi karyawan (potongan) & porsi perusahaan (benefit_employer). */
+export function benefitRows(lines: SlipForPdf["lines"]) {
+  const byPlan = new Map<string, { name: string; employee: string; employer: string }>();
+  for (const l of lines) {
+    if (!l.benefitPlanId) continue;
+    const row = byPlan.get(l.benefitPlanId) ?? {
+      name: l.name.replace(/ \((perusahaan|karyawan)\)$/, ""),
+      employee: "0",
+      employer: "0",
+    };
+    if (l.category === "benefit_employer") row.employer = String(Number(l.amount));
+    else row.employee = String(-Number(l.amount));
+    byPlan.set(l.benefitPlanId, row);
+  }
+  return [...byPlan.values()];
+}
 
 export function payslipPdfData(slip: SlipForPdf, company: string): PayslipPdfData {
   const amount = (code: string | null) =>
@@ -227,6 +262,7 @@ export function payslipPdfData(slip: SlipForPdf, company: string): PayslipPdfDat
         .map(([name, ee, er]) => ({ name, employee: amount(ee), employer: amount(er) }))
         .filter((r) => Number(r.employee) || Number(r.employer)),
     })),
+    benefits: benefitRows(slip.lines),
     net: slip.net,
     leaveBalances: slip.leaveBalances?.map((b) => ({ name: b.leaveTypeName, remaining: b.remaining })),
     pph21Info: slip.isFinal

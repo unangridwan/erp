@@ -149,6 +149,16 @@ export const salaryComponents = pgTable("salary_components", {
   taxable: boolean("taxable").notNull().default(true),
   accountId: uuid("account_id"),
   active: boolean("active").notNull().default(true),
+  /** fixed_amount = nilai tetap; per_attendance_day = tarif × hari hadir; attendance_premium = premi kehadiran. */
+  calc: text("calc", { enum: ["fixed_amount", "per_attendance_day", "attendance_premium"] })
+    .notNull()
+    .default("fixed_amount"),
+  /** Nilai bawaan (tarif per hari / premi) bila tidak diisi di kontrak. */
+  rate: numeric("rate", { precision: 20, scale: 2 }),
+  /** Berlaku untuk semua karyawan tanpa ditambahkan ke kontrak. */
+  autoAssign: boolean("auto_assign").notNull().default(false),
+  premiumMaxLate: integer("premium_max_late"),
+  premiumMaxAbsent: integer("premium_max_absent"),
   ...audit,
 });
 
@@ -540,6 +550,7 @@ export const payslipLines = pgTable("payslip_lines", {
   componentId: uuid("component_id"),
   loanId: uuid("loan_id"),
   expenseClaimId: uuid("expense_claim_id"),
+  benefitPlanId: uuid("benefit_plan_id"),
 });
 
 export const payslipInputs = pgTable("payslip_inputs", {
@@ -1485,4 +1496,55 @@ export const documentApprovalSteps = pgTable("document_approval_steps", {
   approverUserId: uuid("approver_user_id"),
   approverRoleId: uuid("approver_role_id"),
   label: text("label"),
+});
+
+/** Paket benefit: asuransi kesehatan swasta, DPLK/dana pensiun, fasilitas lain. */
+export const benefitPlans = pgTable("benefit_plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  kind: text("kind", { enum: ["health_insurance", "pension", "other"] }).notNull(),
+  providerId: uuid("provider_id"),
+  policyNo: text("policy_no"),
+  calc: text("calc", { enum: ["fixed", "percent_wage"] })
+    .notNull()
+    .default("fixed"),
+  employerAmount: numeric("employer_amount", { precision: 20, scale: 2 }).notNull().default("0"),
+  employeeAmount: numeric("employee_amount", { precision: 20, scale: 2 }).notNull().default("0"),
+  wageCap: numeric("wage_cap", { precision: 20, scale: 2 }),
+  dependentAmount: numeric("dependent_amount", { precision: 20, scale: 2 }).notNull().default("0"),
+  dependentPayer: text("dependent_payer", { enum: ["employer", "employee"] })
+    .notNull()
+    .default("employer"),
+  taxable: boolean("taxable").notNull().default(true),
+  expenseAccountId: uuid("expense_account_id"),
+  payableAccountId: uuid("payable_account_id"),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const benefitEnrollments = pgTable("benefit_enrollments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  planId: uuid("plan_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  dateStart: date("date_start").notNull(),
+  dateEnd: date("date_end"),
+  memberNo: text("member_no"),
+  dependentIds: uuid("dependent_ids").array().notNull().default([]),
+  employerAmount: numeric("employer_amount", { precision: 20, scale: 2 }),
+  employeeAmount: numeric("employee_amount", { precision: 20, scale: 2 }),
+  note: text("note"),
+  ...audit,
+});
+
+/** Plafon klaim per golongan (menimpa plafon tahunan kategori). */
+export const expenseCategoryLimits = pgTable("expense_category_limits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  categoryId: uuid("category_id").notNull(),
+  gradeId: uuid("grade_id").notNull(),
+  annualLimit: numeric("annual_limit", { precision: 20, scale: 2 }).notNull(),
 });

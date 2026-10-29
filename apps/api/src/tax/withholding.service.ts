@@ -124,16 +124,20 @@ export class WithholdingService {
           coalesce(sum(pl.amount) filter (where (pl.category = 'allowance' and coalesce(c.taxable, true)
             and pl.code <> ${GROSS_UP_CODE}
             and not (pl.code ~* '^(THR|BONUS|TANTIEM)' or pl.name ~* '(THR|bonus|tantiem|gratifikasi)'))
-            or pl.category = 'overtime'), 0)::text as other,
+            or pl.category = 'overtime'
+            -- Benefit natura (premi asuransi swasta, fasilitas) yang dibayar perusahaan.
+            or (pl.category = 'benefit_employer' and coalesce(bp.taxable, false))), 0)::text as other,
           coalesce(sum(pl.amount) filter (where pl.code = ${GROSS_UP_CODE}), 0)::text as income_tax,
           coalesce(sum(pl.amount) filter (where pl.category = 'allowance' and coalesce(c.taxable, true)
             and (pl.code ~* '^(THR|BONUS|TANTIEM)' or pl.name ~* '(THR|bonus|tantiem|gratifikasi)')), 0)::text as bonus,
           coalesce(sum(pl.amount) filter (where pl.category = 'bpjs_employer' and pl.code in ('JKK', 'JKM', 'BPJS_KES_ER')), 0)::text as insurance,
-          coalesce(-sum(pl.amount) filter (where pl.category = 'bpjs_employee' and pl.code in ('JHT_EE', 'JP_EE')), 0)::text as pension
+          coalesce(-sum(pl.amount) filter (where (pl.category = 'bpjs_employee' and pl.code in ('JHT_EE', 'JP_EE'))
+            or (pl.category = 'deduction' and bp.kind = 'pension')), 0)::text as pension
         from payslip_lines pl
         join payslips s on s.id = pl.payslip_id
         join payroll_runs r on r.id = s.run_id
         left join salary_components c on c.id = pl.component_id
+        left join benefit_plans bp on bp.id = pl.benefit_plan_id
         where s.employee_id = ${employee.id} and s.company_id = ${companyId}
           and r.state in ('done', 'paid')
           and r.period_start between ${`${input.year}-01-01`} and ${from}`);

@@ -987,6 +987,15 @@ export const salaryComponentSchema = z.object({
   taxable: z.boolean().default(true),
   accountId: optionalUuid,
   active: z.boolean().default(true),
+  /** fixed_amount = nilai tetap; per_attendance_day = tarif × hari hadir; attendance_premium = premi kehadiran. */
+  calc: z.enum(["fixed_amount", "per_attendance_day", "attendance_premium"]).default("fixed_amount"),
+  /** Nilai bawaan (tarif per hari / premi) bila tidak diisi di kontrak. */
+  rate: nonNegative(2).nullish(),
+  /** Berlaku untuk semua karyawan dengan nilai bawaan tanpa ditambahkan ke kontrak. */
+  autoAssign: z.boolean().default(false),
+  /** Premi hilang bila terlambat lebih dari N kali / tidak hadir lebih dari N hari dalam periode. */
+  premiumMaxLate: z.number().int().min(0).max(31).nullish(),
+  premiumMaxAbsent: z.number().int().min(0).max(31).nullish(),
 });
 
 export const contractSchema = z

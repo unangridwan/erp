@@ -37,9 +37,9 @@ interface Claim {
 export function MyClaims() {
   const { l, tx, locale } = useI18n();
   const [claims, setClaims] = useState<Claim[]>([]);
-  const [categories, setCategories] = useState<{ id: string; name: string; annualLimit: string | null }[]>(
-    [],
-  );
+  const [categories, setCategories] = useState<
+    { id: string; name: string; annualLimit: string | null; used?: string; remaining?: string | null }[]
+  >([]);
   const [open, setOpen] = useState(false);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +59,15 @@ export function MyClaims() {
         )}
       </header>
       {error && <p className="error">{error}</p>}
+      {categories.some((c) => c.annualLimit !== null) && (
+        <p className="muted claim-limits">
+          {l("Sisa plafon tahun ini", "Remaining limit this year")}:{" "}
+          {categories
+            .filter((c) => c.annualLimit !== null)
+            .map((c) => `${c.name} ${money(c.remaining ?? c.annualLimit!, locale)}`)
+            .join(" · ")}
+        </p>
+      )}
       {open && (
         <ExpenseClaimForm
           categories={categories}

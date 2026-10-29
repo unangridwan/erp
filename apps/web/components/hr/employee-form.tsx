@@ -13,6 +13,7 @@ import { SeverancePanel } from "../form-extras";
 import { FieldInput, toPayload } from "../form-view";
 import { EmployeeVehiclesPanel } from "../fleet/fleet-panels";
 import { useMe } from "../me-context";
+import { BenefitEnrollments } from "../payroll/benefits-panel";
 import { FeedbackPanel, NotesPanel } from "./ess-panels";
 import { CareerPanel, ChecklistsPanel, DocumentsPanel, errorText } from "./hr-panels";
 import { OffboardingPanel } from "./offboarding-panel";
@@ -59,7 +60,7 @@ interface ProfileSummary {
   ptkpMismatch: boolean;
 }
 
-type Tab = "work" | "personal" | "payroll" | "history" | "performance" | "projects" | "settings";
+type Tab = "work" | "personal" | "payroll" | "benefits" | "history" | "performance" | "projects" | "settings";
 
 const EMPLOYEES = findResource("employees")!;
 const FIELDS = new Map(EMPLOYEES.fields.map((f) => [f.name, f]));
@@ -120,6 +121,7 @@ const GROUPS: Record<Tab, { title?: [string, string]; fields: string[] }[]> = {
   ],
   history: [],
   performance: [],
+  benefits: [],
   projects: [],
   settings: [
     { title: ["Identitas karyawan", "Employee identity"], fields: ["employeeNumber", "active"] },
@@ -328,6 +330,7 @@ export function EmployeeForm({ id }: { id: string }) {
     ["work", l("Kerja", "Work"), true],
     ["personal", l("Pribadi", "Private"), true],
     ["payroll", l("Penggajian", "Payroll"), true],
+    ["benefits", l("Benefit", "Benefits"), !isNew && can(me.permissions, "payroll.read")],
     ["history", l("Dokumen & Riwayat", "Documents & History"), !isNew],
     ["performance", l("Kinerja", "Performance"), !isNew],
     ["projects", l("Proyek", "Projects"), !isNew],
@@ -670,6 +673,7 @@ export function EmployeeForm({ id }: { id: string }) {
               <NotesPanel employeeId={id} />
             </>
           )}
+          {!isNew && tab === "benefits" && <BenefitEnrollments employeeId={id} />}
           {!isNew && tab === "projects" && <ProjectsPanel employeeId={id} />}
           {!isNew && tab === "settings" && can(me.permissions, "fleet.read") && (
             <EmployeeVehiclesPanel employeeId={id} />

@@ -506,6 +506,97 @@ function EmployeeExtras({ id }: { id: string }) {
   );
 }
 
+/** Plafon klaim per golongan: menimpa plafon tahunan kategori untuk karyawan di golongan tersebut. */
+function ExpenseLimitsPanel({ id }: { id: string }) {
+  const me = useMe();
+  const { l, locale } = useI18n();
+  const [grades, setGrades] = useState<{ id: string; code: string; name: string }[]>([]);
+  const [limits, setLimits] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const writable = can(me.permissions, "hr.manage");
+  useEffect(() => {
+    api<{ items: { id: string; code: string; name: string }[] }>("/salary-grades?limit=200").then(
+      (r) => setGrades(r.items),
+      () => setGrades([]),
+    );
+    api<{ gradeId: string; annualLimit: string }[]>(`/expense-categories/${id}/limits`).then(
+      (r) => setLimits(Object.fromEntries(r.map((x) => [x.gradeId, String(Number(x.annualLimit))]))),
+      (e: Error) => setError(e.message),
+    );
+  }, [id]);
+  if (!grades.length) return null;
+  const save = () => {
+    setError(null);
+    setSaved(false);
+    api(`/expense-categories/${id}/limits`, {
+      method: "PUT",
+      body: {
+        limits: Object.entries(limits)
+          .filter(([, v]) => v !== "")
+          .map(([gradeId, annualLimit]) => ({ gradeId, annualLimit })),
+      },
+    }).then(
+      () => setSaved(true),
+      (e: Error) => setError(e.message),
+    );
+  };
+  return (
+    <section className="panel">
+      <header className="toolbar">
+        <h2>{l("Plafon per golongan", "Limit per grade")}</h2>
+        {writable && (
+          <button type="button" className="primary" onClick={save}>
+            {l("Simpan plafon", "Save limits")}
+          </button>
+        )}
+      </header>
+      <p className="muted">
+        {l(
+          "Kosong = ikut plafon tahunan kategori. Contoh: kacamata Rp 1 jt untuk staf, Rp 2,5 jt untuk manajer.",
+          "Empty = use the category annual limit. E.g. glasses Rp 1m for staff, Rp 2.5m for managers.",
+        )}
+      </p>
+      {error && <p className="error">{error}</p>}
+      {saved && <p className="muted">{l("Tersimpan.", "Saved.")}</p>}
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>{l("Golongan", "Grade")}</th>
+              <th className="num">{l("Plafon tahunan", "Annual limit")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {grades.map((g) => (
+              <tr key={g.id}>
+                <td>
+                  {g.name} <small className="muted">{g.code}</small>
+                </td>
+                <td className="num">
+                  {writable ? (
+                    <input
+                      className="num"
+                      inputMode="decimal"
+                      aria-label={`${l("Plafon", "Limit")} ${g.name}`}
+                      value={limits[g.id] ?? ""}
+                      onChange={(e) => setLimits((x) => ({ ...x, [g.id]: e.target.value }))}
+                    />
+                  ) : limits[g.id] ? (
+                    money(limits[g.id]!, locale)
+                  ) : (
+                    "—"
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 /** Panel tambahan di bawah form generik untuk resource tertentu. */
 export function FormExtras({ path, id }: { path: string; id: string }) {
   if (path === "products") return <VariantsPanel id={id} />;
@@ -514,5 +605,6 @@ export function FormExtras({ path, id }: { path: string; id: string }) {
   if (path === "fleet-vehicles") return <VehicleExtras id={id} />;
   if (path === "fleet-contracts") return <ContractActions id={id} />;
   if (path === "fleet-services") return <ServiceBillPanel id={id} />;
+  if (path === "expense-categories") return <ExpenseLimitsPanel id={id} />;
   return null;
 }

@@ -16,6 +16,7 @@ import {
 import { MyAttendance } from "../../../components/hr/attendance-extras";
 import { MyVehiclesPanel } from "../../../components/fleet/fleet-panels";
 import { ProjectsPanel } from "../../../components/hr/projects-panel";
+import { BenefitEnrollments } from "../../../components/payroll/benefits-panel";
 import { AnnouncementsFeed, FeedbackInbox, GoalTree, WhosOffPanel } from "../../../components/hr/ess-panels";
 import { LeaveRequestForm, type LeaveTypeOption } from "../../../components/hr/leave-form";
 import { api, ApiError } from "../../../lib/api";
@@ -234,6 +235,7 @@ export default function MyPortalPage() {
         <h2>{l("Sasaran saya", "My goals")}</h2>
         <GoalTree path="/me/goals" allowCreate={false} />
       </section>
+      <BenefitEnrollments mine />
       <ProjectsPanel mine />
       <FeedbackInbox />
       <WhosOffPanel />

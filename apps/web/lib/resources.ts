@@ -2251,6 +2251,49 @@ RESOURCES.push(
         display: "name",
       },
       { name: "active", label: L("Aktif", "Active"), type: "boolean" },
+      {
+        name: "calc",
+        label: L("Cara hitung", "Computation"),
+        type: "select",
+        section: L("Berbasis kehadiran", "Attendance based"),
+        options: [
+          ["fixed_amount", L("Nilai tetap", "Fixed amount")],
+          [
+            "per_attendance_day",
+            L("Per hari hadir (uang makan/transport)", "Per attendance day (meal/transport)"),
+          ],
+          ["attendance_premium", L("Premi kehadiran", "Attendance premium")],
+        ],
+      },
+      {
+        name: "rate",
+        label: L(
+          "Nilai bawaan (tarif per hari / premi; nilai di kontrak menimpa)",
+          "Default value (daily rate / premium; contract value overrides)",
+        ),
+        type: "number",
+      },
+      {
+        name: "autoAssign",
+        label: L(
+          "Berlaku otomatis untuk semua karyawan (tanpa ditambahkan ke kontrak)",
+          "Applies to all employees automatically (no need to add to contracts)",
+        ),
+        type: "boolean",
+      },
+      {
+        name: "premiumMaxLate",
+        label: L("Premi hilang bila terlambat lebih dari … kali", "Premium lost if late more than … times"),
+        type: "number",
+      },
+      {
+        name: "premiumMaxAbsent",
+        label: L(
+          "Premi hilang bila tidak hadir lebih dari … hari",
+          "Premium lost if absent more than … days",
+        ),
+        type: "number",
+      },
     ],
   },
 );

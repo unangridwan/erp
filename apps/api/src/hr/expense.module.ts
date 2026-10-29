@@ -16,12 +16,14 @@ import {
   Query,
   Res,
 } from "@nestjs/common";
-import { and, asc, desc, eq, ne, schema, sql } from "@erp/db";
+import { and, asc, desc, eq, ne, schema, sql, type Db } from "@erp/db";
 import {
   approvalDecisionSchema,
   EMPLOYEE_CHANGE_FIELDS,
   employeeChangeSchema,
   expenseCategorySchema,
+  effectiveClaimLimit,
+  expenseCategoryLimitsSchema,
   expenseClaimSchema,
   hasPermission,
   overtimeSchema,
@@ -32,7 +34,7 @@ import { AccountingModule } from "../accounting/accounting.module.js";
 import { assertCompanyAccounts } from "../accounting/context.js";
 import { ActivityService } from "../activity/activity.service.js";
 import { RequirePermission } from "../auth/decorators.js";
-import { createCrudController } from "../common/crud.js";
+import { assertRefsVisible, createCrudController } from "../common/crud.js";
 import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
@@ -62,6 +64,61 @@ const ExpenseCategoriesController = createCrudController({
 });
 
 /** Klaim biaya karyawan: dibuat dari portal (milik sendiri) atau oleh HR (hr.write). */
+/** Plafon klaim per golongan untuk satu kategori (menimpa plafon tahunan kategori). */
+@Controller("expense-categories/:id/limits")
+class ExpenseCategoryLimitsController {
+  constructor(@Inject(TenantDb) private readonly tenantDb: TenantDb) {}
+
+  @Get()
+  @RequirePermission("hr.read")
+  list(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run(async (tx) => {
+      await this.category(tx, id);
+      return tx
+        .select({
+          gradeId: schema.expenseCategoryLimits.gradeId,
+          gradeCode: schema.salaryGrades.code,
+          gradeName: schema.salaryGrades.name,
+          annualLimit: schema.expenseCategoryLimits.annualLimit,
+        })
+        .from(schema.expenseCategoryLimits)
+        .innerJoin(schema.salaryGrades, eq(schema.salaryGrades.id, schema.expenseCategoryLimits.gradeId))
+        .where(eq(schema.expenseCategoryLimits.categoryId, id))
+        .orderBy(asc(schema.salaryGrades.sequence), asc(schema.salaryGrades.code));
+    });
+  }
+
+  @Put()
+  @RequirePermission("hr.manage")
+  replace(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const { limits } = parse(expenseCategoryLimitsSchema, body);
+    return this.tenantDb.run(async (tx) => {
+      await this.category(tx, id);
+      for (const l of limits)
+        await assertRefsVisible(tx, { gradeId: schema.salaryGrades }, { gradeId: l.gradeId });
+      await tx.delete(schema.expenseCategoryLimits).where(eq(schema.expenseCategoryLimits.categoryId, id));
+      if (limits.length)
+        await tx
+          .insert(schema.expenseCategoryLimits)
+          .values(limits.map((l) => ({ categoryId: id, gradeId: l.gradeId, annualLimit: l.annualLimit })));
+      return this.list(id);
+    });
+  }
+
+  private async category(tx: Db, id: string) {
+    const [row] = await tx
+      .select({ id: schema.expenseCategories.id })
+      .from(schema.expenseCategories)
+      .where(
+        and(
+          eq(schema.expenseCategories.id, id),
+          eq(schema.expenseCategories.companyId, currentContext().companyId),
+        ),
+      );
+    if (!row) throw new NotFoundException("Kategori klaim tidak ditemukan");
+  }
+}
+
 @Controller("expense-claims")
 class ExpenseClaimsController {
   constructor(
@@ -252,24 +309,42 @@ class PortalExtrasController {
     @Inject(ApprovalService) private readonly approvals: ApprovalService,
   ) {}
 
+  /** Kategori klaim + plafon yang berlaku untuk golongan saya, terpakai & sisa tahun ini. */
   @Get("expense-categories")
   categories() {
-    return this.tenantDb.run((tx) =>
-      tx
-        .select({
-          id: schema.expenseCategories.id,
-          name: schema.expenseCategories.name,
-          annualLimit: schema.expenseCategories.annualLimit,
-        })
-        .from(schema.expenseCategories)
-        .where(
-          and(
-            eq(schema.expenseCategories.companyId, currentContext().companyId),
-            eq(schema.expenseCategories.active, true),
-          ),
-        )
-        .orderBy(asc(schema.expenseCategories.name)),
-    );
+    return this.tenantDb.run(async (tx) => {
+      const employee = await this.employees.mine(tx).catch(() => null);
+      const year = new Date().toISOString().slice(0, 4);
+      const rows = await tx.execute<{
+        id: string;
+        name: string;
+        annual_limit: string | null;
+        grade_limit: string | null;
+        used: string;
+      }>(sql`
+        select c.id, c.name, c.annual_limit::text,
+          (select l.annual_limit::text from expense_category_limits l
+            where l.category_id = c.id and l.grade_id = ${employee?.gradeId ?? null}::uuid) as grade_limit,
+          (select coalesce(sum(cl.amount), 0)::text from expense_claim_lines cl
+             join expense_claims x on x.id = cl.claim_id
+            where cl.category_id = c.id and x.employee_id = ${employee?.id ?? null}::uuid
+              and x.state in ('confirm', 'approved', 'paid')
+              and x.date between ${`${year}-01-01`}::date and ${`${year}-12-31`}::date) as used
+        from expense_categories c
+        where c.company_id = ${currentContext().companyId} and c.active
+        order by c.name`);
+      return rows.map((r) => {
+        const annualLimit = effectiveClaimLimit(r.annual_limit, r.grade_limit);
+        return {
+          id: r.id,
+          name: r.name,
+          annualLimit,
+          used: r.used,
+          remaining:
+            annualLimit === null ? null : Math.max(Number(annualLimit) - Number(r.used), 0).toFixed(2),
+        };
+      });
+    });
   }
 
   @Get("overtimes")
@@ -399,6 +474,7 @@ class PortalExtrasController {
   imports: [AccountingModule, HrModule],
   controllers: [
     ExpenseCategoriesController,
+    ExpenseCategoryLimitsController,
     ExpenseClaimsController,
     ChangeRequestsController,
     PortalExtrasController,

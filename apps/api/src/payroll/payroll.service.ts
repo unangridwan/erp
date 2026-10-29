@@ -7,6 +7,8 @@ import {
 } from "@nestjs/common";
 import { and, asc, desc, eq, gte, inArray, isNull, lte, lt, ne, or, schema, sql, type Db } from "@erp/db";
 import {
+  attendanceAllowance,
+  benefitContribution,
   bankTransferFile,
   bpjsProgram,
   computePayslip,
@@ -369,9 +371,18 @@ export class PayrollService {
         taxable: c.taxable,
       };
     };
+    // Komponen otomatis (semua karyawan) yang tidak ditimpa di kontrak; nilai = nilai bawaan komponen.
+    const autoRows = correction
+      ? []
+      : components
+          .filter((c) => c.active && c.autoAssign && !allowanceRows.some((a) => a.componentId === c.id))
+          .map((c) => ({ componentId: c.id, amount: c.rate ?? "0" }));
+    const contractRows = [...allowanceRows, ...autoRows];
+    const isAttendance = (componentId: string) =>
+      (comp.get(componentId)?.calc ?? "fixed_amount") !== "fixed_amount";
     const allowances = [
-      ...allowanceRows
-        .filter((a) => comp.get(a.componentId)?.kind === "allowance")
+      ...contractRows
+        .filter((a) => comp.get(a.componentId)?.kind === "allowance" && !isAttendance(a.componentId))
         .map((a) => item(a.componentId, a.amount)),
       ...inputs
         .filter((i) => comp.get(i.componentId)?.kind === "allowance")
@@ -415,8 +426,12 @@ export class PayrollService {
         taxable: c.taxable,
       })),
     ];
-    const deductions = [
-      ...allowanceRows
+    const deductions: (PayslipItem & {
+      componentId: string | null;
+      loanId?: string;
+      benefitPlanId?: string;
+    })[] = [
+      ...contractRows
         .filter((a) => comp.get(a.componentId)?.kind === "deduction")
         .map((a) => item(a.componentId, a.amount)),
       ...inputs
@@ -470,6 +485,94 @@ export class PayrollService {
             companyId: run.companyId,
           })
         : [];
+
+    // Tunjangan berbasis kehadiran (uang makan/transport per hari hadir, premi kehadiran).
+    const attendanceRows = contractRows.filter(
+      (a) => comp.get(a.componentId)?.kind === "allowance" && isAttendance(a.componentId),
+    );
+    if (attendanceRows.length && from <= to) {
+      const presentDays = await this.presentDays(tx, employee.id, from, to, settings.timezone);
+      const leaveDays = await this.leaves.leaveDays(tx, employee.id, from, to, holidays);
+      const facts = {
+        presentDays,
+        lateCount: late[0]?.occurrences ?? 0,
+        absentDays: Math.max(0, employedDays - presentDays - leaveDays),
+      };
+      for (const row of attendanceRows) {
+        const c = comp.get(row.componentId)!;
+        const rate = d(row.amount).gt(0) ? row.amount : (c.rate ?? "0");
+        const amount = attendanceAllowance(c.calc, rate, facts, {
+          maxLate: c.premiumMaxLate,
+          maxAbsent: c.premiumMaxAbsent,
+        });
+        if (d(amount).gt(0))
+          allowances.push({
+            ...item(
+              row.componentId,
+              amount,
+              c.calc === "per_attendance_day" ? `${presentDays} hari hadir` : null,
+            ),
+            fixed: false,
+          });
+      }
+    }
+
+    // Benefit (asuransi kesehatan, DPLK, fasilitas): porsi perusahaan = benefit perusahaan (natura bila kena pajak),
+    // porsi karyawan = potongan; iuran DPLK karyawan menjadi pengurang PPh 21.
+    const employerBenefits: {
+      code: string;
+      name: string;
+      amount: string;
+      taxable: boolean;
+      planId: string;
+    }[] = [];
+    let extraPension = d(0);
+    if (!correction) {
+      const enrollments = await tx
+        .select({ enrollment: schema.benefitEnrollments, plan: schema.benefitPlans })
+        .from(schema.benefitEnrollments)
+        .innerJoin(schema.benefitPlans, eq(schema.benefitPlans.id, schema.benefitEnrollments.planId))
+        .where(
+          and(
+            eq(schema.benefitEnrollments.employeeId, employee.id),
+            eq(schema.benefitPlans.companyId, run.companyId),
+            eq(schema.benefitPlans.active, true),
+            lte(schema.benefitEnrollments.dateStart, run.periodEnd),
+            or(
+              isNull(schema.benefitEnrollments.dateEnd),
+              gte(schema.benefitEnrollments.dateEnd, run.periodStart),
+            ),
+          ),
+        )
+        .orderBy(asc(schema.benefitPlans.code));
+      const benefitWage = allowances
+        .filter((a) => a.fixed)
+        .reduce((sum, a) => sum.plus(a.amount), d(contract.wage));
+      for (const { enrollment, plan } of enrollments) {
+        const c = benefitContribution(plan, benefitWage, enrollment.dependentIds.length, {
+          employer: enrollment.employerAmount,
+          employee: enrollment.employeeAmount,
+        });
+        if (d(c.employer).gt(0))
+          employerBenefits.push({
+            code: plan.code,
+            name: `${plan.name} (perusahaan)`,
+            amount: c.employer,
+            taxable: plan.taxable,
+            planId: plan.id,
+          });
+        if (d(c.employee).gt(0)) {
+          deductions.push({
+            componentId: null,
+            benefitPlanId: plan.id,
+            code: plan.code,
+            name: `${plan.name} (karyawan)`,
+            amount: c.employee,
+          });
+          if (plan.kind === "pension") extraPension = extraPension.plus(c.employee);
+        }
+      }
+    }
 
     // Pekerja harian lepas (hari hadir × upah harian) / borongan (satuan hasil kerja × tarif).
     let wage = correction ? d(0) : d(contract.wage);
@@ -616,6 +719,8 @@ export class PayrollService {
         pph21: sameMonth.pph21,
         employeePension: sameMonth.pension,
       },
+      employerBenefits,
+      extraPension: extraPension.toFixed(0),
     });
 
     await tx.delete(schema.payslipLines).where(eq(schema.payslipLines.payslipId, slipId));
@@ -626,6 +731,10 @@ export class PayrollService {
     const claimByCode = new Map(
       allowances.filter((x) => x.expenseClaimId).map((x) => [x.code + x.name, x.expenseClaimId!]),
     );
+    const benefitByCode = new Map([
+      ...employerBenefits.map((b) => [b.code + b.name, b.planId] as const),
+      ...deductions.filter((x) => x.benefitPlanId).map((x) => [x.code + x.name, x.benefitPlanId!] as const),
+    ]);
     // Slip koreksi tanpa input belum punya baris.
     if (result.lines.length)
       await tx.insert(schema.payslipLines).values(
@@ -639,6 +748,7 @@ export class PayrollService {
           componentId: componentByCode.get(l.code + l.name) ?? null,
           loanId: loanByCode.get(l.code + l.name) ?? null,
           expenseClaimId: claimByCode.get(l.code + l.name) ?? null,
+          benefitPlanId: benefitByCode.get(l.code + l.name) ?? null,
         })),
       );
     await tx
@@ -678,6 +788,23 @@ export class PayrollService {
         updatedAt: sql`now()`,
       })
       .where(eq(SLIP.id, slipId));
+  }
+
+  /** Hari hadir: tanggal lokal unik absensi tervalidasi dalam rentang. */
+  private async presentDays(tx: Db, employeeId: string, from: string, to: string, timezone: string) {
+    const rows = await tx
+      .select({ checkIn: schema.attendances.checkIn })
+      .from(schema.attendances)
+      .where(
+        and(
+          eq(schema.attendances.employeeId, employeeId),
+          eq(schema.attendances.state, "validated"),
+          // Diperlebar sehari agar absen dini hari waktu lokal ikut terbaca, lalu disaring per tanggal lokal.
+          gte(schema.attendances.checkIn, new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000)),
+          lte(schema.attendances.checkIn, new Date(Date.parse(`${to}T23:59:59Z`) + 86_400_000)),
+        ),
+      );
+    return new Set(rows.map((r) => localDate(r.checkIn, timezone)).filter((x) => x >= from && x <= to)).size;
   }
 
   /** Hitung ulang satu slip draft (setelah input slip berubah). */
@@ -747,9 +874,14 @@ export class PayrollService {
     const slips = await tx.select().from(SLIP).where(eq(SLIP.runId, id));
     if (!slips.length) throw new BadRequestException("Tidak ada slip gaji");
     const lines = await tx
-      .select({ line: schema.payslipLines, accountId: schema.salaryComponents.accountId })
+      .select({
+        line: schema.payslipLines,
+        accountId: schema.salaryComponents.accountId,
+        plan: schema.benefitPlans,
+      })
       .from(schema.payslipLines)
       .leftJoin(schema.salaryComponents, eq(schema.salaryComponents.id, schema.payslipLines.componentId))
+      .leftJoin(schema.benefitPlans, eq(schema.benefitPlans.id, schema.payslipLines.benefitPlanId))
       .where(
         inArray(
           schema.payslipLines.payslipId,
@@ -778,9 +910,19 @@ export class PayrollService {
         : { program: "tk", expense: s.bpjsTkExpenseAccountId, payable: s.bpjsTkPayableAccountId };
     for (const slip of slips) {
       const dims = { branchId: slip.branchId, businessUnitId: slip.businessUnitId };
-      for (const { line, accountId } of lines.filter((l) => l.line.payslipId === slip.id)) {
+      for (const { line, accountId, plan } of lines.filter((l) => l.line.payslipId === slip.id)) {
         const amount = d(line.amount);
+        // Benefit: beban porsi perusahaan, utang premi/iuran ke penyedia untuk porsi perusahaan & karyawan.
+        const benefitPayable = () => {
+          if (!plan?.payableAccountId)
+            throw new BadRequestException(`Akun utang benefit ${plan?.name ?? line.name} belum diatur`);
+          return plan.payableAccountId;
+        };
         switch (line.category) {
+          case "benefit_employer":
+            add(plan?.expenseAccountId ?? s.salaryExpenseAccountId, amount, dims);
+            add(benefitPayable(), amount.negated());
+            break;
           case "basic":
           case "allowance":
           case "overtime":
@@ -803,7 +945,8 @@ export class PayrollService {
             add(s.pph21PayableAccountId, amount);
             break;
           case "deduction":
-            if (line.loanId) {
+            if (line.benefitPlanId) add(benefitPayable(), amount);
+            else if (line.loanId) {
               if (!s.employeeLoanAccountId)
                 throw new BadRequestException("Akun piutang karyawan belum diatur di pengaturan payroll");
               add(s.employeeLoanAccountId, amount);

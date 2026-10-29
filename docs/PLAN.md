@@ -424,6 +424,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   karyawan & departemen (outbox + coba ulang), sinkron `/integrations/*`, Pengaturan › Aplikasi Terhubung
 - [x] Aplikasi terhubung (K2) — proyek, anggota, task, timesheet dari aplikasi proyek (upsert idempoten per aplikasi)
   tampil di form karyawan (tab & tombol Proyek), SDM › Proyek, dan portal karyawan
+- [x] Kompensasi & benefit (L1) — tunjangan per hari hadir & premi kehadiran, paket benefit (asuransi kesehatan swasta
+  sebagai natura PPh 21, DPLK pengurang PPh 21, fasilitas), kepesertaan + tanggungan, jurnal utang premi, laporan premi
+  per penyedia (Excel), plafon klaim per golongan, tab Benefit di form karyawan & portal "Benefit saya"
 
 ## 5. Roadmap Bertahap
 

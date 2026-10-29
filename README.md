@@ -288,6 +288,21 @@ usulan kenaikan upah bawaan A 10%, B 7%, C 4% (dapat diubah saat kalibrasi). Kar
 langsung oleh HR. Riwayat karir dicatat otomatis saat karyawan dibuat, departemen/jabatan/cabang/atasan berubah, tanggal
 keluar diisi, dan kontrak baru dengan upah berbeda mulai berlaku.
 
+#### Kompensasi & benefit
+
+| Endpoint                                                                                    | Keterangan                                                                                               |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `/salary-components` (`calc`, `rate`, `autoAssign`, `premiumMaxLate`, `premiumMaxAbsent`)   | Tunjangan per hari hadir (uang makan/transport) & premi kehadiran dari absensi tervalidasi               |
+| `/benefit-plans`, `/benefit-enrollments`, `GET /employees/:id/benefits`, `GET /me/benefits` | Paket asuransi kesehatan swasta, DPLK, fasilitas; kepesertaan + tanggungan keluarga (`payroll.manage`)   |
+| `GET /payroll/reports/benefits?from=YYYY-MM&to=YYYY-MM[&format=xlsx]`                       | Premi/iuran per paket & penyedia dari payroll terposting (untuk penyetoran)                              |
+| `GET/PUT /expense-categories/:id/limits`                                                    | Plafon klaim tahunan per golongan (menimpa plafon kategori); sisa plafon di `GET /me/expense-categories` |
+
+Porsi perusahaan paket benefit menjadi baris slip `benefit_employer` (tidak dibayar tunai): bila paket ditandai objek
+PPh 21 (bawaan untuk asuransi & fasilitas — natura PMK 66/2023) menambah penghasilan bruto; porsi karyawan menjadi
+potongan, dan untuk DPLK menjadi pengurang PPh 21 tahunan (seperti iuran pensiun). Saat posting: debit akun beban paket
+(kosong = beban gaji), kredit akun utang premi/iuran ke penyedia. Premi kehadiran hilang bila terlambat/tidak hadir
+melebihi batas atau tidak hadir sama sekali; nilai per karyawan dari tunjangan kontrak, atau nilai bawaan komponen.
+
 ### Pajak Coretax, Langganan & Operasional (Fase 5)
 
 | Endpoint                                                                                                                                                          | Keterangan                                                                                                                         |

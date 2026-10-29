@@ -6,7 +6,13 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { and, asc, desc, eq, gte, inArray, lte, ne, schema, sql, type Db } from "@erp/db";
-import { claimLimitCheck, hasPermission, type expenseClaimSchema, type payClaimSchema } from "@erp/shared";
+import {
+  claimLimitCheck,
+  effectiveClaimLimit,
+  hasPermission,
+  type expenseClaimSchema,
+  type payClaimSchema,
+} from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
@@ -152,8 +158,23 @@ export class ExpenseService {
       byCategory.set(category.id, cur);
     }
     const year = claim.date.slice(0, 4);
+    const [grade] = await tx
+      .select({ id: schema.employees.gradeId })
+      .from(schema.employees)
+      .where(eq(schema.employees.id, claim.employeeId));
+    const gradeLimits = grade?.id
+      ? await tx
+          .select()
+          .from(schema.expenseCategoryLimits)
+          .where(eq(schema.expenseCategoryLimits.gradeId, grade.id))
+      : [];
     for (const { category, amount } of byCategory.values()) {
-      if (!category.annualLimit) continue;
+      // Plafon golongan karyawan menimpa plafon kategori.
+      const limit = effectiveClaimLimit(
+        category.annualLimit,
+        gradeLimits.find((g) => g.categoryId === category.id)?.annualLimit,
+      );
+      if (!limit) continue;
       const [used] = await tx
         .select({ amount: sql<string>`coalesce(sum(${CL.amount}), 0)::text` })
         .from(CL)
@@ -168,7 +189,7 @@ export class ExpenseService {
             lte(C.date, `${year}-12-31`),
           ),
         );
-      const check = claimLimitCheck({ limit: category.annualLimit, used: used?.amount ?? 0, amount });
+      const check = claimLimitCheck({ limit, used: used?.amount ?? 0, amount });
       if (!check.ok)
         throw new BadRequestException(
           `Klaim ${category.name} melebihi plafon tahunan (sisa Rp ${check.remaining}, lebih Rp ${check.excess})`,
