@@ -236,6 +236,20 @@ export const sequences = pgTable("sequences", {
   ...audit,
 });
 
+/** Penghitung per tahun untuk urutan yang di-reset tahunan (nomor berikutnya per tahun dokumen). */
+export const sequenceYears = pgTable(
+  "sequence_years",
+  {
+    tenantId: tenantId(),
+    sequenceId: uuid("sequence_id")
+      .notNull()
+      .references(() => sequences.id, { onDelete: "cascade" }),
+    year: smallint("year").notNull(),
+    nextNumber: integer("next_number").notNull().default(1),
+  },
+  (t) => [primaryKey({ columns: [t.sequenceId, t.year] })],
+);
+
 export const activityLogs = pgTable("activity_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),

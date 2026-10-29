@@ -26,7 +26,8 @@ export class SequenceService {
    * Wajib dipanggil di dalam transaksi dokumen agar nomor ikut rollback (tanpa celah) — baris dikunci FOR UPDATE.
    */
   async next(tx: Db, code: string, companyId: string, date = new Date(), prefix?: string): Promise<string> {
-    const year = date.getFullYear();
+    // Tanggal dokumen dikirim sebagai YYYY-MM-DDT00:00:00Z: tahun UTC agar tidak bergeser di zona waktu server.
+    const year = date.getUTCFullYear();
     await tx
       .insert(schema.sequences)
       .values({ companyId, code, prefix: prefix ?? DEFAULT_PREFIX[code] ?? code.toUpperCase() })
@@ -39,17 +40,33 @@ export class SequenceService {
       .for("update");
     if (!seq) throw new Error(`Sequence ${code} tidak ditemukan`);
 
-    const restart = seq.resetYearly && seq.currentYear !== year;
-    const number = restart ? 1 : seq.nextNumber;
-    await tx
-      .update(schema.sequences)
-      .set({
-        nextNumber: number + 1,
-        currentYear: seq.resetYearly ? year : seq.currentYear,
-        updatedAt: sql`now()`,
+    if (!seq.resetYearly) {
+      await tx
+        .update(schema.sequences)
+        .set({ nextNumber: seq.nextNumber + 1, updatedAt: sql`now()` })
+        .where(eq(schema.sequences.id, seq.id));
+      return formatSequence(seq.prefix, seq.nextNumber, seq.padding, null);
+    }
+
+    // Reset tahunan: penghitung terpisah per tahun dokumen, sehingga dokumen bertanggal tahun lain (mis. tanggal
+    // masuk karyawan lama, jurnal mundur) melanjutkan nomor tahun itu, bukan mengulang dari 1.
+    const SY = schema.sequenceYears;
+    const [counter] = await tx
+      .insert(SY)
+      .values({ sequenceId: seq.id, year, nextNumber: 2 })
+      .onConflictDoUpdate({
+        target: [SY.sequenceId, SY.year],
+        set: { nextNumber: sql`${SY.nextNumber} + 1` },
       })
-      .where(eq(schema.sequences.id, seq.id));
-    return formatSequence(seq.prefix, number, seq.padding, seq.resetYearly ? year : null);
+      .returning({ next: SY.nextNumber });
+    const number = counter!.next - 1;
+    // Ringkasan tahun terakhir di `sequences` (dipakai tampilan daftar urutan).
+    if (seq.currentYear === null || year >= seq.currentYear)
+      await tx
+        .update(schema.sequences)
+        .set({ nextNumber: counter!.next, currentYear: year, updatedAt: sql`now()` })
+        .where(eq(schema.sequences.id, seq.id));
+    return formatSequence(seq.prefix, number, seq.padding, year);
   }
 }
 
