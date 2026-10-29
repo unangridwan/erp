@@ -70,61 +70,63 @@ export default function ChecklistPage() {
         {formatDate(c.baseDate, locale)}
       </p>
       {error && <p className="error">{error}</p>}
-      <table>
-        <thead>
-          <tr>
-            <th />
-            <th>{l("Tugas", "Task")}</th>
-            <th>{l("Penanggung jawab", "Owner")}</th>
-            <th>{l("Tenggat", "Due")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {c.tasks.map((t) => (
-            <tr key={t.id}>
-              <td>
-                <input
-                  type="checkbox"
-                  aria-label={t.name}
-                  checked={Boolean(t.doneAt)}
-                  onChange={(e) => {
-                    if (
-                      e.target.checked &&
-                      t.action === "deactivate_user" &&
-                      !confirm(
-                        l(
-                          "Akun login karyawan akan dinonaktifkan. Lanjutkan?",
-                          "The employee's login will be deactivated. Continue?",
-                        ),
-                      )
-                    )
-                      return;
-                    toggle(t.id, e.target.checked);
-                  }}
-                />
-              </td>
-              <td>
-                {t.doneAt ? <s>{t.name}</s> : t.name}
-                {t.action === "severance" && (
-                  <>
-                    {" "}
-                    <Link href={`/employees/${c.employeeId}`}>
-                      {l("→ hitung pesangon", "→ compute severance")}
-                    </Link>
-                  </>
-                )}
-              </td>
-              <td>
-                {l(...RESPONSIBLE[t.responsible]!)}
-                {t.userName ? ` (${t.userName})` : ""}
-              </td>
-              <td className={!t.doneAt && t.dueDate < now ? "error" : undefined}>
-                {formatDate(t.dueDate, locale)}
-              </td>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th />
+              <th>{l("Tugas", "Task")}</th>
+              <th>{l("Penanggung jawab", "Owner")}</th>
+              <th>{l("Tenggat", "Due")}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {c.tasks.map((t) => (
+              <tr key={t.id}>
+                <td>
+                  <input
+                    type="checkbox"
+                    aria-label={t.name}
+                    checked={Boolean(t.doneAt)}
+                    onChange={(e) => {
+                      if (
+                        e.target.checked &&
+                        t.action === "deactivate_user" &&
+                        !confirm(
+                          l(
+                            "Akun login karyawan akan dinonaktifkan. Lanjutkan?",
+                            "The employee's login will be deactivated. Continue?",
+                          ),
+                        )
+                      )
+                        return;
+                      toggle(t.id, e.target.checked);
+                    }}
+                  />
+                </td>
+                <td>
+                  {t.doneAt ? <s>{t.name}</s> : t.name}
+                  {t.action === "severance" && (
+                    <>
+                      {" "}
+                      <Link href={`/employees/${c.employeeId}`}>
+                        {l("→ hitung pesangon", "→ compute severance")}
+                      </Link>
+                    </>
+                  )}
+                </td>
+                <td>
+                  {l(...RESPONSIBLE[t.responsible]!)}
+                  {t.userName ? ` (${t.userName})` : ""}
+                </td>
+                <td className={!t.doneAt && t.dueDate < now ? "error" : undefined}>
+                  {formatDate(t.dueDate, locale)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

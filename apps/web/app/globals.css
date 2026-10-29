@@ -4,11 +4,15 @@
   --fg: #212529;
   --card: #ffffff;
   --border: #dee2e6;
-  --muted: #6c757d;
+  --muted: #5c636a;
   --accent: #714b67;
   --accent-fg: #ffffff;
-  --link: #017e84;
-  --danger: #d23f3a;
+  /* Aksen sebagai warna teks (tab aktif, angka statistik); di tema gelap lebih terang agar kontras. */
+  --accent-text: #714b67;
+  --link: #016b70;
+  --danger: #c0352f;
+  --ok: #1a7a43;
+  --warn: #8a5a00;
   --hover: #f2eef1;
   --nav-bg: #ffffff;
   --shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 2px 6px rgb(0 0 0 / 5%);
@@ -24,8 +28,11 @@
   --muted: #9a9ca5;
   --accent: #a07c9a;
   --accent-fg: #111;
+  --accent-text: #c9a3c3;
   --link: #48c6cc;
-  --danger: #ff6b76;
+  --danger: #ff7b84;
+  --ok: #5fd38d;
+  --warn: #f2b84b;
   --hover: #2f3341;
   --nav-bg: #262a36;
   --shadow: 0 1px 2px rgb(0 0 0 / 30%);
@@ -40,8 +47,12 @@
     --muted: #9a9ca5;
     --accent: #a07c9a;
     --accent-fg: #111;
+    --accent-text: #c9a3c3;
+    --accent-text: #c9a3c3;
     --link: #48c6cc;
-    --danger: #ff6b76;
+    --danger: #ff7b84;
+    --ok: #5fd38d;
+    --warn: #f2b84b;
     --hover: #2f3341;
     --nav-bg: #262a36;
     --shadow: 0 1px 2px rgb(0 0 0 / 30%);
@@ -49,6 +60,10 @@
 }
 * {
   box-sizing: border-box;
+}
+/* Bawaan browser: fieldset selebar konten minimum → isi form melebar keluar kartu di layar sempit. */
+fieldset {
+  min-width: 0;
 }
 body {
   margin: 0;
@@ -224,7 +239,7 @@ button:disabled {
 }
 .view-switch button.active {
   background: var(--hover);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .table-wrap {
   overflow-x: auto;
@@ -317,7 +332,7 @@ tbody tr:last-child td {
   }
 }
 .notice {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .narrow {
   max-width: 480px;
@@ -391,7 +406,9 @@ table.lines input.short {
   flex-direction: column;
   gap: 2px;
   font-size: 12px;
-  white-space: nowrap;
+  /* Nama pajak boleh turun baris agar kolom Subtotal tetap terlihat. */
+  white-space: normal;
+  min-width: 150px;
 }
 .totals {
   display: grid;
@@ -600,7 +617,7 @@ tr.detail td {
 
 /* ---- Fase 5: pajak, langganan, onboarding ---- */
 .success {
-  color: #1a7f37;
+  color: var(--ok);
 }
 .small {
   font-size: 12px;
@@ -793,15 +810,21 @@ label.check {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  flex-shrink: 1;
 }
 .nav-company {
   border: none;
   background: none;
   max-width: 220px;
+  min-width: 0;
 }
 .nav-company-name {
   color: var(--muted);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
 }
 .avatar,
 .nav-dropdown > button.avatar {
@@ -860,6 +883,35 @@ label.check {
     min-width: 0;
     max-width: 130px;
   }
+}
+
+/* Mode ringkas navbar (menu tidak muat; ditentukan komponen Navbar) = tampilan ponsel. */
+.navbar.compact .nav-burger {
+  display: block;
+}
+.navbar.compact .nav-menu {
+  display: none;
+}
+.navbar.compact .nav-menu.open {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  position: absolute;
+  top: 46px;
+  left: 0;
+  right: 0;
+  padding: 8px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 14%);
+  max-height: calc(100vh - 46px);
+  overflow-y: auto;
+}
+.navbar.compact .nav-menu.open .nav-items {
+  position: static;
+  border: none;
+  box-shadow: none;
+  padding-left: 12px;
 }
 .app.home {
   background:
@@ -1265,7 +1317,7 @@ input[type="file"],
   border: 1px solid var(--border);
 }
 .kiosk-result.in h1 {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .kiosk-video {
   width: 100%;
@@ -1645,7 +1697,8 @@ img.record-avatar {
   padding: 0 4px;
   border-radius: 8px;
   background: var(--danger);
-  color: #fff;
+  /* Latar halaman sebagai warna teks: kontras ≥ 5:1 di tema terang maupun gelap. */
+  color: var(--bg);
   font-size: 10px;
   line-height: 16px;
   text-align: center;
@@ -1856,7 +1909,7 @@ fieldset.bare {
   font-size: 12px;
 }
 .stat-button strong {
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 13px;
 }
 .save-actions {
@@ -1934,10 +1987,10 @@ fieldset.bare {
   text-overflow: ellipsis;
 }
 .pill.ok {
-  color: #1f9d55;
+  color: var(--ok);
 }
 .pill.warn {
-  color: #b7791f;
+  color: var(--warn);
 }
 .pill.bad {
   color: var(--danger);
@@ -1964,7 +2017,7 @@ fieldset.bare {
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 4px;
-  background: #fff;
+  background: var(--card);
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -1979,7 +2032,7 @@ fieldset.bare {
   object-fit: cover;
 }
 .emp-photo-empty {
-  color: #9aa0a6;
+  color: var(--muted);
 }
 .emp-head-main {
   display: flex;
@@ -2093,7 +2146,7 @@ fieldset.bare {
 }
 .emp-tabs button.active {
   background: var(--card);
-  color: var(--accent);
+  color: var(--accent-text);
   border-color: var(--border);
   border-top: 2px solid var(--accent);
 }
@@ -2186,7 +2239,7 @@ fieldset.bare {
 
 /* ---- Aplikasi terhubung ---- */
 .secret-box {
-  border-color: #b7791f;
+  border-color: var(--warn);
   margin-bottom: 1rem;
 }
 .secret-box input {
@@ -2326,4 +2379,49 @@ button.stat-button {
   width: 100%;
   min-width: 70px;
   text-align: right;
+}
+
+/* Ponsel: judul/breadcrumb form di baris sendiri (tidak terpotong di samping tombol Simpan/Hapus). */
+@media (max-width: 640px) {
+  .control-panel .cp-left {
+    flex-wrap: wrap;
+  }
+  .control-panel .cp-left > .breadcrumb {
+    flex: 1 1 100%;
+  }
+  .control-panel .breadcrumb h1 {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Pembungkus gulir horizontal tanpa gaya kartu (tabel di dalam panel/form). */
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Baris dokumen: kolom pertama (produk/akun) cukup lebar untuk membaca pilihannya. */
+table.lines td:first-child select,
+table.lines td:first-child input:not([type="checkbox"]) {
+  min-width: 170px;
+}
+/* Jarak antara tabel dan field berikutnya (mis. Syarat & catatan di bawah baris pesanan). */
+.table-wrap + .field,
+.table-wrap + dl + .field,
+.table-scroll + .field {
+  margin-top: 12px;
+}
+
+/* Halaman tidak ditemukan. */
+.not-found {
+  min-height: 60vh;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  gap: 8px;
+}
+.not-found strong {
+  font-size: 48px;
+  color: var(--accent-text);
 }

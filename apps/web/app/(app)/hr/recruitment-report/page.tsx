@@ -113,40 +113,44 @@ export default function RecruitmentReportPage() {
               </section>
               <section>
                 <h2>{l("Sumber pelamar", "Applicant sources")}</h2>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{l("Sumber", "Source")}</th>
-                      <th className="num">{l("Pelamar", "Applicants")}</th>
-                      <th className="num">{l("Diterima", "Hired")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {r.sources.map((s) => (
-                      <tr key={s.key}>
-                        <td>{SOURCE[s.key] ? l(...SOURCE[s.key]!) : s.key}</td>
-                        <td className="num">{s.count}</td>
-                        <td className="num">{s.hired}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <h2>{l("Alasan penolakan", "Refusal reasons")}</h2>
-                <table>
-                  <tbody>
-                    {r.refuseReasons.map((s) => (
-                      <tr key={s.key}>
-                        <td>{s.key}</td>
-                        <td className="num">{s.count}</td>
-                      </tr>
-                    ))}
-                    {!r.refuseReasons.length && (
+                <div className="table-scroll">
+                  <table>
+                    <thead>
                       <tr>
-                        <td className="muted">—</td>
+                        <th>{l("Sumber", "Source")}</th>
+                        <th className="num">{l("Pelamar", "Applicants")}</th>
+                        <th className="num">{l("Diterima", "Hired")}</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {r.sources.map((s) => (
+                        <tr key={s.key}>
+                          <td>{SOURCE[s.key] ? l(...SOURCE[s.key]!) : s.key}</td>
+                          <td className="num">{s.count}</td>
+                          <td className="num">{s.hired}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <h2>{l("Alasan penolakan", "Refusal reasons")}</h2>
+                <div className="table-scroll">
+                  <table>
+                    <tbody>
+                      {r.refuseReasons.map((s) => (
+                        <tr key={s.key}>
+                          <td>{s.key}</td>
+                          <td className="num">{s.count}</td>
+                        </tr>
+                      ))}
+                      {!r.refuseReasons.length && (
+                        <tr>
+                          <td className="muted">—</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </section>
             </div>
             <h2>{l("Lowongan", "Openings")}</h2>
@@ -187,51 +191,55 @@ export default function RecruitmentReportPage() {
         <section className="panel">
           <h2>{l("Alasan karyawan keluar", "Reasons for leaving")}</h2>
           <div className="split">
-            <table>
-              <tbody>
-                {x.reasons.map((r) => (
-                  <tr key={r.key}>
-                    <td>
-                      {RESIGN_REASON_LABEL[r.key]
-                        ? l(...RESIGN_REASON_LABEL[r.key]!)
-                        : l("Belum diisi", "Not set")}
-                    </td>
-                    <td className="num">{r.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="table-scroll">
+              <table>
+                <tbody>
+                  {x.reasons.map((r) => (
+                    <tr key={r.key}>
+                      <td>
+                        {RESIGN_REASON_LABEL[r.key]
+                          ? l(...RESIGN_REASON_LABEL[r.key]!)
+                          : l("Belum diisi", "Not set")}
+                      </td>
+                      <td className="num">{r.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <div>
               <h3>
                 {l("Exit interview", "Exit interviews")} ({x.interviews.count})
               </h3>
-              <table>
-                <tbody>
-                  {x.interviews.reasons.map((r) => (
-                    <tr key={r.key}>
-                      <td>{EXIT_REASON_LABEL[r.key] ? l(...EXIT_REASON_LABEL[r.key]!) : r.key}</td>
-                      <td className="num">{r.count}</td>
-                    </tr>
-                  ))}
-                  {EXIT_QUESTIONS.map((q) => {
-                    const s = x.interviews.scores.find((v) => v.key === q.key);
-                    return (
-                      <tr key={q.key}>
-                        <td className="muted">{l(q.label[0], q.label[1])}</td>
-                        <td className="num">{s?.average ?? "—"} / 5</td>
+              <div className="table-scroll">
+                <table>
+                  <tbody>
+                    {x.interviews.reasons.map((r) => (
+                      <tr key={r.key}>
+                        <td>{EXIT_REASON_LABEL[r.key] ? l(...EXIT_REASON_LABEL[r.key]!) : r.key}</td>
+                        <td className="num">{r.count}</td>
                       </tr>
-                    );
-                  })}
-                  <tr>
-                    <td className="muted">{l("Mau bergabung kembali", "Would rejoin")}</td>
-                    <td className="num">{x.interviews.wouldRejoin ?? "—"}%</td>
-                  </tr>
-                  <tr>
-                    <td className="muted">{l("Merekomendasikan perusahaan", "Would recommend")}</td>
-                    <td className="num">{x.interviews.wouldRecommend ?? "—"}%</td>
-                  </tr>
-                </tbody>
-              </table>
+                    ))}
+                    {EXIT_QUESTIONS.map((q) => {
+                      const s = x.interviews.scores.find((v) => v.key === q.key);
+                      return (
+                        <tr key={q.key}>
+                          <td className="muted">{l(q.label[0], q.label[1])}</td>
+                          <td className="num">{s?.average ?? "—"} / 5</td>
+                        </tr>
+                      );
+                    })}
+                    <tr>
+                      <td className="muted">{l("Mau bergabung kembali", "Would rejoin")}</td>
+                      <td className="num">{x.interviews.wouldRejoin ?? "—"}%</td>
+                    </tr>
+                    <tr>
+                      <td className="muted">{l("Merekomendasikan perusahaan", "Would recommend")}</td>
+                      <td className="num">{x.interviews.wouldRecommend ?? "—"}%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </section>

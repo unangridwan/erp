@@ -81,49 +81,51 @@ export function MyClaims() {
       {claims.length === 0 ? (
         <p className="muted">{l("Belum ada klaim.", "No claims yet.")}</p>
       ) : (
-        <table>
-          <tbody>
-            {claims.map((c) => (
-              <tr key={c.id}>
-                <td>{c.name}</td>
-                <td>{formatDate(c.date, locale)}</td>
-                <td>{c.description}</td>
-                <td className="num">{money(c.total, locale)}</td>
-                <td>{tx(EXPENSE_STATE_LABEL[c.state]!)}</td>
-                <td>
-                  {c.state === "draft" && (
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={() =>
-                        api(`/expense-claims/${c.id}/submit`, { method: "POST" }).then(
-                          () => setVersion((v) => v + 1),
-                          (e) => setError(errorText(e)),
-                        )
-                      }
-                    >
-                      {l("Ajukan", "Submit")}
-                    </button>
-                  )}
-                  {["draft", "confirm", "approved"].includes(c.state) && (
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={() =>
-                        api(`/expense-claims/${c.id}/cancel`, { method: "POST" }).then(
-                          () => setVersion((v) => v + 1),
-                          (e) => setError(errorText(e)),
-                        )
-                      }
-                    >
-                      {l("Batalkan", "Cancel")}
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table>
+            <tbody>
+              {claims.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.name}</td>
+                  <td>{formatDate(c.date, locale)}</td>
+                  <td>{c.description}</td>
+                  <td className="num">{money(c.total, locale)}</td>
+                  <td>{tx(EXPENSE_STATE_LABEL[c.state]!)}</td>
+                  <td>
+                    {c.state === "draft" && (
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() =>
+                          api(`/expense-claims/${c.id}/submit`, { method: "POST" }).then(
+                            () => setVersion((v) => v + 1),
+                            (e) => setError(errorText(e)),
+                          )
+                        }
+                      >
+                        {l("Ajukan", "Submit")}
+                      </button>
+                    )}
+                    {["draft", "confirm", "approved"].includes(c.state) && (
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() =>
+                          api(`/expense-claims/${c.id}/cancel`, { method: "POST" }).then(
+                            () => setVersion((v) => v + 1),
+                            (e) => setError(errorText(e)),
+                          )
+                        }
+                      >
+                        {l("Batalkan", "Cancel")}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
@@ -187,20 +189,22 @@ export function MyOvertime() {
         <button className="primary">{l("Ajukan lembur", "Request overtime")}</button>
       </form>
       {error && <p className="error">{error}</p>}
-      <table>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td>{formatDate(r.date, locale)}</td>
-              <td className="num">
-                {Number(r.hours)} {l("jam", "h")}
-              </td>
-              <td>{r.description}</td>
-              <td>{tx(LEAVE_STATE_LABEL[r.state]!)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="table-scroll">
+        <table>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td>{formatDate(r.date, locale)}</td>
+                <td className="num">
+                  {Number(r.hours)} {l("jam", "h")}
+                </td>
+                <td>{r.description}</td>
+                <td>{tx(LEAVE_STATE_LABEL[r.state]!)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -218,28 +222,30 @@ export function MyLoans() {
   return (
     <section className="panel">
       <h2>{l("Pinjaman", "Loans")}</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>{l("Pinjaman", "Loan")}</th>
-            <th className="num">{l("Pokok", "Principal")}</th>
-            <th className="num">{l("Cicilan/bulan", "Installment")}</th>
-            <th className="num">{l("Sisa", "Remaining")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td>{r.name}</td>
-              <td className="num">{money(r.principal, locale)}</td>
-              <td className="num">{money(r.installment, locale)}</td>
-              <td className="num">
-                <strong>{money(r.remaining, locale)}</strong>
-              </td>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>{l("Pinjaman", "Loan")}</th>
+              <th className="num">{l("Pokok", "Principal")}</th>
+              <th className="num">{l("Cicilan/bulan", "Installment")}</th>
+              <th className="num">{l("Sisa", "Remaining")}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td>{r.name}</td>
+                <td className="num">{money(r.principal, locale)}</td>
+                <td className="num">{money(r.installment, locale)}</td>
+                <td className="num">
+                  <strong>{money(r.remaining, locale)}</strong>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -353,28 +359,30 @@ export function MyChangeRequest() {
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
       {rows.length > 0 && (
-        <table>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td>{new Date(r.createdAt).toLocaleDateString()}</td>
-                <td>
-                  {Object.entries(r.changes)
-                    .map(([k, v]) => `${label(k)}: ${v ?? "—"}`)
-                    .join(" · ")}
-                </td>
-                <td>
-                  {r.state === "confirm"
-                    ? l("Menunggu HR", "Awaiting HR")
-                    : r.state === "approved"
-                      ? l("Disetujui", "Approved")
-                      : l("Ditolak", "Refused")}
-                  {r.decisionNote ? ` — ${r.decisionNote}` : ""}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td>{new Date(r.createdAt).toLocaleDateString()}</td>
+                  <td>
+                    {Object.entries(r.changes)
+                      .map(([k, v]) => `${label(k)}: ${v ?? "—"}`)
+                      .join(" · ")}
+                  </td>
+                  <td>
+                    {r.state === "confirm"
+                      ? l("Menunggu HR", "Awaiting HR")
+                      : r.state === "approved"
+                        ? l("Disetujui", "Approved")
+                        : l("Ditolak", "Refused")}
+                    {r.decisionNote ? ` — ${r.decisionNote}` : ""}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
@@ -400,26 +408,28 @@ export function MyTaxSlips() {
   return (
     <section className="panel">
       <h2>{l("Bukti potong PPh 21 (A1)", "PPh 21 withholding slips (A1)")}</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>{l("Tahun", "Year")}</th>
-            <th>{l("Nomor", "Number")}</th>
-            <th className="num">{l("Penghasilan bruto", "Gross income")}</th>
-            <th className="num">PPh 21</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td>{r.periodYear}</td>
-              <td>{r.bupotNumber ?? l("(belum bernomor)", "(not numbered yet)")}</td>
-              <td className="num">{money(r.taxBase, locale)}</td>
-              <td className="num">{money(r.taxAmount, locale)}</td>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>{l("Tahun", "Year")}</th>
+              <th>{l("Nomor", "Number")}</th>
+              <th className="num">{l("Penghasilan bruto", "Gross income")}</th>
+              <th className="num">PPh 21</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td>{r.periodYear}</td>
+                <td>{r.bupotNumber ?? l("(belum bernomor)", "(not numbered yet)")}</td>
+                <td className="num">{money(r.taxBase, locale)}</td>
+                <td className="num">{money(r.taxAmount, locale)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -447,35 +457,37 @@ export function MyChecklistTasks() {
     <section className="panel">
       <h2>{l("Tugas onboarding/offboarding", "Onboarding/offboarding tasks")}</h2>
       {error && <p className="error">{error}</p>}
-      <table>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td>
-                <input
-                  type="checkbox"
-                  aria-label={r.name}
-                  checked={Boolean(r.doneAt)}
-                  onChange={(e) =>
-                    api(`/hr-checklists/tasks/${r.id}`, {
-                      method: "POST",
-                      body: { done: e.target.checked },
-                    }).then(
-                      () => setVersion((v) => v + 1),
-                      (err) => setError(errorText(err)),
-                    )
-                  }
-                />
-              </td>
-              <td>{r.name}</td>
-              <td className="muted">
-                {r.checklistName} · {r.employeeName}
-              </td>
-              <td>{formatDate(r.dueDate, locale)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="table-scroll">
+        <table>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td>
+                  <input
+                    type="checkbox"
+                    aria-label={r.name}
+                    checked={Boolean(r.doneAt)}
+                    onChange={(e) =>
+                      api(`/hr-checklists/tasks/${r.id}`, {
+                        method: "POST",
+                        body: { done: e.target.checked },
+                      }).then(
+                        () => setVersion((v) => v + 1),
+                        (err) => setError(errorText(err)),
+                      )
+                    }
+                  />
+                </td>
+                <td>{r.name}</td>
+                <td className="muted">
+                  {r.checklistName} · {r.employeeName}
+                </td>
+                <td>{formatDate(r.dueDate, locale)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -502,22 +514,28 @@ export function MyAppraisals() {
   return (
     <section className="panel">
       <h2>{l("Penilaian kinerja", "Performance appraisals")}</h2>
-      <table>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td>
-                <Link href={`/hr/appraisal-forms/${r.id}`}>{r.cycleName}</Link>
-              </td>
-              <td>{r.role === "self" ? l("Diri sendiri", "Myself") : r.employeeName}</td>
-              <td>
-                {todo(r) ? <strong>{l("Perlu diisi", "To do")}</strong> : tx(APPRAISAL_STATE_LABEL[r.state]!)}
-              </td>
-              <td>{r.rating ? `${Number(r.finalScore).toFixed(2)} · ${r.rating}` : ""}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="table-scroll">
+        <table>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td>
+                  <Link href={`/hr/appraisal-forms/${r.id}`}>{r.cycleName}</Link>
+                </td>
+                <td>{r.role === "self" ? l("Diri sendiri", "Myself") : r.employeeName}</td>
+                <td>
+                  {todo(r) ? (
+                    <strong>{l("Perlu diisi", "To do")}</strong>
+                  ) : (
+                    tx(APPRAISAL_STATE_LABEL[r.state]!)
+                  )}
+                </td>
+                <td>{r.rating ? `${Number(r.finalScore).toFixed(2)} · ${r.rating}` : ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -678,20 +696,22 @@ export function MyApprovalRequests() {
       {rows.length === 0 ? (
         <p className="muted">{l("Belum ada permintaan.", "No requests yet.")}</p>
       ) : (
-        <table>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td>
-                  <Link href={`/hr/approval-requests/${r.id}`}>{r.number ?? l("(draft)", "(draft)")}</Link>
-                </td>
-                <td>{r.categoryName}</td>
-                <td>{r.subject}</td>
-                <td>{tx(REQUEST_STATE_LABEL[r.state]!)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    <Link href={`/hr/approval-requests/${r.id}`}>{r.number ?? l("(draft)", "(draft)")}</Link>
+                  </td>
+                  <td>{r.categoryName}</td>
+                  <td>{r.subject}</td>
+                  <td>{tx(REQUEST_STATE_LABEL[r.state]!)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

@@ -148,59 +148,61 @@ export default function BudgetPage() {
           </label>
         </fieldset>
         <h2>{l("Baris anggaran", "Budget lines")}</h2>
-        <table className="lines">
-          <thead>
-            <tr>
-              <th>{l("Akun pendapatan/beban", "Income/expense account")}</th>
-              <th className="num">{l("Jumlah", "Amount")}</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((x, i) => (
-              <tr key={i}>
-                <td>
-                  <select
-                    disabled={!editable}
-                    value={x.accountId}
-                    onChange={(e) => setLine(i, { accountId: e.target.value })}
-                  >
-                    <option value="">—</option>
-                    {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.code} {a.name}
-                      </option>
-                    ))}
-                  </select>
-                  {fieldErrors[`lines.${i}.accountId`] && (
-                    <small className="error">{fieldErrors[`lines.${i}.accountId`]}</small>
-                  )}
-                </td>
-                <td>
-                  <input
-                    disabled={!editable}
-                    className="num"
-                    inputMode="decimal"
-                    value={x.amount}
-                    onChange={(e) => setLine(i, { amount: e.target.value })}
-                  />
-                </td>
-                <td>
-                  {editable && (
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={() => setLines((r) => r.filter((_, j) => j !== i))}
-                      aria-label={l("Hapus baris", "Remove line")}
-                    >
-                      ✕
-                    </button>
-                  )}
-                </td>
+        <div className="table-scroll">
+          <table className="lines">
+            <thead>
+              <tr>
+                <th>{l("Akun pendapatan/beban", "Income/expense account")}</th>
+                <th className="num">{l("Jumlah", "Amount")}</th>
+                <th />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {lines.map((x, i) => (
+                <tr key={i}>
+                  <td>
+                    <select
+                      disabled={!editable}
+                      value={x.accountId}
+                      onChange={(e) => setLine(i, { accountId: e.target.value })}
+                    >
+                      <option value="">—</option>
+                      {accounts.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.code} {a.name}
+                        </option>
+                      ))}
+                    </select>
+                    {fieldErrors[`lines.${i}.accountId`] && (
+                      <small className="error">{fieldErrors[`lines.${i}.accountId`]}</small>
+                    )}
+                  </td>
+                  <td>
+                    <input
+                      disabled={!editable}
+                      className="num"
+                      inputMode="decimal"
+                      value={x.amount}
+                      onChange={(e) => setLine(i, { amount: e.target.value })}
+                    />
+                  </td>
+                  <td>
+                    {editable && (
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() => setLines((r) => r.filter((_, j) => j !== i))}
+                        aria-label={l("Hapus baris", "Remove line")}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {editable && (
           <button
             type="button"
@@ -226,47 +228,49 @@ export default function BudgetPage() {
               {l("Ekspor Excel", "Export Excel")}
             </button>
           </header>
-          <table>
-            <thead>
-              <tr>
-                <th>{l("Akun", "Account")}</th>
-                <th className="num">{l("Anggaran", "Budget")}</th>
-                <th className="num">{l("Realisasi", "Actual")}</th>
-                <th className="num">{l("Selisih", "Variance")}</th>
-                <th className="num">{l("Capaian", "Achieved")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.lines.map((x) => (
-                <tr key={x.id}>
-                  <td>
-                    <span className="muted">{x.code}</span> {x.name}
-                  </td>
-                  <td className="num">{m(x.budget)}</td>
-                  <td className="num">{m(x.actual)}</td>
-                  <td
-                    className={`num ${(x.kind === "income" ? Number(x.variance) < 0 : Number(x.variance) > 0) ? "error" : ""}`}
-                  >
-                    {m(x.variance)}
-                  </td>
-                  <td className="num">{x.achievement === null ? "—" : `${x.achievement}%`}</td>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>{l("Akun", "Account")}</th>
+                  <th className="num">{l("Anggaran", "Budget")}</th>
+                  <th className="num">{l("Realisasi", "Actual")}</th>
+                  <th className="num">{l("Selisih", "Variance")}</th>
+                  <th className="num">{l("Capaian", "Achieved")}</th>
                 </tr>
-              ))}
-              {(["income", "expense"] as const).map((k) => (
-                <tr key={k} className="grand">
-                  <td>
-                    {k === "income"
-                      ? l("Total pendapatan", "Total income")
-                      : l("Total beban", "Total expenses")}
-                  </td>
-                  <td className="num">{m(report.totals[k].budget)}</td>
-                  <td className="num">{m(report.totals[k].actual)}</td>
-                  <td className="num">{m(report.totals[k].variance)}</td>
-                  <td />
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {report.lines.map((x) => (
+                  <tr key={x.id}>
+                    <td>
+                      <span className="muted">{x.code}</span> {x.name}
+                    </td>
+                    <td className="num">{m(x.budget)}</td>
+                    <td className="num">{m(x.actual)}</td>
+                    <td
+                      className={`num ${(x.kind === "income" ? Number(x.variance) < 0 : Number(x.variance) > 0) ? "error" : ""}`}
+                    >
+                      {m(x.variance)}
+                    </td>
+                    <td className="num">{x.achievement === null ? "—" : `${x.achievement}%`}</td>
+                  </tr>
+                ))}
+                {(["income", "expense"] as const).map((k) => (
+                  <tr key={k} className="grand">
+                    <td>
+                      {k === "income"
+                        ? l("Total pendapatan", "Total income")
+                        : l("Total beban", "Total expenses")}
+                    </td>
+                    <td className="num">{m(report.totals[k].budget)}</td>
+                    <td className="num">{m(report.totals[k].actual)}</td>
+                    <td className="num">{m(report.totals[k].variance)}</td>
+                    <td />
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
     </div>

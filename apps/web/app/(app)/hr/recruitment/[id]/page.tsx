@@ -126,45 +126,47 @@ export default function ApplicantPage() {
 
       <section className="panel">
         <h2>{l("Wawancara", "Interviews")}</h2>
-        <table>
-          <tbody>
-            {a.interviews.map((i) => (
-              <tr key={i.id}>
-                <td>{local(i.scheduledAt)}</td>
-                <td>{i.location}</td>
-                <td>{i.interviewerName ?? "—"}</td>
-                <td>
-                  {i.done ? `${"★".repeat(i.score ?? 0)} ${i.result ?? ""}` : l("terjadwal", "scheduled")}
-                </td>
-                <td>
-                  {!i.done && (
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={async () => {
-                        const result = prompt(l("Hasil wawancara", "Interview result")) ?? "";
-                        const score = Number(prompt(l("Skor 1–5", "Score 1–5")) || 0) || null;
-                        setError(null);
-                        await api(`/applicants/${id}/interviews/${i.id}`, {
-                          method: "PUT",
-                          body: {
-                            scheduledAt: i.scheduledAt,
-                            location: i.location,
-                            result,
-                            score,
-                            done: true,
-                          },
-                        }).then(load, (e) => setError(errorText(e)));
-                      }}
-                    >
-                      {l("Catat hasil", "Record result")}
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table>
+            <tbody>
+              {a.interviews.map((i) => (
+                <tr key={i.id}>
+                  <td>{local(i.scheduledAt)}</td>
+                  <td>{i.location}</td>
+                  <td>{i.interviewerName ?? "—"}</td>
+                  <td>
+                    {i.done ? `${"★".repeat(i.score ?? 0)} ${i.result ?? ""}` : l("terjadwal", "scheduled")}
+                  </td>
+                  <td>
+                    {!i.done && (
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={async () => {
+                          const result = prompt(l("Hasil wawancara", "Interview result")) ?? "";
+                          const score = Number(prompt(l("Skor 1–5", "Score 1–5")) || 0) || null;
+                          setError(null);
+                          await api(`/applicants/${id}/interviews/${i.id}`, {
+                            method: "PUT",
+                            body: {
+                              scheduledAt: i.scheduledAt,
+                              location: i.location,
+                              result,
+                              score,
+                              done: true,
+                            },
+                          }).then(load, (e) => setError(errorText(e)));
+                        }}
+                      >
+                        {l("Catat hasil", "Record result")}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {!closed && (
           <div className="inline-panel">
             <label className="field">

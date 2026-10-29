@@ -99,68 +99,70 @@ export default function ChecklistTemplatesPage() {
               {l("Template bawaan (otomatis)", "Default (automatic)")}
             </label>
           </div>
-          <table className="lines">
-            <thead>
-              <tr>
-                <th>{l("Tugas", "Task")}</th>
-                <th>{l("Penanggung jawab", "Owner")}</th>
-                <th className="num">{l("Tenggat (hari)", "Due (days)")}</th>
-                <th>{l("Aksi", "Action")}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {edit.items.map((x, i) => (
-                <tr key={i}>
-                  <td>
-                    <input
-                      aria-label={l("Tugas", "Task")}
-                      value={x.name}
-                      onChange={(e) => setItem(i, { name: e.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <select
-                      value={x.responsible}
-                      onChange={(e) => setItem(i, { responsible: e.target.value })}
-                    >
-                      <option value="hr">HR</option>
-                      <option value="manager">{l("Atasan", "Manager")}</option>
-                      <option value="employee">{l("Karyawan", "Employee")}</option>
-                      <option value="it">IT</option>
-                    </select>
-                  </td>
-                  <td>
-                    <input
-                      className="num"
-                      type="number"
-                      value={x.dueDays}
-                      onChange={(e) => setItem(i, { dueDays: Number(e.target.value) })}
-                    />
-                  </td>
-                  <td>
-                    <select
-                      value={x.action ?? ""}
-                      onChange={(e) => setItem(i, { action: e.target.value || null })}
-                    >
-                      <option value="">—</option>
-                      <option value="severance">{l("Hitung pesangon", "Severance")}</option>
-                      <option value="deactivate_user">{l("Nonaktifkan akun", "Deactivate login")}</option>
-                    </select>
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={() => setEdit({ ...edit, items: edit.items.filter((_, j) => j !== i) })}
-                    >
-                      ✕
-                    </button>
-                  </td>
+          <div className="table-scroll">
+            <table className="lines">
+              <thead>
+                <tr>
+                  <th>{l("Tugas", "Task")}</th>
+                  <th>{l("Penanggung jawab", "Owner")}</th>
+                  <th className="num">{l("Tenggat (hari)", "Due (days)")}</th>
+                  <th>{l("Aksi", "Action")}</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {edit.items.map((x, i) => (
+                  <tr key={i}>
+                    <td>
+                      <input
+                        aria-label={l("Tugas", "Task")}
+                        value={x.name}
+                        onChange={(e) => setItem(i, { name: e.target.value })}
+                      />
+                    </td>
+                    <td>
+                      <select
+                        value={x.responsible}
+                        onChange={(e) => setItem(i, { responsible: e.target.value })}
+                      >
+                        <option value="hr">HR</option>
+                        <option value="manager">{l("Atasan", "Manager")}</option>
+                        <option value="employee">{l("Karyawan", "Employee")}</option>
+                        <option value="it">IT</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        className="num"
+                        type="number"
+                        value={x.dueDays}
+                        onChange={(e) => setItem(i, { dueDays: Number(e.target.value) })}
+                      />
+                    </td>
+                    <td>
+                      <select
+                        value={x.action ?? ""}
+                        onChange={(e) => setItem(i, { action: e.target.value || null })}
+                      >
+                        <option value="">—</option>
+                        <option value="severance">{l("Hitung pesangon", "Severance")}</option>
+                        <option value="deactivate_user">{l("Nonaktifkan akun", "Deactivate login")}</option>
+                      </select>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() => setEdit({ ...edit, items: edit.items.filter((_, j) => j !== i) })}
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <div className="form-actions">
             <button
               type="button"
@@ -183,29 +185,31 @@ export default function ChecklistTemplatesPage() {
           </div>
         </div>
       ) : (
-        <table>
-          <tbody>
-            {templates.map((t) => (
-              <tr key={t.id}>
-                <td>
-                  <button type="button" className="link" onClick={() => setEdit(t)}>
-                    {t.name}
-                  </button>
-                </td>
-                <td>{t.kind === "onboarding" ? "Onboarding" : "Offboarding"}</td>
-                <td>{t.isDefault ? l("bawaan", "default") : ""}</td>
-                <td>
-                  {t.items.length} {l("tugas", "tasks")}
-                </td>
-              </tr>
-            ))}
-            {templates.length === 0 && (
-              <tr>
-                <td className="muted">{l("Belum ada template.", "No templates yet.")}</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table>
+            <tbody>
+              {templates.map((t) => (
+                <tr key={t.id}>
+                  <td>
+                    <button type="button" className="link" onClick={() => setEdit(t)}>
+                      {t.name}
+                    </button>
+                  </td>
+                  <td>{t.kind === "onboarding" ? "Onboarding" : "Offboarding"}</td>
+                  <td>{t.isDefault ? l("bawaan", "default") : ""}</td>
+                  <td>
+                    {t.items.length} {l("tugas", "tasks")}
+                  </td>
+                </tr>
+              ))}
+              {templates.length === 0 && (
+                <tr>
+                  <td className="muted">{l("Belum ada template.", "No templates yet.")}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

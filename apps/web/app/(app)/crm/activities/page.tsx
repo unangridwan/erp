@@ -72,25 +72,27 @@ export default function MyActivitiesPage() {
             <h2>
               {g.label} ({g.rows.length})
             </h2>
-            <table>
-              <tbody>
-                {g.rows.map((a) => (
-                  <tr key={a.id}>
-                    <td className={a.dueDate < now ? "overdue" : ""}>{formatDate(a.dueDate, locale)}</td>
-                    <td>{typeLabel(a.activityType)}</td>
-                    <td>{a.summary}</td>
-                    <td>
-                      <Link href={HREF[a.resModel]?.(a.resId) ?? "#"}>{a.recordName}</Link>
-                    </td>
-                    <td>
-                      <button type="button" className="link" onClick={() => done(a)}>
-                        ✓ {l("Selesai", "Done")}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="table-scroll">
+              <table>
+                <tbody>
+                  {g.rows.map((a) => (
+                    <tr key={a.id}>
+                      <td className={a.dueDate < now ? "overdue" : ""}>{formatDate(a.dueDate, locale)}</td>
+                      <td>{typeLabel(a.activityType)}</td>
+                      <td>{a.summary}</td>
+                      <td>
+                        <Link href={HREF[a.resModel]?.(a.resId) ?? "#"}>{a.recordName}</Link>
+                      </td>
+                      <td>
+                        <button type="button" className="link" onClick={() => done(a)}>
+                          ✓ {l("Selesai", "Done")}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
         ))}
     </>

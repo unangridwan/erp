@@ -128,22 +128,24 @@ export default function PayslipPage() {
     return (
       <section>
         <h2>{title}</h2>
-        <table>
-          <tbody>
-            {rows.map((x) => (
-              <tr key={x.id}>
-                <td>{x.name}</td>
-                <td className="num">{n(String(sign * Number(x.amount)))}</td>
+        <div className="table-scroll">
+          <table>
+            <tbody>
+              {rows.map((x) => (
+                <tr key={x.id}>
+                  <td>{x.name}</td>
+                  <td className="num">{n(String(sign * Number(x.amount)))}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th>{l("Total", "Total")}</th>
+                <th className="num">{n(String(rows.reduce((s, x) => s + sign * Number(x.amount), 0)))}</th>
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <th>{l("Total", "Total")}</th>
-              <th className="num">{n(String(rows.reduce((s, x) => s + sign * Number(x.amount), 0)))}</th>
-            </tr>
-          </tfoot>
-        </table>
+            </tfoot>
+          </table>
+        </div>
       </section>
     );
   };
@@ -181,42 +183,44 @@ export default function PayslipPage() {
         {section(l("Pendapatan", "Earnings"), EARN)}
         <section>
           <h2>{l("Potongan", "Deductions")}</h2>
-          <table>
-            <tbody>
-              <tr>
-                <td>{l("BPJS Kesehatan (karyawan)", "BPJS Health (employee)")}</td>
-                <td className="num">{n(slip.kesEmployee)}</td>
-              </tr>
-              <tr>
-                <td>{l("BPJS Ketenagakerjaan (karyawan)", "BPJS Employment (employee)")}</td>
-                <td className="num">{n(slip.tkEmployee)}</td>
-              </tr>
-              {slip.lines
-                .filter((x) => DEDUCT.includes(x.category))
-                .map((x) => (
-                  <tr key={x.id}>
-                    <td>{x.name}</td>
-                    <td className="num">{n(String(-Number(x.amount)))}</td>
-                  </tr>
-                ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <th>{l("Total", "Total")}</th>
-                <th className="num">
-                  {n(
-                    String(
-                      Number(slip.kesEmployee) +
-                        Number(slip.tkEmployee) -
-                        slip.lines
-                          .filter((x) => DEDUCT.includes(x.category))
-                          .reduce((t, x) => t + Number(x.amount), 0),
-                    ),
-                  )}
-                </th>
-              </tr>
-            </tfoot>
-          </table>
+          <div className="table-scroll">
+            <table>
+              <tbody>
+                <tr>
+                  <td>{l("BPJS Kesehatan (karyawan)", "BPJS Health (employee)")}</td>
+                  <td className="num">{n(slip.kesEmployee)}</td>
+                </tr>
+                <tr>
+                  <td>{l("BPJS Ketenagakerjaan (karyawan)", "BPJS Employment (employee)")}</td>
+                  <td className="num">{n(slip.tkEmployee)}</td>
+                </tr>
+                {slip.lines
+                  .filter((x) => DEDUCT.includes(x.category))
+                  .map((x) => (
+                    <tr key={x.id}>
+                      <td>{x.name}</td>
+                      <td className="num">{n(String(-Number(x.amount)))}</td>
+                    </tr>
+                  ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>{l("Total", "Total")}</th>
+                  <th className="num">
+                    {n(
+                      String(
+                        Number(slip.kesEmployee) +
+                          Number(slip.tkEmployee) -
+                          slip.lines
+                            .filter((x) => DEDUCT.includes(x.category))
+                            .reduce((t, x) => t + Number(x.amount), 0),
+                      ),
+                    )}
+                  </th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </section>
       </div>
       {slip.lines.some((x) => x.benefitPlanId) && (
@@ -269,38 +273,40 @@ export default function PayslipPage() {
               <p className="muted">
                 {l("Dasar upah", "Wage base")}: {n(wage)}
               </p>
-              <table>
-                <thead>
-                  <tr>
-                    <th>{l("Program", "Programme")}</th>
-                    <th className="num">{l("Karyawan", "Employee")}</th>
-                    <th className="num">{l("Perusahaan", "Employer")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(([label, ee, er]) => (
-                    <tr key={er}>
-                      <td>{tx(label)}</td>
-                      <td className="num">{n(String(amount(ee)))}</td>
-                      <td className="num">{n(String(amount(er)))}</td>
-                    </tr>
-                  ))}
-                  {rows.length === 0 && (
+              <div className="table-scroll">
+                <table>
+                  <thead>
                     <tr>
-                      <td colSpan={3} className="muted">
-                        {l("Tidak terdaftar sebagai peserta", "Not enrolled")}
-                      </td>
+                      <th>{l("Program", "Programme")}</th>
+                      <th className="num">{l("Karyawan", "Employee")}</th>
+                      <th className="num">{l("Perusahaan", "Employer")}</th>
                     </tr>
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <th>{l("Subtotal", "Subtotal")}</th>
-                    <th className="num">{n(program.key === "kes" ? slip.kesEmployee : slip.tkEmployee)}</th>
-                    <th className="num">{n(program.key === "kes" ? slip.kesEmployer : slip.tkEmployer)}</th>
-                  </tr>
-                </tfoot>
-              </table>
+                  </thead>
+                  <tbody>
+                    {rows.map(([label, ee, er]) => (
+                      <tr key={er}>
+                        <td>{tx(label)}</td>
+                        <td className="num">{n(String(amount(ee)))}</td>
+                        <td className="num">{n(String(amount(er)))}</td>
+                      </tr>
+                    ))}
+                    {rows.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="muted">
+                          {l("Tidak terdaftar sebagai peserta", "Not enrolled")}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <th>{l("Subtotal", "Subtotal")}</th>
+                      <th className="num">{n(program.key === "kes" ? slip.kesEmployee : slip.tkEmployee)}</th>
+                      <th className="num">{n(program.key === "kes" ? slip.kesEmployer : slip.tkEmployer)}</th>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </section>
           );
         })}
@@ -391,79 +397,83 @@ export default function PayslipPage() {
               "One-off items this month (bonus, deductions)",
             )}
           </h2>
-          <table className="lines">
-            <tbody>
-              {inputs.map((x, i) => (
-                <tr key={i}>
-                  <td>
-                    <select
-                      value={x.componentId}
-                      onChange={(e) =>
-                        setInputs((rs) =>
-                          rs.map((r, j) => (j === i ? { ...r, componentId: e.target.value } : r)),
-                        )
-                      }
-                    >
-                      <option value="">—</option>
-                      {components.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.code} — {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
-                    <input
-                      className="num"
-                      inputMode="decimal"
-                      value={x.amount}
-                      onChange={(e) =>
-                        setInputs((rs) => rs.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)))
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      placeholder={l("Keterangan", "Description")}
-                      value={x.description}
-                      onChange={(e) =>
-                        setInputs((rs) =>
-                          rs.map((r, j) => (j === i ? { ...r, description: e.target.value } : r)),
-                        )
-                      }
-                    />
-                  </td>
-                  <td>
+          <div className="table-scroll">
+            <table className="lines">
+              <tbody>
+                {inputs.map((x, i) => (
+                  <tr key={i}>
+                    <td>
+                      <select
+                        value={x.componentId}
+                        onChange={(e) =>
+                          setInputs((rs) =>
+                            rs.map((r, j) => (j === i ? { ...r, componentId: e.target.value } : r)),
+                          )
+                        }
+                      >
+                        <option value="">—</option>
+                        {components.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.code} — {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        className="num"
+                        inputMode="decimal"
+                        value={x.amount}
+                        onChange={(e) =>
+                          setInputs((rs) =>
+                            rs.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)),
+                          )
+                        }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        placeholder={l("Keterangan", "Description")}
+                        value={x.description}
+                        onChange={(e) =>
+                          setInputs((rs) =>
+                            rs.map((r, j) => (j === i ? { ...r, description: e.target.value } : r)),
+                          )
+                        }
+                      />
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() => setInputs((rs) => rs.filter((_, j) => j !== i))}
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={4}>
                     <button
                       type="button"
                       className="link"
-                      onClick={() => setInputs((rs) => rs.filter((_, j) => j !== i))}
+                      onClick={() =>
+                        setInputs((rs) => [...rs, { componentId: "", amount: "0", description: "" }])
+                      }
                     >
-                      ✕
+                      + {l("Tambah", "Add")}
+                    </button>{" "}
+                    <button type="button" className="primary" onClick={saveInputs}>
+                      {l("Simpan & hitung ulang", "Save & recompute")}
                     </button>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={4}>
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() =>
-                      setInputs((rs) => [...rs, { componentId: "", amount: "0", description: "" }])
-                    }
-                  >
-                    + {l("Tambah", "Add")}
-                  </button>{" "}
-                  <button type="button" className="primary" onClick={saveInputs}>
-                    {l("Simpan & hitung ulang", "Save & recompute")}
-                  </button>
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+              </tfoot>
+            </table>
+          </div>
         </>
       )}
     </div>

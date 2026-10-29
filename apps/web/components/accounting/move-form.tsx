@@ -399,264 +399,268 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
           <h2>{isEntry ? l("Baris jurnal", "Journal items") : l("Baris", "Lines")}</h2>
           <div className="table-wrap">
             {isEntry ? (
-              <table className="lines">
-                <thead>
-                  <tr>
-                    <th>{l("Akun", "Account")}</th>
-                    <th>{l("Keterangan", "Label")}</th>
-                    <th>{l("Partner", "Partner")}</th>
-                    <th>{l("Cabang", "Branch")}</th>
-                    <th className="num">{l("Debit", "Debit")}</th>
-                    <th className="num">{l("Kredit", "Credit")}</th>
-                    {editable && <th />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {entryLines.map((x, i) => (
-                    <tr key={i}>
-                      <td>
-                        <select
-                          disabled={!editable}
-                          value={x.accountId}
-                          onChange={(e) => setEnt(i, { accountId: e.target.value })}
-                        >
-                          <option value="">—</option>
-                          {accounts.map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.code} {a.name}
-                            </option>
-                          ))}
-                        </select>
-                        {err(`lines.${i}.accountId`)}
-                        {err(`lines.${i}`)}
-                      </td>
-                      <td>
-                        <input
-                          disabled={!editable}
-                          value={x.name}
-                          onChange={(e) => setEnt(i, { name: e.target.value })}
-                        />
-                      </td>
-                      <td>
-                        <RefSelect
-                          name="partnerId"
-                          resource="partners"
-                          display="name"
-                          value={x.partnerId}
-                          disabled={!editable}
-                          onChange={(v) => setEnt(i, { partnerId: v })}
-                        />
-                      </td>
-                      <td>
-                        <select
-                          disabled={!editable}
-                          value={x.branchId}
-                          onChange={(e) => setEnt(i, { branchId: e.target.value })}
-                        >
-                          <option value="">—</option>
-                          {branches.map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <input
-                          disabled={!editable}
-                          className="num"
-                          inputMode="decimal"
-                          value={x.debit}
-                          onChange={(e) =>
-                            setEnt(i, { debit: e.target.value, credit: e.target.value ? "" : x.credit })
-                          }
-                        />
-                      </td>
-                      <td>
-                        <input
-                          disabled={!editable}
-                          className="num"
-                          inputMode="decimal"
-                          value={x.credit}
-                          onChange={(e) =>
-                            setEnt(i, { credit: e.target.value, debit: e.target.value ? "" : x.debit })
-                          }
-                        />
-                      </td>
-                      {editable && (
+              <div className="table-scroll">
+                <table className="lines">
+                  <thead>
+                    <tr>
+                      <th>{l("Akun", "Account")}</th>
+                      <th>{l("Keterangan", "Label")}</th>
+                      <th>{l("Partner", "Partner")}</th>
+                      <th>{l("Cabang", "Branch")}</th>
+                      <th className="num">{l("Debit", "Debit")}</th>
+                      <th className="num">{l("Kredit", "Credit")}</th>
+                      {editable && <th />}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entryLines.map((x, i) => (
+                      <tr key={i}>
                         <td>
+                          <select
+                            disabled={!editable}
+                            value={x.accountId}
+                            onChange={(e) => setEnt(i, { accountId: e.target.value })}
+                          >
+                            <option value="">—</option>
+                            {accounts.map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.code} {a.name}
+                              </option>
+                            ))}
+                          </select>
+                          {err(`lines.${i}.accountId`)}
+                          {err(`lines.${i}`)}
+                        </td>
+                        <td>
+                          <input
+                            disabled={!editable}
+                            value={x.name}
+                            onChange={(e) => setEnt(i, { name: e.target.value })}
+                          />
+                        </td>
+                        <td>
+                          <RefSelect
+                            name="partnerId"
+                            resource="partners"
+                            display="name"
+                            value={x.partnerId}
+                            disabled={!editable}
+                            onChange={(v) => setEnt(i, { partnerId: v })}
+                          />
+                        </td>
+                        <td>
+                          <select
+                            disabled={!editable}
+                            value={x.branchId}
+                            onChange={(e) => setEnt(i, { branchId: e.target.value })}
+                          >
+                            <option value="">—</option>
+                            {branches.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <input
+                            disabled={!editable}
+                            className="num"
+                            inputMode="decimal"
+                            value={x.debit}
+                            onChange={(e) =>
+                              setEnt(i, { debit: e.target.value, credit: e.target.value ? "" : x.credit })
+                            }
+                          />
+                        </td>
+                        <td>
+                          <input
+                            disabled={!editable}
+                            className="num"
+                            inputMode="decimal"
+                            value={x.credit}
+                            onChange={(e) =>
+                              setEnt(i, { credit: e.target.value, debit: e.target.value ? "" : x.debit })
+                            }
+                          />
+                        </td>
+                        {editable && (
+                          <td>
+                            <button
+                              type="button"
+                              className="link"
+                              onClick={() => setEntryLines((r) => r.filter((_, j) => j !== i))}
+                              aria-label={l("Hapus baris", "Remove line")}
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={4}>
+                        {editable && (
                           <button
                             type="button"
                             className="link"
-                            onClick={() => setEntryLines((r) => r.filter((_, j) => j !== i))}
-                            aria-label={l("Hapus baris", "Remove line")}
+                            onClick={() => setEntryLines((r) => [...r, emptyEntryLine()])}
                           >
-                            ✕
+                            + {l("Tambah baris", "Add line")}
                           </button>
-                        </td>
-                      )}
+                        )}
+                        {entryTotals.diff !== 0 && (
+                          <span className="error">
+                            {" "}
+                            {l("Selisih", "Difference")}: {money(entryTotals.diff, locale)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="num">{money(entryTotals.debit, locale)}</td>
+                      <td className="num">{money(entryTotals.credit, locale)}</td>
+                      {editable && <td />}
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colSpan={4}>
-                      {editable && (
-                        <button
-                          type="button"
-                          className="link"
-                          onClick={() => setEntryLines((r) => [...r, emptyEntryLine()])}
-                        >
-                          + {l("Tambah baris", "Add line")}
-                        </button>
-                      )}
-                      {entryTotals.diff !== 0 && (
-                        <span className="error">
-                          {" "}
-                          {l("Selisih", "Difference")}: {money(entryTotals.diff, locale)}
-                        </span>
-                      )}
-                    </td>
-                    <td className="num">{money(entryTotals.debit, locale)}</td>
-                    <td className="num">{money(entryTotals.credit, locale)}</td>
-                    {editable && <td />}
-                  </tr>
-                </tfoot>
-              </table>
+                  </tfoot>
+                </table>
+              </div>
             ) : (
-              <table className="lines">
-                <thead>
-                  <tr>
-                    <th>{l("Produk", "Product")}</th>
-                    <th>{l("Deskripsi *", "Description *")}</th>
-                    <th>{l("Akun", "Account")}</th>
-                    <th className="num">{l("Qty", "Qty")}</th>
-                    <th className="num">{l("Harga", "Price")}</th>
-                    <th className="num">{l("Disk %", "Disc %")}</th>
-                    <th>{l("Pajak", "Taxes")}</th>
-                    <th className="num">{l("Subtotal", "Subtotal")}</th>
-                    {editable && <th />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoiceLines.map((x, i) => (
-                    <tr key={i}>
-                      <td>
-                        <select
-                          disabled={!editable}
-                          value={x.productId}
-                          onChange={(e) => {
-                            const p = products.find((pr) => pr.id === e.target.value);
-                            setInv(i, {
-                              productId: e.target.value,
-                              ...(p
-                                ? { name: x.name || p.name, priceUnit: sale ? p.salePrice : p.cost }
-                                : {}),
-                            });
-                          }}
-                        >
-                          <option value="">—</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.sku} {p.name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <input
-                          disabled={!editable}
-                          required
-                          value={x.name}
-                          onChange={(e) => setInv(i, { name: e.target.value })}
-                        />
-                        {err(`lines.${i}.name`)}
-                      </td>
-                      <td>
-                        <select
-                          disabled={!editable}
-                          value={x.accountId}
-                          onChange={(e) => setInv(i, { accountId: e.target.value })}
-                        >
-                          <option value="">{l("Bawaan jurnal", "Journal default")}</option>
-                          {accounts.map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.code} {a.name}
-                            </option>
-                          ))}
-                        </select>
-                        {err(`lines.${i}.accountId`)}
-                      </td>
-                      <td>
-                        <input
-                          disabled={!editable}
-                          className="num short"
-                          inputMode="decimal"
-                          value={x.quantity}
-                          onChange={(e) => setInv(i, { quantity: e.target.value })}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          disabled={!editable}
-                          className="num"
-                          inputMode="decimal"
-                          value={x.priceUnit}
-                          onChange={(e) => setInv(i, { priceUnit: e.target.value })}
-                        />
-                        {err(`lines.${i}.priceUnit`)}
-                      </td>
-                      <td>
-                        <input
-                          disabled={!editable}
-                          className="num short"
-                          inputMode="decimal"
-                          value={x.discount}
-                          onChange={(e) => setInv(i, { discount: e.target.value })}
-                        />
-                      </td>
-                      <td>
-                        <div className="tax-picks">
-                          {usableTaxes.map((t) => (
-                            <label key={t.id} title={t.name}>
-                              <input
-                                type="checkbox"
-                                disabled={!editable}
-                                checked={x.taxIds.includes(t.id)}
-                                onChange={(e) =>
-                                  setInv(i, {
-                                    taxIds: e.target.checked
-                                      ? [...x.taxIds, t.id]
-                                      : x.taxIds.filter((tid) => tid !== t.id),
-                                  })
-                                }
-                              />{" "}
-                              {t.name}
-                            </label>
-                          ))}
-                        </div>
-                        {err(`lines.${i}.taxIds`)}
-                      </td>
-                      <td className="num">
-                        {preview ? money(preview.lines[i]?.subtotal, locale, decimals) : ""}
-                      </td>
-                      {editable && (
-                        <td>
-                          <button
-                            type="button"
-                            className="link"
-                            disabled={invoiceLines.length === 1}
-                            onClick={() => setInvoiceLines((r) => r.filter((_, j) => j !== i))}
-                            aria-label={l("Hapus baris", "Remove line")}
-                          >
-                            ✕
-                          </button>
-                        </td>
-                      )}
+              <div className="table-scroll">
+                <table className="lines">
+                  <thead>
+                    <tr>
+                      <th>{l("Produk", "Product")}</th>
+                      <th>{l("Deskripsi *", "Description *")}</th>
+                      <th>{l("Akun", "Account")}</th>
+                      <th className="num">{l("Qty", "Qty")}</th>
+                      <th className="num">{l("Harga", "Price")}</th>
+                      <th className="num">{l("Disk %", "Disc %")}</th>
+                      <th>{l("Pajak", "Taxes")}</th>
+                      <th className="num">{l("Subtotal", "Subtotal")}</th>
+                      {editable && <th />}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {invoiceLines.map((x, i) => (
+                      <tr key={i}>
+                        <td>
+                          <select
+                            disabled={!editable}
+                            value={x.productId}
+                            onChange={(e) => {
+                              const p = products.find((pr) => pr.id === e.target.value);
+                              setInv(i, {
+                                productId: e.target.value,
+                                ...(p
+                                  ? { name: x.name || p.name, priceUnit: sale ? p.salePrice : p.cost }
+                                  : {}),
+                              });
+                            }}
+                          >
+                            <option value="">—</option>
+                            {products.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.sku} {p.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <input
+                            disabled={!editable}
+                            required
+                            value={x.name}
+                            onChange={(e) => setInv(i, { name: e.target.value })}
+                          />
+                          {err(`lines.${i}.name`)}
+                        </td>
+                        <td>
+                          <select
+                            disabled={!editable}
+                            value={x.accountId}
+                            onChange={(e) => setInv(i, { accountId: e.target.value })}
+                          >
+                            <option value="">{l("Bawaan jurnal", "Journal default")}</option>
+                            {accounts.map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.code} {a.name}
+                              </option>
+                            ))}
+                          </select>
+                          {err(`lines.${i}.accountId`)}
+                        </td>
+                        <td>
+                          <input
+                            disabled={!editable}
+                            className="num short"
+                            inputMode="decimal"
+                            value={x.quantity}
+                            onChange={(e) => setInv(i, { quantity: e.target.value })}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            disabled={!editable}
+                            className="num"
+                            inputMode="decimal"
+                            value={x.priceUnit}
+                            onChange={(e) => setInv(i, { priceUnit: e.target.value })}
+                          />
+                          {err(`lines.${i}.priceUnit`)}
+                        </td>
+                        <td>
+                          <input
+                            disabled={!editable}
+                            className="num short"
+                            inputMode="decimal"
+                            value={x.discount}
+                            onChange={(e) => setInv(i, { discount: e.target.value })}
+                          />
+                        </td>
+                        <td>
+                          <div className="tax-picks">
+                            {usableTaxes.map((t) => (
+                              <label key={t.id} title={t.name}>
+                                <input
+                                  type="checkbox"
+                                  disabled={!editable}
+                                  checked={x.taxIds.includes(t.id)}
+                                  onChange={(e) =>
+                                    setInv(i, {
+                                      taxIds: e.target.checked
+                                        ? [...x.taxIds, t.id]
+                                        : x.taxIds.filter((tid) => tid !== t.id),
+                                    })
+                                  }
+                                />{" "}
+                                {t.name}
+                              </label>
+                            ))}
+                          </div>
+                          {err(`lines.${i}.taxIds`)}
+                        </td>
+                        <td className="num">
+                          {preview ? money(preview.lines[i]?.subtotal, locale, decimals) : ""}
+                        </td>
+                        {editable && (
+                          <td>
+                            <button
+                              type="button"
+                              className="link"
+                              disabled={invoiceLines.length === 1}
+                              onClick={() => setInvoiceLines((r) => r.filter((_, j) => j !== i))}
+                              aria-label={l("Hapus baris", "Remove line")}
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
           {!isEntry && editable && (

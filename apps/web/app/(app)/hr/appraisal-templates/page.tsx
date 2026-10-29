@@ -95,60 +95,62 @@ export default function AppraisalTemplatesPage() {
               />
             </label>
           </div>
-          <table className="lines">
-            <thead>
-              <tr>
-                <th>{l("Indikator", "Indicator")}</th>
-                <th>{l("Keterangan", "Description")}</th>
-                <th className="num">{l("Bobot", "Weight")}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {edit.items.map((x, i) => (
-                <tr key={i}>
-                  <td>
-                    <input
-                      aria-label={l("Indikator", "Indicator")}
-                      value={x.name}
-                      onChange={(e) => setItem(i, { name: e.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      value={x.description ?? ""}
-                      onChange={(e) => setItem(i, { description: e.target.value || null })}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="num"
-                      type="number"
-                      aria-label={l("Bobot", "Weight")}
-                      value={x.weight}
-                      onChange={(e) => setItem(i, { weight: Number(e.target.value) })}
-                    />
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={() => setEdit({ ...edit, items: edit.items.filter((_, j) => j !== i) })}
-                    >
-                      ✕
-                    </button>
-                  </td>
+          <div className="table-scroll">
+            <table className="lines">
+              <thead>
+                <tr>
+                  <th>{l("Indikator", "Indicator")}</th>
+                  <th>{l("Keterangan", "Description")}</th>
+                  <th className="num">{l("Bobot", "Weight")}</th>
+                  <th />
                 </tr>
-              ))}
-              <tr>
-                <td colSpan={2} className="muted">
-                  {l("Total bobot", "Total weight")}
-                </td>
-                <td className="num">{total}</td>
-                <td />
-              </tr>
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {edit.items.map((x, i) => (
+                  <tr key={i}>
+                    <td>
+                      <input
+                        aria-label={l("Indikator", "Indicator")}
+                        value={x.name}
+                        onChange={(e) => setItem(i, { name: e.target.value })}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        value={x.description ?? ""}
+                        onChange={(e) => setItem(i, { description: e.target.value || null })}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="num"
+                        type="number"
+                        aria-label={l("Bobot", "Weight")}
+                        value={x.weight}
+                        onChange={(e) => setItem(i, { weight: Number(e.target.value) })}
+                      />
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() => setEdit({ ...edit, items: edit.items.filter((_, j) => j !== i) })}
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                <tr>
+                  <td colSpan={2} className="muted">
+                    {l("Total bobot", "Total weight")}
+                  </td>
+                  <td className="num">{total}</td>
+                  <td />
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <div className="form-actions">
             <button
               type="button"
@@ -168,28 +170,30 @@ export default function AppraisalTemplatesPage() {
           </div>
         </div>
       ) : (
-        <table>
-          <tbody>
-            {templates.map((t) => (
-              <tr key={t.id}>
-                <td>
-                  <button type="button" className="link" onClick={() => setEdit(t)}>
-                    {t.name}
-                  </button>
-                </td>
-                <td>{t.jobName ?? l("(umum)", "(general)")}</td>
-                <td>
-                  {t.items.length} {l("indikator", "indicators")}
-                </td>
-              </tr>
-            ))}
-            {templates.length === 0 && (
-              <tr>
-                <td className="muted">{l("Belum ada template.", "No templates yet.")}</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table>
+            <tbody>
+              {templates.map((t) => (
+                <tr key={t.id}>
+                  <td>
+                    <button type="button" className="link" onClick={() => setEdit(t)}>
+                      {t.name}
+                    </button>
+                  </td>
+                  <td>{t.jobName ?? l("(umum)", "(general)")}</td>
+                  <td>
+                    {t.items.length} {l("indikator", "indicators")}
+                  </td>
+                </tr>
+              ))}
+              {templates.length === 0 && (
+                <tr>
+                  <td className="muted">{l("Belum ada template.", "No templates yet.")}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

@@ -377,30 +377,32 @@ export function SeverancePanel({ id }: { id: string }) {
       <h2>{l("Pesangon & hak akhir (PP 35/2021)", "Severance & final settlement (PP 35/2021)")}</h2>
       {error && <p className="error">{error}</p>}
       {rows.length > 0 && (
-        <table className="lines">
-          <thead>
-            <tr>
-              <th>{l("Alasan", "Reason")}</th>
-              <th>{l("Tanggal berakhir", "End date")}</th>
-              <th className="num">{l("Bruto", "Gross")}</th>
-              <th className="num">{l("PPh 21 final", "Final PPh 21")}</th>
-              <th className="num">{l("Diterima", "Net")}</th>
-              <th>{l("Jurnal", "Entry")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td>{SEVERANCE_REASONS[r.reason]?.label ?? r.reason}</td>
-                <td>{formatDate(r.endDate, locale)}</td>
-                <td className="num">{money(r.gross, locale)}</td>
-                <td className="num">{money(r.tax, locale)}</td>
-                <td className="num">{money(r.net, locale)}</td>
-                <td>{r.moveId && <Link href={`/accounting/moves/${r.moveId}`}>{r.moveName}</Link>}</td>
+        <div className="table-scroll">
+          <table className="lines">
+            <thead>
+              <tr>
+                <th>{l("Alasan", "Reason")}</th>
+                <th>{l("Tanggal berakhir", "End date")}</th>
+                <th className="num">{l("Bruto", "Gross")}</th>
+                <th className="num">{l("PPh 21 final", "Final PPh 21")}</th>
+                <th className="num">{l("Diterima", "Net")}</th>
+                <th>{l("Jurnal", "Entry")}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td>{SEVERANCE_REASONS[r.reason]?.label ?? r.reason}</td>
+                  <td>{formatDate(r.endDate, locale)}</td>
+                  <td className="num">{money(r.gross, locale)}</td>
+                  <td className="num">{money(r.tax, locale)}</td>
+                  <td className="num">{money(r.net, locale)}</td>
+                  <td>{r.moveId && <Link href={`/accounting/moves/${r.moveId}`}>{r.moveName}</Link>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       <div className="inline-panel">
         <label className="field">
@@ -450,28 +452,30 @@ export function SeverancePanel({ id }: { id: string }) {
             {l("tahun", "years")} · {l("upah sebulan", "monthly wage")} {money(result.monthlyWage, locale)} ·{" "}
             {l("sisa cuti", "unused leave")} {Number(result.unusedLeaveDays)} {l("hari", "days")}
           </p>
-          <table className="lines">
-            <tbody>
-              {row(
-                l("Uang pesangon", "Severance pay"),
-                result.up,
-                `${result.upMonths} × ${result.upFactor} ${l("bulan upah", "months")}`,
-              )}
-              {row(
-                l("Uang penghargaan masa kerja", "Long-service pay"),
-                result.upmk,
-                `${result.upmkMonths} × ${result.upmkFactor} ${l("bulan upah", "months")}`,
-              )}
-              {row(l("Uang penggantian hak", "Compensation of rights"), result.uph)}
-              {Number(result.separationPay) > 0 &&
-                row(l("Uang pisah", "Separation pay"), result.separationPay)}
-              {Number(result.pkwtCompensation) > 0 &&
-                row(l("Uang kompensasi PKWT", "Fixed-term compensation"), result.pkwtCompensation)}
-              {row(l("Bruto", "Gross"), result.gross)}
-              {row(l("PPh 21 final (PP 68/2009)", "Final PPh 21 (PP 68/2009)"), `-${result.tax}`)}
-              {row(l("Diterima", "Net"), result.net)}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table className="lines">
+              <tbody>
+                {row(
+                  l("Uang pesangon", "Severance pay"),
+                  result.up,
+                  `${result.upMonths} × ${result.upFactor} ${l("bulan upah", "months")}`,
+                )}
+                {row(
+                  l("Uang penghargaan masa kerja", "Long-service pay"),
+                  result.upmk,
+                  `${result.upmkMonths} × ${result.upmkFactor} ${l("bulan upah", "months")}`,
+                )}
+                {row(l("Uang penggantian hak", "Compensation of rights"), result.uph)}
+                {Number(result.separationPay) > 0 &&
+                  row(l("Uang pisah", "Separation pay"), result.separationPay)}
+                {Number(result.pkwtCompensation) > 0 &&
+                  row(l("Uang kompensasi PKWT", "Fixed-term compensation"), result.pkwtCompensation)}
+                {row(l("Bruto", "Gross"), result.gross)}
+                {row(l("PPh 21 final (PP 68/2009)", "Final PPh 21 (PP 68/2009)"), `-${result.tax}`)}
+                {row(l("Diterima", "Net"), result.net)}
+              </tbody>
+            </table>
+          </div>
           {can(me.permissions, "payroll.manage") && (
             <button type="button" className="primary" onClick={save}>
               {l("Catat & jurnal", "Record & post")}

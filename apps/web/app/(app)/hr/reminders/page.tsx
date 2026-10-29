@@ -63,59 +63,69 @@ export default function RemindersPage() {
           {r.contracts.length === 0 ? (
             <p className="muted">—</p>
           ) : (
-            <table>
-              <tbody>
-                {r.contracts.map((c) => (
-                  <tr key={c.id}>
-                    <td>
-                      <Link href={`/hr/contracts/${c.id}`}>{c.name}</Link>
-                    </td>
-                    <td>{c.employeeName}</td>
-                    <td>{formatDate(c.dateEnd, locale)}</td>
-                    <td className={c.expiry?.status === "expired" ? "error" : undefined}>{left(c.expiry)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="table-scroll">
+              <table>
+                <tbody>
+                  {r.contracts.map((c) => (
+                    <tr key={c.id}>
+                      <td>
+                        <Link href={`/hr/contracts/${c.id}`}>{c.name}</Link>
+                      </td>
+                      <td>{c.employeeName}</td>
+                      <td>{formatDate(c.dateEnd, locale)}</td>
+                      <td className={c.expiry?.status === "expired" ? "error" : undefined}>
+                        {left(c.expiry)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
           <h2>{l("Dokumen kedaluwarsa", "Expiring documents")}</h2>
           {r.documents.length === 0 ? (
             <p className="muted">—</p>
           ) : (
-            <table>
-              <tbody>
-                {r.documents.map((d) => (
-                  <tr key={d.id}>
-                    <td>
-                      {tx(DOCUMENT_KIND_LABEL[d.kind]!)}: {d.name}
-                    </td>
-                    <td>
-                      <Link href={`/employees/${d.employeeId}`}>{d.employeeName}</Link>
-                    </td>
-                    <td>{formatDate(d.expiryDate, locale)}</td>
-                    <td className={d.expiry?.status === "expired" ? "error" : undefined}>{left(d.expiry)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="table-scroll">
+              <table>
+                <tbody>
+                  {r.documents.map((d) => (
+                    <tr key={d.id}>
+                      <td>
+                        {tx(DOCUMENT_KIND_LABEL[d.kind]!)}: {d.name}
+                      </td>
+                      <td>
+                        <Link href={`/employees/${d.employeeId}`}>{d.employeeName}</Link>
+                      </td>
+                      <td>{formatDate(d.expiryDate, locale)}</td>
+                      <td className={d.expiry?.status === "expired" ? "error" : undefined}>
+                        {left(d.expiry)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
           <h2>{l("Tugas checklist lewat tenggat", "Overdue checklist tasks")}</h2>
           {r.overdueTasks.length === 0 ? (
             <p className="muted">—</p>
           ) : (
-            <table>
-              <tbody>
-                {r.overdueTasks.map((t) => (
-                  <tr key={t.id}>
-                    <td>
-                      <Link href={`/hr/checklists/${t.checklistId}`}>{t.name}</Link>
-                    </td>
-                    <td>{t.employeeName}</td>
-                    <td className="error">{formatDate(t.dueDate, locale)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="table-scroll">
+              <table>
+                <tbody>
+                  {r.overdueTasks.map((t) => (
+                    <tr key={t.id}>
+                      <td>
+                        <Link href={`/hr/checklists/${t.checklistId}`}>{t.name}</Link>
+                      </td>
+                      <td>{t.employeeName}</td>
+                      <td className="error">{formatDate(t.dueDate, locale)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </>
       )}

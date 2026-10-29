@@ -79,24 +79,26 @@ export default function AppraisalCyclesPage() {
         </label>
         <button className="primary">{l("Buat siklus", "Create cycle")}</button>
       </form>
-      <table>
-        <tbody>
-          {cycles.map((c) => (
-            <tr key={c.id}>
-              <td>
-                <Link href={`/hr/appraisals/${c.id}`}>{c.name}</Link>
-              </td>
-              <td>
-                {formatDate(c.dateStart, locale)} – {formatDate(c.dateEnd, locale)}
-              </td>
-              <td>{STATE[c.state]}</td>
-              <td>
-                <progress max={Math.max(c.total, 1)} value={c.done} /> {c.done}/{c.total}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="table-scroll">
+        <table>
+          <tbody>
+            {cycles.map((c) => (
+              <tr key={c.id}>
+                <td>
+                  <Link href={`/hr/appraisals/${c.id}`}>{c.name}</Link>
+                </td>
+                <td>
+                  {formatDate(c.dateStart, locale)} – {formatDate(c.dateEnd, locale)}
+                </td>
+                <td>{STATE[c.state]}</td>
+                <td>
+                  <progress max={Math.max(c.total, 1)} value={c.done} /> {c.done}/{c.total}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

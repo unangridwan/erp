@@ -174,38 +174,40 @@ export default function LeaveBalancesPage() {
                             {l("Buku besar", "Ledger")} {ledger.data.leaveType.name} —{" "}
                             {ledger.data.employee.name}
                           </strong>
-                          <table>
-                            <thead>
-                              <tr>
-                                <th>{l("Tanggal", "Date")}</th>
-                                <th>{l("Jenis", "Kind")}</th>
-                                <th>{l("Keterangan", "Description")}</th>
-                                <th className="num">{l("Hari", "Days")}</th>
-                                <th className="num">{l("Saldo berjalan", "Running")}</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {ledger.data.entries.length === 0 && (
+                          <div className="table-scroll">
+                            <table>
+                              <thead>
                                 <tr>
-                                  <td colSpan={5} className="muted">
-                                    {l("Belum ada jatah atau pemakaian.", "No allocations or usage yet.")}
-                                  </td>
+                                  <th>{l("Tanggal", "Date")}</th>
+                                  <th>{l("Jenis", "Kind")}</th>
+                                  <th>{l("Keterangan", "Description")}</th>
+                                  <th className="num">{l("Hari", "Days")}</th>
+                                  <th className="num">{l("Saldo berjalan", "Running")}</th>
                                 </tr>
-                              )}
-                              {ledger.data.entries.map((e, i) => (
-                                <tr key={i}>
-                                  <td>{formatDate(e.date, locale)}</td>
-                                  <td>{KIND[e.kind]}</td>
-                                  <td>{e.label}</td>
-                                  <td className="num">
-                                    {e.kind === "credit" ? "+" : "−"}
-                                    {n(e.days)}
-                                  </td>
-                                  <td className="num">{n(e.balance)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                              </thead>
+                              <tbody>
+                                {ledger.data.entries.length === 0 && (
+                                  <tr>
+                                    <td colSpan={5} className="muted">
+                                      {l("Belum ada jatah atau pemakaian.", "No allocations or usage yet.")}
+                                    </td>
+                                  </tr>
+                                )}
+                                {ledger.data.entries.map((e, i) => (
+                                  <tr key={i}>
+                                    <td>{formatDate(e.date, locale)}</td>
+                                    <td>{KIND[e.kind]}</td>
+                                    <td>{e.label}</td>
+                                    <td className="num">
+                                      {e.kind === "credit" ? "+" : "−"}
+                                      {n(e.days)}
+                                    </td>
+                                    <td className="num">{n(e.balance)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </td>
                       </tr>
                     )}

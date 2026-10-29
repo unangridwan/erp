@@ -887,75 +887,81 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
           {order && order.pickings.length > 0 && (
             <>
               <h2>{l("Pengiriman", "Deliveries")}</h2>
-              <table>
-                <tbody>
-                  {order.pickings.map((p) => (
-                    <tr key={p.id}>
-                      <td>
-                        <Link href={`/inventory/pickings/${p.id}`}>{p.name}</Link>
-                        {p.pickingType === "incoming" && (
-                          <small className="muted"> · {l("retur", "return")}</small>
-                        )}
-                        {p.pickingType === "dropship" && <small className="muted"> · dropship</small>}
-                      </td>
-                      <td>{formatDate(p.scheduledDate, locale)}</td>
-                      <td>
-                        <span className={`badge state-${p.state === "done" ? "posted" : p.state}`}>
-                          {tx(PICKING_STATE_LABEL[p.state]!)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="table-scroll">
+                <table>
+                  <tbody>
+                    {order.pickings.map((p) => (
+                      <tr key={p.id}>
+                        <td>
+                          <Link href={`/inventory/pickings/${p.id}`}>{p.name}</Link>
+                          {p.pickingType === "incoming" && (
+                            <small className="muted"> · {l("retur", "return")}</small>
+                          )}
+                          {p.pickingType === "dropship" && <small className="muted"> · dropship</small>}
+                        </td>
+                        <td>{formatDate(p.scheduledDate, locale)}</td>
+                        <td>
+                          <span className={`badge state-${p.state === "done" ? "posted" : p.state}`}>
+                            {tx(PICKING_STATE_LABEL[p.state]!)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
           {order && order.dropshipOrders.length > 0 && (
             <>
               <h2>{l("Pembelian dropship", "Dropship purchases")}</h2>
-              <table>
-                <tbody>
-                  {order.dropshipOrders.map((po) => (
-                    <tr key={po.id}>
-                      <td>
-                        <Link href={`/purchase/orders/${po.id}`}>{po.name}</Link>
-                      </td>
-                      <td>
-                        <span className="badge">{tx(PURCHASE_STATE_LABEL[po.state]!)}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="table-scroll">
+                <table>
+                  <tbody>
+                    {order.dropshipOrders.map((po) => (
+                      <tr key={po.id}>
+                        <td>
+                          <Link href={`/purchase/orders/${po.id}`}>{po.name}</Link>
+                        </td>
+                        <td>
+                          <span className="badge">{tx(PURCHASE_STATE_LABEL[po.state]!)}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
           {order && order.invoices.length > 0 && (
             <>
               <h2>{l("Faktur", "Invoices")}</h2>
-              <table>
-                <tbody>
-                  {order.invoices.map((m) => (
-                    <tr key={m.id}>
-                      <td>
-                        <Link href={`/accounting/moves/${m.id}`}>{m.name ?? l("Draft", "Draft")}</Link>{" "}
-                        <small className="muted">{tx(MOVE_TYPE_LABEL[m.moveType]!)}</small>
-                      </td>
-                      <td>{formatDate(m.date, locale)}</td>
-                      <td>
-                        <span className={`badge state-${m.state}`}>
-                          {m.state === "posted" ? l("Diposting", "Posted") : l("Draft", "Draft")}
-                        </span>{" "}
-                        {m.state === "posted" && PAYMENT_STATE_LABEL[m.paymentState] && (
-                          <span className={`badge pay-${m.paymentState}`}>
-                            {tx(PAYMENT_STATE_LABEL[m.paymentState]!)}
-                          </span>
-                        )}
-                      </td>
-                      <td className="num">{money(m.amountTotal, locale)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="table-scroll">
+                <table>
+                  <tbody>
+                    {order.invoices.map((m) => (
+                      <tr key={m.id}>
+                        <td>
+                          <Link href={`/accounting/moves/${m.id}`}>{m.name ?? l("Draft", "Draft")}</Link>{" "}
+                          <small className="muted">{tx(MOVE_TYPE_LABEL[m.moveType]!)}</small>
+                        </td>
+                        <td>{formatDate(m.date, locale)}</td>
+                        <td>
+                          <span className={`badge state-${m.state}`}>
+                            {m.state === "posted" ? l("Diposting", "Posted") : l("Draft", "Draft")}
+                          </span>{" "}
+                          {m.state === "posted" && PAYMENT_STATE_LABEL[m.paymentState] && (
+                            <span className={`badge pay-${m.paymentState}`}>
+                              {tx(PAYMENT_STATE_LABEL[m.paymentState]!)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="num">{money(m.amountTotal, locale)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
         </form>
