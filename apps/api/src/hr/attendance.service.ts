@@ -25,7 +25,7 @@ import { hashPassword, verifyPassword } from "../auth/password.js";
 import { currentContext } from "../common/request-context.js";
 import { ApprovalService } from "./approval.service.js";
 import { EmployeeService } from "./employee.service.js";
-import { holidaysBetween } from "./leave.service.js";
+import { holidaysBetween, WorkCalendarService } from "./work-calendar.service.js";
 import { localDate } from "./schedule.service.js";
 
 const AT = schema.attendances;
@@ -84,6 +84,7 @@ export class AttendanceService {
   constructor(
     @Inject(EmployeeService) private readonly employees: EmployeeService,
     @Inject(ApprovalService) private readonly approvals: ApprovalService,
+    @Inject(WorkCalendarService) private readonly calendar: WorkCalendarService,
   ) {}
 
   async settings(tx: Db, companyId: string) {
@@ -388,31 +389,8 @@ export class AttendanceService {
   // ---- Jadwal ----
 
   /** Jadwal berlaku per karyawan × tanggal (penugasan shift, atau jadwal bawaan karyawan). */
-  private async scheduleResolver(tx: Db, companyId: string, employeeIds: string[], from: string, to: string) {
-    const schedules = await tx
-      .select()
-      .from(schema.workSchedules)
-      .where(eq(schema.workSchedules.companyId, companyId));
-    const assignments = employeeIds.length
-      ? await tx
-          .select()
-          .from(schema.shiftAssignments)
-          .where(
-            and(
-              inArray(schema.shiftAssignments.employeeId, employeeIds),
-              lte(schema.shiftAssignments.dateFrom, to),
-              gte(schema.shiftAssignments.dateTo, from),
-            ),
-          )
-      : [];
-    const byId = new Map(schedules.map((s) => [s.id, s]));
-    return (employee: Pick<Employee, "id" | "scheduleId">, date: string) => {
-      const assignment = assignments
-        .filter((a) => a.employeeId === employee.id && a.dateFrom <= date && a.dateTo >= date)
-        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
-      const schedule = byId.get(assignment?.scheduleId ?? employee.scheduleId ?? "");
-      return schedule?.active ? schedule : null;
-    };
+  private scheduleResolver(tx: Db, companyId: string, employeeIds: string[], from: string, to: string) {
+    return this.calendar.resolver(tx, companyId, employeeIds, from, to);
   }
 
   /** Tutup absensi terbuka lebih dari N jam (Pengaturan Payroll) pada jam pulang jadwal atau masuk + N jam. */
@@ -472,7 +450,7 @@ export class AttendanceService {
     if (!employees.length) return { from: input.from, to: input.to, rows: [] };
     const ids = employees.map((e) => e.id);
     const resolve = await this.scheduleResolver(tx, companyId, ids, input.from, input.to);
-    const holidays = new Set(await holidaysBetween(tx, input.from, input.to));
+    const holidays = new Set(await holidaysBetween(tx, companyId, input.from, input.to));
     const start = new Date(`${input.from}T00:00:00Z`);
     start.setUTCDate(start.getUTCDate() - 1);
     const end = new Date(`${input.to}T23:59:59Z`);

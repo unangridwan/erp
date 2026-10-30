@@ -303,7 +303,7 @@ export const APPS: App[] = [
         link("Template Checklist", "Checklist Templates", "/hr/checklist-templates", "hr.read"),
         link("Penawaran & Alasan Tolak", "Offers & Refusal Reasons", "/hr/recruitment-settings", "hr.read"),
         link("Template KPI", "KPI Templates", "/hr/appraisal-templates", "hr.read"),
-        link("Hari Libur", "Public Holidays", "/public-holidays", "hr.read"),
+        link("Hari Libur", "Holidays", "/hr/holidays", "hr.read"),
         link("Impor & Ekspor Data", "Data Import & Export", "/hr/data", "hr.read"),
       ]),
     ],

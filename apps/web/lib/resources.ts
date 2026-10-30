@@ -109,6 +109,12 @@ const companyScope: Field = {
   display: "name",
 };
 
+const HOLIDAY_KINDS: [string, Text][] = [
+  ["national", L("Libur nasional", "National holiday")],
+  ["collective", L("Cuti bersama", "Collective leave")],
+  ["company", L("Libur perusahaan", "Company holiday")],
+];
+
 const ENTITY_TYPES: [string, Text][] = [
   ["holding", L("Holding", "Holding")],
   ["subsidiary", L("Anak perusahaan", "Subsidiary")],
@@ -2208,7 +2214,12 @@ RESOURCES.push(
       { name: "date", label: L("Tanggal", "Date") },
       { name: "name", label: L("Nama", "Name") },
     ],
-    fields: [{ name: "date", label: L("Tanggal", "Date"), type: "date", required: true }, name()],
+    fields: [
+      { name: "date", label: L("Tanggal", "Date"), type: "date", required: true },
+      name(),
+      { name: "kind", label: L("Jenis", "Type"), type: "select", options: HOLIDAY_KINDS, required: true },
+      companyScope,
+    ],
   },
   {
     path: "salary-components",

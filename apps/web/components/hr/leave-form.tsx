@@ -1,10 +1,16 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../lib/api";
-import { today } from "../../lib/format";
+import { formatDate, today } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
 import { RefSelect } from "../ref-select";
+
+interface DaysPreview {
+  days: number;
+  calendarDays: boolean;
+  skipped: { date: string; reason: "day_off" | "national" | "collective" | "company"; name?: string }[];
+}
 
 export interface LeaveTypeOption {
   id: string;
@@ -34,7 +40,7 @@ export function LeaveRequestForm(props: {
   colleagues?: { id: string; name: string }[];
   onSaved: () => void;
 }) {
-  const { l } = useI18n();
+  const { l, locale } = useI18n();
   const empty = {
     employeeId: "",
     leaveTypeId: "",
@@ -53,6 +59,38 @@ export function LeaveRequestForm(props: {
   const type = props.types.find((t) => t.id === form.leaveTypeId);
   const single = form.dateFrom === form.dateTo;
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
+
+  // Pratinjau durasi menurut jadwal kerja & hari libur karyawan (portal: milik sendiri; HR: karyawan terpilih).
+  const [preview, setPreview] = useState<DaysPreview | null>(null);
+  const previewEmployee = props.chooseEmployee ? form.employeeId : "me";
+  useEffect(() => {
+    setPreview(null);
+    if (!previewEmployee || !form.dateFrom || !form.dateTo || form.dateTo < form.dateFrom) return;
+    const timer = setTimeout(() => {
+      const body = {
+        leaveTypeId: form.leaveTypeId || null,
+        dateFrom: form.dateFrom,
+        dateTo: form.dateTo,
+        halfDay: single && form.halfDay ? form.halfDay : null,
+      };
+      api<DaysPreview>(props.chooseEmployee ? "/work-calendar/leave-days" : "/me/leave-days", {
+        method: "POST",
+        body: props.chooseEmployee ? { ...body, employeeId: form.employeeId } : body,
+      }).then(setPreview, () => setPreview(null));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [
+    previewEmployee,
+    props.chooseEmployee,
+    form.employeeId,
+    form.leaveTypeId,
+    form.dateFrom,
+    form.dateTo,
+    form.halfDay,
+    single,
+  ]);
+  const skipLabel = (s: DaysPreview["skipped"][number]) =>
+    s.reason === "day_off" ? l("libur jadwal", "scheduled day off") : (s.name ?? l("hari libur", "holiday"));
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -196,6 +234,26 @@ export function LeaveRequestForm(props: {
       <button className="primary" disabled={busy}>
         {l("Ajukan", "Submit")}
       </button>
+      {preview && (
+        <p className="muted leave-preview" aria-live="polite">
+          <strong>
+            {preview.calendarDays
+              ? l(`${preview.days} hari kalender`, `${preview.days} calendar days`)
+              : l(`${preview.days} hari kerja`, `${preview.days} working days`)}
+          </strong>
+          {!preview.calendarDays && preview.skipped.length > 0 && (
+            <>
+              {" — "}
+              {l("tidak dihitung: ", "not counted: ")}
+              {preview.skipped
+                .slice(0, 6)
+                .map((s) => `${formatDate(s.date, locale)} (${skipLabel(s)})`)
+                .join(", ")}
+              {preview.skipped.length > 6 && ` +${preview.skipped.length - 6}`}
+            </>
+          )}
+        </p>
+      )}
       {type?.maxConsecutiveDays && (
         <small className="muted">
           {l(

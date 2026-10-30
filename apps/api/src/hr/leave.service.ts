@@ -17,7 +17,8 @@ import {
   leaveDays,
   leaveLedger,
   lowestRemaining,
-  workingDays,
+  eachDate,
+  dayBreakdown,
   type leaveRequestSchema,
 } from "@erp/shared";
 import { randomUUID } from "node:crypto";
@@ -28,6 +29,7 @@ import { fieldError } from "../accounting/context.js";
 import { currentContext } from "../common/request-context.js";
 import { ApprovalService } from "./approval.service.js";
 import { EmployeeService } from "./employee.service.js";
+import { WorkCalendarService, type WorkCalendar } from "./work-calendar.service.js";
 
 type LeaveInput = z.infer<typeof leaveRequestSchema>;
 type BulkInput = z.infer<typeof bulkLeaveSchema>;
@@ -64,15 +66,6 @@ const REQUEST_COLUMNS = {
   updatedAt: R.updatedAt,
 };
 
-/** Hari libur nasional/perusahaan dalam rentang (YYYY-MM-DD). */
-export async function holidaysBetween(tx: Db, from: string, to: string) {
-  const rows = await tx
-    .select({ date: schema.publicHolidays.date })
-    .from(schema.publicHolidays)
-    .where(and(gte(schema.publicHolidays.date, from), lte(schema.publicHolidays.date, to)));
-  return rows.map((r) => r.date);
-}
-
 /** Kesalahan validasi yang dilewati (bukan dilempar) pada cuti massal. */
 const reasonOf = (e: unknown) =>
   e instanceof HttpException
@@ -88,6 +81,7 @@ export class LeaveService {
     @Inject(EmployeeService) private readonly employees: EmployeeService,
     @Inject(ActivityService) private readonly activity: ActivityService,
     @Inject(ApprovalService) private readonly approvals: ApprovalService,
+    @Inject(WorkCalendarService) private readonly calendar: WorkCalendarService,
   ) {}
 
   async list(tx: Db, query: { employeeId?: string; state?: string }) {
@@ -252,10 +246,12 @@ export class LeaveService {
   ) {
     if (input.halfDay && !type.allowHalfDay)
       throw fieldError("halfDay", `${type.name} tidak bisa diambil setengah hari`);
+    // Hari kerja menurut jadwal karyawan (penugasan shift/jadwal bawaan) dan hari libur perusahaannya.
+    const cal = await this.calendar.load(tx, employee.companyId, [employee], input.dateFrom, input.dateTo);
     const days = leaveDays({
       from: input.dateFrom,
       to: input.dateTo,
-      holidays: await holidaysBetween(tx, input.dateFrom, input.dateTo),
+      isWorkday: (date) => cal.isWorkday(employee, date),
       halfDay: input.halfDay ?? null,
       calendar: type.countCalendarDays,
     });
@@ -652,45 +648,75 @@ export class LeaveService {
     return allocation!;
   }
 
-  /** Hari kerja cuti tanpa upah (disetujui) dalam periode payroll; setengah hari = 0,5. */
-  /** Hari kerja cuti disetujui (berbayar maupun tidak) dalam rentang. */
-  async leaveDays(tx: Db, employeeId: string, from: string, to: string, holidays: string[]) {
-    return this.daysOf(tx, employeeId, from, to, holidays, false);
+  /**
+   * Hari cuti disetujui (berbayar maupun tidak) dalam rentang, menurut kalender kerja karyawan; setengah hari = 0,5,
+   * jenis cuti hari kalender dihitung per hari kalender.
+   */
+  async leaveDays(tx: Db, employee: Employee, from: string, to: string, calendar?: WorkCalendar) {
+    return this.daysOf(tx, employee, from, to, calendar, false);
   }
 
-  async unpaidDays(tx: Db, employeeId: string, from: string, to: string, holidays: string[]) {
-    return this.daysOf(tx, employeeId, from, to, holidays, true);
+  /** Hari cuti tanpa upah (disetujui) dalam periode payroll. */
+  async unpaidDays(tx: Db, employee: Employee, from: string, to: string, calendar?: WorkCalendar) {
+    return this.daysOf(tx, employee, from, to, calendar, true);
   }
 
   private async daysOf(
     tx: Db,
-    employeeId: string,
+    employee: Employee,
     from: string,
     to: string,
-    holidays: string[],
+    calendar: WorkCalendar | undefined,
     unpaidOnly: boolean,
   ) {
     const rows = await tx
-      .select({ dateFrom: R.dateFrom, dateTo: R.dateTo, halfDay: R.halfDay })
+      .select({ dateFrom: R.dateFrom, dateTo: R.dateTo, halfDay: R.halfDay, calendar: T.countCalendarDays })
       .from(R)
       .innerJoin(T, eq(T.id, R.leaveTypeId))
       .where(
         and(
-          eq(R.employeeId, employeeId),
+          eq(R.employeeId, employee.id),
           eq(R.state, "approved"),
           unpaidOnly ? eq(T.paid, false) : undefined,
           lte(R.dateFrom, to),
           gte(R.dateTo, from),
         ),
       );
+    if (!rows.length) return 0;
+    const cal = calendar ?? (await this.calendar.load(tx, employee.companyId, [employee], from, to));
     return rows.reduce((sum, r) => {
-      const work = workingDays(
-        r.dateFrom > from ? r.dateFrom : from,
-        r.dateTo < to ? r.dateTo : to,
-        holidays,
-      );
-      return sum + (r.halfDay ? work * 0.5 : work);
+      const a = r.dateFrom > from ? r.dateFrom : from;
+      const b = r.dateTo < to ? r.dateTo : to;
+      const days = r.calendar ? eachDate(a, b).length : cal.workingDays(employee, a, b);
+      return sum + (r.halfDay ? days * 0.5 : days);
     }, 0);
+  }
+
+  /** Pratinjau durasi cuti sebelum diajukan: tanggal yang dihitung & dilewati (libur jadwal / hari libur). */
+  async previewDays(
+    tx: Db,
+    employee: Employee,
+    input: { dateFrom: string; dateTo: string; leaveTypeId?: string | null; halfDay?: "am" | "pm" | null },
+  ) {
+    if (input.dateTo < input.dateFrom) throw fieldError("dateTo", "Tanggal selesai sebelum mulai");
+    if (eachDate(input.dateFrom, input.dateTo).length > 366)
+      throw fieldError("dateTo", "Rentang cuti maksimal satu tahun");
+    const type = input.leaveTypeId ? await this.type(tx, input.leaveTypeId) : null;
+    const cal = await this.calendar.load(tx, employee.companyId, [employee], input.dateFrom, input.dateTo);
+    const { counted, skipped } = dayBreakdown(
+      input.dateFrom,
+      input.dateTo,
+      (date) => cal.workDaysOf(employee, date),
+      cal.holidays,
+    );
+    const days = leaveDays({
+      from: input.dateFrom,
+      to: input.dateTo,
+      isWorkday: (date) => cal.isWorkday(employee, date),
+      halfDay: input.halfDay ?? null,
+      calendar: type?.countCalendarDays ?? false,
+    });
+    return { days, calendarDays: type?.countCalendarDays ?? false, counted, skipped };
   }
 
   private async type(tx: Db, id: string, activeOnly = true) {

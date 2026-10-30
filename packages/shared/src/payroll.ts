@@ -324,14 +324,22 @@ export function overtimePay(monthlyWage: Decimal.Value, hours: Decimal.Value, da
   return rupiah(hourly.times(multiplier)).toFixed(0);
 }
 
-/** Hari kerja Senin–Jumat dalam rentang (inklusif), tidak termasuk hari libur. */
-export function workingDays(from: string, to: string, holidays: string[] = []): number {
+/**
+ * Hari kerja dalam rentang (inklusif), tidak termasuk hari libur. `workDays` = hari kerja jadwal (0 = Minggu);
+ * bawaan Senin–Jumat.
+ */
+export function workingDays(
+  from: string,
+  to: string,
+  holidays: string[] = [],
+  workDays: readonly number[] = [1, 2, 3, 4, 5],
+): number {
   const off = new Set(holidays);
   let count = 0;
   for (let t = Date.parse(`${from}T00:00:00Z`); t <= Date.parse(`${to}T00:00:00Z`); t += 86_400_000) {
     const day = new Date(t);
     const iso = day.toISOString().slice(0, 10);
-    if (day.getUTCDay() !== 0 && day.getUTCDay() !== 6 && !off.has(iso)) count++;
+    if (workDays.includes(day.getUTCDay()) && !off.has(iso)) count++;
   }
   return count;
 }
