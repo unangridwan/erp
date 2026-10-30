@@ -27,5 +27,7 @@ Satu tenant dapat berisi grup usaha: holding, anak perusahaan, unit bisnis, caba
   (migrasi `0003`), sehingga database sendiri menolak rujukan lintas tenant. Aplikasi tetap mengecek rujukan
   (`refs` di `apps/api/src/common/crud.ts`) untuk pesan error per field yang lebih jelas.
 - Tabel baru wajib mengikuti pola yang sama: kolom `tenant_id`, policy `tenant_isolation`, dan FK komposit.
+  Pengecualian yang disengaja: tabel fondasi `sequences` (migrasi `0002`) dan turunannya `sequence_years` (`0046`)
+  memakai FK satu kolom ke `id`; baris hanya dibuat oleh `SequenceService` dari perusahaan aktif, tidak dari input user.
 - Migrasi dan job lintas tenant (billing, maintenance) memakai role pemilik secara eksplisit.
 - Tenant sangat besar dapat dipindah ke database terpisah di kemudian hari tanpa ubah skema.

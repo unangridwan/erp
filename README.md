@@ -11,7 +11,7 @@ Rencana lengkap: [docs/PLAN.md](docs/PLAN.md) · Keputusan arsitektur: [docs/adr
 | `apps/web`        | Frontend Next.js                                                |
 | `packages/db`     | Skema Drizzle, migrasi SQL, Row-Level Security                  |
 | `packages/shared` | Tipe & util bersama (mis. perhitungan kepemilikan efektif grup) |
-| `infra`           | docker-compose untuk Postgres, Redis, Mailpit                   |
+| `infra`           | docker-compose (Postgres, Redis, Mailpit), skrip backup & PITR  |
 
 ## Menjalankan lokal
 
@@ -94,18 +94,18 @@ Access token berlaku singkat (default 15 menit); perbarui dengan `POST /auth/ref
 pemakaian ulang token lama mencabut seluruh sesi).
 Header opsional `X-Company-Id` memilih perusahaan aktif (harus termasuk perusahaan yang boleh diakses user).
 
-| Endpoint                                                                                 | Keterangan                                                 |
-| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `POST /auth/signup`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `GET /auth/me`      | Sesi (JWT + refresh token), profil, permission, perusahaan |
-| `POST /auth/2fa/setup`, `/auth/2fa/enable`, `/auth/2fa/disable`                          | 2FA TOTP (Google Authenticator, Authy, dll.)               |
-| `POST /users/invite`, `GET /invitations`, `POST /auth/invitation`, `/auth/accept-invite` | Undangan user via email                                    |
-| `/companies`, `/ownerships`, `/business-units`, `/branches`                              | Struktur grup                                              |
-| `/partners`, `/products`, `/product-categories`, `/uoms`, `/uom-categories`              | Master data                                                |
-| `GET /currencies`, `/currency-rates`, `GET /fx/convert?from=USD&to=IDR&amount=&date=`    | Mata uang, kurs harian, konversi                           |
-| `GET /regions?level=1&parent=&q=`                                                        | Wilayah Indonesia (Kepmendagri 2025)                       |
-| `GET/POST /users`, `GET /roles`                                                          | Manajemen user                                             |
-| `GET /activity/:model/:id`                                                               | Riwayat perubahan (chatter)                                |
-| `GET /sequences`                                                                         | Penomoran dokumen perusahaan aktif                         |
+| Endpoint                                                                                 | Keterangan                                                        |
+| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `POST /auth/signup`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `GET /auth/me`      | Sesi (JWT + refresh token), profil, permission, perusahaan        |
+| `POST /auth/2fa/setup`, `/auth/2fa/enable`, `/auth/2fa/disable`                          | 2FA TOTP (Google Authenticator, Authy, dll.)                      |
+| `POST /users/invite`, `GET /invitations`, `POST /auth/invitation`, `/auth/accept-invite` | Undangan user via email                                           |
+| `/companies`, `/ownerships`, `/business-units`, `/branches`                              | Struktur grup                                                     |
+| `/partners`, `/products`, `/product-categories`, `/uoms`, `/uom-categories`              | Master data                                                       |
+| `GET /currencies`, `/currency-rates`, `GET /fx/convert?from=USD&to=IDR&amount=&date=`    | Mata uang, kurs harian, konversi                                  |
+| `GET /regions?level=1&parent=&q=`                                                        | Wilayah Indonesia (Kepmendagri 2025)                              |
+| `GET/POST /users`, `GET /roles`                                                          | Manajemen user                                                    |
+| `GET /activity/:model/:id`                                                               | Riwayat perubahan (chatter)                                       |
+| `GET /sequences`                                                                         | Penomoran dokumen perusahaan aktif (penghitung per tahun dokumen) |
 
 ### Akuntansi (Fase 1)
 
@@ -320,23 +320,31 @@ berlaku di masa lalu, jalankan **Hitung rapel** di payroll berikutnya.
 
 #### Pembuat laporan kustom & laporan terjadwal
 
-| Endpoint                                                                                             | Keterangan                                                                                                                                             |
-| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET /reports/datasets`, `POST /saved-reports/preview`                                               | Dataset HR/Payroll yang boleh dibaca user (kolom sensitif hanya untuk pemegang hak kelola) & pratinjau                                                 |
-| `/saved-reports`, `GET /saved-reports/:id/run`, `GET /saved-reports/:id/export?format=`              | Laporan tersimpan (pribadi/dibagikan), jalankan, ekspor `xlsx`/`csv`/`pdf`                                                                             |
-| `POST /saved-reports/:id/schedules`, `PATCH/DELETE /report-schedules/:id`                            | Jadwal email harian/mingguan/bulanan (jam zona waktu perusahaan), hanya pemilik laporan                                                                |
-| `GET/PUT /manpower-budgets?year=`, `GET /manpower-budgets/template`, `POST /manpower-budgets/import` | Anggaran tenaga kerja per departemen/jabatan/bulan (headcount & biaya; biaya hanya `payroll.read`), template & impor Excel/CSV                         |
-| `GET /manpower-budgets/report?year=[&format=xlsx]`                                                   | Rencana vs aktual: headcount akhir bulan, biaya dari slip terposting, selisih %, lowongan terbuka                                                      |
-| `GET /hr/analytics?year=&departmentId=[&format=xlsx]`                                                | Turnover (sukarela/tidak) & retensi, per departemen/alasan/masa kerja, demografi, kesetaraan gaji per golongan × gender + compa-ratio (`payroll.read`) |
-| `/manpower-plans?year=`, `GET/PUT/DELETE /manpower-plans/:id`, `POST …/:id/submit                    | cancel                                                                                                                                                 | revise`, `GET …/:id/export` | Man Power Planning per departemen × tahun (posisi terisi/tambahan/pengganti); disetujui lewat kategori persetujuan **MPP** → mengisi Anggaran Tenaga Kerja & anggaran akuntansi "Anggaran SDM {tahun}" (beban gaji, BPJS); kepala departemen boleh menyusun MPP departemennya |
-| `POST /manpower-plan-lines/:id/job-opening`                                                          | Jadikan posisi tambahan/pengganti lowongan; realisasi dari pelamar yang diterima                                                                       |
-| `POST /report-schedules/:id/send-now`, `GET /report-schedules/:id/deliveries`                        | Kirim sekarang & riwayat pengiriman                                                                                                                    |
+| Endpoint                                                                                | Keterangan                                                                                             |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `GET /reports/datasets`, `POST /saved-reports/preview`                                  | Dataset HR/Payroll yang boleh dibaca user (kolom sensitif hanya untuk pemegang hak kelola) & pratinjau |
+| `/saved-reports`, `GET /saved-reports/:id/run`, `GET /saved-reports/:id/export?format=` | Laporan tersimpan (pribadi/dibagikan), jalankan, ekspor `xlsx`/`csv`/`pdf`                             |
+| `POST /saved-reports/:id/schedules`, `PATCH/DELETE /report-schedules/:id`               | Jadwal email harian/mingguan/bulanan (jam zona waktu perusahaan), hanya pemilik laporan                |
+| `POST /report-schedules/:id/send-now`, `GET /report-schedules/:id/deliveries`           | Kirim sekarang & riwayat pengiriman                                                                    |
 
 Konfigurasi laporan: kolom, filter dataset (dataset slip memakai `runId=latest` = payroll terposting terakhir), syarat
 per kolom, kelompok (≤ 3) + agregasi jumlah/banyaknya/rata-rata/min/maks, urutan, batas baris, grafik batang/garis/
 donat. Hak baca dataset & kolom sensitif dicek setiap laporan dijalankan (juga saat dikirim terjadwal, dengan hak
 pemilik saat itu — bila hak dicabut pengiriman gagal & tercatat). Pengirim berjalan tiap 5 menit dan mengklaim periode
 secara atomik sehingga tiap periode terkirim sekali (`REPORT_SCHEDULER=off` untuk mematikan).
+
+#### Perencanaan & analitik SDM
+
+Menu: **SDM › Perencanaan** (Man Power Planning, Anggaran Tenaga Kerja) dan **SDM › Laporan › Analitik SDM**.
+
+| Endpoint                                                                                             | Keterangan                                                                                                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /manpower-plans?year=`, `POST /manpower-plans`, `GET/PUT/DELETE /manpower-plans/:id`            | Man Power Planning per departemen × tahun (posisi terisi/tambahan/pengganti, bulan mulai/akhir, estimasi upah, THR); HR atau kepala departemen menyusun, upah hanya `payroll.read`                                                                                           |
+| `POST /manpower-plans/:id/submit`, `/cancel`, `/revise`, `GET /manpower-plans/:id/export`            | Ajukan lewat kategori persetujuan **MPP**; saat disetujui mengisi Anggaran Tenaga Kerja per jabatan × bulan & anggaran akuntansi "Anggaran SDM {tahun}" (beban gaji, BPJS; baca saja di Akuntansi). Revisi kembali ke draft (anggaran lama berlaku), batal mencabut anggaran |
+| `POST /manpower-plan-lines/:id/job-opening`                                                          | Jadikan posisi tambahan/pengganti lowongan; realisasi dari pelamar yang diterima                                                                                                                                                                                             |
+| `GET/PUT /manpower-budgets?year=`, `GET /manpower-budgets/template`, `POST /manpower-budgets/import` | Anggaran tenaga kerja per departemen/jabatan/bulan (headcount & biaya; biaya hanya `payroll.read`), template & impor Excel/CSV                                                                                                                                               |
+| `GET /manpower-budgets/report?year=[&format=xlsx]`                                                   | Rencana vs aktual: headcount akhir bulan, biaya dari slip terposting, selisih %, lowongan terbuka                                                                                                                                                                            |
+| `GET /hr/analytics?year=&departmentId=[&format=xlsx]`                                                | Turnover (sukarela/tidak) & retensi, per departemen/alasan/masa kerja, demografi, kesetaraan gaji per golongan × gender + compa-ratio (`payroll.read`)                                                                                                                       |
 
 ### Pajak Coretax, Langganan & Operasional (Fase 5)
 

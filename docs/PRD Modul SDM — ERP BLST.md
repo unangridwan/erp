@@ -366,3 +366,57 @@ FPK yang disetujui membuka lowongan; pelamar yang menandatangani kontrak otomati
 - [ ] Merek mesin fingerprint yang perlu diintegrasikan?
 - [ ] Bank penerima file transfer gaji?
 - [ ] Matriks otorisasi nominal per entitas sudah ditetapkan Direksi?
+
+---
+
+## Status implementasi (per 30 Oktober 2026)
+
+Hasil audit kode (bukan dari rencana). ✅ selesai · 🟡 sebagian (yang belum disebut) · ❌ belum.
+Ringkasan: hampir seluruh lingkup MVP sudah ada; sisa gap berupa detail aturan/field dan fitur P2/P3.
+
+| ID | Kebutuhan | Status | Catatan |
+|---|---|---|---|
+| KRY-01–03 | Profil, data pribadi, data kerja | 🟡 | Ada (form karyawan ala Odoo, keluarga, pendidikan, pengalaman, kontak darurat, lokasi kerja, jadwal). Belum: nama legal, jarak rumah–kantor, coach, zona waktu per karyawan |
+| KRY-04 | Versi kontrak | 🟡 | PKWT/PKWTT, upah, tipe upah, metode PPh 21, perpanjang/tutup. Belum: tanggal akhir masa percobaan, jenis karyawan, PIC HR |
+| KRY-05 | Template kontrak / e-sign | 🟡 | Hanya template & PDF surat penawaran dan Full & Final; belum template kontrak/SK & tanda tangan elektronik |
+| KRY-06 | Atribut payroll Indonesia | 🟡 | PTKP, gross/gross-up, tunjangan, rekening. Tarif JKK per perusahaan (bukan per karyawan); gaji ke satu rekening |
+| KRY-07 | Penyetuju per karyawan | 🟡 | Lewat atasan/peran/aturan persetujuan; belum field penyetuju khusus per karyawan |
+| KRY-08 | Resume & skill | 🟡 | Pendidikan, pengalaman, pelatihan + sertifikat. Belum: skill & level |
+| KRY-09–13 | Dokumen + kedaluwarsa, struktur organisasi, on/offboarding, resign/exit, badge/PIN | ✅ | Template checklist belum per departemen |
+| KRY-14 | Custom field | ❌ | |
+| KRY-15–16 | Laporan, tombol statistik | 🟡 | Analitik SDM ada; belum laporan skill & ulang tahun, tombol riwayat GROSS/PPh 21/JHT/JP |
+| PNL-01–04 | Penilaian, template, dua sisi, skala | 🟡 | Diri → atasan → kalibrasi → selesai. Satu atasan per penilaian, skala 1–5/A–E tetap, belum kontrol sembunyikan-sampai-terbit |
+| PNL-05, 09 | Catatan privat, feedback 360 | ✅ | |
+| PNL-06 | Sasaran bertingkat | 🟡 | Sasaran/KRA + check-in; belum label |
+| PNL-07, 08, 10, 11 | Pustaka sasaran, skill di penilaian, jadwal otomatis, rencana aktivitas | ❌ | |
+| PNL-12 | Laporan penilaian | 🟡 | Sebaran predikat; belum per departemen/evolusi skill |
+| ABS-01–03 | Check-in/out, kiosk, lokasi | 🟡 | Geofence, IP, perangkat, foto, kiosk badge+PIN. Belum durasi istirahat, pilih nama di kiosk, alamat |
+| ABS-04–06, 11–13 | Foto, mode input, auto-checkout, dashboard, laporan, gaji dari absensi | ✅ | |
+| ABS-07 | Validasi | 🟡 | Draft → valid/tolak; belum toleransi jam |
+| ABS-08 | Jenis & aturan waktu kerja | ❌ | Tarif lembur PP 35/2021 tetap di kode |
+| ABS-09 | Lembur | 🟡 | Pengajuan + persetujuan → payroll; belum dihitung otomatis dari absensi vs jadwal |
+| ABS-10 | Presence control | ❌ | |
+| RKT-01, 03–05, 07, 12, 13 | Lowongan, pelamar, kanban, interview, tolak, jadi karyawan, laporan | 🟡 | Ada; belum lokasi/rekruter di lowongan, tahap per lowongan, ronde & form interview, email penolakan, kinerja rekruter |
+| RKT-06 | Penawaran kerja | ✅ | Template + PDF |
+| RKT-02, 08–11 | Situs karier, talent pool, skill match, OCR CV, program referral | ❌ | |
+| Aturan RKT | FPK wajib, UU PDP | 🟡 | FPK & MPP ✅; belum persetujuan/retensi/anonimisasi data pelamar |
+| CTI-01, 03–06 | Jenis cuti, pengajuan, alokasi, akrual, hari libur | 🟡 | Setengah hari, saldo negatif, lampiran, akrual, carry-over. **Durasi cuti dihitung Sen–Jum, belum mengikuti jadwal kerja**; libur per tenant (bukan per entitas); belum cuti per jam & alokasi massal per departemen |
+| CTI-02, 07, 10, 11 | Persetujuan, kalender & saldo, cuti bersama, laporan | ✅ | |
+| CTI-08 | Aturan otomatis | ❌ | |
+| CTI-09, 12 | Status payroll per cuti, notifikasi | 🟡 | Unpaid memotong gaji; notifikasi in-app (belum email) |
+| ARM-01–09, 11 | Armada | ✅ | Kecuali field emisi |
+| ARM-10 | Kendaraan pribadi | ❌ | |
+| PAY-01–03 | Struktur, aturan, parameter berlaku per tanggal | 🟡 | Komponen + cara hitung; belum formula & tipe struktur; parameter BPJS/TER belum bertanggal |
+| PAY-04, 07, 08 | Slip, penyesuaian, koreksi | 🟡 | Peringatan, penahanan, koreksi, pinjaman; belum garnishment & slip refund |
+| PAY-05, 06, 09–14 | Payroll run, input, file bank, jurnal, peringatan, PDF/email/ESS, audit, kunci | ✅ | |
+| Aturan PAY | TER + Pasal 17 Desember, gross-up, batas BPJS, THR, 1721-A1/e-Bupot, file BPJS | ✅ | Batas H-7 THR belum dipaksakan |
+| EXP-01–03, 05, 06 | Klaim, dibayar oleh, status, split, analitik | 🟡 | Belum qty × harga, mata uang, pajak, kartu perusahaan, split persen |
+| EXP-04, 09, 10, 13 | Persetujuan, posting, lewat payroll, laporan | ✅ | |
+| EXP-07, 08, 11, 12 | OCR, klaim via email, mileage, sinkron kartu | ❌ | |
+| Aturan EXP | Bukti wajib, plafon, settlement uang muka | 🟡 | Plafon per golongan ✅; bukti belum wajib; settlement uang muka belum ada |
+| APV-02–05, 07, 10 | Penyetuju, minimum, berurutan/paralel, nomor, status, dashboard | ✅ | DoA & delegasi ✅ |
+| APV-01, 06 | Kategori, permintaan | 🟡 | Belum ikon, baris produk |
+| APV-08, 09 | Properti kustom, tindak lanjut RFQ/stok | ❌ | |
+| NFR | Multi-entitas, PDP, notifikasi, impor/ekspor, API | 🟡 | Belum laporan SDM konsolidasi grup, log akses data pribadi, notifikasi email persetujuan |
+
+Lihat juga `docs/PLAN.md` § "Rekomendasi berikutnya — SDM & Payroll".

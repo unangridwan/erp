@@ -23,7 +23,8 @@ selalu seimbang walau ada bug aplikasi.
   - Offboarding tenant boleh melewati guard hanya sebagai pemilik schema (`set local erp.purge = 'on'`), tidak sebagai
     `app_user`.
 - Nomor dokumen diberikan saat posting per jurnal & tahun (`INV/2026/0001`) dari sequence ber-row-lock, sehingga
-  draft yang dihapus tidak meninggalkan celah nomor.
+  draft yang dihapus tidak meninggalkan celah nomor. Sejak migrasi `0046` penghitung disimpan per tahun dokumen
+  (`sequence_years`), sehingga jurnal bertanggal tahun lalu setelah tahun berjalan dimulai melanjutkan nomor tahun itu.
 - Rekonsiliasi parsial (`partial_reconciles`) dalam mata uang perusahaan; status pembayaran faktur dihitung dari sisa
   baris piutang/utangnya.
 - Pajak Indonesia dimodelkan dengan tarif + rasio DPP (PPN 12% dengan DPP 11/12 = efektif 11%; PPh 23 sebagai tarif
@@ -36,7 +37,8 @@ selalu seimbang walau ada bug aplikasi.
 - Laporan dihitung langsung dari baris posted dengan SQL agregat; untuk volume besar akan ditambah materialized view.
 - Selisih kurs: baris piutang/utang menyimpan sisa dalam mata uang dokumen (`amount_residual_currency`). Bila semua
   baris yang direkonsiliasi memakai valas yang sama, pemasangan dilakukan dalam valas; baris yang lunas dalam valas tetapi
-  masih bersisa rupiah ditutup dengan jurnal laba/rugi selisih kurs otomatis. Revaluasi akhir bulan belum ada.
+  masih bersisa rupiah ditutup dengan jurnal laba/rugi selisih kurs otomatis. Revaluasi akhir bulan tersedia
+  (Akuntansi › Revaluasi Kurs, migrasi `0012`): jurnal selisih kurs belum terealisasi yang dibalik keesokan harinya.
 - Tutup buku: entri penutup (`closing_year`) memindahkan saldo laba rugi ke Saldo Laba dan mengunci periode dalam satu
   transaksi; laporan laba rugi mengecualikan entri penutup agar hasil usaha tahun itu tetap terlihat.
 - Laporan multi-perusahaan saat ini menjumlahkan saja; eliminasi intercompany dilakukan oleh mesin konsolidasi.
