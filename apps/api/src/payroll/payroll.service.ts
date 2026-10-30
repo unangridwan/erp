@@ -14,7 +14,6 @@ import {
   computePayslip,
   retroPay,
   thrAmount,
-  workingDays,
   type BankFormat,
   type payrollCostQuerySchema,
   type thrComputeSchema,
@@ -31,7 +30,8 @@ import { MoveService } from "../accounting/move.service.js";
 import { currentContext } from "../common/request-context.js";
 import { EmployeeService } from "../hr/employee.service.js";
 import { ExpenseService } from "../hr/expense.service.js";
-import { holidaysBetween, LeaveService } from "../hr/leave.service.js";
+import { LeaveService } from "../hr/leave.service.js";
+import { WorkCalendarService, type WorkCalendar } from "../hr/work-calendar.service.js";
 import { localDate, ScheduleService } from "../hr/schedule.service.js";
 import { LoanService } from "./loan.service.js";
 
@@ -99,6 +99,7 @@ export class PayrollService {
     @Inject(ScheduleService) private readonly schedules: ScheduleService,
     @Inject(LoanService) private readonly loans: LoanService,
     @Inject(ExpenseService) private readonly expenses: ExpenseService,
+    @Inject(WorkCalendarService) private readonly calendar: WorkCalendarService,
   ) {}
 
   // ---- Pengaturan ----
@@ -283,8 +284,6 @@ export class PayrollService {
       return this.get(tx, id);
     }
     const settings = await this.settings(tx, run.companyId);
-    const holidays = await holidaysBetween(tx, run.periodStart, run.periodEnd);
-    const monthDays = workingDays(run.periodStart, run.periodEnd, holidays);
     const eligible = await tx
       .select({ employee: schema.employees, contract: schema.contracts })
       .from(schema.contracts)
@@ -308,6 +307,14 @@ export class PayrollService {
     for (const slip of existing.filter((s) => !byEmployee.has(s.employeeId))) {
       await tx.delete(SLIP).where(eq(SLIP.id, slip.id));
     }
+    // Hari kerja per karyawan mengikuti jadwalnya (penugasan shift / jadwal bawaan) dan libur perusahaan.
+    const calendar = await this.calendar.load(
+      tx,
+      run.companyId,
+      [...byEmployee.values()].map((r) => r.employee),
+      run.periodStart,
+      run.periodEnd,
+    );
     for (const { employee, contract } of byEmployee.values()) {
       let slip = existing.find((s) => s.employeeId === employee.id);
       if (!slip) {
@@ -324,7 +331,7 @@ export class PayrollService {
           })
           .returning();
       }
-      await this.computeSlip(tx, run, slip!.id, employee, contract, settings, holidays, monthDays);
+      await this.computeSlip(tx, run, slip!.id, employee, contract, settings, calendar);
     }
     return this.get(tx, id);
   }
@@ -336,9 +343,9 @@ export class PayrollService {
     employee: typeof schema.employees.$inferSelect,
     contract: typeof schema.contracts.$inferSelect,
     settings: typeof schema.payrollSettings.$inferSelect,
-    holidays: string[],
-    monthDays: number,
+    calendar: WorkCalendar,
   ) {
+    const monthDays = calendar.workingDays(employee, run.periodStart, run.periodEnd);
     const components = await tx
       .select()
       .from(schema.salaryComponents)
@@ -456,8 +463,8 @@ export class PayrollService {
       employee.resignDate ?? run.periodEnd,
       contract.dateEnd ?? run.periodEnd,
     ].sort()[0]!;
-    const employedDays = from <= to ? workingDays(from, to, holidays) : 0;
-    const unpaidLeave = correction ? 0 : await this.leaves.unpaidDays(tx, employee.id, from, to, holidays);
+    const employedDays = calendar.workingDays(employee, from, to);
+    const unpaidLeave = correction ? 0 : await this.leaves.unpaidDays(tx, employee, from, to, calendar);
     const unpaidDays = correction ? 0 : monthDays - employedDays + unpaidLeave;
 
     const overtime = correction
@@ -492,7 +499,7 @@ export class PayrollService {
     );
     if (attendanceRows.length && from <= to) {
       const presentDays = await this.presentDays(tx, employee.id, from, to, settings.timezone);
-      const leaveDays = await this.leaves.leaveDays(tx, employee.id, from, to, holidays);
+      const leaveDays = await this.leaves.leaveDays(tx, employee, from, to, calendar);
       const facts = {
         presentDays,
         lateCount: late[0]?.occurrences ?? 0,
@@ -817,7 +824,6 @@ export class PayrollService {
       .select()
       .from(schema.contracts)
       .where(eq(schema.contracts.id, slip.contractId));
-    const holidays = await holidaysBetween(tx, run.periodStart, run.periodEnd);
     await this.computeSlip(
       tx,
       run,
@@ -825,8 +831,7 @@ export class PayrollService {
       employee!,
       contract!,
       await this.settings(tx, run.companyId),
-      holidays,
-      workingDays(run.periodStart, run.periodEnd, holidays),
+      await this.calendar.load(tx, run.companyId, [employee!], run.periodStart, run.periodEnd),
     );
   }
 

@@ -197,11 +197,19 @@ export const contractAllowances = pgTable("contract_allowances", {
   amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
 });
 
+/** Hari libur; `companyId` null = berlaku untuk semua perusahaan tenant. */
 export const publicHolidays = pgTable("public_holidays", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
+  companyId: uuid("company_id"),
   date: date("date").notNull(),
   name: text("name").notNull(),
+  kind: text("kind", { enum: ["national", "collective", "company"] })
+    .notNull()
+    .default("national"),
+  source: text("source", { enum: ["manual", "import"] })
+    .notNull()
+    .default("manual"),
   ...audit,
 });
 

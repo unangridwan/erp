@@ -59,6 +59,8 @@ import { ContractService } from "./contract.service.js";
 import { HistoryService } from "./history.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { LeaveService } from "./leave.service.js";
+import { WorkCalendarController } from "./work-calendar.controller.js";
+import { WorkCalendarService } from "./work-calendar.service.js";
 import { localDate, ScheduleService } from "./schedule.service.js";
 
 /** Karyawan yang dirujuk harus milik perusahaan yang sama. */
@@ -214,6 +216,9 @@ const HolidaysController = createCrudController({
   write: "hr.manage",
   searchColumns: [schema.publicHolidays.name],
   orderBy: schema.publicHolidays.date,
+  // Kosong = libur semua perusahaan; terisi = libur khusus perusahaan itu.
+  companyColumn: schema.publicHolidays.companyId,
+  refs: { companyId: schema.companies },
 });
 
 const LeaveTypesController = createCrudController({
@@ -1059,6 +1064,7 @@ class PortalController {
     JobPositionsController,
     SalaryGradesController,
     WageScaleController,
+    WorkCalendarController,
     HolidaysController,
     LeaveTypesController,
     LeaveAllocationsController,
@@ -1086,8 +1092,10 @@ class PortalController {
     HistoryService,
     ContractService,
     NotificationService,
+    WorkCalendarService,
   ],
   exports: [
+    WorkCalendarService,
     NotificationService,
     EmployeeService,
     LeaveService,

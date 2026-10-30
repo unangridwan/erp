@@ -1024,6 +1024,9 @@ export const contractSchema = z
 export const holidaySchema = z.object({
   date: z.string().date(),
   name: z.string().trim().min(1).max(100),
+  /** Kosong = berlaku untuk semua perusahaan. */
+  companyId: z.string().uuid().nullish(),
+  kind: z.enum(["national", "collective", "company"]).default("national"),
 });
 
 export const leaveTypeSchema = z.object({

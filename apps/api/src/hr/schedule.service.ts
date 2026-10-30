@@ -1,8 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { and, eq, gte, inArray, lte, schema, type Db } from "@erp/db";
 import { lateness, type WorkSchedule } from "@erp/shared";
 import { currentContext } from "../common/request-context.js";
-import { holidaysBetween } from "./leave.service.js";
+import { holidaysBetween, WorkCalendarService } from "./work-calendar.service.js";
 
 type Schedule = typeof schema.workSchedules.$inferSelect;
 
@@ -26,6 +26,8 @@ export const localDate = (at: Date, timeZone: string) =>
  */
 @Injectable()
 export class ScheduleService {
+  constructor(@Inject(WorkCalendarService) private readonly calendar: WorkCalendarService) {}
+
   async timezone(tx: Db, companyId: string) {
     const [s] = await tx
       .select({ tz: schema.payrollSettings.timezone })
@@ -49,20 +51,7 @@ export class ScheduleService {
       );
     if (!employees.length) return [];
     const ids = employees.map((e) => e.id);
-    const schedules = await tx
-      .select()
-      .from(schema.workSchedules)
-      .where(eq(schema.workSchedules.companyId, companyId));
-    const assignments = await tx
-      .select()
-      .from(schema.shiftAssignments)
-      .where(
-        and(
-          inArray(schema.shiftAssignments.employeeId, ids),
-          lte(schema.shiftAssignments.dateFrom, input.to),
-          gte(schema.shiftAssignments.dateTo, input.from),
-        ),
-      );
+    const resolve = await this.calendar.resolver(tx, companyId, ids, input.from, input.to);
     // Rentang instan diperlebar sehari agar absen dini hari waktu lokal ikut terbaca, lalu disaring per tanggal lokal.
     const start = new Date(`${input.from}T00:00:00Z`);
     start.setUTCDate(start.getUTCDate() - 1);
@@ -80,20 +69,15 @@ export class ScheduleService {
           lte(schema.attendances.checkIn, end),
         ),
       );
-    const holidays = await holidaysBetween(tx, input.from, input.to);
-    const byId = new Map(schedules.map((s) => [s.id, s]));
+    const holidays = await holidaysBetween(tx, companyId, input.from, input.to);
     return employees.flatMap((e) => {
       const rows = attendances
         .filter((a) => a.employeeId === e.id)
         .map((a) => {
           const date = localDate(a.checkIn, tz);
-          const assignment = assignments.find(
-            (s) => s.employeeId === e.id && s.dateFrom <= date && s.dateTo >= date,
-          );
-          const schedule = byId.get(assignment?.scheduleId ?? e.scheduleId ?? "");
-          return { date, checkIn: a.checkIn, schedule };
+          return { date, checkIn: a.checkIn, schedule: resolve(e, date) };
         })
-        .filter((a) => a.date >= input.from && a.date <= input.to && a.schedule?.active);
+        .filter((a) => a.date >= input.from && a.date <= input.to && a.schedule);
       if (!rows.length) return [];
       const result = lateness(
         rows.map((r) => ({ checkIn: r.checkIn, schedule: toRule(r.schedule!) })),

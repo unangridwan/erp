@@ -309,6 +309,9 @@ export const MESSAGES_EN: Record<string, string> = {
   "Hanya bisa mengajukan cuti untuk diri sendiri": "You can only request leave for yourself",
   "Jenis cuti tidak ditemukan": "Leave type not found",
   "Rentang cuti tidak mencakup hari kerja": "The leave period contains no working days",
+  "Rentang cuti maksimal satu tahun": "The leave period can be at most one year",
+  "Data libur nasional {} belum tersedia — impor dari berkas atau tambahkan manual":
+    "National holidays for {0} are not available yet — import a file or add them manually",
   "Sudah ada pengajuan cuti pada tanggal tersebut": "There is already a leave request on those dates",
   "Saldo {} tidak cukup (sisa {} hari, diminta {})": "Not enough {0} balance ({1} days left, {2} requested)",
   "Tidak bisa membatalkan cuti orang lain": "You cannot cancel someone else's leave",

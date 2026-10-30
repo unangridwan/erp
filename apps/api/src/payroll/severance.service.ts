@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { and, desc, eq, inArray, schema, sql, type Db } from "@erp/db";
-import { severance, type severanceInputSchema } from "@erp/shared";
+import { severance, workDaysPerMonth, type severanceInputSchema } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
@@ -8,6 +8,7 @@ import { MoveService } from "../accounting/move.service.js";
 import { currentContext } from "../common/request-context.js";
 import { EmployeeService } from "../hr/employee.service.js";
 import { LeaveService } from "../hr/leave.service.js";
+import { WorkCalendarService } from "../hr/work-calendar.service.js";
 
 type Input = z.infer<typeof severanceInputSchema>;
 const d = (v: Decimal.Value | null | undefined) => new Decimal(v ?? 0);
@@ -23,6 +24,7 @@ export class SeveranceService {
     @Inject(LeaveService) private readonly leaves: LeaveService,
     @Inject(MoveService) private readonly moves: MoveService,
     @Inject(ActivityService) private readonly activity: ActivityService,
+    @Inject(WorkCalendarService) private readonly calendar: WorkCalendarService,
   ) {}
 
   async preview(tx: Db, employeeId: string, input: Input) {
@@ -36,12 +38,15 @@ export class SeveranceService {
         .filter((b) => /tahunan/i.test(b.leaveTypeName))
         .reduce((s, b) => s.plus(Decimal.max(d(b.remaining), 0)), d(0))
         .toNumber();
+    // Upah harian sisa cuti: 1/25 untuk 6 hari kerja/minggu, 1/21 untuk 5 hari (jadwal yang berlaku di hari terakhir).
+    const cal = await this.calendar.load(tx, employee.companyId, [employee], input.endDate, input.endDate);
     const result = severance({
       reason: input.reason,
       joinDate: employee.joinDate,
       endDate: input.endDate,
       monthlyWage,
       unusedLeaveDays,
+      workDaysPerMonth: workDaysPerMonth(cal.workDaysOf(employee, input.endDate)),
       otherRights: input.otherRights,
       separationPay: input.separationPay,
     });

@@ -2,6 +2,7 @@
 import { Decimal } from "decimal.js";
 import { workingDays } from "./payroll.js";
 import { addDays } from "./sales.js";
+import { eachDate } from "./work-calendar.js";
 
 const d = (v: Decimal.Value | null | undefined) => new Decimal(v ?? 0);
 const DAY = 86_400_000;
@@ -22,7 +23,8 @@ export const endOfMonth = (date: string) => addDays(addMonths(`${date.slice(0, 7
 
 /**
  * Durasi cuti: setengah hari = 0,5 (hanya cuti sehari pada hari kerja); hari kalender bila jenis cuti menghitung
- * kalender (mis. cuti melahirkan); selain itu hari kerja Senin–Jumat di luar hari libur.
+ * kalender (mis. cuti melahirkan); selain itu hari kerja di luar hari libur — menurut `isWorkday` (jadwal kerja
+ * karyawan) bila diberikan, atau Senin–Jumat.
  */
 export function leaveDays(input: {
   from: string;
@@ -30,9 +32,12 @@ export function leaveDays(input: {
   holidays?: string[];
   halfDay?: "am" | "pm" | null;
   calendar?: boolean;
+  isWorkday?: (date: string) => boolean;
 }): number {
   if (input.calendar) return Math.round((parse(input.to) - parse(input.from)) / DAY) + 1;
-  const work = workingDays(input.from, input.to, input.holidays ?? []);
+  const work = input.isWorkday
+    ? eachDate(input.from, input.to).filter(input.isWorkday).length
+    : workingDays(input.from, input.to, input.holidays ?? []);
   if (input.halfDay) return input.from === input.to && work === 1 ? 0.5 : 0;
   return work;
 }
