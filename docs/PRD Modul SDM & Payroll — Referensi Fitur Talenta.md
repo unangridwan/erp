@@ -118,3 +118,33 @@ Inventaris ini lengkap untuk sisi karyawan dan atasan, tapi belum mencakup sisi 
 - **Tidak dibuka:** Adjustment history dan Payslip meminta password + OTP; isinya tidak dicek. Recruitment, LMS, Performance Review, Insight, dan Talentics adalah aplikasi terpisah dan hanya menunya yang dicatat.
 - **Menu belum dibuka satu per satu:** isi Projects, Timesheet, Org chart, Family, Emergency contact, dan Files.
 - **Pertanyaan terbuka:** apakah Recruitment, LMS, dan Performance masuk lingkup modul SDM ERP, atau tetap aplikasi terpisah?
+
+---
+
+## Status implementasi di ERP (per 30 Oktober 2026)
+
+Hasil audit kode. ✅ selesai · 🟡 sebagian · ❌ belum. Dari 26 ID: 16 ✅, 9 🟡, 1 ❌.
+
+| ID | Fitur | Status | Catatan |
+|---|---|---|---|
+| HR-01, 03, 06 | Data karyawan, perubahan data via ESS, direktori & struktur organisasi | ✅ | |
+| HR-02 | Organisasi, jabatan, level, golongan, cabang, approval line | 🟡 | Belum level/kelas jabatan & barcode karyawan |
+| HR-04 | Riwayat mutasi, NPP, SP | 🟡 | Riwayat perubahan nomor karyawan (NPP) belum ada |
+| HR-05 | Aset dipegang + file | 🟡 | File ✅; aset per karyawan belum terhubung |
+| HR-07 | Pendidikan/pengalaman + unduh CV | 🟡 | Belum generator CV |
+| HR-08 | Custom field | ❌ | |
+| TM-01, 02, LV-01, WF-01 | Absensi + rekap, koreksi & tukar shift, cuti + delegasi, kotak persetujuan | ✅ | |
+| TM-03 | Shift, jadwal, libur, kunci absensi | 🟡 | Belum tampilan kalender perusahaan (libur, cuti, ulang tahun) |
+| PY-01, 02, 04 | Data bank/NPWP/PTKP/BPJS, payroll bulanan, riwayat penyesuaian gaji | ✅ | |
+| PY-03 | Slip PDF berpassword + OTP | 🟡 | Password = tanggal lahir (tidak bisa diatur karyawan); belum OTP |
+| FN-01 | Reimbursement dengan saldo, dibayar lewat payroll | ✅ | |
+| FN-02 | Pinjaman cicilan + bunga | 🟡 | Belum bunga |
+| CM-01 | Pengumuman berkategori | 🟡 | Belum kategori/filter |
+| PR-01 | Tugas, timesheet, insentif tugas | 🟡 | Proyek/tugas/timesheet dari aplikasi terhubung (baca saja); belum insentif tugas di payroll |
+| PR-02 | Form & survei | ❌ | Hanya feedback 360 |
+| RC-01 | Lowongan, kandidat, interview | ✅ | Belum tampilan kalender interview |
+| IN-01, 02 | Jurnal payroll ke akuntansi, sinkron mesin absensi | ✅ | Mesin via API push |
+| UX-01 | Dashboard ESS web + mobile | 🟡 | Web ✅; belum PWA/aplikasi mobile |
+| Inbox / Akun | Pesan, bahasa, password slip | 🟡 | Notifikasi in-app & kotak persetujuan; belum pesan baru/folder; bahasa ID & EN |
+
+Lihat juga `docs/PLAN.md` § "Rekomendasi berikutnya — SDM & Payroll".

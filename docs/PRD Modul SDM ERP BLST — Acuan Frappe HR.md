@@ -251,3 +251,44 @@ Angka tarif dan batas upah wajib diverifikasi dengan konsultan pajak/ketenagaker
 - [ ] Format file transfer bank mana yang dipakai tiap entitas?
 - [ ] Apakah BPRS Botani Bina Rahmah memakai payroll terpisah karena regulasi OJK?
 - [ ] Jenjang approval final per entitas perlu ditetapkan Direksi.
+
+---
+
+## Status implementasi (per 30 Oktober 2026)
+
+Hasil audit kode. ✅ selesai · 🟡 sebagian · ❌ belum. Dari 65 butir: ±23 ✅, ±30 🟡, ±12 ❌.
+
+| ID | Kebutuhan | Status | Catatan |
+|---|---|---|---|
+| EMP-01, 02 | Profil bertab, penomoran | ✅ | Nomor per tahun tanpa bentrok (migrasi 0046) |
+| EMP-03, 04 | Jenis karyawan, jenis dokumen | 🟡 | Belum master jenis karyawan (magang, dll.); jenis dokumen belum bisa diatur |
+| EMP-05 | Onboarding dari template | 🟡 | Otomatis saat hire; template belum per departemen/jabatan |
+| EMP-06 | Surat pengangkatan dari template | ❌ | |
+| EMP-07 | Promosi/mutasi | 🟡 | Ada sebelum/sesudah; belum antar perusahaan, belum persetujuan, diterapkan manual |
+| EMP-08, 09, 12 | Skill map, keluhan (grievance), daily work summary | ❌ | |
+| EMP-10 | Separation, exit interview, F&F | 🟡 | Exit interview diisi HR; F&F belum mencakup pengembalian aset |
+| EMP-11 | Pengingat ulang tahun/masa kerja/libur | 🟡 | Baru kontrak, dokumen, tugas jatuh tempo |
+| EMP-13 | Perjalanan dinas & log kendaraan | 🟡 | Dinas via kategori persetujuan DINAS; log kendaraan di Armada |
+| REC-01 | Staffing plan | ✅ | Man Power Planning + Anggaran Tenaga Kerja |
+| REC-02–05 | FPK, lowongan, pelamar/referral, interview | 🟡 | Belum template lowongan, portal karier, pencatat referral, ronde & feedback per skill |
+| REC-06–08 | Penawaran, hire satu alur, analitik | ✅ | |
+| ATT-01, 02 | Jenis shift, penugasan | 🟡 | Ada jadwal & tukar shift; belum penugasan massal & rotasi |
+| ATT-03, 05, 08 | Perangkat/geofence, permintaan absensi, laporan | ✅ | |
+| ATT-04, 06, 07 | Absensi massal, lembur otomatis, daftar libur per perusahaan | 🟡 | Lembur diinput manual; libur per tenant |
+| LV-03, 06, 08, 09 | Akrual, blok tanggal, ledger, laporan saldo | ✅ | |
+| LV-01, 02, 04, 05, 07 | Aturan jenis cuti, carry/encashment, periode/kebijakan per golongan, batas tanggal mundur, cuti pengganti | 🟡 | Encashment hanya saat keluar; cuti pengganti dibuat HR (belum diajukan karyawan) |
+| EXP-01, 02, 04 | Klaim, akun beban, pembayaran & jurnal | ✅ | Plafon per golongan |
+| EXP-03 | Uang muka karyawan (kasbon) | 🟡 | Hanya kategori persetujuan UANG_MUKA; belum pencairan, penyelesaian, potong gaji |
+| EXP-05 | Laporan klaim belum dibayar/uang muka | 🟡 | |
+| PRF-01–03 | Siklus, KRA/sasaran, 360, penilaian diri | ✅ | |
+| PRF-04, TRN-01 | Ringkasan penilaian, program pelatihan + feedback | 🟡 | |
+| PAY-01–05, 08 | Komponen + formula, struktur, periode (mingguan/2 mingguan), bulk per departemen, tambahan gaji/retensi, laporan | 🟡 | Belum formula, periode non-bulanan, filter departemen di payroll run, persetujuan payroll run |
+| PAY-06, 07 | Slip email berpassword + saldo cuti, pesangon | ✅ | |
+| TAX-01, 05 | PPh 21 TER + Desember, asuransi kesehatan | ✅ | 1721-A1 tersedia |
+| TAX-02–04 | Deklarasi pembebasan, penghasilan lain, flexible benefit | ❌ | TAX-02 tidak relevan untuk Indonesia |
+| ESS-01, 02 | PWA, push | 🟡 | Portal web `/me` + notifikasi in-app |
+| ESS-03 | Portal karier publik | ❌ | |
+| §6 Approval | Alur bertingkat | 🟡 | Mesin persetujuan untuk cuti, lembur, klaim, absensi, shift, permintaan; belum untuk payroll run, mutasi, penawaran, offboarding |
+| §7 Laporan holding | | 🟡 | Analitik per perusahaan; belum konsolidasi grup |
+
+Lihat juga `docs/PLAN.md` § "Rekomendasi berikutnya — SDM & Payroll".

@@ -105,7 +105,7 @@ redirect(url.toString());
 
 Endpoint: discovery `${ERP_ISSUER}/.well-known/openid-configuration`, token `/oauth/token`, userinfo
 `/oauth/userinfo`, JWKS `/oauth/jwks`, revoke `/oauth/revoke`, otorisasi & logout di web ERP (`/oauth/authorize`,
-`/oauth/logout`). Hanya `response_type=code` dengan PKCE `S256`. Access token login berlaku 15 menit dan **hanya**
+`/oauth/logout`). Hanya `response_type=code` dengan PKCE `S256`. Access token login berlaku 15 menit (bawaan, `ACCESS_TOKEN_TTL`; `id_token` 1 jam) dan **hanya**
 untuk profil (`/oauth/userinfo`, `/auth/me`, `GET /me/*`); untuk API gunakan akun layanan.
 
 > Pengembangan lokal memakai `http://localhost`. Di produksi issuer, web ERP, dan redirect URI wajib `https://`.

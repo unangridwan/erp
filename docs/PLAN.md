@@ -130,10 +130,23 @@ laporan kartu stok.
 Karyawan (data pribadi, NIK, NPWP, PTKP, BPJS), struktur organisasi & jabatan, kontrak (PKWT/PKWTT),
 absensi (clock-in web/mobile, geolokasi), shift, cuti & izin (saldo, approval), lembur.
 
+_Cakupan aktual (Okt 2026):_ form karyawan ala Odoo + profil lengkap, dokumen & pengingat kedaluwarsa, mutasi, SP,
+riwayat karier, struktur organisasi; absensi (geofence, kiosk badge/PIN, mesin via API, foto, koreksi, tukar shift,
+validasi & kunci, auto-checkout, rekap bulanan); cuti (akrual, carry-over + kedaluwarsa, setengah hari, cuti bersama,
+cuti pengganti, blok tanggal, ledger); lembur; rekrutmen (FPK, lowongan, pelamar, interview, penawaran, alasan tolak,
+laporan); on/offboarding, exit interview, Full & Final; kinerja (template KPI, siklus, sasaran/KRA, 360, catatan);
+pelatihan; pengumuman, Siapa yang Cuti, notifikasi; mesin persetujuan + aturan & batas wewenang; portal karyawan;
+Man Power Planning, anggaran tenaga kerja, analitik SDM, pembuat laporan. Status per butir PRD: lihat bagian "Status
+implementasi" di masing-masing `docs/PRD Modul SDM*.md`.
+
 ### 3.7 Payroll
 Komponen gaji (tunjangan tetap/tidak tetap, potongan), struktur gaji, payroll run bulanan,
 slip gaji PDF, **PPh 21 metode TER (PP 58/2023)** + perhitungan tahunan Desember, **BPJS Kesehatan &
 Ketenagakerjaan (JHT, JKK, JKM, JP)** dengan batas upah, THR, export file transfer bank, jurnal otomatis.
+
+_Cakupan aktual (Okt 2026):_ juga gross-up, rapel, payroll koreksi, penahanan gaji, peringatan payroll, skala upah,
+format file bank, slip berpassword via email & portal, pinjaman karyawan, pesangon PP 35/2021, BPJS harian/borongan,
+tunjangan per kehadiran, benefit (asuransi kesehatan natura, DPLK), siklus kenaikan gaji, total rewards, 1721-A1/e-Bupot.
 
 ### 3.8 Lokalisasi Indonesia (`l10n-id`)
 - PPN 11%/12% (DPP nilai lain 11/12 sesuai aturan 2025), PPnBM, PPh 23/4(2) potong-pungut.
@@ -210,6 +223,10 @@ POS (offline-capable), Manufacturing/MRP (BoM, work order), Project & Timesheet,
 Marketing/email, Fleet, Maintenance, Document management, Approval engine generik, Studio (custom field/form),
 mobile app (React Native/Expo), integrasi marketplace (Tokopedia/Shopee), payment gateway (Midtrans/Xendit),
 BI dashboard, public REST API + webhook untuk partner.
+
+_Sudah dibuat dari daftar ini:_ Fleet (Armada), approval engine generik, public REST API (akun layanan
+`client_credentials`) + webhook + login OIDC untuk aplikasi partner, Project & Timesheet (disinkron dari aplikasi
+proyek terhubung). Sisanya belum.
 
 ---
 
@@ -437,6 +454,29 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   laporan rencana vs aktual (slip terposting, lowongan), turnover & retensi, demografi, kesetaraan gaji & compa-ratio
 - [x] Man Power Planning (M) — rencana posisi per departemen/tahun, persetujuan MPP, mengisi anggaran tenaga kerja &
   anggaran akuntansi "Anggaran SDM" (baca saja di Akuntansi), lowongan dari posisi & realisasi, portal kepala departemen
+- [x] Nomor dokumen per tahun — penghitung per urutan × tahun (migrasi 0046) sehingga dokumen bertanggal bolak-balik
+  antar tahun (tanggal masuk karyawan, jurnal/kontrak mundur) tidak lagi mendapat nomor ganda; diisi dari nomor yang ada
+- [x] Perbaikan UI menyeluruh — audit otomatis 210 halaman × 4 lebar layar × tema terang/gelap: kontras warna WCAG AA,
+  navbar beralih ke ☰ saat menu tidak muat, form tidak terpotong di ponsel, tabel bisa digulir, halaman 404 bertema
+
+## Rekomendasi berikutnya — SDM & Payroll
+
+Dari audit ketiga PRD SDM (Okt 2026), diurutkan menurut dampak bisnis:
+
+1. **Hari cuti mengikuti jadwal kerja** (bukan Sen–Jum) + **hari libur per perusahaan** + impor libur nasional & cuti
+   bersama — saldo cuti dan potongan unpaid saat ini salah untuk 6 hari kerja/shift.
+2. **Lembur otomatis dari absensi vs jadwal** + master jenis/aturan lembur dengan tarif yang bisa diatur.
+3. **Kasbon / uang muka karyawan**: pencairan, penyelesaian dengan klaim, sisa dipotong gaji; bukti wajib per kategori.
+4. **Notifikasi email (dan push)** untuk pengajuan & keputusan persetujuan.
+5. **Persetujuan berjenjang** untuk payroll run, mutasi/promosi, penawaran kerja, offboarding/F&F.
+6. **Parameter payroll berlaku per tanggal** (batas BPJS, JKK, tarif) agar perhitungan periode lama tetap.
+7. **Keamanan slip gaji**: password/PIN slip ditentukan karyawan + OTP sebelum melihat slip.
+8. **UU PDP**: persetujuan pelamar, retensi & anonimisasi, log akses data pribadi.
+9. **Kontrak & surat**: masa percobaan, jenis karyawan, template kontrak & surat pengangkatan/SK, mutasi antar
+   perusahaan grup, riwayat perubahan NPP.
+10. **Shift massal & rotasi**, kalender perusahaan, pengingat ulang tahun & masa kerja.
+11. **Pinjaman berbunga & jadwal**, aset yang dipegang karyawan (terhubung aset akuntansi & offboarding).
+12. **Kompetensi/skill matrix**, laporan SDM konsolidasi grup, PWA portal karyawan.
 
 ## 5. Roadmap Bertahap
 
