@@ -8,3 +8,4 @@ dist/
 !.env.example
 coverage/
 next-env.d.ts
+file/
