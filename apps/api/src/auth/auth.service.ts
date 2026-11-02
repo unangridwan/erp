@@ -6,6 +6,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
+import { assignEmployeeTasks } from "../hr/checklist.service.js";
 import { and, eq, gt, isNull, schema, sql, type Db } from "@erp/db";
 import {
   ALL_PERMISSIONS,
@@ -296,11 +297,13 @@ export class AuthService {
         .set({ acceptedAt: sql`now()` })
         .where(eq(schema.invitations.id, invitation.id));
       // Undangan dari data karyawan: tautkan akun baru ke karyawan (bila belum punya akun).
-      if (invitation.employeeId)
+      if (invitation.employeeId) {
         await tx
           .update(schema.employees)
           .set({ userId: user.id, updatedAt: sql`now()` })
           .where(and(eq(schema.employees.id, invitation.employeeId), isNull(schema.employees.userId)));
+        await assignEmployeeTasks(tx, invitation.employeeId, user.id);
+      }
       return this.issueSession(tx, { sub: user.id, tid: parsed.tenantId }, meta);
     });
   }

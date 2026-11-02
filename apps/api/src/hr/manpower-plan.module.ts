@@ -243,7 +243,6 @@ class ManpowerPlanController implements OnModuleInit {
         .where(eq(P.id, id));
       if (input.lines) {
         const old = await tx.select().from(L).where(eq(L.planId, id));
-        await tx.delete(L).where(eq(L.planId, id));
         await this.writeLines(tx, id, input.lines, old);
       }
       return this.detail(tx, id);
@@ -325,6 +324,17 @@ class ManpowerPlanController implements OnModuleInit {
         .update(P)
         .set({ state: "cancel", updatedAt: sql`now()` })
         .where(eq(P.id, id));
+      // FPK draft dari MPP ini ikut batal (yang sudah diajukan/disetujui tetap, diputuskan terpisah).
+      const H = schema.hiringRequests;
+      await tx
+        .update(H)
+        .set({ state: "cancel", updatedAt: sql`now()` })
+        .where(
+          and(
+            eq(H.state, "draft"),
+            inArray(H.manpowerPlanLineId, tx.select({ id: L.id }).from(L).where(eq(L.planId, id))),
+          ),
+        );
       if (plan.state === "approved") {
         await tx.delete(MB).where(eq(MB.sourcePlanId, id));
         await this.rebuildAccounting(tx, plan.companyId, plan.year);
@@ -352,42 +362,12 @@ class ManpowerPlanController implements OnModuleInit {
     });
   }
 
-  /** Jadikan posisi tambahan/pengganti sebuah lowongan (sekali per baris; MPP harus disetujui). */
+  /** Lowongan kini dibuka lewat FPK yang disetujui (`POST /manpower-plan-lines/:id/hiring-request`). */
   @Post("manpower-plan-lines/:id/job-opening")
-  openJob(@Param("id", ParseUUIDPipe) id: string) {
-    return this.tenantDb.run(async (tx) => {
-      if (!can("hr.manage")) throw new ForbiddenException("Butuh permission hr.manage");
-      const [line] = await tx.select().from(L).where(eq(L.id, id));
-      if (!line) throw new NotFoundException("Baris MPP tidak ditemukan");
-      const plan = await this.find(tx, line.planId);
-      if (plan.state !== "approved") throw new BadRequestException("MPP belum disetujui");
-      if (line.kind === "existing") throw new BadRequestException("Posisi terisi tidak perlu lowongan");
-      if (line.jobOpeningId) throw new BadRequestException("Lowongan untuk posisi ini sudah dibuat");
-      const [job] = await tx.select({ name: J.name }).from(J).where(eq(J.id, line.jobId));
-      const [dept] = await tx.select({ name: D.name }).from(D).where(eq(D.id, plan.departmentId));
-      const [grade] = line.gradeId
-        ? await tx.select({ min: G.minWage, max: G.maxWage }).from(G).where(eq(G.id, line.gradeId))
-        : [];
-      const wage = Number(line.monthlyWage) ? line.monthlyWage : null;
-      const [opening] = await tx
-        .insert(OP)
-        .values({
-          companyId: plan.companyId,
-          name: `${job?.name ?? "Posisi"} – ${dept?.name ?? ""}${line.kind === "replacement" ? " (pengganti)" : ""}`,
-          jobId: line.jobId,
-          departmentId: plan.departmentId,
-          description: line.reason ?? `Dari ${plan.name}`,
-          quota: line.quantity,
-          targetDate: `${plan.year}-${String(line.startMonth).padStart(2, "0")}-01`,
-          wageMin: grade && Number(grade.max) ? grade.min : wage,
-          wageMax: grade && Number(grade.max) ? grade.max : wage,
-          manpowerPlanLineId: line.id,
-        })
-        .returning();
-      await tx.update(L).set({ jobOpeningId: opening!.id }).where(eq(L.id, id));
-      await this.log(tx, plan.id, `Lowongan "${opening!.name}" dibuat dari MPP`);
-      return opening!;
-    });
+  openJob() {
+    throw new BadRequestException(
+      "Lowongan dari MPP dibuka lewat Usulan Penambahan Karyawan (FPK): ajukan FPK dari baris ini, lalu buka lowongan setelah disetujui",
+    );
   }
 
   @Get("manpower-plans/:id/export")
@@ -687,25 +667,27 @@ class ManpowerPlanController implements OnModuleInit {
     };
   }
 
-  /** Pelamar per lowongan baris (diterima = tahap hired). */
+  /** Pelamar per baris dari semua lowongan baris itu (lewat FPK); diterima = tahap hired. */
   private async openingStats(tx: Db, lines: { id: string; jobOpeningId: string | null }[]) {
-    const ids = lines.flatMap((l) => (l.jobOpeningId ? [l.jobOpeningId] : []));
     const out = new Map<string, { hired: number; applicants: number }>();
-    if (!ids.length) return out;
+    if (!lines.length) return out;
     const A = schema.applicants;
     const rows = await tx
       .select({
-        openingId: A.openingId,
-        applicants: sql<number>`count(*)::int`,
-        hired: sql<number>`count(*) filter (where ${A.stage} = 'hired')::int`,
+        lineId: OP.manpowerPlanLineId,
+        applicants: sql<number>`count(${A.id})::int`,
+        hired: sql<number>`count(${A.id}) filter (where ${A.stage} = 'hired')::int`,
       })
-      .from(A)
-      .where(inArray(A.openingId, ids))
-      .groupBy(A.openingId);
-    for (const l of lines) {
-      const r = rows.find((x) => x.openingId === l.jobOpeningId);
-      if (r) out.set(l.id, { hired: r.hired, applicants: r.applicants });
-    }
+      .from(OP)
+      .leftJoin(A, eq(A.openingId, OP.id))
+      .where(
+        inArray(
+          OP.manpowerPlanLineId,
+          lines.map((l) => l.id),
+        ),
+      )
+      .groupBy(OP.manpowerPlanLineId);
+    for (const r of rows) if (r.lineId) out.set(r.lineId, { hired: r.hired, applicants: r.applicants });
     return out;
   }
 
@@ -791,29 +773,72 @@ class ManpowerPlanController implements OnModuleInit {
         throw new BadRequestException("Karyawan yang diganti tidak ditemukan");
     }
     const showCost = trusted || can("payroll.read");
-    await tx.insert(L).values(
-      lines.map((l, i) => {
-        const gradeId = l.gradeId ?? jobs.find((j) => j.id === l.jobId)?.gradeId ?? null;
-        const prev = old.find((o) => o.jobId === l.jobId && o.kind === l.kind);
-        const grade = grades.find((g) => g.id === gradeId);
-        const mid = grade ? new Decimal(grade.minWage).plus(grade.maxWage).div(2).toFixed(2) : "0.00";
-        return {
-          planId,
-          sequence: i,
-          jobId: l.jobId,
-          gradeId,
-          kind: l.kind,
-          quantity: l.quantity,
-          startMonth: l.startMonth,
-          endMonth: l.endMonth ?? null,
-          monthlyWage: showCost ? l.monthlyWage : (prev?.monthlyWage ?? mid),
-          monthlyAllowance: showCost ? l.monthlyAllowance : (prev?.monthlyAllowance ?? "0.00"),
-          reason: l.reason ?? null,
-          replacesEmployeeId: l.replacesEmployeeId ?? null,
-          jobOpeningId: prev?.jobOpeningId ?? null,
-        };
-      }),
-    );
+    // Baris lama dipertahankan (id tetap) bila jabatan & jenisnya sama, agar FPK & lowongan tetap terhubung.
+    const unused = [...old];
+    const values = lines.map((l, i) => {
+      const gradeId = l.gradeId ?? jobs.find((j) => j.id === l.jobId)?.gradeId ?? null;
+      const k = unused.findIndex((o) => o.jobId === l.jobId && o.kind === l.kind);
+      const prev = k >= 0 ? unused.splice(k, 1)[0] : undefined;
+      const grade = grades.find((g) => g.id === gradeId);
+      const mid = grade ? new Decimal(grade.minWage).plus(grade.maxWage).div(2).toFixed(2) : "0.00";
+      return {
+        planId,
+        sequence: i,
+        jobId: l.jobId,
+        gradeId,
+        kind: l.kind,
+        quantity: l.quantity,
+        startMonth: l.startMonth,
+        endMonth: l.endMonth ?? null,
+        monthlyWage: showCost ? l.monthlyWage : (prev?.monthlyWage ?? mid),
+        monthlyAllowance: showCost ? l.monthlyAllowance : (prev?.monthlyAllowance ?? "0.00"),
+        reason: l.reason ?? null,
+        replacesEmployeeId: l.replacesEmployeeId ?? null,
+        jobOpeningId: prev?.jobOpeningId ?? null,
+        prevId: prev?.id,
+      };
+    });
+    // Baris yang dihapus/dikurangi tidak boleh di bawah jumlah yang sudah diajukan lewat FPK.
+    const H = schema.hiringRequests;
+    const ids = old.map((o) => o.id);
+    const requested = ids.length
+      ? await tx
+          .select({ lineId: H.manpowerPlanLineId, n: sql<number>`sum(${H.quantity})::int` })
+          .from(H)
+          .where(
+            and(inArray(H.manpowerPlanLineId, ids), inArray(H.state, ["draft", "in_approval", "approved"])),
+          )
+          .groupBy(H.manpowerPlanLineId)
+      : [];
+    const usedBy = (lineId: string) => requested.find((r) => r.lineId === lineId)?.n ?? 0;
+    for (const o of unused)
+      if (usedBy(o.id) > 0)
+        throw new BadRequestException(
+          "Posisi yang sudah diajukan lewat FPK tidak bisa dihapus dari MPP; batalkan FPK-nya dulu",
+        );
+    values.forEach((v, i) => {
+      if (v.prevId && v.quantity < usedBy(v.prevId))
+        throw new BadRequestException({
+          message: "Validasi gagal",
+          errors: [
+            {
+              path: `lines.${i}.quantity`,
+              message: `Sudah diajukan lewat FPK ${usedBy(v.prevId)} orang; jumlah tidak boleh kurang dari itu`,
+            },
+          ],
+        });
+    });
+    if (unused.length)
+      await tx.delete(L).where(
+        inArray(
+          L.id,
+          unused.map((o) => o.id),
+        ),
+      );
+    for (const { prevId, ...v } of values) {
+      if (prevId) await tx.update(L).set(v).where(eq(L.id, prevId));
+      else await tx.insert(L).values(v);
+    }
   }
 
   private async find(tx: Db, id: string) {

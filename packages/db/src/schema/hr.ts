@@ -135,6 +135,9 @@ export const employees = pgTable("employees", {
   /** Tag bebas (mis. "Remote", "Gedung B"). */
   tags: text("tags").array().notNull().default([]),
   active: boolean("active").notNull().default(true),
+  /** Calon karyawan dari rekrutmen: belum aktif sampai kontraknya dimulai. */
+  pendingStart: boolean("pending_start").notNull().default(false),
+  applicantId: uuid("applicant_id"),
   ...audit,
 });
 
@@ -773,6 +776,41 @@ export const jobOpenings = pgTable("job_openings", {
   wageMax: numeric("wage_max", { precision: 20, scale: 2 }),
   /** Baris Man Power Planning asal lowongan. */
   manpowerPlanLineId: uuid("manpower_plan_line_id"),
+  /** Usulan penambahan karyawan (FPK) asal lowongan. */
+  hiringRequestId: uuid("hiring_request_id"),
+  ...audit,
+});
+
+/** Usulan penambahan karyawan (FPK): dari baris MPP atau di luar rencana, disetujui sebelum lowongan dibuka. */
+export const hiringRequests = pgTable("hiring_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  number: text("number"),
+  departmentId: uuid("department_id").notNull(),
+  jobId: uuid("job_id").notNull(),
+  gradeId: uuid("grade_id"),
+  kind: text("kind", { enum: ["new", "replacement"] })
+    .notNull()
+    .default("new"),
+  quantity: smallint("quantity").notNull(),
+  contractType: text("contract_type", { enum: ["pkwt", "pkwtt"] })
+    .notNull()
+    .default("pkwt"),
+  wageMin: numeric("wage_min", { precision: 20, scale: 2 }),
+  wageMax: numeric("wage_max", { precision: 20, scale: 2 }),
+  targetDate: date("target_date"),
+  reason: text("reason").notNull(),
+  replacesEmployeeId: uuid("replaces_employee_id"),
+  manpowerPlanLineId: uuid("manpower_plan_line_id"),
+  unplanned: boolean("unplanned").notNull().default(false),
+  state: text("state", { enum: ["draft", "in_approval", "approved", "refused", "cancel"] })
+    .notNull()
+    .default("draft"),
+  approvalRequestId: uuid("approval_request_id"),
+  requestedBy: uuid("requested_by"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
   ...audit,
 });
 

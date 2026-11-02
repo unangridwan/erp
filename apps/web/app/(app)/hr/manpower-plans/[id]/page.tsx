@@ -200,16 +200,18 @@ export default function ManpowerPlanPage() {
       setError(errorText(e));
     }
   };
-  const openJob = async (lineId: string) => {
+  // Posisi tambahan/pengganti diajukan lewat FPK (sisa kuota baris); lowongan dibuka setelah FPK disetujui.
+  const requestHiring = async (lineId: string) => {
     setBusy(true);
     setError(null);
     try {
-      const o = await api<{ name: string }>(`/manpower-plan-lines/${lineId}/job-opening`, { method: "POST" });
-      setNotice(l(`Lowongan "${o.name}" dibuat.`, `Job opening "${o.name}" created.`));
-      show(await api<Detail>(`/manpower-plans/${id}`));
+      const fpk = await api<{ id: string }>(`/manpower-plan-lines/${lineId}/hiring-request`, {
+        method: "POST",
+        body: {},
+      });
+      router.push(`/hr/hiring-requests/${fpk.id}`);
     } catch (e) {
       setError(errorText(e));
-    } finally {
       setBusy(false);
     }
   };
@@ -568,17 +570,24 @@ export default function ManpowerPlanPage() {
                           </>
                         )}
                       </td>
-                      <td>
-                        {x.jobOpeningId ? (
-                          <Link href={`/job-openings/${x.jobOpeningId}`}>{l("Lowongan", "Opening")}</Link>
-                        ) : (
-                          x.realization &&
-                          d.state === "approved" &&
-                          d.canManage && (
-                            <button type="button" disabled={busy} onClick={() => openJob(x.id)}>
-                              {l("Buat lowongan", "Create opening")}
-                            </button>
-                          )
+                      <td className="actions">
+                        {x.realization && d.state === "approved" && (
+                          <>
+                            <Link href={`/hr/hiring-requests?lineId=${x.id}`}>FPK</Link>
+                            {x.jobOpeningId && (
+                              <>
+                                {" · "}
+                                <Link href={`/hr/recruitment?openingId=${x.jobOpeningId}`}>
+                                  {l("Rekrutmen", "Recruitment")}
+                                </Link>
+                              </>
+                            )}
+                            {d.canEdit && x.realization !== "fulfilled" && (
+                              <button type="button" disabled={busy} onClick={() => requestHiring(x.id)}>
+                                {l("Ajukan FPK", "Request hire")}
+                              </button>
+                            )}
+                          </>
                         )}
                       </td>
                     </tr>

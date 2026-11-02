@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Post,
 } from "@nestjs/common";
+import { assignEmployeeTasks } from "../hr/checklist.service.js";
 import { and, asc, desc, eq, isNull, schema, sql, type Db } from "@erp/db";
 import { employeeInviteSchema, inviteSchema, userCreateSchema } from "@erp/shared";
 import { ActivityService } from "../activity/activity.service.js";
@@ -179,6 +180,7 @@ export class UsersController {
           .update(E)
           .set({ userId: existing.id, updatedAt: sql`now()` })
           .where(eq(E.id, id));
+        await assignEmployeeTasks(tx, id, existing.id);
         return { status: "linked" as const, email };
       }
       await assertUserLimit(tx);

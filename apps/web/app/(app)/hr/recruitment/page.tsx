@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { errorText } from "../../../../components/hr/hr-panels";
 import { api } from "../../../../lib/api";
 import { formatDate, money } from "../../../../lib/format";
@@ -15,6 +16,9 @@ interface Opening {
   name: string;
   quota: number;
   state: string;
+  hiringRequestId: string | null;
+  approvalRequestId: string | null;
+  manpowerPlanLineId: string | null;
 }
 interface Applicant {
   id: string;
@@ -27,11 +31,21 @@ interface Applicant {
   nextInterview: string | null;
 }
 
-/** Rekrutmen: kanban pelamar per tahap untuk lowongan terpilih. */
+/** Rekrutmen: kanban pelamar per tahap untuk lowongan terpilih (`?openingId=` dari FPK/MPP). */
 export default function RecruitmentPage() {
+  return (
+    <Suspense>
+      <Recruitment />
+    </Suspense>
+  );
+}
+
+function Recruitment() {
   const { l, tx, locale } = useI18n();
+  const router = useRouter();
+  const search = useSearchParams();
   const [openings, setOpenings] = useState<Opening[]>([]);
-  const [openingId, setOpeningId] = useState("");
+  const [openingId, setOpeningId] = useState(search.get("openingId") ?? "");
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [form, setForm] = useState({ name: "", email: "", phone: "", source: "jobportal" });
   const [version, setVersion] = useState(0);
@@ -75,9 +89,17 @@ export default function RecruitmentPage() {
     );
   };
   const move = (id: string, stage: string) => {
-    const refuseReason = stage === "refused" ? prompt(l("Alasan penolakan", "Refusal reason")) : null;
-    if (stage === "refused" && !refuseReason) return;
-    api(`/applicants/${id}/stage`, { method: "POST", body: { stage, refuseReason } }).then(
+    // Penolakan wajib memilih alasan dari master: lanjutkan di halaman pelamar.
+    if (stage === "refused") {
+      router.push(`/hr/recruitment/${id}?refuse=1`);
+      return;
+    }
+    // Diterima hanya lewat "Proses kontrak" setelah penawaran diterima.
+    if (stage === "hired") {
+      router.push(`/hr/recruitment/${id}`);
+      return;
+    }
+    api(`/applicants/${id}/stage`, { method: "POST", body: { stage } }).then(
       () => setVersion((v) => v + 1),
       (err) => setError(errorText(err)),
     );
@@ -99,6 +121,20 @@ export default function RecruitmentPage() {
             </option>
           ))}
         </select>
+        {opening &&
+          (opening.hiringRequestId ? (
+            <Link href={`/hr/hiring-requests/${opening.hiringRequestId}`} className="pill ok">
+              {l("Dari FPK", "From hiring request")}
+            </Link>
+          ) : opening.approvalRequestId ? (
+            <Link href={`/hr/approval-requests/${opening.approvalRequestId}`} className="pill ok">
+              {l("Dari FPK", "From hiring request")}
+            </Link>
+          ) : opening.manpowerPlanLineId ? (
+            <span className="pill">{l("Dari MPP", "From manpower plan")}</span>
+          ) : (
+            <span className="pill warn">{l("Tanpa FPK", "No hiring request")}</span>
+          ))}
         <Link href="/job-openings">{l("Kelola lowongan", "Manage openings")}</Link>
       </header>
       {error && <p className="error">{error}</p>}

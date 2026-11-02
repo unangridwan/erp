@@ -15,9 +15,16 @@ interface Reason {
 }
 
 /** Tolak pelamar dengan alasan dari master alasan penolakan + catatan opsional. */
-export function RefuseForm({ onRefuse }: { onRefuse: (body: object) => Promise<void> }) {
+export function RefuseForm({
+  onRefuse,
+  open: initiallyOpen = false,
+}: {
+  onRefuse: (body: object) => Promise<void>;
+  /** Langsung terbuka (mis. dari kanban saat kartu ditarik ke kolom Ditolak). */
+  open?: boolean;
+}) {
   const { l } = useI18n();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   const [reasons, setReasons] = useState<Reason[]>([]);
   const [reasonId, setReasonId] = useState("");
   const [note, setNote] = useState("");

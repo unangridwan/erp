@@ -278,6 +278,7 @@ export const APPS: App[] = [
       ]),
       group("Perencanaan", "Planning", [
         link("Man Power Planning", "Manpower Planning", "/hr/manpower-plans", "hr.read"),
+        link("Usulan Penambahan (FPK)", "Hiring Requests", "/hr/hiring-requests", "hr.read"),
         link("Anggaran Tenaga Kerja", "Manpower Budget", "/hr/manpower-budget", "hr.read"),
       ]),
       group("Laporan", "Reporting", [

@@ -29,6 +29,29 @@ type Kind = "onboarding" | "offboarding";
  * Checklist onboarding/offboarding: tugas dengan penanggung jawab (HR, atasan, karyawan, IT) dan tenggat relatif
  * terhadap tanggal masuk/keluar, dari template perusahaan (atau bawaan).
  */
+/** Tugas checklist bagian karyawan yang belum punya pemilik diberikan ke akun karyawan yang baru ditautkan. */
+export async function assignEmployeeTasks(tx: Db, employeeId: string, userId: string) {
+  const T = schema.hrChecklistTasks;
+  const CL = schema.hrChecklists;
+  await tx
+    .update(T)
+    .set({ responsibleUserId: userId })
+    .where(
+      and(
+        eq(T.responsible, "employee"),
+        isNull(T.responsibleUserId),
+        isNull(T.doneAt),
+        inArray(
+          T.checklistId,
+          tx
+            .select({ id: CL.id })
+            .from(CL)
+            .where(and(eq(CL.employeeId, employeeId), eq(CL.state, "open"))),
+        ),
+      ),
+    );
+}
+
 @Injectable()
 export class ChecklistService {
   constructor(@Inject(ActivityService) private readonly activity: ActivityService) {}

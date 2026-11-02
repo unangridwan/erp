@@ -47,6 +47,7 @@ import { SequenceService } from "../sequences/sequence.service.js";
 import { ChecklistService } from "./checklist.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { HistoryService } from "./history.service.js";
+import { openingFromHiring } from "./hiring-request.module.js";
 import { HrModule } from "./hr.module.js";
 import { renderOfferPdf, renderSettlementPdf } from "./letters-pdf.js";
 
@@ -477,7 +478,18 @@ class RecruitmentPipelineController {
         .leftJoin(schema.employees, eq(schema.employees.id, schema.approvalRequests.employeeId))
         .where(and(eq(schema.approvalRequests.id, id), eq(schema.approvalRequests.companyId, companyId)));
       if (!req) throw new NotFoundException("Permintaan tidak ditemukan");
-      if (req.code !== "FPK") throw new BadRequestException("Hanya Formulir Permintaan Karyawan (FPK)");
+      if (req.code !== "FPK" && req.code !== "FPK_NP")
+        throw new BadRequestException("Hanya Formulir Permintaan Karyawan (FPK)");
+      // FPK dari menu Usulan Penambahan: lowongan memakai data posisinya (jabatan, gaji, baris MPP).
+      const [hiring] = await tx
+        .select()
+        .from(schema.hiringRequests)
+        .where(eq(schema.hiringRequests.approvalRequestId, id));
+      if (hiring)
+        return openingFromHiring(tx, {
+          ...hiring,
+          state: req.request.state === "approved" ? "approved" : hiring.state,
+        });
       if (req.request.state !== "approved") throw new BadRequestException("FPK belum disetujui");
       const [existing] = await tx.select({ id: OP.id }).from(OP).where(eq(OP.approvalRequestId, id));
       if (existing) throw new BadRequestException("Lowongan untuk FPK ini sudah dibuat");

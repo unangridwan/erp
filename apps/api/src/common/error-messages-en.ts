@@ -332,6 +332,38 @@ export const MESSAGES_EN: Record<string, string> = {
   "Belum absen masuk": "Not checked in yet",
   "Jam pulang sebelum jam masuk": "Check-out time is before check-in time",
   "Tanggal selesai sebelum mulai": "The end date is before the start date",
+  "Seluruh kuota posisi ini sudah diajukan lewat FPK":
+    "The whole quota of this position has already been requested",
+  "Hanya FPK draft yang bisa diubah": "Only draft hiring requests can be edited",
+  "Hanya FPK draft yang bisa dihapus": "Only draft hiring requests can be deleted",
+  "FPK sudah diajukan": "The hiring request has already been submitted",
+  "FPK sudah selesai": "The hiring request is already closed",
+  "Lowongan dari FPK ini sudah dibuka; tutup lowongan di menu Rekrutmen":
+    "A job opening from this hiring request is already open; close it in Recruitment",
+  "Posisi terisi tidak perlu FPK": "Existing positions do not need a hiring request",
+  "FPK tidak ditemukan": "Hiring request not found",
+  "Hanya HR (hr.manage) atau kepala departemen yang bisa mengajukan FPK":
+    "Only HR (hr.manage) or the department head can submit hiring requests",
+  "Baris MPP berbeda departemen/jabatan": "The manpower plan line has a different department/job",
+  "Melebihi sisa kuota MPP ({} orang); ajukan FPK di luar MPP untuk kelebihannya":
+    "Exceeds the remaining manpower plan quota ({0}); submit an unplanned hiring request for the rest",
+  "Lowongan dari MPP dibuka lewat Usulan Penambahan Karyawan (FPK): ajukan FPK dari baris ini, lalu buka lowongan setelah disetujui":
+    "Openings from the manpower plan go through a hiring request: submit one from this line, then open the job once approved",
+  "Posisi yang sudah diajukan lewat FPK tidak bisa dihapus dari MPP; batalkan FPK-nya dulu":
+    "Positions with hiring requests cannot be removed from the plan; cancel the requests first",
+  "Sudah diajukan lewat FPK {} orang; jumlah tidak boleh kurang dari itu":
+    "{0} already requested through hiring requests; the quantity cannot be lower",
+  "Pelamar belum menerima penawaran kerja; buat & kirim penawaran dulu":
+    "The applicant has not accepted a job offer; create and send an offer first",
+  "Kuota lowongan ({} orang) sudah terpenuhi; ajukan FPK baru untuk tambahan":
+    "The opening's quota ({0}) is already filled; submit a new hiring request for more",
+  "Pelamar belum diproses kontraknya": "The applicant has not been hired yet",
+  "Karyawan sudah aktif (kontrak sudah dimulai); gunakan proses offboarding":
+    "The employee is already active (contract started); use offboarding instead",
+  "Gaji maksimal di bawah gaji minimal": "Maximum wage is below the minimum wage",
+  "Pilih karyawan yang digantikan": "Choose the employee being replaced",
+  "Minimal 1 orang": "At least 1 person",
+  "Isi alasan kebutuhan": "Fill in the reason",
   "Maksimal 2 desimal": "At most 2 decimal places",
   "Jam lembur maksimal {} jam sesuai pengajuan/hasil absensi":
     "Overtime can be at most {0} hours, as requested/computed from attendance",
