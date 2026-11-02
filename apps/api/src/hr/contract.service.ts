@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { and, desc, eq, schema, sql, type Db } from "@erp/db";
+import { and, desc, eq, ilike, isNull, schema, sql, type Db } from "@erp/db";
 import { addDays, type contractSchema } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
@@ -7,6 +7,7 @@ import { fieldError } from "../accounting/context.js";
 import { ActivityService } from "../activity/activity.service.js";
 import { currentContext } from "../common/request-context.js";
 import { SequenceService } from "../sequences/sequence.service.js";
+import { ChecklistService } from "./checklist.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { HistoryService } from "./history.service.js";
 
@@ -20,6 +21,7 @@ export class ContractService {
     @Inject(SequenceService) private readonly sequences: SequenceService,
     @Inject(ActivityService) private readonly activity: ActivityService,
     @Inject(HistoryService) private readonly history: HistoryService,
+    @Inject(ChecklistService) private readonly checklists: ChecklistService,
   ) {}
 
   async find(tx: Db, id: string) {
@@ -89,7 +91,10 @@ export class ContractService {
     return row!.id;
   }
 
-  /** Mulai berlaku; hanya satu kontrak berjalan per karyawan. */
+  /**
+   * Mulai berlaku; hanya satu kontrak berjalan per karyawan. Calon karyawan dari rekrutmen menjadi karyawan aktif
+   * di sini, lalu onboarding dimulai (tugas "tanda tangan kontrak" langsung selesai).
+   */
   async start(tx: Db, id: string) {
     const contract = await this.find(tx, id);
     if (contract.state !== "draft") throw new BadRequestException("Hanya kontrak draft yang bisa dimulai");
@@ -117,6 +122,37 @@ export class ContractService {
         newValue: new Decimal(contract.wage).toFixed(0),
         note: contract.name,
       });
+    await this.activatePending(tx, contract);
+  }
+
+  /** Calon karyawan (dari rekrutmen) → aktif saat kontrak pertamanya dimulai, lalu onboarding. */
+  private async activatePending(tx: Db, contract: typeof C.$inferSelect) {
+    const E = schema.employees;
+    const [employee] = await tx.select().from(E).where(eq(E.id, contract.employeeId));
+    if (!employee?.pendingStart) return;
+    await tx
+      .update(E)
+      .set({ active: true, pendingStart: false, joinDate: contract.dateStart, updatedAt: sql`now()` })
+      .where(eq(E.id, employee.id));
+    await this.history.record(tx, employee, "join", {
+      date: contract.dateStart,
+      newValue: contract.dateStart,
+      note: contract.name,
+    });
+    const checklist = await this.checklists.start(tx, { employeeId: employee.id, kind: "onboarding" });
+    const T = schema.hrChecklistTasks;
+    await tx
+      .update(T)
+      .set({ doneAt: new Date(), doneBy: currentContext().userId })
+      .where(
+        and(eq(T.checklistId, checklist.id), isNull(T.doneAt), isNull(T.action), ilike(T.name, "%kontrak%")),
+      );
+    await this.activity.log(tx, {
+      resModel: "employee",
+      resId: employee.id,
+      action: "comment",
+      message: `Kontrak ${contract.name} dimulai: karyawan aktif, onboarding dimulai`,
+    });
   }
 
   /**

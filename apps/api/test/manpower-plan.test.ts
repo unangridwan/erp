@@ -238,17 +238,27 @@ describe.skipIf(!hasDb)("Man Power Planning", () => {
     const newLine = (detail.lines as Line[]).find((l) => l.kind === "new")!;
     const existing = (detail.lines as Line[]).find((l) => l.kind === "existing")!;
     expect(newLine.realization).toBe("not_started");
-    await a.post(`/manpower-plan-lines/${existing.id}/job-opening`).expect(400);
-    await budi.post(`/manpower-plan-lines/${newLine.id}/job-opening`).expect(403);
-    const opening = (await a.post(`/manpower-plan-lines/${newLine.id}/job-opening`).expect(201)).body;
+    // Lowongan tidak lagi langsung dari MPP: lewat FPK yang disetujui.
+    await a.post(`/manpower-plan-lines/${newLine.id}/job-opening`).expect(400);
+    await a.post(`/manpower-plan-lines/${existing.id}/hiring-request`, {}).expect(400);
+    const fpk = (await a.post(`/manpower-plan-lines/${newLine.id}/hiring-request`, {}).expect(201)).body;
+    expect(fpk).toMatchObject({ quantity: 2, unplanned: false, manpowerPlanLineId: newLine.id });
+    await a.post(`/manpower-plan-lines/${newLine.id}/hiring-request`, {}).expect(400); // kuota habis
+    await a.post(`/hiring-requests/${fpk.id}/job-opening`).expect(400); // belum disetujui
+    const db0 = app.get(TenantDb);
+    await db0.runAs(tenantId, (tx) =>
+      tx.update(schema.hiringRequests).set({ state: "approved" }).where(eq(schema.hiringRequests.id, fpk.id)),
+    );
+    const opening = (await a.post(`/hiring-requests/${fpk.id}/job-opening`).expect(201)).body;
     expect(opening).toMatchObject({
       quota: 2,
       departmentId: itDept,
       jobId: programmer,
       targetDate: `${year}-07-01`,
       manpowerPlanLineId: newLine.id,
+      hiringRequestId: fpk.id,
     });
-    await a.post(`/manpower-plan-lines/${newLine.id}/job-opening`).expect(400);
+    await a.post(`/hiring-requests/${fpk.id}/job-opening`).expect(400);
     const applicant = (await a.post("/applicants", { openingId: opening.id, name: "Fajar" }).expect(201))
       .body;
     const db = app.get(TenantDb);

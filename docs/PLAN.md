@@ -454,6 +454,8 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   laporan rencana vs aktual (slip terposting, lowongan), turnover & retensi, demografi, kesetaraan gaji & compa-ratio
 - [x] Man Power Planning (M) — rencana posisi per departemen/tahun, persetujuan MPP, mengisi anggaran tenaga kerja &
   anggaran akuntansi "Anggaran SDM" (baca saja di Akuntansi), lowongan dari posisi & realisasi, portal kepala departemen
+- [x] Alur penambahan karyawan — MPP → FPK (dari baris MPP / di luar MPP) → persetujuan → lowongan → penawaran wajib
+      → calon karyawan + kontrak → aktif saat kontrak dimulai → onboarding (migrasi 0049)
 - [x] Lembur dari absensi — dihitung dari absen pulang vs jadwal, divalidasi & disetujui/ditolak atasan (migrasi 0048)
 - [x] Kalender kerja — hari cuti/payroll mengikuti jadwal kerja karyawan, libur per perusahaan & jenisnya, impor libur
       nasional (migrasi 0047)

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { useOptions } from "../../../../../components/accounting/use-options";
@@ -113,9 +114,11 @@ export default function ContractPage() {
       }
     });
   };
+  const [started, setStarted] = useState(false);
   const action = (path: string) =>
     run(async () => {
       await api(`/contracts/${id}/${path}`, { method: "POST", body: {} });
+      if (path === "start") setStarted(true);
       setVersion((v) => v + 1);
     });
   const err = (p: string) => fieldErrors[p] && <small className="error">{fieldErrors[p]}</small>;
@@ -153,6 +156,17 @@ export default function ContractPage() {
         )}
       </header>
       {error && <p className="error">{error}</p>}
+      {started && contract && (
+        <p className="success">
+          {l(
+            "Kontrak dimulai. Calon karyawan dari rekrutmen kini aktif (masuk payroll) dan onboarding dimulai.",
+            "Contract started. A pre-hire from recruitment is now active (included in payroll) and onboarding has started.",
+          )}{" "}
+          <Link href={`/employees/${contract.employeeId}`}>{l("Buka karyawan", "Open employee")}</Link>
+          {" · "}
+          <Link href="/hr/checklists">{l("Checklist onboarding", "Onboarding checklists")}</Link>
+        </p>
+      )}
       {contract?.grade?.position && contract.grade.position !== "within" && (
         <p className="error">
           {l(

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { DocumentsPanel, errorText } from "../../../../../components/hr/hr-panels";
 import { useMe } from "../../../../../components/me-context";
 import { OffersPanel, RefuseForm } from "../../../../../components/hr/recruitment-extras";
@@ -36,9 +36,26 @@ interface Applicant {
   }[];
 }
 
-/** Pelamar: tahap, wawancara (jadwal, hasil, skor), dokumen, dan terima menjadi karyawan. */
+interface Candidate {
+  employee: { id: string; name: string; employeeNumber: string; active: boolean; pendingStart: boolean };
+  contract: { id: string; name: string; state: string; dateStart: string } | null;
+}
+
+/**
+ * Pelamar: tahap, wawancara (jadwal, hasil, skor), dokumen, penawaran, lalu proses kontrak setelah penawaran
+ * diterima (calon karyawan aktif saat kontrak dimulai).
+ */
 export default function ApplicantPage() {
+  return (
+    <Suspense>
+      <Applicant />
+    </Suspense>
+  );
+}
+
+function Applicant() {
   const { id } = useParams<{ id: string }>();
+  const refuseFirst = useSearchParams().get("refuse") === "1";
   const { l, tx, locale } = useI18n();
   const me = useMe();
   const [a, setA] = useState<Applicant | null>(null);
@@ -55,12 +72,29 @@ export default function ApplicantPage() {
     dateEnd: "",
     ptkpStatus: "TK/0",
   });
-  const [hired, setHired] = useState<{ employeeId: string; contractId: string } | null>(null);
+  const [accepted, setAccepted] = useState(false);
+  const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const load = useCallback(
-    () => api<Applicant>(`/applicants/${id}`).then(setA, (e) => setError(errorText(e))),
-    [id],
-  );
+  const load = useCallback(async () => {
+    try {
+      const row = await api<Applicant>(`/applicants/${id}`);
+      setA(row);
+      const offers = await api<{ state: string }[]>(`/applicants/${id}/offers`).catch(() => []);
+      setAccepted(offers.some((o) => o.state === "accepted"));
+      if (row.employeeId) {
+        const employee = await api<Candidate["employee"]>(`/employees/${row.employeeId}`);
+        const contracts = await api<{ items: NonNullable<Candidate["contract"]>[] }>(
+          `/contracts?employeeId=${row.employeeId}`,
+        ).then(
+          (r) => r.items,
+          () => [],
+        );
+        setCandidate({ employee, contract: contracts.find((c) => c.state !== "cancel") ?? null });
+      } else setCandidate(null);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }, [id]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -103,7 +137,7 @@ export default function ApplicantPage() {
                   {tx(APPLICANT_STAGE_LABEL[s]!)}
                 </button>
               ))}
-          {!closed && <RefuseForm onRefuse={(body) => call("stage", body)} />}
+          {!closed && <RefuseForm open={refuseFirst} onRefuse={(body) => call("stage", body)} />}
           <Link href="/hr/recruitment">{l("Kembali ke kanban", "Back to kanban")}</Link>
         </header>
         {error && <p className="error">{error}</p>}
@@ -225,13 +259,21 @@ export default function ApplicantPage() {
 
       {can(me.permissions, "hr.manage") && <DocumentsPanel applicantId={a.id} />}
 
-      {!closed && can(me.permissions, "hr.manage") && (
+      {!closed && can(me.permissions, "hr.manage") && !accepted && (
+        <p className="muted">
+          {l(
+            "Proses kontrak tersedia setelah pelamar menerima penawaran kerja.",
+            "Contract processing is available once the applicant accepts a job offer.",
+          )}
+        </p>
+      )}
+      {!closed && can(me.permissions, "hr.manage") && accepted && (
         <section className="panel">
-          <h2>{l("Terima menjadi karyawan", "Hire as employee")}</h2>
+          <h2>{l("Proses kontrak", "Process contract")}</h2>
           <p className="muted">
             {l(
-              "Membuat data karyawan & kontrak draft, memindahkan dokumen pelamar, dan memulai checklist onboarding. Kosongkan gaji/tanggal untuk memakai nilai penawaran yang diterima.",
-              "Creates the employee & a draft contract, moves the applicant's documents and starts onboarding. Leave wage/date empty to use the accepted offer.",
+              "Membuat calon karyawan & kontrak draft dari penawaran yang diterima dan memindahkan dokumen pelamar. Calon menjadi karyawan aktif dan onboarding dimulai saat kontrak dimulai. Kosongkan isian untuk memakai nilai penawaran.",
+              "Creates a pre-hire employee & draft contract from the accepted offer and moves the applicant's documents. The person becomes an active employee and onboarding starts when the contract starts. Leave fields empty to use the offer.",
             )}
           </p>
           <div className="inline-panel">
@@ -289,35 +331,87 @@ export default function ApplicantPage() {
               onClick={async () => {
                 setError(null);
                 try {
-                  setHired(
-                    await api(`/applicants/${id}/hire`, {
-                      method: "POST",
-                      body: {
-                        ptkpStatus: hire.ptkpStatus,
-                        joinDate: hire.joinDate || undefined,
-                        wage: hire.wage || undefined,
-                        contractType: hire.wage ? hire.contractType : undefined,
-                        dateEnd: hire.dateEnd || null,
-                      },
-                    }),
-                  );
+                  await api(`/applicants/${id}/hire`, {
+                    method: "POST",
+                    body: {
+                      ptkpStatus: hire.ptkpStatus,
+                      joinDate: hire.joinDate || undefined,
+                      wage: hire.wage || undefined,
+                      contractType: hire.wage ? hire.contractType : undefined,
+                      dateEnd: hire.dateEnd || null,
+                    },
+                  });
                   void load();
                 } catch (e) {
                   setError(errorText(e));
                 }
               }}
             >
-              {l("Terima", "Hire")}
+              {l("Proses kontrak", "Process contract")}
             </button>
           </div>
         </section>
       )}
-      {hired && (
-        <p className="notice">
-          <Link href={`/hr/contracts/${hired.contractId}`}>
-            {l("Buka kontrak draft", "Open draft contract")}
-          </Link>
-        </p>
+      {candidate && (
+        <section className="panel">
+          <h2>{l("Karyawan", "Employee")}</h2>
+          {candidate.employee.pendingStart ? (
+            <p>
+              <span className="pill warn">{l("Calon karyawan", "Pre-hire")}</span>{" "}
+              {l(
+                "Belum aktif dan belum masuk payroll sampai kontrak dimulai.",
+                "Not active and not in payroll until the contract starts.",
+              )}
+            </p>
+          ) : (
+            <p>
+              <span className="pill ok">{l("Karyawan aktif", "Active employee")}</span>
+            </p>
+          )}
+          <div className="toolbar">
+            <Link href={`/employees/${candidate.employee.id}`}>
+              {candidate.employee.employeeNumber} · {candidate.employee.name}
+            </Link>
+            {candidate.contract && (
+              <Link href={`/hr/contracts/${candidate.contract.id}`}>
+                {candidate.employee.pendingStart
+                  ? l(`Mulai kontrak ${candidate.contract.name}`, `Start contract ${candidate.contract.name}`)
+                  : l(`Kontrak ${candidate.contract.name}`, `Contract ${candidate.contract.name}`)}
+              </Link>
+            )}
+            {!candidate.employee.pendingStart && (
+              <Link href={`/hr/checklists?employeeId=${candidate.employee.id}`}>
+                {l("Checklist onboarding", "Onboarding checklist")}
+              </Link>
+            )}
+            {candidate.employee.pendingStart && can(me.permissions, "hr.manage") && (
+              <button
+                type="button"
+                className="danger"
+                onClick={async () => {
+                  if (
+                    !confirm(
+                      l(
+                        "Batalkan calon karyawan? Kontrak draft dihapus dan pelamar kembali ke tahap penawaran.",
+                        "Cancel this pre-hire? The draft contract is deleted and the applicant goes back to the offer stage.",
+                      ),
+                    )
+                  )
+                    return;
+                  setError(null);
+                  try {
+                    await api(`/applicants/${id}/cancel-hire`, { method: "POST" });
+                    void load();
+                  } catch (e) {
+                    setError(errorText(e));
+                  }
+                }}
+              >
+                {l("Batalkan calon", "Cancel pre-hire")}
+              </button>
+            )}
+          </div>
+        </section>
       )}
     </div>
   );

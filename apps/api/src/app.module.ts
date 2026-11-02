@@ -40,6 +40,7 @@ import { BenefitsModule } from "./payroll/benefits.module.js";
 import { CompensationModule } from "./payroll/compensation.module.js";
 import { ReportsModule } from "./reports/reports.module.js";
 import { WorkforceModule } from "./hr/workforce.module.js";
+import { HiringRequestModule } from "./hr/hiring-request.module.js";
 import { ManpowerPlanModule } from "./hr/manpower-plan.module.js";
 import { TaxModule } from "./tax/tax.module.js";
 import { BillingModule } from "./billing/billing.module.js";
@@ -96,6 +97,7 @@ import { WebhookService } from "./oauth/webhook.service.js";
     ReportsModule,
     WorkforceModule,
     ManpowerPlanModule,
+    HiringRequestModule,
     TaxModule,
     OnboardingModule,
     ConsolidationModule,

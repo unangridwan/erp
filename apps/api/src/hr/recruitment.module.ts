@@ -571,8 +571,9 @@ class ApplicantsController {
   }
 
   /**
-   * Terima pelamar: buat data karyawan + kontrak draft, pindahkan dokumen pelamar ke karyawan, mulai checklist
-   * onboarding, dan tutup lowongan bila kuota terpenuhi.
+   * Proses kontrak pelamar yang menerima penawaran: buat calon karyawan (belum aktif) + kontrak draft dari penawaran,
+   * pindahkan dokumen pelamar, dan tutup lowongan bila kuota terpenuhi. Karyawan aktif & onboarding dimulai saat
+   * kontrak dimulai.
    */
   @Post(":id/hire")
   @HttpCode(200)
@@ -583,13 +584,15 @@ class ApplicantsController {
       const a = await this.find(tx, id, true);
       if (a.stage === "hired") throw new BadRequestException("Pelamar sudah diterima menjadi karyawan");
       if (a.stage === "refused") throw new BadRequestException("Pelamar sudah ditolak");
-      // Nilai bawaan dari penawaran kerja yang diterima pelamar.
+      // Nilai bawaan dari penawaran kerja yang diterima pelamar (wajib ada).
       const [offer] = await tx
         .select()
         .from(schema.jobOffers)
         .where(and(eq(schema.jobOffers.applicantId, id), eq(schema.jobOffers.state, "accepted")))
         .orderBy(desc(schema.jobOffers.respondedAt))
         .limit(1);
+      if (!offer)
+        throw new BadRequestException("Pelamar belum menerima penawaran kerja; buat & kirim penawaran dulu");
       const input = {
         ...parsed,
         joinDate: parsed.joinDate ?? offer?.startDate,
@@ -602,6 +605,33 @@ class ApplicantsController {
       if (input.contractType === "pkwt" && !input.dateEnd)
         throw fieldError("dateEnd", "PKWT wajib punya tanggal berakhir");
       const opening = await this.opening(tx, a.openingId);
+      const [filled] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(AP)
+        .where(and(eq(AP.openingId, opening.id), eq(AP.stage, "hired")));
+      if ((filled?.n ?? 0) >= opening.quota)
+        throw new BadRequestException(
+          `Kuota lowongan (${opening.quota} orang) sudah terpenuhi; ajukan FPK baru untuk tambahan`,
+        );
+      // Atasan = kepala departemen; golongan dari FPK asal atau jabatan.
+      const [dept] = opening.departmentId
+        ? await tx
+            .select({ managerId: schema.departments.managerId })
+            .from(schema.departments)
+            .where(eq(schema.departments.id, opening.departmentId))
+        : [];
+      const [hiring] = opening.hiringRequestId
+        ? await tx
+            .select({ gradeId: schema.hiringRequests.gradeId })
+            .from(schema.hiringRequests)
+            .where(eq(schema.hiringRequests.id, opening.hiringRequestId))
+        : [];
+      const [job] = opening.jobId
+        ? await tx
+            .select({ gradeId: schema.jobPositions.gradeId })
+            .from(schema.jobPositions)
+            .where(eq(schema.jobPositions.id, opening.jobId))
+        : [];
       const employee = await this.employees.create(
         tx,
         parse(employeeSchema, {
@@ -610,10 +640,17 @@ class ApplicantsController {
           workPhone: a.phone,
           departmentId: opening.departmentId,
           jobId: opening.jobId,
+          managerId: dept?.managerId ?? null,
+          gradeId: hiring?.gradeId ?? job?.gradeId ?? null,
           joinDate: input.joinDate,
           ptkpStatus: input.ptkpStatus,
         }),
       );
+      // Calon karyawan: tidak dihitung headcount/payroll sampai kontraknya dimulai.
+      await tx
+        .update(schema.employees)
+        .set({ active: false, pendingStart: true, applicantId: id })
+        .where(eq(schema.employees.id, employee.id));
       const contractName = await this.sequences.next(
         tx,
         "hr.contract",
@@ -631,7 +668,13 @@ class ApplicantsController {
           dateStart: input.joinDate,
           dateEnd: input.dateEnd ?? null,
           wage: input.wage,
-          note: `Dari rekrutmen: ${opening.name}`,
+          note: [
+            `Dari rekrutmen: ${opening.name}`,
+            offer.number ? `Penawaran ${offer.number}` : "",
+            offer.benefits ?? "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
         })
         .returning({ id: schema.contracts.id });
       await tx
@@ -657,14 +700,63 @@ class ApplicantsController {
           .update(schema.jobOpenings)
           .set({ state: "closed", dateClose: today(), updatedAt: sql`now()` })
           .where(eq(schema.jobOpenings.id, opening.id));
-      const checklist = await this.checklists.start(tx, { employeeId: employee.id, kind: "onboarding" });
       await this.activity.log(tx, {
         resModel: "employee",
         resId: employee.id,
         action: "comment",
-        message: `Diterima dari rekrutmen ${opening.name}`,
+        message: `Calon karyawan dari rekrutmen ${opening.name}; aktif setelah kontrak dimulai`,
       });
-      return { employeeId: employee.id, contractId: contract!.id, checklistId: checklist.id };
+      return { employeeId: employee.id, contractId: contract!.id, checklistId: null };
+    });
+  }
+
+  /**
+   * Batalkan calon karyawan (mis. kandidat mundur sebelum kontrak dimulai): kontrak draft & data calon dihapus,
+   * dokumen kembali ke pelamar, pelamar kembali ke tahap penawaran, lowongan dibuka lagi bila tertutup karena kuota.
+   */
+  @Post(":id/cancel-hire")
+  @HttpCode(200)
+  @RequirePermission("hr.manage")
+  cancelHire(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run(async (tx) => {
+      const a = await this.find(tx, id, true);
+      if (a.stage !== "hired" || !a.employeeId)
+        throw new BadRequestException("Pelamar belum diproses kontraknya");
+      const E = schema.employees;
+      const [employee] = await tx.select().from(E).where(eq(E.id, a.employeeId));
+      if (!employee?.pendingStart)
+        throw new BadRequestException(
+          "Karyawan sudah aktif (kontrak sudah dimulai); gunakan proses offboarding",
+        );
+      await tx
+        .update(D)
+        .set({ employeeId: null, updatedAt: sql`now()` })
+        .where(and(eq(D.applicantId, id), eq(D.employeeId, employee.id)));
+      await tx
+        .update(AP)
+        .set({
+          stage: "offer",
+          employeeId: null,
+          hiredAt: null,
+          stageChangedAt: sql`now()`,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(AP.id, id));
+      await tx
+        .delete(schema.contracts)
+        .where(and(eq(schema.contracts.employeeId, employee.id), eq(schema.contracts.state, "draft")));
+      await tx.delete(E).where(eq(E.id, employee.id));
+      await tx
+        .update(schema.jobOpenings)
+        .set({ state: "open", dateClose: null, updatedAt: sql`now()` })
+        .where(and(eq(schema.jobOpenings.id, a.openingId), eq(schema.jobOpenings.state, "closed")));
+      await this.activity.log(tx, {
+        resModel: "applicant",
+        resId: id,
+        action: "comment",
+        message: `Calon karyawan dibatalkan sebelum kontrak dimulai (${employee.employeeNumber})`,
+      });
+      return this.load(tx, id);
     });
   }
 

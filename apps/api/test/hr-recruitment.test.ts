@@ -141,26 +141,40 @@ describe.skipIf(!hasDb)("HR: rekrutmen, dokumen, checklist, pengingat", () => {
     await a.post(`/applicants/${sari}/stage`, { stage: "offer" }).expect(200);
   });
 
-  it("terima pelamar: karyawan + kontrak draft + dokumen + onboarding; lowongan tutup saat kuota penuh", async () => {
+  it("terima pelamar: penawaran wajib → calon karyawan + kontrak draft + dokumen; kontrak dimulai → aktif + onboarding", async () => {
     const join = addDays(today, 10);
+    // Belum ada penawaran yang diterima.
     await a
-      .post(`/applicants/${sari}/hire`, { joinDate: join, wage: "6000000", contractType: "pkwt" })
+      .post(`/applicants/${sari}/hire`, {
+        joinDate: join,
+        wage: "6000000",
+        contractType: "pkwt",
+        dateEnd: addDays(join, 364),
+      })
       .expect(400);
-    const hired = (
+    const offer = (
       await a
-        .post(`/applicants/${sari}/hire`, {
-          joinDate: join,
+        .post(`/applicants/${sari}/offers`, {
+          body: "Penawaran kerja Sari",
           wage: "6000000",
           contractType: "pkwt",
-          dateEnd: addDays(join, 364),
+          contractEnd: addDays(join, 364),
+          startDate: join,
+          validUntil: addDays(today, 5),
         })
-        .expect(200)
+        .expect(201)
     ).body;
+    await a.post(`/job-offers/${offer.id}/send`).expect(200);
+    await a.post(`/job-offers/${offer.id}/accept`).expect(200);
+    const hired = (await a.post(`/applicants/${sari}/hire`, {}).expect(200)).body;
     employee = hired.employeeId;
+    expect(hired.checklistId).toBeNull();
     expect((await a.get(`/employees/${employee}`).expect(200)).body).toMatchObject({
       name: "Sari Lestari",
       workEmail: "sari@contoh.id",
       joinDate: join,
+      active: false,
+      pendingStart: true,
     });
     expect((await a.get(`/contracts/${hired.contractId}`).expect(200)).body).toMatchObject({
       state: "draft",
@@ -171,13 +185,22 @@ describe.skipIf(!hasDb)("HR: rekrutmen, dokumen, checklist, pengingat", () => {
     expect(docs).toEqual([expect.objectContaining({ kind: "cv", name: "CV Sari", applicantId: sari })]);
     const file = await a.get(`/hr-documents/${docs[0].id}/file`).expect(200);
     expect(file.headers["content-type"]).toBe("application/pdf");
+    expect((await a.get(`/hr-checklists?employeeId=${employee}`).expect(200)).body).toEqual([]);
 
-    const checklist = (await a.get(`/hr-checklists/${hired.checklistId}`).expect(200)).body;
+    // Kontrak dimulai → karyawan aktif & onboarding (tugas tanda tangan kontrak langsung selesai).
+    await a.post(`/contracts/${hired.contractId}/start`).expect(200);
+    expect((await a.get(`/employees/${employee}`).expect(200)).body).toMatchObject({
+      active: true,
+      pendingStart: false,
+    });
+    const [started] = (await a.get(`/hr-checklists?employeeId=${employee}`).expect(200)).body;
+    const checklist = (await a.get(`/hr-checklists/${started.id}`).expect(200)).body;
     expect(checklist).toMatchObject({ kind: "onboarding", baseDate: join, state: "open" });
     expect(checklist.tasks).toHaveLength(5);
     expect(checklist.tasks.find((t: { name: string }) => t.name.startsWith("Daftarkan BPJS")).dueDate).toBe(
       addDays(join, 7),
     );
+    expect(checklist.tasks.find((t: { name: string }) => /kontrak/i.test(t.name)).doneAt).toBeTruthy();
 
     expect((await a.get(`/job-openings/${opening}`).expect(200)).body).toMatchObject({
       state: "closed",
