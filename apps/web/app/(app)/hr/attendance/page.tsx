@@ -108,6 +108,7 @@ export default function AttendancePage() {
   const [version, setVersion] = useState(0);
   const [photo, setPhoto] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     api<{ attendanceLockDate: string | null; timezone: string }>("/payroll/settings").then(
@@ -231,6 +232,7 @@ export default function AttendancePage() {
         </p>
       )}
       {error && <p className="error">{error}</p>}
+      {notice && <p className="success">{notice}</p>}
 
       {tab === "list" && (
         <>
@@ -249,6 +251,33 @@ export default function AttendancePage() {
             />
             {writable && (
               <>
+                <button
+                  type="button"
+                  title={l(
+                    "Hitung lembur dari absen pulang vs jadwal untuk rentang ini; hasilnya menunggu persetujuan atasan",
+                    "Compute overtime from check-out vs schedule for this range; results await manager approval",
+                  )}
+                  onClick={async () => {
+                    setError(null);
+                    setNotice(null);
+                    try {
+                      const r = await api<{ created: number; updated: number; removed: number }>(
+                        "/overtimes/from-attendance",
+                        { method: "POST", body: { from, to, employeeId: employeeId || null } },
+                      );
+                      setNotice(
+                        l(
+                          `Lembur dari absensi: ${r.created} baru, ${r.updated} diperbarui, ${r.removed} dihapus. Menunggu persetujuan atasan.`,
+                          `Overtime from attendance: ${r.created} new, ${r.updated} updated, ${r.removed} removed. Awaiting manager approval.`,
+                        ),
+                      );
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : String(e));
+                    }
+                  }}
+                >
+                  {l("Hitung lembur", "Compute overtime")}
+                </button>
                 <button
                   type="button"
                   disabled={!drafts.length}

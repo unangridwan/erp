@@ -25,6 +25,7 @@ import { hashPassword, verifyPassword } from "../auth/password.js";
 import { currentContext } from "../common/request-context.js";
 import { ApprovalService } from "./approval.service.js";
 import { EmployeeService } from "./employee.service.js";
+import { OvertimeService } from "./overtime.service.js";
 import { holidaysBetween, WorkCalendarService } from "./work-calendar.service.js";
 import { localDate } from "./schedule.service.js";
 
@@ -85,6 +86,7 @@ export class AttendanceService {
     @Inject(EmployeeService) private readonly employees: EmployeeService,
     @Inject(ApprovalService) private readonly approvals: ApprovalService,
     @Inject(WorkCalendarService) private readonly calendar: WorkCalendarService,
+    @Inject(OvertimeService) private readonly overtimes: OvertimeService,
   ) {}
 
   async settings(tx: Db, companyId: string) {
@@ -143,6 +145,13 @@ export class AttendanceService {
         })
         .where(eq(AT.id, open.id))
         .returning(ATTENDANCE_COLUMNS);
+      // Lembur dari absensi (bila diaktifkan) langsung masuk ke atasan setelah absen pulang.
+      const date = localDate(open.checkIn, s.tz);
+      await this.overtimes.syncAttendances(tx, employee.companyId, {
+        from: date,
+        to: date,
+        employeeIds: [employee.id],
+      });
       return { action: "out" as const, attendance: row! };
     }
     let workLocationId = meta.workLocationId ?? null;

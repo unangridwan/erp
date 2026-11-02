@@ -30,7 +30,12 @@ type Settings = Record<
   | "attendanceValidation"
   | "attendanceLockDate"
   | "autoCheckoutHours"
-  | "attendanceApprovalLevels",
+  | "attendanceApprovalLevels"
+  | "overtimeFromAttendance"
+  | "overtimeMinMinutes"
+  | "overtimeRoundMinutes"
+  | "overtimeMaxHours"
+  | "overtimeCountEarly",
   string
 >;
 
@@ -67,6 +72,11 @@ export default function PayrollSettingsPage() {
           attendanceLockDate: s.attendanceLockDate ?? "",
           autoCheckoutHours: s.autoCheckoutHours ? String(s.autoCheckoutHours) : "",
           attendanceApprovalLevels: String(s.attendanceApprovalLevels ?? 1),
+          overtimeFromAttendance: s.overtimeFromAttendance ? "1" : "",
+          overtimeMinMinutes: String(s.overtimeMinMinutes ?? 30),
+          overtimeRoundMinutes: String(s.overtimeRoundMinutes ?? 30),
+          overtimeMaxHours: String(s.overtimeMaxHours ?? 4),
+          overtimeCountEarly: s.overtimeCountEarly ? "1" : "",
         }),
       )
       .catch((e: Error) => setError(e.message));
@@ -104,6 +114,11 @@ export default function PayrollSettingsPage() {
         attendanceLockDate,
         autoCheckoutHours,
         attendanceApprovalLevels,
+        overtimeFromAttendance,
+        overtimeMinMinutes,
+        overtimeRoundMinutes,
+        overtimeMaxHours,
+        overtimeCountEarly,
       } = form;
       await api("/payroll/settings", {
         method: "PUT",
@@ -133,6 +148,11 @@ export default function PayrollSettingsPage() {
           attendanceLockDate: attendanceLockDate || null,
           autoCheckoutHours: autoCheckoutHours ? Number(autoCheckoutHours) : null,
           attendanceApprovalLevels: Number(attendanceApprovalLevels),
+          overtimeFromAttendance: overtimeFromAttendance === "1",
+          overtimeMinMinutes: Number(overtimeMinMinutes),
+          overtimeRoundMinutes: Number(overtimeRoundMinutes),
+          overtimeMaxHours: Number(overtimeMaxHours),
+          overtimeCountEarly: overtimeCountEarly === "1",
         },
       });
       setNotice(l("Pengaturan disimpan.", "Settings saved."));
@@ -292,6 +312,58 @@ export default function PayrollSettingsPage() {
           <option value="3">{l("3 — + HR", "3 — + HR")}</option>
         </select>
       </label>
+      <label className="field">
+        <span>{l("Lembur dari absensi", "Overtime from attendance")}</span>
+        <select value={form.overtimeFromAttendance} onChange={set("overtimeFromAttendance")}>
+          <option value="">{l("Tidak — diajukan manual", "No — entered manually")}</option>
+          <option value="1">
+            {l("Ya — dari absensi, disetujui atasan", "Yes — from attendance, manager approves")}
+          </option>
+        </select>
+      </label>
+      {form.overtimeFromAttendance === "1" && (
+        <>
+          <label className="field">
+            <span>{l("Lembur minimal dihitung (menit)", "Minimum overtime counted (minutes)")}</span>
+            <input
+              className="num"
+              type="number"
+              min="0"
+              max="240"
+              value={form.overtimeMinMinutes}
+              onChange={set("overtimeMinMinutes")}
+            />
+          </label>
+          <label className="field">
+            <span>{l("Dibulatkan ke bawah per (menit)", "Rounded down to (minutes)")}</span>
+            <select value={form.overtimeRoundMinutes} onChange={set("overtimeRoundMinutes")}>
+              {["1", "15", "30", "60"].map((m) => (
+                <option key={m} value={m}>
+                  {m === "1" ? l("Tanpa pembulatan", "No rounding") : `${m} ${l("menit", "minutes")}`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>{l("Maksimal lembur per hari kerja (jam)", "Max overtime per workday (hours)")}</span>
+            <input
+              className="num"
+              type="number"
+              min="1"
+              max="12"
+              value={form.overtimeMaxHours}
+              onChange={set("overtimeMaxHours")}
+            />
+          </label>
+          <label className="field">
+            <span>{l("Datang sebelum jam masuk", "Arriving before start time")}</span>
+            <select value={form.overtimeCountEarly} onChange={set("overtimeCountEarly")}>
+              <option value="">{l("Tidak dihitung lembur", "Not counted as overtime")}</option>
+              <option value="1">{l("Dihitung lembur", "Counted as overtime")}</option>
+            </select>
+          </label>
+        </>
+      )}
       <label className="field">
         <span>{l("Tahap persetujuan klaim biaya", "Expense claim approval steps")}</span>
         <select value={form.expenseApprovalLevels} onChange={set("expenseApprovalLevels")}>

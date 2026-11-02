@@ -365,10 +365,17 @@ export class ApprovalService {
           model: "overtime" as const,
           id: doc.id,
           employeeName: employee.name,
-          summary: `Lembur ${doc.date} ${Number(doc.hours)} jam`,
+          summary: `Lembur ${doc.date} ${Number(doc.hours)} jam${doc.description ? ` — ${doc.description}` : ""}`,
           step: doc.approvalStep,
           levels: doc.approvalLevels,
           mine: isMine(approver),
+          // Atasan boleh mengurangi jam saat menyetujui (maks. hasil hitung absensi / jam diajukan).
+          overtime: {
+            hours: doc.hours,
+            maxHours: doc.computedHours ?? doc.hours,
+            source: doc.source,
+            dayType: doc.dayType,
+          },
         });
     }
     const corrections = await tx

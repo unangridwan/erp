@@ -22,6 +22,7 @@ import {
 } from "@nestjs/common";
 import { eq, schema, type Db } from "@erp/db";
 import {
+  addDays,
   approvalDecisionSchema,
   attendanceDeviceSchema,
   attendancePinSchema,
@@ -45,6 +46,7 @@ import { CONFIG, type AppConfig } from "../config.js";
 import { AttendanceService } from "./attendance.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { HrModule } from "./hr.module.js";
+import { OvertimeService } from "./overtime.service.js";
 import { localDate } from "./schedule.service.js";
 
 const WorkLocationsController = createCrudController({
@@ -371,6 +373,7 @@ export class AutoCheckoutScheduler implements OnApplicationBootstrap, OnApplicat
     @Inject(OWNER_DB) private readonly ownerDb: Db,
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(AttendanceService) private readonly attendance: AttendanceService,
+    @Inject(OvertimeService) private readonly overtimes: OvertimeService,
   ) {}
 
   onApplicationBootstrap() {
@@ -396,8 +399,12 @@ export class AutoCheckoutScheduler implements OnApplicationBootstrap, OnApplicat
     for (const t of tenants)
       closed += await this.tenantDb.runAs(t.id, async (tx) => {
         let n = 0;
-        for (const c of await tx.select({ id: schema.companies.id }).from(schema.companies))
+        const today = now.toISOString().slice(0, 10);
+        for (const c of await tx.select({ id: schema.companies.id }).from(schema.companies)) {
           n += (await this.attendance.autoCheckout(tx, c.id, now)).closed;
+          // Lembur dari absensi 7 hari terakhir (absen pulang dari mesin, kiosk, koreksi, auto-checkout).
+          await this.overtimes.syncAttendances(tx, c.id, { from: addDays(today, -7), to: today });
+        }
         return n;
       });
     return { closed };

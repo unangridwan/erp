@@ -15,6 +15,7 @@ export * from "./approval-rules.js";
 export * from "./leave.js";
 export * from "./attendance.js";
 export * from "./work-calendar.js";
+export * from "./overtime.js";
 export * from "./recruitment.js";
 export * from "./performance.js";
 export * from "./fleet.js";

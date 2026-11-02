@@ -19,6 +19,8 @@ interface Pending {
   step: number;
   levels: number;
   mine: boolean;
+  /** Lembur: jam diajukan & batas yang boleh disetujui (hasil hitung absensi). */
+  overtime?: { hours: string; maxHours: string; source: "manual" | "attendance"; dayType: string };
 }
 interface Status {
   waitingFor: string | null;
@@ -36,6 +38,7 @@ export default function ApprovalsPage() {
   const { l, locale } = useI18n();
   const [rows, setRows] = useState<Pending[] | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [hours, setHours] = useState<Record<string, string>>({});
   const [history, setHistory] = useState<Record<string, Status>>({});
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +64,11 @@ export default function ApprovalsPage() {
                 ? `/expense-claims/${r.id}/${decision}`
                 : `/approvals/overtime/${r.id}/${decision}`;
     try {
-      await api(path, { method: "POST", body: { note: notes[r.id] || null } });
+      const approvedHours = r.overtime && decision === "approve" ? hours[r.id] : undefined;
+      await api(path, {
+        method: "POST",
+        body: { note: notes[r.id] || null, ...(approvedHours ? { hours: Number(approvedHours) } : {}) },
+      });
       setVersion((v) => v + 1);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
@@ -115,8 +122,8 @@ export default function ApprovalsPage() {
       </header>
       <p className="muted">
         {l(
-          "Cuti, lembur, dan klaim: tahap 1 atasan langsung, tahap 2 atasan dari atasan, tahap 3 HR (jumlah tahap di Pengaturan Payroll). Permintaan persetujuan mengikuti penyetuju kategorinya. Delegasi yang aktif ikut tampil di sini.",
-          "Time off, overtime and claims: step 1 is the direct manager, step 2 the manager's manager, step 3 HR (number of steps in Payroll Settings). Approval requests follow their category's approvers. Active delegations show up here too.",
+          "Cuti, lembur, dan klaim: tahap 1 atasan langsung, tahap 2 atasan dari atasan, tahap 3 HR (jumlah tahap di Pengaturan Payroll). Lembur dari absensi bisa dikurangi jamnya sebelum disetujui. Permintaan persetujuan mengikuti penyetuju kategorinya. Delegasi yang aktif ikut tampil di sini.",
+          "Time off, overtime and claims: step 1 is the direct manager, step 2 the manager's manager, step 3 HR (number of steps in Payroll Settings). Overtime from attendance can be reduced before approving. Approval requests follow their category's approvers. Active delegations show up here too.",
         )}
       </p>
       {error && <p className="error">{error}</p>}
@@ -155,7 +162,34 @@ export default function ApprovalsPage() {
                       )}
                     </td>
                     <td>{r.employeeName}</td>
-                    <td>{r.summary}</td>
+                    <td>
+                      {r.summary}
+                      {r.overtime && (
+                        <label className="ot-hours">
+                          <span>
+                            {l("Jam disetujui", "Approved hours")}
+                            {r.overtime.source === "attendance" && (
+                              <> ({l("dari absensi", "from attendance")})</>
+                            )}
+                          </span>
+                          <input
+                            className="num"
+                            type="number"
+                            min="0.5"
+                            step="0.5"
+                            max={Number(r.overtime.maxHours)}
+                            value={hours[r.id] ?? String(Number(r.overtime.hours))}
+                            onChange={(e) => setHours((h) => ({ ...h, [r.id]: e.target.value }))}
+                          />
+                          <small className="muted">
+                            {l(
+                              `maks. ${Number(r.overtime.maxHours)} jam`,
+                              `max ${Number(r.overtime.maxHours)} h`,
+                            )}
+                          </small>
+                        </label>
+                      )}
+                    </td>
                     <td>
                       {r.step}/{r.levels}{" "}
                       {!r.mine && <span className="badge state-draft">{l("sebagai HR", "as HR")}</span>}

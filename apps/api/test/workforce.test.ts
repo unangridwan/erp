@@ -195,13 +195,16 @@ describe.skipIf(!hasDb)("Anggaran tenaga kerja & analitik SDM", () => {
     expect(rep.showCost).toBe(true);
     const itRow = rep.rows.find((r) => r.department === "IT")!;
     const finRow = rep.rows.find((r) => r.department === "Keuangan")!;
-    expect(itRow.current).toMatchObject({ month: 10, plannedHeadcount: 2, actualHeadcount: 2 });
+    // Bulan berjalan (tahun uji sudah lewat → Desember); bulan setelahnya belum punya aktual.
+    const now = new Date();
+    const currentMonth = now.getFullYear() > year ? 12 : now.getMonth() + 1;
+    expect(itRow.current).toMatchObject({ month: currentMonth, plannedHeadcount: 2, actualHeadcount: 2 });
     expect(finRow.months[9]).toMatchObject({
       plannedHeadcount: 3,
       actualHeadcount: 1,
       headcountVariance: { diff: -2, percent: -66.67 },
     });
-    expect(finRow.months[10]!.actualHeadcount).toBeNull();
+    if (currentMonth < 12) expect(finRow.months[currentMonth]!.actualHeadcount).toBeNull();
     expect(finRow.openVacancies).toBe(2);
     expect(itRow.plannedCost).toBe(300000000);
     expect(itRow.months[8]!.actualCost).toBeGreaterThan(22000000);

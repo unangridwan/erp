@@ -332,6 +332,9 @@ export const MESSAGES_EN: Record<string, string> = {
   "Belum absen masuk": "Not checked in yet",
   "Jam pulang sebelum jam masuk": "Check-out time is before check-in time",
   "Tanggal selesai sebelum mulai": "The end date is before the start date",
+  "Maksimal 2 desimal": "At most 2 decimal places",
+  "Jam lembur maksimal {} jam sesuai pengajuan/hasil absensi":
+    "Overtime can be at most {0} hours, as requested/computed from attendance",
   "Payroll belum disiapkan (pasang bagan akun standar di Pengaturan Akuntansi)":
     "Payroll is not set up (install the standard chart of accounts in Accounting Settings)",
   "Payroll belum disiapkan": "Payroll is not set up",

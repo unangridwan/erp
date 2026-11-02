@@ -2425,3 +2425,16 @@ table.lines td:first-child input:not([type="checkbox"]) {
   font-size: 48px;
   color: var(--accent-text);
 }
+
+/* Kotak persetujuan: jam lembur yang disetujui atasan. */
+.ot-hours {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+.ot-hours input {
+  width: 80px;
+}
