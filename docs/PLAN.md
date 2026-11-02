@@ -454,6 +454,7 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   laporan rencana vs aktual (slip terposting, lowongan), turnover & retensi, demografi, kesetaraan gaji & compa-ratio
 - [x] Man Power Planning (M) — rencana posisi per departemen/tahun, persetujuan MPP, mengisi anggaran tenaga kerja &
   anggaran akuntansi "Anggaran SDM" (baca saja di Akuntansi), lowongan dari posisi & realisasi, portal kepala departemen
+- [x] Lembur dari absensi — dihitung dari absen pulang vs jadwal, divalidasi & disetujui/ditolak atasan (migrasi 0048)
 - [x] Kalender kerja — hari cuti/payroll mengikuti jadwal kerja karyawan, libur per perusahaan & jenisnya, impor libur
       nasional (migrasi 0047)
 - [x] Nomor dokumen per tahun — penghitung per urutan × tahun (migrasi 0046) sehingga dokumen bertanggal bolak-balik
@@ -469,7 +470,10 @@ Dari audit ketiga PRD SDM (Okt 2026), diurutkan menurut dampak bisnis:
    bersama (migrasi 0047): `WorkCalendarService` dipakai cuti, payroll (hari kerja & potongan tanpa upah per
    karyawan), absensi, keterlambatan, dan pesangon (upah harian 1/25 atau 1/21); halaman SDM › Hari Libur dan
    pratinjau hari cuti di form pengajuan.
-2. **Lembur otomatis dari absensi vs jadwal** + master jenis/aturan lembur dengan tarif yang bisa diatur.
+2. 🟡 **Lembur otomatis dari absensi vs jadwal** (migrasi 0048): ✅ dihitung dari absen pulang (dan masuk lebih awal bila
+   diatur) terhadap jadwal, hari istirahat/libur seluruh jam; minimal, pembulatan & batas per hari di Pengaturan
+   Payroll; selalu menunggu atasan, yang boleh mengurangi jam lalu menyetujui/menolak. ❌ Belum: master jenis/aturan
+   lembur dengan tarif yang bisa diatur (tarif masih PP 35/2021).
 3. **Kasbon / uang muka karyawan**: pencairan, penyelesaian dengan klaim, sisa dipotong gaji; bukti wajib per kategori.
 4. **Notifikasi email (dan push)** untuk pengajuan & keputusan persetujuan.
 5. **Persetujuan berjenjang** untuk payroll run, mutasi/promosi, penawaran kerja, offboarding/F&F.

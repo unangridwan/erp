@@ -33,6 +33,8 @@ import {
   leaveTypeSchema,
   bulkLeaveSchema,
   overtimeSchema,
+  overtimeDecisionSchema,
+  overtimeGenerateSchema,
   approvalDecisionSchema,
   salaryGradeSchema,
   shiftAssignmentSchema,
@@ -59,6 +61,7 @@ import { ContractService } from "./contract.service.js";
 import { HistoryService } from "./history.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { LeaveService } from "./leave.service.js";
+import { OvertimeService } from "./overtime.service.js";
 import { WorkCalendarController } from "./work-calendar.controller.js";
 import { WorkCalendarService } from "./work-calendar.service.js";
 import { localDate, ScheduleService } from "./schedule.service.js";
@@ -359,6 +362,7 @@ class ApprovalsController {
   constructor(
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(ApprovalService) private readonly approvals: ApprovalService,
+    @Inject(OvertimeService) private readonly overtimes: OvertimeService,
   ) {}
 
   /** Pengajuan yang menunggu keputusan user ini. */
@@ -376,6 +380,7 @@ class ApprovalsController {
     return this.tenantDb.run((tx) => this.approvals.status(tx, model as ApprovalModel, id));
   }
 
+  /** Keputusan lembur; saat menyetujui, atasan boleh mengurangi jam (≤ hasil hitung absensi / jam diajukan). */
   @Post("overtime/:id/:decision")
   @HttpCode(200)
   overtime(
@@ -384,9 +389,41 @@ class ApprovalsController {
     @Body() body: unknown,
   ) {
     if (decision !== "approve" && decision !== "refuse") throw new NotFoundException();
-    const input = parse(approvalDecisionSchema, body ?? {});
+    const input = parse(overtimeDecisionSchema, body ?? {});
+    return this.tenantDb.run(async (tx) => {
+      const result = await this.approvals.decide(
+        tx,
+        "overtime",
+        id,
+        decision === "approve" ? "approved" : "refused",
+        input.note,
+      );
+      if (decision === "approve" && input.hours) await this.overtimes.setApprovedHours(tx, id, input.hours);
+      return result;
+    });
+  }
+}
+
+/** Hitung lembur dari absensi (HR) untuk rentang tanggal; berjalan juga otomatis bila diaktifkan. */
+@Controller("overtimes")
+class OvertimeAttendanceController {
+  constructor(
+    @Inject(TenantDb) private readonly tenantDb: TenantDb,
+    @Inject(OvertimeService) private readonly overtimes: OvertimeService,
+  ) {}
+
+  @Post("from-attendance")
+  @HttpCode(200)
+  @RequirePermission("hr.write")
+  generate(@Body() body: unknown) {
+    const input = parse(overtimeGenerateSchema, body);
     return this.tenantDb.run((tx) =>
-      this.approvals.decide(tx, "overtime", id, decision === "approve" ? "approved" : "refused", input.note),
+      this.overtimes.syncAttendances(tx, currentContext().companyId, {
+        from: input.from,
+        to: input.to,
+        employeeIds: input.employeeId ? [input.employeeId] : undefined,
+        force: true,
+      }),
     );
   }
 }
@@ -1065,6 +1102,7 @@ class PortalController {
     SalaryGradesController,
     WageScaleController,
     WorkCalendarController,
+    OvertimeAttendanceController,
     HolidaysController,
     LeaveTypesController,
     LeaveAllocationsController,
@@ -1093,9 +1131,11 @@ class PortalController {
     ContractService,
     NotificationService,
     WorkCalendarService,
+    OvertimeService,
   ],
   exports: [
     WorkCalendarService,
+    OvertimeService,
     NotificationService,
     EmployeeService,
     LeaveService,

@@ -441,6 +441,12 @@ export const overtimes = pgTable("overtimes", {
   approvalLevels: smallint("approval_levels").notNull().default(0),
   /** Dijadikan cuti pengganti: tidak dibayar di payroll. */
   compensated: boolean("compensated").notNull().default(false),
+  source: text("source", { enum: ["manual", "attendance"] })
+    .notNull()
+    .default("manual"),
+  attendanceId: uuid("attendance_id"),
+  /** Jam hasil hitung absensi; `hours` = jam diajukan/disetujui (atasan boleh mengurangi). */
+  computedHours: numeric("computed_hours", { precision: 5, scale: 2 }),
   ...audit,
 });
 
@@ -472,6 +478,11 @@ export const payrollSettings = pgTable("payroll_settings", {
   transferCompanyCode: text("transfer_company_code"),
   /** Absensi baru berstatus draft sampai divalidasi; payroll hanya membaca yang tervalidasi. */
   attendanceValidation: boolean("attendance_validation").notNull().default(false),
+  overtimeFromAttendance: boolean("overtime_from_attendance").notNull().default(false),
+  overtimeMinMinutes: integer("overtime_min_minutes").notNull().default(30),
+  overtimeRoundMinutes: integer("overtime_round_minutes").notNull().default(30),
+  overtimeMaxHours: integer("overtime_max_hours").notNull().default(4),
+  overtimeCountEarly: boolean("overtime_count_early").notNull().default(false),
   /** Absensi s.d. tanggal ini terkunci. */
   attendanceLockDate: date("attendance_lock_date"),
   autoCheckoutHours: smallint("auto_checkout_hours"),
