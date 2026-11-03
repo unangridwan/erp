@@ -454,6 +454,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   laporan rencana vs aktual (slip terposting, lowongan), turnover & retensi, demografi, kesetaraan gaji & compa-ratio
 - [x] Man Power Planning (M) — rencana posisi per departemen/tahun, persetujuan MPP, mengisi anggaran tenaga kerja &
   anggaran akuntansi "Anggaran SDM" (baca saja di Akuntansi), lowongan dari posisi & realisasi, portal kepala departemen
+- [x] Tanggal masuk/keluar karyawan sinkron dengan tanggal kontrak (validasi masa kerja, kontrak ikut berubah, form
+      kontrak baru terisi dari data karyawan)
+- [x] Template & tanda tangan kontrak — kontrak dibuat dari form karyawan baru (langsung berlaku), template berplaceholder,
+      PDF cetak / e-sign layanan luar / bertanda tangan digital + jejak audit & kode verifikasi publik (migrasi 0050)
 - [x] Alur penambahan karyawan — MPP → FPK (dari baris MPP / di luar MPP) → persetujuan → lowongan → penawaran wajib
       → calon karyawan + kontrak → aktif saat kontrak dimulai → onboarding (migrasi 0049)
 - [x] Lembur dari absensi — dihitung dari absen pulang vs jadwal, divalidasi & disetujui/ditolak atasan (migrasi 0048)
@@ -482,8 +486,8 @@ Dari audit ketiga PRD SDM (Okt 2026), diurutkan menurut dampak bisnis:
 6. **Parameter payroll berlaku per tanggal** (batas BPJS, JKK, tarif) agar perhitungan periode lama tetap.
 7. **Keamanan slip gaji**: password/PIN slip ditentukan karyawan + OTP sebelum melihat slip.
 8. **UU PDP**: persetujuan pelamar, retensi & anonimisasi, log akses data pribadi.
-9. **Kontrak & surat**: masa percobaan, jenis karyawan, template kontrak & surat pengangkatan/SK, mutasi antar
-   perusahaan grup, riwayat perubahan NPP.
+9. 🟡 **Kontrak & surat**: ✅ template kontrak + tanda tangan digital/basah/e-sign luar (0050); sisa: masa percobaan,
+   jenis karyawan, template surat pengangkatan/SK, mutasi antar perusahaan grup, riwayat perubahan NPP.
 10. **Shift massal & rotasi**, kalender perusahaan, pengingat ulang tahun & masa kerja.
 11. **Pinjaman berbunga & jadwal**, aset yang dipegang karyawan (terhubung aset akuntansi & offboarding).
 12. **Kompetensi/skill matrix**, laporan SDM konsolidasi grup, PWA portal karyawan.

@@ -189,7 +189,66 @@ export const contracts = pgTable("contracts", {
   taxMethod: text("tax_method", { enum: ["gross", "gross_up"] })
     .notNull()
     .default("gross"),
+  /** Dokumen kontrak dari template (isi terkunci setelah ada tanda tangan). */
+  templateId: uuid("template_id"),
+  body: text("body"),
+  bodyCustom: boolean("body_custom").notNull().default(false),
+  documentTitle: text("document_title"),
+  signerName: text("signer_name"),
+  signerTitle: text("signer_title"),
+  signCity: text("sign_city"),
+  signState: text("sign_state", { enum: ["unsigned", "pending", "partial", "signed"] })
+    .notNull()
+    .default("unsigned"),
+  signMethod: text("sign_method", { enum: ["digital", "manual", "external"] }),
+  signRequestedAt: timestamp("sign_requested_at", { withTimezone: true }),
+  documentHash: text("document_hash"),
+  verifyCode: text("verify_code"),
+  signedFileName: text("signed_file_name"),
+  signedFileType: text("signed_file_type"),
+  signedUploadedAt: timestamp("signed_uploaded_at", { withTimezone: true }),
+  signedUploadedBy: uuid("signed_uploaded_by"),
   ...audit,
+});
+
+/** Template dokumen kontrak kerja dengan placeholder `{kunci}` yang diisi dari data karyawan & kontrak. */
+export const contractTemplates = pgTable("contract_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  contractType: text("contract_type", { enum: ["pkwt", "pkwtt"] }),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  signerName: text("signer_name"),
+  signerTitle: text("signer_title"),
+  city: text("city"),
+  isDefault: boolean("is_default").notNull().default(false),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const contractSignatures = pgTable("contract_signatures", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  contractId: uuid("contract_id").notNull(),
+  role: text("role", { enum: ["company", "employee"] }).notNull(),
+  signerName: text("signer_name").notNull(),
+  signerTitle: text("signer_title"),
+  signerUserId: uuid("signer_user_id"),
+  image: bytea("image").notNull(),
+  inPerson: boolean("in_person").notNull().default(false),
+  ip: text("ip"),
+  userAgent: text("user_agent"),
+  documentHash: text("document_hash").notNull(),
+  signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Berkas kontrak bertanda tangan (dipisah dari `contracts` agar tidak ikut termuat). */
+export const contractSignedFiles = pgTable("contract_signed_files", {
+  contractId: uuid("contract_id").primaryKey(),
+  tenantId: tenantId(),
+  data: bytea("data").notNull(),
 });
 
 export const contractAllowances = pgTable("contract_allowances", {

@@ -14,6 +14,7 @@ import {
   MyTaxSlips,
 } from "../../../components/hr/portal-extras";
 import { MyAttendance } from "../../../components/hr/attendance-extras";
+import { MyContracts } from "../../../components/hr/contract-document";
 import { MyVehiclesPanel } from "../../../components/fleet/fleet-panels";
 import { ProjectsPanel } from "../../../components/hr/projects-panel";
 import { BenefitEnrollments } from "../../../components/payroll/benefits-panel";
@@ -233,6 +234,7 @@ export default function MyPortalPage() {
       </section>
 
       <MyProfile name={employee.name} />
+      <MyContracts />
       <MyAppraisals />
       <section className="panel">
         <h2>{l("Sasaran saya", "My goals")}</h2>

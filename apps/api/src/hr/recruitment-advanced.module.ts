@@ -48,6 +48,7 @@ import { ChecklistService } from "./checklist.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { HistoryService } from "./history.service.js";
 import { openingFromHiring } from "./hiring-request.module.js";
+import { ContractService } from "./contract.service.js";
 import { HrModule } from "./hr.module.js";
 import { renderOfferPdf, renderSettlementPdf } from "./letters-pdf.js";
 
@@ -587,6 +588,7 @@ export class OffboardingService {
     @Inject(HistoryService) private readonly history: HistoryService,
     @Inject(ActivityService) private readonly activity: ActivityService,
     @Inject(LoanService) private readonly loans: LoanService,
+    @Inject(ContractService) private readonly contracts: ContractService,
   ) {}
 
   /** Catat karyawan keluar (tanggal & alasan) dan mulai checklist offboarding. */
@@ -594,6 +596,11 @@ export class OffboardingService {
     const employee = await this.employees.find(tx, employeeId);
     if (input.resignDate < employee.joinDate)
       throw fieldError("resignDate", "Tanggal keluar sebelum tanggal masuk");
+    // Kontrak draft/berjalan berakhir di tanggal keluar.
+    await this.contracts.syncEmployeeDates(tx, employee, {
+      joinDate: employee.joinDate,
+      resignDate: input.resignDate,
+    });
     await tx
       .update(schema.employees)
       .set({

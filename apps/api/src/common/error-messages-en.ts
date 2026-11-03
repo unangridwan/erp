@@ -332,6 +332,18 @@ export const MESSAGES_EN: Record<string, string> = {
   "Belum absen masuk": "Not checked in yet",
   "Jam pulang sebelum jam masuk": "Check-out time is before check-in time",
   "Tanggal selesai sebelum mulai": "The end date is before the start date",
+  "Kontrak tidak boleh mulai sebelum tanggal masuk karyawan ({})":
+    "The contract cannot start before the employee's join date ({0})",
+  "Kontrak tidak boleh mulai setelah tanggal keluar karyawan ({})":
+    "The contract cannot start after the employee's leave date ({0})",
+  "Kontrak tidak boleh berakhir setelah tanggal keluar karyawan ({})":
+    "The contract cannot end after the employee's leave date ({0})",
+  "Kontrak {} mulai {}, sebelum tanggal masuk baru; ubah kontraknya dulu":
+    "Contract {0} starts {1}, before the new join date; change the contract first",
+  "Kontrak {} mulai {}, setelah tanggal keluar; batalkan/hapus kontraknya dulu":
+    "Contract {0} starts {1}, after the leave date; cancel/delete the contract first",
+  "Kontrak {} berakhir {}, sebelum tanggal masuk baru; ubah kontraknya dulu":
+    "Contract {0} ends {1}, before the new join date; change the contract first",
   "Seluruh kuota posisi ini sudah diajukan lewat FPK":
     "The whole quota of this position has already been requested",
   "Hanya FPK draft yang bisa diubah": "Only draft hiring requests can be edited",
@@ -885,4 +897,40 @@ export const MESSAGES_EN: Record<string, string> = {
   "Jam maksimal 24 per baris": "At most 24 hours per line",
   "Jam harus lebih dari 0": "Hours must be greater than 0",
   "Maksimal 1000 baris per batch": "At most 1000 lines per batch",
+  // Dokumen & tanda tangan kontrak
+  "Template sudah dipakai kontrak; nonaktifkan saja agar tidak dipilih lagi":
+    "The template is used by contracts; deactivate it instead so it is no longer offered",
+  "Karyawan belum punya akun portal; undang dulu atau tanda tangani langsung di hadapan HR":
+    "The employee has no portal account yet; invite them first or have them sign in person with HR",
+  "Karyawan menandatangani sendiri lewat portal; tanda tangan oleh HR hanya bila karyawan hadir langsung":
+    "Employees sign through the portal themselves; HR may capture their signature only when they are present in person",
+  "Isi nama penandatangan perusahaan dulu": "Enter the company signatory's name first",
+  "Kontrak ini tidak sedang menunggu tanda tangan Anda": "This contract is not waiting for your signature",
+  "Kode verifikasi tidak dikenal": "Unknown verification code",
+  "Tanda tangan harus berupa gambar PNG": "The signature must be a PNG image",
+  "Template kontrak tidak ditemukan": "Contract template not found",
+  "Isi dokumen kontrak kosong; pilih template dulu":
+    "The contract document is empty; choose a template first",
+  "Belum ada berkas kontrak bertanda tangan": "No signed contract file has been uploaded yet",
+  "Kontrak sudah ditandatangani; batalkan tanda tangan dulu untuk mengubah isi atau syarat kontrak":
+    "The contract is already signed; revoke the signatures first to change its text or terms",
+  "Kontrak belum ditandatangani secara digital di aplikasi":
+    "The contract has not been signed digitally in the app",
+  "Kontrak sudah ditandatangani": "The contract is already signed",
+  "Kontrak sudah ditandatangani lewat dokumen yang diunggah":
+    "The contract was already signed through an uploaded document",
+  "Kontrak sedang ditandatangani digital di aplikasi; batalkan tanda tangan dulu":
+    "The contract is being signed digitally in the app; revoke those signatures first",
+  "Isi berkas tidak sesuai jenisnya (PDF/JPG/PNG)": "The file content does not match its type (PDF/JPG/PNG)",
+  "Centang persetujuan isi kontrak": "Tick the box to agree to the contract text",
+  "Tanda tangan kosong": "The signature is empty",
+  "Gambar tanda tangan terlalu besar": "The signature image is too large",
+  "Pilih berkas": "Choose a file",
+  "Upah harus berupa angka": "The wage must be a number",
+  "Upah harus lebih dari 0": "The wage must be greater than 0",
+  "Berkas maksimal 7 MB": "Files can be at most 7 MB",
+  "Pihak perusahaan sudah menandatangani": "The company has already signed",
+  "Karyawan sudah menandatangani": "The employee has already signed",
+  "Butuh permission hr.manage untuk membuat kontrak kerja":
+    "The hr.manage permission is required to create an employment contract",
 };
