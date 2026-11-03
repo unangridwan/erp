@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { errorText } from "../../../../components/hr/hr-panels";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Role {
   id: string;
@@ -26,6 +28,31 @@ export default function RolesPage() {
   useEffect(() => {
     api<Role[]>("/roles").then(setRoles, (e) => setError(errorText(e)));
   }, []);
+  const columns = useMemo<ViewColumn<Role>[]>(
+    () => [
+      { key: "name", label: l("Nama", "Name"), value: (r) => r.name },
+      { key: "code", label: l("Kode", "Code"), value: (r) => r.code },
+      { key: "description", label: l("Keterangan", "Description"), value: (r) => r.description },
+      {
+        key: "permissions",
+        label: l("Hak", "Permissions"),
+        type: "number",
+        value: (r) => (r.permissions.includes("*") ? Number.MAX_SAFE_INTEGER : r.permissions.length),
+        searchable: false,
+      },
+      { key: "userCount", label: l("Pengguna", "Users"), type: "number", value: (r) => r.userCount },
+      {
+        key: "isSystem",
+        label: l("Jenis", "Kind"),
+        type: "enum",
+        value: (r) => (r.isSystem ? "1" : "0"),
+        optionLabel: (v) => (v === "1" ? l("Bawaan", "Built-in") : l("Kustom", "Custom")),
+        hidden: true,
+      },
+    ],
+    [l],
+  );
+  const table = useTableView(roles, columns, { storageKey: "roles" });
   return (
     <>
       <header className="toolbar">
@@ -43,19 +70,30 @@ export default function RolesPage() {
         )}
       </p>
       {error && <p className="error">{error}</p>}
+      <TableTools view={table} />
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>{l("Nama", "Name")}</th>
-              <th>{l("Kode", "Code")}</th>
-              <th>{l("Keterangan", "Description")}</th>
-              <th className="num">{l("Hak", "Permissions")}</th>
-              <th className="num">{l("Pengguna", "Users")}</th>
+              <SortTh view={table} col="name">
+                {l("Nama", "Name")}
+              </SortTh>
+              <SortTh view={table} col="code">
+                {l("Kode", "Code")}
+              </SortTh>
+              <SortTh view={table} col="description">
+                {l("Keterangan", "Description")}
+              </SortTh>
+              <SortTh view={table} col="permissions" className="num">
+                {l("Hak", "Permissions")}
+              </SortTh>
+              <SortTh view={table} col="userCount" className="num">
+                {l("Pengguna", "Users")}
+              </SortTh>
             </tr>
           </thead>
           <tbody>
-            {roles.map((r) => (
+            {table.rows.map((r) => (
               <tr key={r.id}>
                 <td>
                   <Link href={`/settings/roles/${r.id}`}>{r.name}</Link>{" "}
@@ -72,6 +110,7 @@ export default function RolesPage() {
           </tbody>
         </table>
       </div>
+      <TablePager view={table} />
     </>
   );
 }

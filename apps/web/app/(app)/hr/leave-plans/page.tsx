@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Plan {
   id: string;
@@ -27,6 +29,46 @@ export default function LeavePlansPage() {
   const me = useMe();
   const [rows, setRows] = useState<Plan[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const columns = useMemo<ViewColumn<Plan>[]>(
+    () => [
+      { key: "name", label: l("Nama", "Name"), value: (r) => r.name },
+      { key: "leaveType", label: l("Jenis cuti", "Type"), type: "enum", value: (r) => r.leaveTypeName },
+      {
+        key: "frequency",
+        label: l("Akrual", "Accrual"),
+        type: "enum",
+        value: (r) => r.frequency,
+        optionLabel: (v) => (v === "yearly" ? l("Per tahun", "Yearly") : l("Per bulan", "Monthly")),
+      },
+      {
+        key: "startAfterMonths",
+        label: l("Mulai setelah", "Starts after"),
+        type: "number",
+        value: (r) => r.startAfterMonths,
+      },
+      {
+        key: "carryOver",
+        label: l("Sisa akhir tahun", "Year-end balance"),
+        type: "enum",
+        value: (r) => r.carryOver,
+      },
+      {
+        key: "employeeCount",
+        label: l("Karyawan", "Employees"),
+        type: "number",
+        value: (r) => r.employeeCount,
+      },
+      {
+        key: "active",
+        label: l("Aktif", "Active"),
+        type: "enum",
+        value: (r) => (r.active ? "1" : "0"),
+        optionLabel: (v) => (v === "1" ? l("Ya", "Yes") : l("Tidak", "No")),
+      },
+    ],
+    [l],
+  );
+  const table = useTableView(rows ?? [], columns, { storageKey: "leave-accrual-plans" });
   useEffect(() => {
     api<Plan[]>("/leave-accrual-plans").then(setRows, (e: Error) => setError(e.message));
   }, []);
@@ -56,21 +98,36 @@ export default function LeavePlansPage() {
         )}
       </p>
       {error && <p className="error">{error}</p>}
+      <TableTools view={table} />
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>{l("Nama", "Name")}</th>
-              <th>{l("Jenis cuti", "Type")}</th>
-              <th>{l("Akrual", "Accrual")}</th>
-              <th>{l("Mulai setelah", "Starts after")}</th>
-              <th>{l("Sisa akhir tahun", "Year-end balance")}</th>
-              <th className="num">{l("Karyawan", "Employees")}</th>
-              <th>{l("Aktif", "Active")}</th>
+              <SortTh view={table} col="name">
+                {l("Nama", "Name")}
+              </SortTh>
+              <SortTh view={table} col="leaveType">
+                {l("Jenis cuti", "Type")}
+              </SortTh>
+              <SortTh view={table} col="frequency">
+                {l("Akrual", "Accrual")}
+              </SortTh>
+              <SortTh view={table} col="startAfterMonths">
+                {l("Mulai setelah", "Starts after")}
+              </SortTh>
+              <SortTh view={table} col="carryOver">
+                {l("Sisa akhir tahun", "Year-end balance")}
+              </SortTh>
+              <SortTh view={table} col="employeeCount" className="num">
+                {l("Karyawan", "Employees")}
+              </SortTh>
+              <SortTh view={table} col="active">
+                {l("Aktif", "Active")}
+              </SortTh>
             </tr>
           </thead>
           <tbody>
-            {rows?.map((p) => (
+            {table.rows.map((p) => (
               <tr key={p.id}>
                 <td>
                   <Link href={`/hr/leave-plans/${p.id}`}>{p.name}</Link>
@@ -90,16 +147,19 @@ export default function LeavePlansPage() {
                 <td>{p.active ? l("Ya", "Yes") : l("Tidak", "No")}</td>
               </tr>
             ))}
-            {rows?.length === 0 && (
+            {rows && table.rows.length === 0 && (
               <tr>
                 <td colSpan={7} className="muted">
-                  {l("Belum ada rencana akrual.", "No accrual plans yet.")}
+                  {rows.length
+                    ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                    : l("Belum ada rencana akrual.", "No accrual plans yet.")}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      <TablePager view={table} />
     </div>
   );
 }

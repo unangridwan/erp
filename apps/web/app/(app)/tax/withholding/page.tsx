@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
 import { download, taxStateClass } from "../../../../lib/download";
 import { formatDate, money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can, TAX_DOC_STATE_LABEL } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Slip {
   id: string;
@@ -67,7 +69,52 @@ export default function WithholdingPage() {
       void run(() => api(`/withholding-slips/${slip.id}`, { method: "PATCH", body: { [field]: value } }));
   };
 
-  const exportable = (slips ?? []).filter((s) => s.state === "draft" || s.state === "exported");
+  const columns = useMemo<ViewColumn<Slip>[]>(
+    () => [
+      {
+        key: "counterpart",
+        label: kind === "bppu" ? l("Penerima penghasilan", "Income recipient") : l("Pegawai", "Employee"),
+        value: (s) => s.counterpartName,
+        text: (s) => `${s.counterpartName} ${s.documentNumber ?? ""} ${s.ptkpStatus ?? ""}`,
+      },
+      { key: "counterpartTin", label: l("NPWP/NIK", "Tax ID"), value: (s) => s.counterpartTin },
+      {
+        key: "taxObjectCode",
+        label: l("Kode objek", "Object code"),
+        type: "enum",
+        value: (s) => s.taxObjectCode,
+      },
+      {
+        key: "taxBase",
+        label: kind === "bppu" ? "DPP" : l("Bruto", "Gross"),
+        type: "number",
+        value: (s) => Number(s.taxBase),
+      },
+      {
+        key: "rate",
+        label: kind === "bpa1" ? l("Masa", "Months") : l("Tarif %", "Rate %"),
+        type: "number",
+        value: (s) => (s.kind === "bpa1" ? s.monthStart : Number(s.rate)),
+      },
+      { key: "taxAmount", label: l("PPh", "Tax"), type: "number", value: (s) => Number(s.taxAmount) },
+      { key: "withholdingDate", label: l("Tanggal", "Date"), type: "date", value: (s) => s.withholdingDate },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (s) => s.state,
+        optionLabel: (v) => (TAX_DOC_STATE_LABEL[v] ? tx(TAX_DOC_STATE_LABEL[v]!) : v),
+        text: (s) =>
+          `${TAX_DOC_STATE_LABEL[s.state] ? tx(TAX_DOC_STATE_LABEL[s.state]!) : s.state} ${s.bupotNumber ?? ""}`,
+      },
+    ],
+    [l, tx, kind],
+  );
+  const table = useTableView(slips ?? [], columns, {
+    storageKey: "withholding-slips",
+    defaultSort: { key: "withholdingDate", dir: "asc" },
+  });
+  const exportable = table.filtered.filter((s) => s.state === "draft" || s.state === "exported");
 
   return (
     <>
@@ -146,6 +193,12 @@ export default function WithholdingPage() {
         </div>
       )}
       {slips && (
+        <TableTools
+          view={table}
+          placeholder={l("Cari nama, NPWP, kode objek, nomor…", "Search name, TIN, object code, number…")}
+        />
+      )}
+      {slips && (
         <div className="table-wrap">
           <table>
             <thead>
@@ -160,21 +213,35 @@ export default function WithholdingPage() {
                     }
                   />
                 </th>
-                <th>
+                <SortTh view={table} col="counterpart">
                   {kind === "bppu" ? l("Penerima penghasilan", "Income recipient") : l("Pegawai", "Employee")}
-                </th>
-                <th>{l("NPWP/NIK", "Tax ID")}</th>
-                <th>{l("Kode objek", "Object code")}</th>
-                <th className="num">{kind === "bppu" ? "DPP" : l("Bruto", "Gross")}</th>
-                <th className="num">{kind === "bpa1" ? l("Masa", "Months") : l("Tarif %", "Rate %")}</th>
-                <th className="num">{l("PPh", "Tax")}</th>
-                <th>{l("Tanggal", "Date")}</th>
-                <th>{l("Status", "Status")}</th>
+                </SortTh>
+                <SortTh view={table} col="counterpartTin">
+                  {l("NPWP/NIK", "Tax ID")}
+                </SortTh>
+                <SortTh view={table} col="taxObjectCode">
+                  {l("Kode objek", "Object code")}
+                </SortTh>
+                <SortTh view={table} col="taxBase" className="num">
+                  {kind === "bppu" ? "DPP" : l("Bruto", "Gross")}
+                </SortTh>
+                <SortTh view={table} col="rate" className="num">
+                  {kind === "bpa1" ? l("Masa", "Months") : l("Tarif %", "Rate %")}
+                </SortTh>
+                <SortTh view={table} col="taxAmount" className="num">
+                  {l("PPh", "Tax")}
+                </SortTh>
+                <SortTh view={table} col="withholdingDate">
+                  {l("Tanggal", "Date")}
+                </SortTh>
+                <SortTh view={table} col="state">
+                  {l("Status", "Status")}
+                </SortTh>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {slips.map((s) => (
+              {table.rows.map((s) => (
                 <tr key={s.id}>
                   <td>
                     {(s.state === "draft" || s.state === "exported") && (
@@ -272,10 +339,12 @@ export default function WithholdingPage() {
                   </td>
                 </tr>
               ))}
-              {slips.length === 0 && (
+              {table.rows.length === 0 && (
                 <tr>
                   <td colSpan={10} className="muted">
-                    {l("Belum ada bukti potong pada masa ini.", "No slips in this period.")}
+                    {slips.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Belum ada bukti potong pada masa ini.", "No slips in this period.")}
                   </td>
                 </tr>
               )}
@@ -283,6 +352,7 @@ export default function WithholdingPage() {
           </table>
         </div>
       )}
+      {slips && <TablePager view={table} />}
     </>
   );
 }

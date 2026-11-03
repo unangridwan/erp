@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { api } from "../../lib/api";
+import { useMemo, useState } from "react";
 import { money, formatDate } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
-import { can, MOVE_KINDS, type MoveKind } from "../../lib/resources";
+import { can, MOVE_KINDS, MOVE_TYPE_LABEL, PAYMENT_STATE_LABEL, type MoveKind } from "../../lib/resources";
+import { truncatedNote, useListData } from "../../lib/use-list-data";
+import { DataTable, type DataColumn } from "../data-table";
 import { useMe } from "../me-context";
 import { PaymentBadge, StateBadge, TypeLabel } from "./badges";
 
@@ -24,132 +25,128 @@ interface Move {
   paymentState: string;
 }
 
-const PAGE = 50;
-
+/** Jurnal / faktur / tagihan: dimuat sekali per jenis lalu cari, filter, sort & paginasi di browser. */
 export function MoveList({ kind }: { kind: MoveKind }) {
   const me = useMe();
   const { l, tx, locale } = useI18n();
   const def = MOVE_KINDS[kind];
-  const [q, setQ] = useState("");
-  const [state, setState] = useState("");
-  const [offset, setOffset] = useState(0);
-  const [data, setData] = useState<{ items: Move[]; total: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const isEntry = kind === "entries";
+  const [search, setSearch] = useState("");
+  const paths = useMemo(() => def.types.map((type) => `/moves?type=${type}`), [def]);
+  const list = useListData<Move>(paths, {}, search);
 
-  useEffect(() => {
-    const load = async () => {
-      // Satu halaman per jenis dokumen (faktur + nota kredit digabung).
-      const results = await Promise.all(
-        def.types.map((type) => {
-          const params = new URLSearchParams({ type, limit: String(PAGE), offset: String(offset) });
-          if (q) params.set("q", q);
-          if (state) params.set("state", state);
-          return api<{ items: Move[]; total: number }>(`/moves?${params}`);
-        }),
-      );
-      const items = results.flatMap((r) => r.items).sort((a, b) => b.date.localeCompare(a.date));
-      setData({ items, total: results.reduce((t, r) => t + r.total, 0) });
-    };
-    const timer = setTimeout(() => load().catch((e: Error) => setError(e.message)), 200);
-    return () => clearTimeout(timer);
-  }, [def, q, state, offset]);
+  const columns = useMemo(() => {
+    const stateLabel = (s: string) => (s === "posted" ? l("Diposting", "Posted") : l("Draft", "Draft"));
+    const cols: (DataColumn<Move> | false)[] = [
+      {
+        key: "name",
+        label: l("Nomor", "Number"),
+        value: (m) => m.name ?? "",
+        text: (m) => m.name ?? l("Draft", "Draft"),
+        render: (m) => (
+          <>
+            <Link href={`/accounting/moves/${m.id}`}>{m.name ?? l("Draft", "Draft")}</Link>
+            {m.moveType.endsWith("refund") && (
+              <small className="muted">
+                {" "}
+                · <TypeLabel type={m.moveType} />
+              </small>
+            )}
+          </>
+        ),
+      },
+      def.types.length > 1 && {
+        key: "moveType",
+        label: l("Jenis", "Type"),
+        type: "enum",
+        value: (m) => m.moveType,
+        text: (m) => (MOVE_TYPE_LABEL[m.moveType] ? tx(MOVE_TYPE_LABEL[m.moveType]!) : m.moveType),
+      },
+      {
+        key: "date",
+        label: l("Tanggal", "Date"),
+        type: "date",
+        value: (m) => m.date,
+        text: (m) => formatDate(m.date, locale),
+      },
+      !isEntry && { key: "partner", label: l("Partner", "Partner"), value: (m) => m.partnerName },
+      { key: "ref", label: l("Referensi", "Reference"), value: (m) => m.ref },
+      !isEntry && {
+        key: "dueDate",
+        label: l("Jatuh tempo", "Due"),
+        type: "date",
+        value: (m) => m.dueDate,
+        text: (m) => formatDate(m.dueDate, locale),
+      },
+      {
+        key: "amountTotal",
+        label: l("Total", "Total"),
+        type: "number",
+        className: "num",
+        value: (m) => Number(m.amountTotal),
+        text: (m) => `${isEntry ? "" : `${m.currencyCode} `}${money(m.amountTotal, locale)}`,
+      },
+      !isEntry && {
+        key: "amountResidual",
+        label: l("Sisa", "Due amount"),
+        type: "number",
+        className: "num",
+        value: (m) => (m.state === "posted" ? Number(m.amountResidual) : null),
+        text: (m) => (m.state === "posted" ? money(m.amountResidual, locale) : ""),
+      },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (m) => m.state,
+        text: (m) => stateLabel(m.state),
+        render: (m) => (
+          <>
+            <StateBadge state={m.state} />{" "}
+            {!isEntry && m.state === "posted" && <PaymentBadge state={m.paymentState} />}
+          </>
+        ),
+      },
+      !isEntry && {
+        key: "paymentState",
+        label: l("Pembayaran", "Payment"),
+        type: "enum",
+        hidden: true,
+        value: (m) => (m.state === "posted" ? m.paymentState : ""),
+        text: (m) =>
+          m.state === "posted" && PAYMENT_STATE_LABEL[m.paymentState]
+            ? tx(PAYMENT_STATE_LABEL[m.paymentState]!)
+            : "",
+      },
+    ];
+    return cols.filter((c): c is DataColumn<Move> => !!c);
+  }, [def, isEntry, l, tx, locale]);
 
   return (
     <>
       <header className="toolbar">
         <h1>{tx(def.title)}</h1>
-        <input
-          type="search"
-          placeholder={l("Cari nomor, referensi, partner…", "Search number, reference, partner…")}
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setOffset(0);
-          }}
-        />
-        <select
-          value={state}
-          onChange={(e) => {
-            setState(e.target.value);
-            setOffset(0);
-          }}
-        >
-          <option value="">{l("Semua status", "All states")}</option>
-          <option value="draft">Draft</option>
-          <option value="posted">{l("Diposting", "Posted")}</option>
-        </select>
         {can(me.permissions, "accounting.write") && (
           <Link className="button primary" href={`/accounting/moves/new?type=${def.newType}`}>
             {l("Baru", "New")}
           </Link>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
-      {data && (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{l("Nomor", "Number")}</th>
-                <th>{l("Tanggal", "Date")}</th>
-                {!isEntry && <th>{l("Partner", "Partner")}</th>}
-                <th>{l("Referensi", "Reference")}</th>
-                {!isEntry && <th>{l("Jatuh tempo", "Due")}</th>}
-                <th className="num">{l("Total", "Total")}</th>
-                {!isEntry && <th className="num">{l("Sisa", "Due amount")}</th>}
-                <th>{l("Status", "Status")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((m) => (
-                <tr key={m.id}>
-                  <td>
-                    <Link href={`/accounting/moves/${m.id}`}>{m.name ?? l("Draft", "Draft")}</Link>
-                    {m.moveType.endsWith("refund") && (
-                      <small className="muted">
-                        {" "}
-                        · <TypeLabel type={m.moveType} />
-                      </small>
-                    )}
-                  </td>
-                  <td>{formatDate(m.date, locale)}</td>
-                  {!isEntry && <td>{m.partnerName}</td>}
-                  <td>{m.ref}</td>
-                  {!isEntry && <td>{formatDate(m.dueDate, locale)}</td>}
-                  <td className="num">
-                    {isEntry ? "" : `${m.currencyCode} `}
-                    {money(m.amountTotal, locale)}
-                  </td>
-                  {!isEntry && (
-                    <td className="num">{m.state === "posted" ? money(m.amountResidual, locale) : ""}</td>
-                  )}
-                  <td>
-                    <StateBadge state={m.state} />{" "}
-                    {!isEntry && m.state === "posted" && <PaymentBadge state={m.paymentState} />}
-                  </td>
-                </tr>
-              ))}
-              {data.items.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="muted">
-                    {l("Belum ada dokumen.", "No documents yet.")}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {data && data.total > PAGE && (
-        <footer className="pager">
-          <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>
-            ‹
-          </button>
-          <button disabled={offset + PAGE >= data.total} onClick={() => setOffset(offset + PAGE)}>
-            ›
-          </button>
-        </footer>
+      {list.error && <p className="error">{list.error}</p>}
+      {!list.loading || list.rows.length ? (
+        <DataTable
+          rows={list.rows}
+          columns={columns}
+          storageKey={`moves.${kind}`}
+          rowKey={(m) => m.id}
+          defaultSort={{ key: "date", dir: "desc" }}
+          note={truncatedNote(list, l)}
+          onSearch={setSearch}
+          searchPlaceholder={l("Cari nomor, referensi, partner…", "Search number, reference, partner…")}
+          empty={l("Belum ada dokumen.", "No documents yet.")}
+        />
+      ) : (
+        <p className="muted">{l("Memuat…", "Loading…")}</p>
       )}
     </>
   );

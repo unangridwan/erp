@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { download } from "../../../../components/accounting/download";
 import { useMe } from "../../../../components/me-context";
 import { api, ApiError } from "../../../../lib/api";
@@ -8,6 +8,8 @@ import { formatDate } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { CORRECTION_KIND } from "../../../../components/hr/attendance-extras";
 import { can, LEAVE_STATE_LABEL } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Correction {
   id: string;
@@ -39,7 +41,6 @@ export default function AttendanceRequestsPage() {
   const { l, tx, locale } = useI18n();
   const me = useMe();
   const writable = can(me.permissions, "hr.write");
-  const [state, setState] = useState("confirm");
   const [corrections, setCorrections] = useState<Correction[]>([]);
   const [shifts, setShifts] = useState<ShiftChange[]>([]);
   const [version, setVersion] = useState(0);
@@ -53,10 +54,69 @@ export default function AttendanceRequestsPage() {
   }, []);
 
   useEffect(() => {
-    const q = state ? `?state=${state}` : "";
-    api<Correction[]>(`/attendance-requests${q}`).then(setCorrections, (e: Error) => setError(e.message));
-    api<ShiftChange[]>(`/shift-requests${q}`).then(setShifts, (e: Error) => setError(e.message));
-  }, [state, version]);
+    api<Correction[]>("/attendance-requests").then(setCorrections, (e: Error) => setError(e.message));
+    api<ShiftChange[]>("/shift-requests").then(setShifts, (e: Error) => setError(e.message));
+  }, [version]);
+
+  const stateCol = useMemo(
+    () => ({
+      key: "state",
+      label: l("Status", "Status"),
+      type: "enum" as const,
+      value: (r: { state: string }) => r.state,
+      optionLabel: (v: string) => (LEAVE_STATE_LABEL[v] ? tx(LEAVE_STATE_LABEL[v]!) : v),
+    }),
+    [l, tx],
+  );
+  const pending = { state: { kind: "enum" as const, values: ["confirm"] } };
+  const corrColumns = useMemo<ViewColumn<Correction>[]>(
+    () => [
+      { key: "employee", label: l("Karyawan", "Employee"), value: (c) => c.employeeName },
+      {
+        key: "kind",
+        label: l("Jenis", "Kind"),
+        type: "enum",
+        value: (c) => c.kind,
+        optionLabel: (v) => tx(CORRECTION_KIND[v as Correction["kind"]]),
+      },
+      { key: "date", label: l("Tanggal", "Date"), type: "date", value: (c) => c.date },
+      {
+        key: "checkIn",
+        label: l("Masuk – pulang", "In – out"),
+        type: "date",
+        value: (c) => c.checkIn,
+        filterable: false,
+      },
+      { key: "reason", label: l("Alasan", "Reason"), value: (c) => c.reason },
+      stateCol,
+    ],
+    [l, tx, stateCol],
+  );
+  const corrTable = useTableView(corrections, corrColumns, {
+    storageKey: "attendance-requests",
+    defaultSort: { key: "date", dir: "desc" },
+    initialFilters: pending,
+  });
+  const shiftColumns = useMemo<ViewColumn<ShiftChange>[]>(
+    () => [
+      { key: "employee", label: l("Karyawan", "Employee"), value: (s) => s.employeeName },
+      {
+        key: "schedule",
+        label: l("Jadwal diminta", "Requested schedule"),
+        type: "enum",
+        value: (s) => s.scheduleName,
+      },
+      { key: "dateFrom", label: l("Periode", "Period"), type: "date", value: (s) => s.dateFrom },
+      { key: "reason", label: l("Alasan", "Reason"), value: (s) => s.reason },
+      stateCol,
+    ],
+    [l, stateCol],
+  );
+  const shiftTable = useTableView(shifts, shiftColumns, {
+    storageKey: "shift-requests",
+    defaultSort: { key: "dateFrom", dir: "desc" },
+    initialFilters: pending,
+  });
 
   async function decide(path: string) {
     setError(null);
@@ -90,31 +150,38 @@ export default function AttendanceRequestsPage() {
     <div className="stack-wide">
       <header className="toolbar">
         <h1>{l("Koreksi Absensi & Tukar Shift", "Attendance Corrections & Shift Changes")}</h1>
-        <select value={state} onChange={(e) => setState(e.target.value)} aria-label={l("Status", "Status")}>
-          <option value="confirm">{l("Menunggu persetujuan", "To approve")}</option>
-          <option value="approved">{l("Disetujui", "Approved")}</option>
-          <option value="refused">{l("Ditolak", "Refused")}</option>
-          <option value="">{l("Semua", "All")}</option>
-        </select>
       </header>
       {error && <p className="error">{error}</p>}
       <section className="panel">
         <h2>{l("Koreksi absensi", "Attendance corrections")}</h2>
+        <TableTools view={corrTable} />
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{l("Karyawan", "Employee")}</th>
-                <th>{l("Jenis", "Kind")}</th>
-                <th>{l("Tanggal", "Date")}</th>
-                <th>{l("Masuk – pulang", "In – out")}</th>
-                <th>{l("Alasan", "Reason")}</th>
-                <th>{l("Status", "Status")}</th>
+                <SortTh view={corrTable} col="employee">
+                  {l("Karyawan", "Employee")}
+                </SortTh>
+                <SortTh view={corrTable} col="kind">
+                  {l("Jenis", "Kind")}
+                </SortTh>
+                <SortTh view={corrTable} col="date">
+                  {l("Tanggal", "Date")}
+                </SortTh>
+                <SortTh view={corrTable} col="checkIn">
+                  {l("Masuk – pulang", "In – out")}
+                </SortTh>
+                <SortTh view={corrTable} col="reason">
+                  {l("Alasan", "Reason")}
+                </SortTh>
+                <SortTh view={corrTable} col="state">
+                  {l("Status", "Status")}
+                </SortTh>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {corrections.map((c) => (
+              {corrTable.rows.map((c) => (
                 <tr key={c.id}>
                   <td>{c.employeeName}</td>
                   <td>{tx(CORRECTION_KIND[c.kind])}</td>
@@ -153,33 +220,47 @@ export default function AttendanceRequestsPage() {
                   <td>{actions("/attendance-requests", c.id, c.state)}</td>
                 </tr>
               ))}
-              {corrections.length === 0 && (
+              {corrTable.rows.length === 0 && (
                 <tr>
                   <td colSpan={7} className="muted">
-                    {l("Tidak ada koreksi absensi.", "No corrections.")}
+                    {corrections.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Tidak ada koreksi absensi.", "No corrections.")}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+        <TablePager view={corrTable} />
       </section>
       <section className="panel">
         <h2>{l("Tukar shift", "Shift changes")}</h2>
+        <TableTools view={shiftTable} />
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{l("Karyawan", "Employee")}</th>
-                <th>{l("Jadwal diminta", "Requested schedule")}</th>
-                <th>{l("Periode", "Period")}</th>
-                <th>{l("Alasan", "Reason")}</th>
-                <th>{l("Status", "Status")}</th>
+                <SortTh view={shiftTable} col="employee">
+                  {l("Karyawan", "Employee")}
+                </SortTh>
+                <SortTh view={shiftTable} col="schedule">
+                  {l("Jadwal diminta", "Requested schedule")}
+                </SortTh>
+                <SortTh view={shiftTable} col="dateFrom">
+                  {l("Periode", "Period")}
+                </SortTh>
+                <SortTh view={shiftTable} col="reason">
+                  {l("Alasan", "Reason")}
+                </SortTh>
+                <SortTh view={shiftTable} col="state">
+                  {l("Status", "Status")}
+                </SortTh>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {shifts.map((s) => (
+              {shiftTable.rows.map((s) => (
                 <tr key={s.id}>
                   <td>{s.employeeName}</td>
                   <td>{s.scheduleName}</td>
@@ -199,16 +280,19 @@ export default function AttendanceRequestsPage() {
                   <td>{actions("/shift-requests", s.id, s.state)}</td>
                 </tr>
               ))}
-              {shifts.length === 0 && (
+              {shiftTable.rows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="muted">
-                    {l("Tidak ada permintaan tukar shift.", "No shift change requests.")}
+                    {shifts.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Tidak ada permintaan tukar shift.", "No shift change requests.")}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+        <TablePager view={shiftTable} />
       </section>
     </div>
   );

@@ -1,12 +1,14 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useMe } from "../../../../components/me-context";
 import { RefSelect } from "../../../../components/ref-select";
 import { api } from "../../../../lib/api";
 import { formatDate, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Balance {
   leaveTypeId: string;
@@ -84,6 +86,32 @@ export default function LeaveBalancesPage() {
       setError(e instanceof Error ? e.message : String(e));
     }
   }
+  type BalanceRow = Report["rows"][number];
+  const columns = useMemo<ViewColumn<BalanceRow>[]>(
+    () => [
+      {
+        key: "employee",
+        label: l("Karyawan", "Employee"),
+        value: (r) => r.name,
+        text: (r) => `${r.name} ${r.employeeNumber}`,
+      },
+      {
+        key: "department",
+        label: l("Departemen", "Department"),
+        type: "enum",
+        value: (r) => r.departmentName,
+      },
+      ...(report?.types ?? []).map((t): ViewColumn<BalanceRow> => ({
+        key: `type:${t.id}`,
+        label: t.name,
+        type: "number",
+        value: (r) => Number(r.balances.find((b) => b.leaveTypeId === t.id)?.remaining ?? 0),
+        searchable: false,
+      })),
+    ],
+    [l, report?.types],
+  );
+  const table = useTableView(report?.rows ?? [], columns, { storageKey: "leave-balances" });
   const KIND: Record<string, string> = {
     credit: l("Jatah", "Credit"),
     debit: l("Dipakai", "Taken"),
@@ -117,22 +145,27 @@ export default function LeaveBalancesPage() {
           )}
         </p>
         {error && <p className="error">{error}</p>}
+        {report && <TableTools view={table} placeholder={l("Cari karyawan…", "Search employee…")} />}
         {report && (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>{l("Karyawan", "Employee")}</th>
-                  <th>{l("Departemen", "Department")}</th>
+                  <SortTh view={table} col="employee">
+                    {l("Karyawan", "Employee")}
+                  </SortTh>
+                  <SortTh view={table} col="department">
+                    {l("Departemen", "Department")}
+                  </SortTh>
                   {report.types.map((t) => (
-                    <th key={t.id} className="num">
+                    <SortTh key={t.id} view={table} col={`type:${t.id}`} className="num">
                       {t.name}
-                    </th>
+                    </SortTh>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {report.rows.map((r) => (
+                {table.rows.map((r) => (
                   <Fragment key={r.id}>
                     <tr>
                       <td>
@@ -213,10 +246,12 @@ export default function LeaveBalancesPage() {
                     )}
                   </Fragment>
                 ))}
-                {report.rows.length === 0 && (
+                {table.rows.length === 0 && (
                   <tr>
                     <td colSpan={2 + report.types.length} className="muted">
-                      {l("Tidak ada karyawan.", "No employees.")}
+                      {report.rows.length
+                        ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                        : l("Tidak ada karyawan.", "No employees.")}
                     </td>
                   </tr>
                 )}
@@ -224,6 +259,7 @@ export default function LeaveBalancesPage() {
             </table>
           </div>
         )}
+        {report && <TablePager view={table} />}
       </section>
 
       <section className="panel">

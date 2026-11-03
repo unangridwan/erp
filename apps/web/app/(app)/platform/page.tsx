@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMe } from "../../../components/me-context";
 import { api, ApiError } from "../../../lib/api";
 import { formatDate, money } from "../../../lib/format";
 import { useI18n } from "../../../lib/i18n";
 import { SUBSCRIPTION_STATUS_LABEL } from "../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../components/data-table";
+import { useTableView } from "../../../lib/use-table-view";
 
 interface Tenant {
   id: string;
@@ -114,7 +116,42 @@ export default function PlatformPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const columns = useMemo<ViewColumn<Tenant>[]>(
+    () => [
+      { key: "slug", label: "Slug", value: (t) => t.slug },
+      { key: "name", label: l("Nama", "Name"), value: (t) => t.name },
+      { key: "plan", label: l("Paket", "Plan"), type: "enum", value: (t) => t.planName },
+      {
+        key: "status",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (t) => t.status,
+        optionLabel: (v) => (SUBSCRIPTION_STATUS_LABEL[v] ? tx(SUBSCRIPTION_STATUS_LABEL[v]!) : v),
+        text: (t) =>
+          `${t.status && SUBSCRIPTION_STATUS_LABEL[t.status] ? tx(SUBSCRIPTION_STATUS_LABEL[t.status]!) : ""} ${t.complimentaryNote ?? ""}`,
+      },
+      {
+        key: "ends",
+        label: l("Berakhir", "Ends"),
+        type: "date",
+        value: (t) =>
+          t.status === "complimentary"
+            ? t.complimentaryUntil
+            : t.status === "trialing"
+              ? t.trialEndsAt
+              : t.currentPeriodEnd,
+      },
+      {
+        key: "createdAt",
+        label: l("Terdaftar", "Signed up"),
+        type: "date",
+        value: (t) => t.createdAt,
+        hidden: true,
+      },
+    ],
+    [l, tx],
+  );
+  const table = useTableView(tenants ?? [], columns, { storageKey: "platform-tenants" });
 
   const load = useCallback(() => {
     Promise.all([
@@ -362,119 +399,115 @@ export default function PlatformPage() {
               </div>
             </form>
           )}
-          <input
-            className="perm-search"
-            placeholder={l("Cari tenant atau paket…", "Search tenant or plan…")}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <TableTools view={table} placeholder={l("Cari tenant atau paket…", "Search tenant or plan…")} />
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Slug</th>
-                  <th>{l("Nama", "Name")}</th>
-                  <th>{l("Paket", "Plan")}</th>
-                  <th>{l("Status", "Status")}</th>
-                  <th>{l("Berakhir", "Ends")}</th>
+                  <SortTh view={table} col="slug">
+                    Slug
+                  </SortTh>
+                  <SortTh view={table} col="name">
+                    {l("Nama", "Name")}
+                  </SortTh>
+                  <SortTh view={table} col="plan">
+                    {l("Paket", "Plan")}
+                  </SortTh>
+                  <SortTh view={table} col="status">
+                    {l("Status", "Status")}
+                  </SortTh>
+                  <SortTh view={table} col="ends">
+                    {l("Berakhir", "Ends")}
+                  </SortTh>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {(tenants ?? [])
-                  .filter(
-                    (t) =>
-                      !query ||
-                      `${t.slug} ${t.name} ${t.planName ?? ""}`
-                        .toLowerCase()
-                        .includes(query.trim().toLowerCase()),
-                  )
-                  .map((t) => (
-                    <tr key={t.id}>
-                      <td>{t.slug}</td>
-                      <td>{t.name}</td>
-                      <td>
-                        <select
-                          aria-label={l("Paket", "Plan")}
-                          value={t.planCode ?? ""}
-                          onChange={(e) => void patch(t, { planCode: e.target.value })}
+                {table.rows.map((t) => (
+                  <tr key={t.id}>
+                    <td>{t.slug}</td>
+                    <td>{t.name}</td>
+                    <td>
+                      <select
+                        aria-label={l("Paket", "Plan")}
+                        value={t.planCode ?? ""}
+                        onChange={(e) => void patch(t, { planCode: e.target.value })}
+                      >
+                        {!t.planCode && <option value="">—</option>}
+                        {plans.map((p) => (
+                          <option key={p.id} value={p.code}>
+                            {p.name}
+                            {p.active ? "" : ` (${l("nonaktif", "inactive")})`}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      {t.status ? tx(SUBSCRIPTION_STATUS_LABEL[t.status]!) : "—"}
+                      {t.complimentary && t.complimentaryNote && (
+                        <div className="small muted">{t.complimentaryNote}</div>
+                      )}
+                    </td>
+                    <td>
+                      {t.status === "complimentary"
+                        ? t.complimentaryUntil
+                          ? date(t.complimentaryUntil, locale)
+                          : l("Tanpa batas", "No end")
+                        : date(t.status === "trialing" ? t.trialEndsAt : t.currentPeriodEnd, locale)}
+                    </td>
+                    <td className="actions">
+                      {t.complimentary ? (
+                        <button
+                          className="link"
+                          onClick={() => {
+                            if (
+                              window.confirm(l(`Cabut gratis ${t.slug}?`, `Revoke free plan for ${t.slug}?`))
+                            )
+                              void patch(t, { complimentary: false });
+                          }}
                         >
-                          {!t.planCode && <option value="">—</option>}
-                          {plans.map((p) => (
-                            <option key={p.id} value={p.code}>
-                              {p.name}
-                              {p.active ? "" : ` (${l("nonaktif", "inactive")})`}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        {t.status ? tx(SUBSCRIPTION_STATUS_LABEL[t.status]!) : "—"}
-                        {t.complimentary && t.complimentaryNote && (
-                          <div className="small muted">{t.complimentaryNote}</div>
-                        )}
-                      </td>
-                      <td>
-                        {t.status === "complimentary"
-                          ? t.complimentaryUntil
-                            ? date(t.complimentaryUntil, locale)
-                            : l("Tanpa batas", "No end")
-                          : date(t.status === "trialing" ? t.trialEndsAt : t.currentPeriodEnd, locale)}
-                      </td>
-                      <td className="actions">
-                        {t.complimentary ? (
-                          <button
-                            className="link"
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  l(`Cabut gratis ${t.slug}?`, `Revoke free plan for ${t.slug}?`),
-                                )
-                              )
-                                void patch(t, { complimentary: false });
-                            }}
-                          >
-                            {l("Cabut gratis", "Revoke free")}
-                          </button>
-                        ) : (
-                          <button
-                            className="link"
-                            onClick={() =>
-                              setFreeForm({
-                                tenant: t,
-                                planCode: t.planCode ?? plans[0]?.code ?? "",
-                                until: "",
-                                note: "",
-                              })
-                            }
-                          >
-                            {l("Beri gratis", "Make free")}
-                          </button>
-                        )}
-                        <button className="link" onClick={() => extendTrial(t)}>
-                          {l("Perpanjang uji coba", "Extend trial")}
+                          {l("Cabut gratis", "Revoke free")}
                         </button>
-                        {t.status === "suspended" ? (
-                          <button className="link" onClick={() => void patch(t, { status: "active" })}>
-                            {l("Aktifkan", "Reactivate")}
-                          </button>
-                        ) : (
-                          <button
-                            className="link danger"
-                            onClick={() => {
-                              if (window.confirm(l(`Tangguhkan ${t.slug}?`, `Suspend ${t.slug}?`)))
-                                void patch(t, { status: "suspended" });
-                            }}
-                          >
-                            {l("Tangguhkan", "Suspend")}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                      ) : (
+                        <button
+                          className="link"
+                          onClick={() =>
+                            setFreeForm({
+                              tenant: t,
+                              planCode: t.planCode ?? plans[0]?.code ?? "",
+                              until: "",
+                              note: "",
+                            })
+                          }
+                        >
+                          {l("Beri gratis", "Make free")}
+                        </button>
+                      )}
+                      <button className="link" onClick={() => extendTrial(t)}>
+                        {l("Perpanjang uji coba", "Extend trial")}
+                      </button>
+                      {t.status === "suspended" ? (
+                        <button className="link" onClick={() => void patch(t, { status: "active" })}>
+                          {l("Aktifkan", "Reactivate")}
+                        </button>
+                      ) : (
+                        <button
+                          className="link danger"
+                          onClick={() => {
+                            if (window.confirm(l(`Tangguhkan ${t.slug}?`, `Suspend ${t.slug}?`)))
+                              void patch(t, { status: "suspended" });
+                          }}
+                        >
+                          {l("Tangguhkan", "Suspend")}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
+          <TablePager view={table} />
         </>
       )}
 

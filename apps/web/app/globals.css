@@ -2675,3 +2675,152 @@ dl.facts .wide {
 .contract-components select {
   max-width: 100%;
 }
+
+/* ---- Alat tabel: cari, filter per kolom, sort, paginasi (di browser) ---- */
+.table-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.table-tools-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.table-search {
+  flex: 0 1 320px;
+  min-width: 180px;
+}
+.table-tools-row > button.active {
+  background: var(--hover);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+.table-count {
+  margin-left: auto;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.table-note {
+  margin: 0;
+}
+.count-badge {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 4px 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  font-size: 13px;
+}
+.filter-chip button {
+  padding: 0 6px;
+  font-size: 15px;
+  line-height: 1;
+}
+.filter-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+}
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  font-size: 13px;
+}
+.filter-field legend,
+.filter-field > span {
+  padding: 0;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.filter-options {
+  display: flex;
+  flex-direction: column;
+  max-height: 168px;
+  overflow-y: auto;
+}
+.filter-options label.check {
+  margin: 2px 0;
+}
+.filter-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.filter-range input {
+  flex: 1;
+  min-width: 0;
+}
+th .th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+th.num .th-sort {
+  flex-direction: row-reverse;
+}
+th .th-sort:hover {
+  color: var(--fg);
+}
+.sort-mark {
+  font-size: 10px;
+  opacity: 0.45;
+}
+.sort-mark.on {
+  opacity: 1;
+  color: var(--accent-text);
+}
+.table-pager {
+  flex-wrap: wrap;
+}
+.table-pager select {
+  width: auto;
+}
+@media (max-width: 640px) {
+  .table-search {
+    flex: 1 1 100%;
+  }
+  .table-count {
+    margin-left: 0;
+  }
+}

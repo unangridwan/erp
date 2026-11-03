@@ -1,3 +1,4 @@
+import { LIST_LOAD_LIMIT } from "@erp/shared";
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { and, asc, count, desc, eq, ilike, inArray, or, schema, sql, type Db, type SQL } from "@erp/db";
 import { Decimal } from "decimal.js";
@@ -26,7 +27,7 @@ export interface PickingQuery {
 @Injectable()
 export class StockQueryService {
   async pickings(tx: Db, query: PickingQuery) {
-    const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
+    const limit = Math.min(Math.max(Number(query.limit) || 50, 1), LIST_LOAD_LIMIT);
     const offset = Math.max(Number(query.offset) || 0, 0);
     const filters: (SQL | undefined)[] = [eq(P.companyId, currentContext().companyId)];
     if (query.pickingType && ["incoming", "outgoing", "internal", "dropship"].includes(query.pickingType))
@@ -186,7 +187,7 @@ export class StockQueryService {
   /** Ringkasan stok per produk: tersedia, akan masuk, akan keluar, perkiraan, dan nilai persediaan. */
   async overview(tx: Db, query: { q?: string; warehouseId?: string; limit?: string; offset?: string }) {
     const ctx = currentContext();
-    const limit = Math.min(Math.max(Number(query.limit) || 100, 1), 500);
+    const limit = Math.min(Math.max(Number(query.limit) || 100, 1), LIST_LOAD_LIMIT);
     const offset = Math.max(Number(query.offset) || 0, 0);
     const wh = query.warehouseId ?? null;
     // Lokasi internal perusahaan (opsional: hanya gudang tertentu).
@@ -279,7 +280,7 @@ export class StockQueryService {
       .leftJoin(schema.stockLots, eq(schema.stockLots.id, schema.stockQuants.lotId))
       .where(and(...filters))
       .orderBy(asc(schema.products.name), asc(schema.stockLocations.completeName), asc(schema.stockLots.name))
-      .limit(1000);
+      .limit(LIST_LOAD_LIMIT);
   }
 
   /**
@@ -405,7 +406,7 @@ export class StockQueryService {
       .innerJoin(schema.products, eq(schema.products.id, schema.stockLots.productId))
       .where(and(...filters))
       .orderBy(asc(schema.stockLots.expirationDate), asc(schema.stockLots.name))
-      .limit(500);
+      .limit(LIST_LOAD_LIMIT);
     return rows
       .map((r) => ({ ...r.lot, productName: r.productName, sku: r.sku, onHand: d(r.onHand).toFixed(4) }))
       .filter((r) => query.available !== "true" || d(r.onHand).gt(0));

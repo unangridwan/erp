@@ -60,3 +60,4 @@ export * from "./coretax.js";
 export * from "./coretax-extra.js";
 export * from "./billing.js";
 export * from "./consolidation.js";
+export * from "./table-view.js";

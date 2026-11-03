@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { errorText } from "../../../../components/hr/hr-panels";
 import { PLAN_STATE_LABEL, planStatePill, type PlanState } from "../../../../components/hr/manpower-plan";
 import { api } from "../../../../lib/api";
 import { money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface List {
   year: number;
@@ -57,6 +59,41 @@ function ManpowerPlans() {
   const [d, setD] = useState<List | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  type PlanRow = List["rows"][number];
+  const columns = useMemo<ViewColumn<PlanRow>[]>(() => {
+    const num = (
+      key: "startHeadcount" | "endHeadcount" | "additions" | "replacements" | "filled",
+      label: string,
+    ) => ({
+      key,
+      label,
+      type: "number" as const,
+      value: (r: PlanRow) => r.plan?.[key] ?? null,
+    });
+    return [
+      { key: "department", label: l("Departemen", "Department"), value: (r) => r.department },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (r) => r.plan?.state ?? "none",
+        optionLabel: (v) =>
+          v === "none" ? l("Belum ada MPP", "No plan yet") : l(...PLAN_STATE_LABEL[v as PlanState]),
+      },
+      num("startHeadcount", l("Awal", "Start")),
+      num("endHeadcount", l("Akhir", "End")),
+      num("additions", l("Tambahan", "New")),
+      num("replacements", l("Pengganti", "Repl.")),
+      num("filled", l("Realisasi", "Filled")),
+      {
+        key: "annualCost",
+        label: l("Biaya tahunan", "Annual cost"),
+        type: "number",
+        value: (r) => r.plan?.annualCost ?? null,
+      },
+    ];
+  }, [l]);
+  const table = useTableView(d?.rows ?? [], columns, { storageKey: "manpower-plans" });
   useEffect(() => {
     setError(null);
     api<List>(`/manpower-plans?year=${year}`).then(setD, (e) => setError(errorText(e)));
@@ -125,23 +162,42 @@ function ManpowerPlans() {
       </section>
       {d && (
         <section className="panel proj-panel">
+          <TableTools view={table} />
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>{l("Departemen", "Department")}</th>
-                  <th>{l("Status", "Status")}</th>
-                  <th className="num">{l("Awal", "Start")}</th>
-                  <th className="num">{l("Akhir", "End")}</th>
-                  <th className="num">{l("Tambahan", "New")}</th>
-                  <th className="num">{l("Pengganti", "Repl.")}</th>
-                  <th className="num">{l("Realisasi", "Filled")}</th>
-                  {d.showCost && <th className="num">{l("Biaya tahunan", "Annual cost")}</th>}
+                  <SortTh view={table} col="department">
+                    {l("Departemen", "Department")}
+                  </SortTh>
+                  <SortTh view={table} col="state">
+                    {l("Status", "Status")}
+                  </SortTh>
+                  <SortTh view={table} col="startHeadcount" className="num">
+                    {l("Awal", "Start")}
+                  </SortTh>
+                  <SortTh view={table} col="endHeadcount" className="num">
+                    {l("Akhir", "End")}
+                  </SortTh>
+                  <SortTh view={table} col="additions" className="num">
+                    {l("Tambahan", "New")}
+                  </SortTh>
+                  <SortTh view={table} col="replacements" className="num">
+                    {l("Pengganti", "Repl.")}
+                  </SortTh>
+                  <SortTh view={table} col="filled" className="num">
+                    {l("Realisasi", "Filled")}
+                  </SortTh>
+                  {d.showCost && (
+                    <SortTh view={table} col="annualCost" className="num">
+                      {l("Biaya tahunan", "Annual cost")}
+                    </SortTh>
+                  )}
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {d.rows.map((r) => (
+                {table.rows.map((r) => (
                   <tr key={r.departmentId}>
                     <td>{r.department}</td>
                     {r.plan ? (
@@ -181,16 +237,19 @@ function ManpowerPlans() {
                     )}
                   </tr>
                 ))}
-                {!d.rows.length && (
+                {!table.rows.length && (
                   <tr>
                     <td colSpan={9} className="muted">
-                      {l("Belum ada departemen.", "No departments yet.")}
+                      {d.rows.length
+                        ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                        : l("Belum ada departemen.", "No departments yet.")}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+          <TablePager view={table} />
         </section>
       )}
     </div>

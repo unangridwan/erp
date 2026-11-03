@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
 import { formatDate, money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can, PAYROLL_STATE_LABEL } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Run {
   id: string;
@@ -35,6 +37,41 @@ export default function PayrollRunsPage() {
       .then(setRuns)
       .catch((e: Error) => setError(e.message));
   }, []);
+
+  const columns = useMemo<ViewColumn<Run>[]>(
+    () => [
+      { key: "name", label: l("Payroll", "Payroll"), value: (r) => r.name },
+      {
+        key: "paymentDate",
+        label: l("Tanggal bayar", "Payment date"),
+        type: "date",
+        value: (r) => r.paymentDate,
+      },
+      { key: "employees", label: l("Karyawan", "Employees"), type: "number", value: (r) => r.employees },
+      { key: "pph21", label: "PPh 21", type: "number", value: (r) => Number(r.pph21) },
+      { key: "net", label: l("Gaji bersih", "Net pay"), type: "number", value: (r) => Number(r.net) },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (r) => r.state,
+        optionLabel: (v) => (PAYROLL_STATE_LABEL[v] ? tx(PAYROLL_STATE_LABEL[v]!) : v),
+      },
+      {
+        key: "kind",
+        label: l("Jenis", "Kind"),
+        type: "enum",
+        value: (r) => r.kind,
+        optionLabel: (v) => (v === "correction" ? l("Koreksi", "Correction") : l("Reguler", "Regular")),
+        hidden: true,
+      },
+    ],
+    [l, tx],
+  );
+  const table = useTableView(runs ?? [], columns, {
+    storageKey: "payroll-runs",
+    defaultSort: { key: "paymentDate", dir: "desc" },
+  });
 
   async function create(e: FormEvent) {
     e.preventDefault();
@@ -74,21 +111,34 @@ export default function PayrollRunsPage() {
           <button className="primary">{l("Buat & hitung payroll", "Create & compute payroll")}</button>
         </form>
       )}
+      {runs && <TableTools view={table} />}
       {runs && (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{l("Payroll", "Payroll")}</th>
-                <th>{l("Tanggal bayar", "Payment date")}</th>
-                <th className="num">{l("Karyawan", "Employees")}</th>
-                <th className="num">PPh 21</th>
-                <th className="num">{l("Gaji bersih", "Net pay")}</th>
-                <th>{l("Status", "Status")}</th>
+                <SortTh view={table} col="name">
+                  {l("Payroll", "Payroll")}
+                </SortTh>
+                <SortTh view={table} col="paymentDate">
+                  {l("Tanggal bayar", "Payment date")}
+                </SortTh>
+                <SortTh view={table} col="employees" className="num">
+                  {l("Karyawan", "Employees")}
+                </SortTh>
+                <SortTh view={table} col="pph21" className="num">
+                  PPh 21
+                </SortTh>
+                <SortTh view={table} col="net" className="num">
+                  {l("Gaji bersih", "Net pay")}
+                </SortTh>
+                <SortTh view={table} col="state">
+                  {l("Status", "Status")}
+                </SortTh>
               </tr>
             </thead>
             <tbody>
-              {runs.map((r) => (
+              {table.rows.map((r) => (
                 <tr key={r.id}>
                   <td>
                     <Link href={`/payroll/runs/${r.id}`}>{r.name}</Link>
@@ -107,10 +157,12 @@ export default function PayrollRunsPage() {
                   </td>
                 </tr>
               ))}
-              {runs.length === 0 && (
+              {table.rows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="muted">
-                    {l("Belum ada payroll.", "No payroll runs yet.")}
+                    {runs.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Belum ada payroll.", "No payroll runs yet.")}
                   </td>
                 </tr>
               )}
@@ -118,6 +170,7 @@ export default function PayrollRunsPage() {
           </table>
         </div>
       )}
+      {runs && <TablePager view={table} />}
     </>
   );
 }

@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
 import { download, readFile, taxStateClass } from "../../../../lib/download";
 import { formatDate, money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can, TAX_DOC_STATE_LABEL, TRX_CODES } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface TaxInvoice {
   id: string;
@@ -76,7 +78,53 @@ export default function TaxInvoicesPage() {
     }
   }
 
-  const exportable = (docs ?? []).filter((d) => d.state === "draft" || d.state === "exported");
+  const columns = useMemo<ViewColumn<TaxInvoice>[]>(
+    () => [
+      {
+        key: "ref",
+        label: l("Faktur", "Invoice"),
+        value: (d) => d.ref,
+        text: (d) => [d.ref, d.moveName, d.replacedNumber].filter(Boolean).join(" "),
+      },
+      { key: "invoiceDate", label: l("Tanggal", "Date"), type: "date", value: (d) => d.invoiceDate },
+      {
+        key: "buyer",
+        label: l("Pembeli", "Buyer"),
+        value: (d) => d.buyerName,
+        text: (d) => `${d.buyerName} ${d.buyerTin} ${d.buyerDocumentNumber ?? ""}`,
+      },
+      { key: "trxCode", label: l("Kode", "Code"), type: "enum", value: (d) => d.trxCode },
+      { key: "taxBase", label: "DPP", type: "number", value: (d) => Number(d.taxBase) },
+      {
+        key: "otherTaxBase",
+        label: l("DPP nilai lain", "Other base"),
+        type: "number",
+        value: (d) => Number(d.otherTaxBase),
+      },
+      { key: "vat", label: "PPN", type: "number", value: (d) => Number(d.vat) },
+      { key: "stlg", label: "PPnBM", type: "number", value: (d) => Number(d.stlg) },
+      {
+        key: "efakturNumber",
+        label: l("Nomor faktur", "Invoice number"),
+        value: (d) => d.efakturNumber,
+        text: (d) => `${d.efakturNumber ?? ""} ${d.nsfp ?? ""}`,
+      },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (d) => d.state,
+        optionLabel: (v) => (TAX_DOC_STATE_LABEL[v] ? tx(TAX_DOC_STATE_LABEL[v]!) : v),
+        text: (d) => (TAX_DOC_STATE_LABEL[d.state] ? tx(TAX_DOC_STATE_LABEL[d.state]!) : d.state),
+      },
+    ],
+    [l, tx],
+  );
+  const table = useTableView(docs ?? [], columns, {
+    storageKey: "tax-invoices",
+    defaultSort: { key: "invoiceDate", dir: "asc" },
+  });
+  const exportable = table.filtered.filter((d) => d.state === "draft" || d.state === "exported");
   const toggle = (id: string) =>
     setSelected((s) => {
       const next = new Set(s);
@@ -244,6 +292,12 @@ export default function TaxInvoicesPage() {
         />
       )}
       {docs && (
+        <TableTools
+          view={table}
+          placeholder={l("Cari faktur, pembeli, NPWP, nomor…", "Search invoice, buyer, TIN, number…")}
+        />
+      )}
+      {docs && (
         <div className="table-wrap">
           <table>
             <thead>
@@ -258,21 +312,41 @@ export default function TaxInvoicesPage() {
                     }
                   />
                 </th>
-                <th>{l("Faktur", "Invoice")}</th>
-                <th>{l("Tanggal", "Date")}</th>
-                <th>{l("Pembeli", "Buyer")}</th>
-                <th>{l("Kode", "Code")}</th>
-                <th className="num">DPP</th>
-                <th className="num">{l("DPP nilai lain", "Other base")}</th>
-                <th className="num">PPN</th>
-                <th className="num">PPnBM</th>
-                <th>{l("Nomor faktur", "Invoice number")}</th>
-                <th>{l("Status", "Status")}</th>
+                <SortTh view={table} col="ref">
+                  {l("Faktur", "Invoice")}
+                </SortTh>
+                <SortTh view={table} col="invoiceDate">
+                  {l("Tanggal", "Date")}
+                </SortTh>
+                <SortTh view={table} col="buyer">
+                  {l("Pembeli", "Buyer")}
+                </SortTh>
+                <SortTh view={table} col="trxCode">
+                  {l("Kode", "Code")}
+                </SortTh>
+                <SortTh view={table} col="taxBase" className="num">
+                  DPP
+                </SortTh>
+                <SortTh view={table} col="otherTaxBase" className="num">
+                  {l("DPP nilai lain", "Other base")}
+                </SortTh>
+                <SortTh view={table} col="vat" className="num">
+                  PPN
+                </SortTh>
+                <SortTh view={table} col="stlg" className="num">
+                  PPnBM
+                </SortTh>
+                <SortTh view={table} col="efakturNumber">
+                  {l("Nomor faktur", "Invoice number")}
+                </SortTh>
+                <SortTh view={table} col="state">
+                  {l("Status", "Status")}
+                </SortTh>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {docs.map((d) => (
+              {table.rows.map((d) => (
                 <tr key={d.id}>
                   <td>
                     {(d.state === "draft" || d.state === "exported") && (
@@ -373,10 +447,12 @@ export default function TaxInvoicesPage() {
                   </td>
                 </tr>
               ))}
-              {docs.length === 0 && (
+              {table.rows.length === 0 && (
                 <tr>
                   <td colSpan={12} className="muted">
-                    {l("Belum ada faktur pajak pada masa ini.", "No tax invoices in this period.")}
+                    {docs.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Belum ada faktur pajak pada masa ini.", "No tax invoices in this period.")}
                   </td>
                 </tr>
               )}
@@ -384,6 +460,7 @@ export default function TaxInvoicesPage() {
           </table>
         </div>
       )}
+      {docs && <TablePager view={table} />}
     </>
   );
 }

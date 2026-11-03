@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMe } from "../../../../components/me-context";
 import { api, ApiError } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface User {
   id: string;
@@ -52,6 +54,30 @@ export default function UsersPage() {
       .catch(() => setRoles([]));
   }, [reload]);
 
+  const columns = useMemo<ViewColumn<User>[]>(
+    () => [
+      { key: "name", label: t("auth.name"), value: (u) => u.name },
+      { key: "email", label: t("auth.email"), value: (u) => u.email },
+      { key: "roles", label: t("users.roles"), value: (u) => u.roles.join(", ") },
+      {
+        key: "twoFactor",
+        label: "2FA",
+        type: "enum",
+        value: (u) => (u.twoFactorEnabled ? "1" : "0"),
+        optionLabel: (v) => (v === "1" ? "✓" : "—"),
+      },
+      {
+        key: "active",
+        label: t("users.status"),
+        type: "enum",
+        value: (u) => (u.active ? "1" : "0"),
+        optionLabel: (v) => (v === "1" ? t("users.active") : t("users.inactive")),
+      },
+    ],
+    [t],
+  );
+  const table = useTableView(users, columns, { storageKey: "users" });
+
   async function invite(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -81,19 +107,30 @@ export default function UsersPage() {
       <header className="toolbar">
         <h1>{t("users.title")}</h1>
       </header>
+      <TableTools view={table} />
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>{t("auth.name")}</th>
-              <th>{t("auth.email")}</th>
-              <th>{t("users.roles")}</th>
-              <th>2FA</th>
-              <th>{t("users.status")}</th>
+              <SortTh view={table} col="name">
+                {t("auth.name")}
+              </SortTh>
+              <SortTh view={table} col="email">
+                {t("auth.email")}
+              </SortTh>
+              <SortTh view={table} col="roles">
+                {t("users.roles")}
+              </SortTh>
+              <SortTh view={table} col="twoFactor">
+                2FA
+              </SortTh>
+              <SortTh view={table} col="active">
+                {t("users.status")}
+              </SortTh>
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
+            {table.rows.map((u) => (
               <tr key={u.id}>
                 <td>
                   <Link href={`/settings/users/${u.id}`}>{u.name}</Link>
@@ -107,6 +144,7 @@ export default function UsersPage() {
           </tbody>
         </table>
       </div>
+      <TablePager view={table} />
 
       {invitations.length > 0 && (
         <>

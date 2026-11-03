@@ -1,16 +1,30 @@
 "use client";
 
+import { LIST_LOAD_LIMIT, type TableColumnType } from "@erp/shared";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, apiRaw } from "../lib/api";
+import { truncatedNote, useListData } from "../lib/use-list-data";
+import { useTableView, type ViewColumn } from "../lib/use-table-view";
 import { AuthImage } from "./auth-image";
+import { SortSelect, SortTh, TablePager, TableTools } from "./data-table";
 import { ExportDialog, type ExportChoice } from "./export-dialog";
 import { useI18n } from "../lib/i18n";
 import { canCreate, canExport, canWrite, type Resource } from "../lib/resources";
 import { useMe } from "./me-context";
 
 type Row = Record<string, unknown> & { id: string };
-const PAGE = 50;
+
+/** Tipe kolom tanpa definisi field: dari isi data (angka, tanggal, atau sedikit nilai berbeda = pilihan). */
+function inferType(rows: Row[], name: string): TableColumnType {
+  const values = rows.map((r) => r[name]).filter((v) => v !== null && v !== undefined && v !== "");
+  if (!values.length) return "text";
+  if (values.every((v) => typeof v === "boolean")) return "enum";
+  if (values.every((v) => typeof v === "number" || /^-?\d+(\.\d+)?$/.test(String(v)))) return "number";
+  if (values.every((v) => /^\d{4}-\d{2}-\d{2}/.test(String(v)))) return "date";
+  const distinct = new Set(values.map(String));
+  return distinct.size <= 12 && distinct.size < values.length ? "enum" : "text";
+}
 
 /** Nama tampilan untuk kolom relasi (field `ref`) — dimuat sekali per resource rujukan. */
 function useRefLabels(resource: Resource) {
@@ -21,7 +35,9 @@ function useRefLabels(resource: Resource) {
         f.type === "ref" && resource.columns.some((c) => c.name === f.name),
     );
     for (const f of refs) {
-      api<{ items: Row[] } | Row[]>(`/${f.resource}${f.resource.includes("?") ? "&" : "?"}limit=200`)
+      api<{ items: Row[] } | Row[]>(
+        `/${f.resource}${f.resource.includes("?") ? "&" : "?"}limit=${LIST_LOAD_LIMIT}`,
+      )
         .then((d) => {
           const rows = Array.isArray(d) ? d : d.items;
           const map = new Map(rows.map((r) => [String(r[f.valueKey ?? "id"]), String(r[f.display] ?? "")]));
@@ -65,11 +81,8 @@ function useViewMode(resource: Resource) {
 
 export function ListView({ resource }: { resource: Resource }) {
   const me = useMe();
-  const { t, tx } = useI18n();
-  const [q, setQ] = useState("");
-  const [offset, setOffset] = useState(0);
-  const [reload, setReload] = useState(0);
-  const [data, setData] = useState<{ items: Row[]; total: number } | null>(null);
+  const { t, tx, l } = useI18n();
+  const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [importErrors, setImportErrors] = useState<{ row: number; path: string; message: string }[]>([]);
   const [exportColumns, setExportColumns] = useState<string[] | null>(null);
@@ -79,19 +92,8 @@ export function ListView({ resource }: { resource: Resource }) {
   const refLabels = useRefLabels(resource);
   const [view, setView] = useViewMode(resource);
 
-  useEffect(() => {
-    const params = new URLSearchParams({ limit: String(PAGE), offset: String(offset) });
-    if (q) params.set("q", q);
-    const timer = setTimeout(() => {
-      api<{ items: Row[]; total: number }>(`/${resource.path}?${params}`)
-        .then((d) => {
-          setData(d);
-          setError(null);
-        })
-        .catch((e: Error) => setError(e.message));
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [resource.path, q, offset, reload]);
+  // Data dimuat sekali (s.d. 5.000 baris); cari/filter/sort/paginasi di browser.
+  const list = useListData<Row>(`/${resource.path}`, {}, search);
 
   const cell = (row: Row, name: string) => {
     const v = row[name];
@@ -104,6 +106,41 @@ export function ListView({ resource }: { resource: Resource }) {
     return refLabels[name]?.get(String(v)) ?? String(v);
   };
 
+  const columns = useMemo<ViewColumn<Row>[]>(
+    () =>
+      resource.columns.map((c) => {
+        const field = resource.fields.find((f) => f.name === c.name);
+        const type: TableColumnType =
+          field?.type === "select" || field?.type === "ref" || field?.type === "boolean"
+            ? "enum"
+            : field?.type === "number"
+              ? "number"
+              : field?.type === "date"
+                ? "date"
+                : field
+                  ? "text"
+                  : inferType(list.rows, c.name);
+        return {
+          key: c.name,
+          label: tx(c.label),
+          type,
+          value: (row: Row) => {
+            const v = row[c.name];
+            return typeof v === "boolean" ? String(v) : (v as string | number | null | undefined);
+          },
+          text: (row: Row) => {
+            const v = row[c.name];
+            if (typeof v === "boolean") return v ? l("Ya", "Yes") : l("Tidak", "No");
+            return cell(row, c.name);
+          },
+        };
+      }),
+    [resource, list.rows, refLabels, tx, l],
+  );
+  const table = useTableView(list.rows, columns, { storageKey: `list.${resource.path}` });
+  useEffect(() => setSearch(table.state.q), [table.state.q]);
+  const data = list.loading && !list.rows.length ? null : list;
+
   async function openExport() {
     setError(null);
     try {
@@ -114,7 +151,7 @@ export function ListView({ resource }: { resource: Resource }) {
   }
 
   async function exportFile({ columns, format }: ExportChoice) {
-    const params = new URLSearchParams(q ? { q } : {});
+    const params = new URLSearchParams(table.state.q ? { q: table.state.q } : {});
     params.set("columns", columns.join(","));
     if (format === "xlsx") params.set("format", "xlsx");
     const res = await apiRaw(`/${resource.path}/export?${params}`);
@@ -138,7 +175,7 @@ export function ListView({ resource }: { resource: Resource }) {
         body: /\.xlsx$/i.test(file.name) ? { xlsx: await toBase64(file) } : { csv: await file.text() },
       });
       setNotice(t("list.imported", result));
-      setReload((n) => n + 1);
+      list.reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       if (e instanceof ApiError) setImportErrors((e.body.errors as typeof importErrors) ?? []);
@@ -155,17 +192,6 @@ export function ListView({ resource }: { resource: Resource }) {
             </Link>
           )}
           <h1>{tx(resource.title)}</h1>
-        </div>
-        <div className="cp-search">
-          <input
-            type="search"
-            placeholder={t("list.search")}
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value);
-              setOffset(0);
-            }}
-          />
         </div>
         <div className="cp-right">
           {resource.csv && canExport(me.permissions, resource) && (
@@ -187,25 +213,6 @@ export function ListView({ resource }: { resource: Resource }) {
               />
             </>
           )}
-          {data && (
-            <span className="muted pager-text">
-              {data.total === 0 ? 0 : offset + 1}–{Math.min(offset + PAGE, data.total)} / {data.total}
-            </span>
-          )}
-          <button
-            disabled={offset === 0}
-            onClick={() => setOffset(Math.max(0, offset - PAGE))}
-            aria-label="‹"
-          >
-            ‹
-          </button>
-          <button
-            disabled={!data || offset + PAGE >= data.total}
-            onClick={() => setOffset(offset + PAGE)}
-            aria-label="›"
-          >
-            ›
-          </button>
           {resource.kanban && (
             <span className="view-switch">
               <button
@@ -227,7 +234,10 @@ export function ListView({ resource }: { resource: Resource }) {
         </div>
       </header>
       {notice && <p className="notice">{notice}</p>}
-      {error && <p className="error">{error}</p>}
+      {(error ?? list.error) && <p className="error">{error ?? list.error}</p>}
+      <TableTools view={table} placeholder={t("list.search")} note={truncatedNote(list, l)}>
+        {view === "kanban" && resource.kanban && <SortSelect view={table} />}
+      </TableTools>
       {importErrors.length > 0 && (
         <ul className="error">
           {importErrors.slice(0, 20).map((e, i) => (
@@ -240,7 +250,7 @@ export function ListView({ resource }: { resource: Resource }) {
       )}
       {data && view === "kanban" && resource.kanban && (
         <div className="record-cards">
-          {data.items.map((row) => {
+          {table.rows.map((row) => {
             const title = cell(row, resource.kanban!.title) || "—";
             const tag = resource.kanban!.tag && cell(row, resource.kanban!.tag);
             return (
@@ -274,7 +284,7 @@ export function ListView({ resource }: { resource: Resource }) {
               </Link>
             );
           })}
-          {data.items.length === 0 && <p className="muted">{t("list.empty")}</p>}
+          {table.rows.length === 0 && <p className="muted">{t("list.empty")}</p>}
         </div>
       )}
       {data && view === "list" && (
@@ -283,12 +293,14 @@ export function ListView({ resource }: { resource: Resource }) {
             <thead>
               <tr>
                 {resource.columns.map((c) => (
-                  <th key={c.name}>{tx(c.label)}</th>
+                  <SortTh key={c.name} view={table} col={c.name}>
+                    {tx(c.label)}
+                  </SortTh>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {data.items.map((row) => (
+              {table.rows.map((row) => (
                 <tr key={row.id}>
                   {resource.columns.map((c, i) => (
                     <td key={c.name}>
@@ -301,7 +313,7 @@ export function ListView({ resource }: { resource: Resource }) {
                   ))}
                 </tr>
               ))}
-              {data.items.length === 0 && (
+              {table.rows.length === 0 && (
                 <tr>
                   <td colSpan={resource.columns.length} className="muted">
                     {t("list.empty")}
@@ -312,6 +324,7 @@ export function ListView({ resource }: { resource: Resource }) {
           </table>
         </div>
       )}
+      {data && <TablePager view={table} />}
       {resource.csv && exportColumns !== null && (
         <ExportDialog
           open

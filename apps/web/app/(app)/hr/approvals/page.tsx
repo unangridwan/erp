@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Pending {
   model:
@@ -48,6 +50,30 @@ export default function ApprovalsPage() {
       .then(setRows)
       .catch((e: Error) => setError(e.message));
   }, [version]);
+
+  const columns = useMemo<ViewColumn<Pending>[]>(() => {
+    const kind: Record<Pending["model"], string> = {
+      leave_request: l("Cuti", "Time off"),
+      overtime: l("Lembur", "Overtime"),
+      expense_claim: l("Klaim biaya", "Expense claim"),
+      approval_request: l("Permintaan", "Request"),
+      attendance_request: l("Koreksi absensi", "Attendance correction"),
+      shift_request: l("Tukar shift", "Shift change"),
+    };
+    return [
+      {
+        key: "model",
+        label: l("Jenis", "Type"),
+        type: "enum",
+        value: (r) => r.model,
+        optionLabel: (v) => kind[v as Pending["model"]] ?? v,
+      },
+      { key: "employee", label: l("Karyawan", "Employee"), value: (r) => r.employeeName },
+      { key: "summary", label: l("Pengajuan", "Request"), value: (r) => r.summary },
+      { key: "step", label: l("Tahap", "Step"), type: "number", value: (r) => r.step },
+    ];
+  }, [l]);
+  const table = useTableView(rows ?? [], columns, { storageKey: "approvals-pending" });
 
   async function decide(r: Pending, decision: "approve" | "refuse") {
     setError(null);
@@ -127,21 +153,30 @@ export default function ApprovalsPage() {
         )}
       </p>
       {error && <p className="error">{error}</p>}
+      {rows && <TableTools view={table} />}
       {rows && (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{l("Jenis", "Type")}</th>
-                <th>{l("Karyawan", "Employee")}</th>
-                <th>{l("Pengajuan", "Request")}</th>
-                <th>{l("Tahap", "Step")}</th>
+                <SortTh view={table} col="model">
+                  {l("Jenis", "Type")}
+                </SortTh>
+                <SortTh view={table} col="employee">
+                  {l("Karyawan", "Employee")}
+                </SortTh>
+                <SortTh view={table} col="summary">
+                  {l("Pengajuan", "Request")}
+                </SortTh>
+                <SortTh view={table} col="step">
+                  {l("Tahap", "Step")}
+                </SortTh>
                 <th>{l("Catatan", "Note")}</th>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {table.rows.map((r) => (
                 <Fragment key={r.id}>
                   <tr>
                     <td>
@@ -232,10 +267,12 @@ export default function ApprovalsPage() {
                   )}
                 </Fragment>
               ))}
-              {rows.length === 0 && (
+              {table.rows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="muted">
-                    {l("Tidak ada pengajuan yang menunggu Anda.", "Nothing is waiting for you.")}
+                    {rows.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Tidak ada pengajuan yang menunggu Anda.", "Nothing is waiting for you.")}
                   </td>
                 </tr>
               )}
@@ -243,6 +280,7 @@ export default function ApprovalsPage() {
           </table>
         </div>
       )}
+      {rows && <TablePager view={table} />}
     </>
   );
 }

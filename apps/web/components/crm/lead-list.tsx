@@ -1,147 +1,134 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { api } from "../../lib/api";
+import { useMemo, useState } from "react";
 import { formatDate, money } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
 import { can, LEAD_SOURCES, LEAD_STATE_LABEL } from "../../lib/resources";
+import { truncatedNote, useListData } from "../../lib/use-list-data";
+import { DataTable, type DataColumn } from "../data-table";
 import { useMe } from "../me-context";
 import { Stars, type LeadRow } from "./pipeline";
 
-const PAGE = 50;
-
-/** Daftar lead & peluang (tabel) dengan filter jenis dan status. */
+/**
+ * Daftar lead & peluang (tabel): semua lead dimuat sekali; jenis, status, sumber, tahap, dll. difilter di browser
+ * tanpa memanggil API lagi.
+ */
 export function LeadList() {
   const me = useMe();
   const { l, tx, locale } = useI18n();
-  const [q, setQ] = useState("");
   const [leadType, setLeadType] = useState("lead");
-  const [state, setState] = useState("open");
-  const [offset, setOffset] = useState(0);
-  const [data, setData] = useState<{ items: LeadRow[]; total: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const list = useListData<LeadRow>("/leads", {}, search);
+  const rows = useMemo(
+    () => (leadType ? list.rows.filter((x) => x.leadType === leadType) : list.rows),
+    [list.rows, leadType],
+  );
 
-  useEffect(() => {
-    const params = new URLSearchParams({ limit: String(PAGE), offset: String(offset) });
-    if (q) params.set("q", q);
-    if (leadType) params.set("leadType", leadType);
-    if (state) params.set("state", state);
-    const timer = setTimeout(
-      () =>
-        api<{ items: LeadRow[]; total: number }>(`/leads?${params}`)
-          .then(setData)
-          .catch((e: Error) => setError(e.message)),
-      200,
-    );
-    return () => clearTimeout(timer);
-  }, [q, leadType, state, offset]);
-
-  const source = (s: string | null) => {
-    const found = LEAD_SOURCES.find(([v]) => v === s);
-    return found ? tx(found[1]) : "";
-  };
+  const columns = useMemo<DataColumn<LeadRow>[]>(() => {
+    const source = (s: string | null) => {
+      const found = LEAD_SOURCES.find(([v]) => v === s);
+      return found ? tx(found[1]) : "";
+    };
+    return [
+      {
+        key: "name",
+        label: l("Nama", "Name"),
+        value: (x) => x.name,
+        render: (x) => (
+          <>
+            <Link href={`/crm/leads/${x.id}`}>{x.name}</Link> <Stars n={x.priority} />
+          </>
+        ),
+      },
+      {
+        key: "partner",
+        label: l("Pelanggan / kontak", "Customer / contact"),
+        value: (x) => [x.partnerDisplay, x.contactName].filter(Boolean).join(" · ") || null,
+      },
+      { key: "email", label: l("Email", "Email"), value: (x) => x.email },
+      { key: "phone", label: l("Telepon", "Phone"), value: (x) => x.phone, hidden: true },
+      {
+        key: "source",
+        label: l("Sumber", "Source"),
+        type: "enum",
+        value: (x) => x.source,
+        text: (x) => source(x.source),
+      },
+      { key: "stage", label: l("Tahap", "Stage"), type: "enum", value: (x) => x.stageName },
+      { key: "user", label: l("Penanggung jawab", "Salesperson"), type: "enum", value: (x) => x.userName },
+      {
+        key: "priority",
+        label: l("Prioritas", "Priority"),
+        type: "enum",
+        value: (x) => String(x.priority),
+        text: (x) => "★".repeat(x.priority) || "–",
+        hidden: true,
+      },
+      {
+        key: "expectedRevenue",
+        label: l("Pendapatan harapan", "Expected revenue"),
+        type: "number",
+        className: "num",
+        value: (x) => Number(x.expectedRevenue),
+        text: (x) => money(x.expectedRevenue, locale),
+      },
+      {
+        key: "createdAt",
+        label: l("Dibuat", "Created"),
+        type: "date",
+        value: (x) => x.createdAt.slice(0, 10),
+        text: (x) => formatDate(x.createdAt.slice(0, 10), locale),
+      },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (x) => x.state,
+        optionLabel: (v) => (LEAD_STATE_LABEL[v] ? tx(LEAD_STATE_LABEL[v]!) : v),
+        text: (x) => (LEAD_STATE_LABEL[x.state] ? tx(LEAD_STATE_LABEL[x.state]!) : x.state),
+        render: (x) => <span className={`badge state-${x.state}`}>{tx(LEAD_STATE_LABEL[x.state]!)}</span>,
+      },
+    ];
+  }, [l, tx, locale]);
 
   return (
     <>
       <header className="toolbar">
         <h1>{l("Lead & Peluang", "Leads & Opportunities")}</h1>
-        <input
-          type="search"
-          placeholder={l("Cari…", "Search…")}
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setOffset(0);
-          }}
-        />
-        <select
-          value={leadType}
-          onChange={(e) => {
-            setLeadType(e.target.value);
-            setOffset(0);
-          }}
-        >
-          <option value="lead">{l("Lead", "Leads")}</option>
-          <option value="opportunity">{l("Peluang", "Opportunities")}</option>
-          <option value="">{l("Semua", "All")}</option>
-        </select>
-        <select
-          value={state}
-          onChange={(e) => {
-            setState(e.target.value);
-            setOffset(0);
-          }}
-        >
-          <option value="open">{l("Terbuka", "Open")}</option>
-          <option value="won">{l("Menang", "Won")}</option>
-          <option value="lost">{l("Kalah", "Lost")}</option>
-          <option value="">{l("Semua status", "All states")}</option>
-        </select>
         {can(me.permissions, "crm.write") && (
           <Link className="button primary" href={`/crm/leads/new?type=${leadType || "lead"}`}>
             {l("Baru", "New")}
           </Link>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
-      {data && (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{l("Nama", "Name")}</th>
-                <th>{l("Pelanggan / kontak", "Customer / contact")}</th>
-                <th>{l("Email", "Email")}</th>
-                <th>{l("Sumber", "Source")}</th>
-                <th>{l("Tahap", "Stage")}</th>
-                <th>{l("Penanggung jawab", "Salesperson")}</th>
-                <th className="num">{l("Pendapatan harapan", "Expected revenue")}</th>
-                <th>{l("Dibuat", "Created")}</th>
-                <th>{l("Status", "Status")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((x) => (
-                <tr key={x.id}>
-                  <td>
-                    <Link href={`/crm/leads/${x.id}`}>{x.name}</Link> <Stars n={x.priority} />
-                  </td>
-                  <td>{[x.partnerDisplay, x.contactName].filter(Boolean).join(" · ")}</td>
-                  <td>{x.email}</td>
-                  <td>{source(x.source)}</td>
-                  <td>{x.stageName}</td>
-                  <td>{x.userName}</td>
-                  <td className="num">{money(x.expectedRevenue, locale)}</td>
-                  <td>{formatDate(x.createdAt.slice(0, 10), locale)}</td>
-                  <td>
-                    <span className={`badge state-${x.state}`}>{tx(LEAD_STATE_LABEL[x.state]!)}</span>
-                  </td>
-                </tr>
-              ))}
-              {data.items.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="muted">
-                    {l("Belum ada data.", "No records yet.")}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {data && data.total > PAGE && (
-        <div className="pager">
-          <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>
-            ‹
-          </button>
-          <span>
-            {offset + 1}–{Math.min(offset + PAGE, data.total)} {l("dari", "of")} {data.total}
-          </span>
-          <button disabled={offset + PAGE >= data.total} onClick={() => setOffset(offset + PAGE)}>
-            ›
-          </button>
-        </div>
+      {list.error && <p className="error">{list.error}</p>}
+      {!list.loading || list.rows.length ? (
+        <DataTable
+          rows={rows}
+          columns={columns}
+          storageKey="leads"
+          rowKey={(x) => x.id}
+          defaultSort={{ key: "createdAt", dir: "desc" }}
+          initialFilters={{ state: { kind: "enum", values: ["open"] } }}
+          note={truncatedNote(list, l)}
+          onSearch={setSearch}
+          searchPlaceholder={l("Cari nama, pelanggan, email…", "Search name, customer, email…")}
+          empty={l("Belum ada data.", "No records yet.")}
+          tools={
+            <select
+              aria-label={l("Jenis", "Type")}
+              value={leadType}
+              onChange={(e) => setLeadType(e.target.value)}
+            >
+              <option value="lead">{l("Lead", "Leads")}</option>
+              <option value="opportunity">{l("Peluang", "Opportunities")}</option>
+              <option value="">{l("Lead & peluang", "Leads & opportunities")}</option>
+            </select>
+          }
+        />
+      ) : (
+        <p className="muted">{l("Memuat…", "Loading…")}</p>
       )}
     </>
   );

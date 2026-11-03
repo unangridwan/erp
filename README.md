@@ -107,6 +107,21 @@ Header opsional `X-Company-Id` memilih perusahaan aktif (harus termasuk perusaha
 | `GET /activity/:model/:id`                                                               | Riwayat perubahan (chatter)                                       |
 | `GET /sequences`                                                                         | Penomoran dokumen perusahaan aktif (penghitung per tahun dokumen) |
 
+**Daftar (list) di web: cari, filter, sort & paginasi tanpa memanggil API lagi.** Setiap daftar memuat datanya sekali
+(s.d. 5.000 baris, `LIST_LOAD_LIMIT` di `@erp/shared`; endpoint daftar menerima `limit` sampai angka itu, CRUD bawaan
+tetap 50), lalu semua olah tampilan berjalan di browser (`packages/shared/src/table-view.ts`, komponen
+`apps/web/components/data-table.tsx`): kotak cari di semua kolom (tanpa beda huruf besar/kecil & aksen), tombol
+**Filter** per kolom (centang untuk status/kategori, rentang untuk tanggal/angka, teks "mengandung"), chip filter aktif
+(× untuk menghapus, **Reset semua**), klik judul kolom untuk sort (naik → turun → bawaan; pilihan **Urutkan** di
+tampilan kartu), dan paginasi 25/50/100/Semua. Urutan & ukuran halaman diingat per daftar di browser. Status yang dulu
+dipilih lewat dropdown (mis. cuti "Menunggu persetujuan", transfer "Belum selesai", kontrak "Berjalan", lead "Terbuka")
+kini jadi filter awal yang bisa dicabut. Parameter yang menentukan datanya (masa pajak, tahun MPP, rentang absensi &
+keterlambatan, gudang di Stok, tanggal saldo cuti/valuasi, tab permintaan persetujuan) tetap memuat ulang dari API.
+Bila data lebih dari 5.000 baris tampil keterangan "Menampilkan 5.000 dari N data" dan pencarian teks diteruskan ke
+server agar baris di luar 5.000 pertama tetap ketemu. Tidak diubah: tabel baris formulir/isian, laporan keuangan &
+rekap (laba rugi, PPN, kartu stok dengan saldo berjalan, komisi), dan tampilan yang dikelompokkan (hari libur per
+bulan, aktivitas CRM per tenggat, pengajuan perubahan data).
+
 ### Akuntansi (Fase 1)
 
 | Endpoint                                                                                                     | Keterangan                                                                       |

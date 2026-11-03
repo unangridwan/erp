@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
+import { DataTable, type DataColumn } from "../../../../components/data-table";
 import { useOptions, type JournalOption } from "../../../../components/accounting/use-options";
 import { useMe } from "../../../../components/me-context";
 import { RefSelect } from "../../../../components/ref-select";
@@ -9,6 +10,7 @@ import { api } from "../../../../lib/api";
 import { formatDate, money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { useListData } from "../../../../lib/use-list-data";
 
 interface Payment {
   id: string;
@@ -29,8 +31,7 @@ export default function PaymentsPage() {
   const journals = useOptions<JournalOption>("/journals").filter(
     (j) => j.journalType === "bank" || j.journalType === "cash",
   );
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [reload, setReload] = useState(0);
+  const list = useListData<Payment>("/payments");
   const [form, setForm] = useState({
     paymentType: "inbound",
     partnerId: "",
@@ -41,11 +42,42 @@ export default function PaymentsPage() {
   });
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    api<Payment[]>("/payments")
-      .then(setPayments)
-      .catch((e: Error) => setError(e.message));
-  }, [reload]);
+  const columns = useMemo<DataColumn<Payment>[]>(
+    () => [
+      {
+        key: "date",
+        label: l("Tanggal", "Date"),
+        type: "date",
+        value: (p) => p.date,
+        text: (p) => formatDate(p.date, locale),
+      },
+      {
+        key: "move",
+        label: l("Jurnal", "Journal entry"),
+        value: (p) => p.moveName,
+        render: (p) => <Link href={`/accounting/moves/${p.moveId}`}>{p.moveName}</Link>,
+      },
+      { key: "partner", label: l("Partner", "Partner"), value: (p) => p.partnerName },
+      {
+        key: "paymentType",
+        label: l("Arah", "Direction"),
+        type: "enum",
+        value: (p) => p.paymentType,
+        text: (p) => (p.paymentType === "inbound" ? l("Masuk", "Received") : l("Keluar", "Sent")),
+      },
+      { key: "journal", label: l("Kas/bank", "Bank/cash"), type: "enum", value: (p) => p.journalName },
+      { key: "memo", label: l("Memo", "Memo"), value: (p) => p.memo, hidden: true },
+      {
+        key: "amount",
+        label: l("Jumlah", "Amount"),
+        type: "number",
+        className: "num",
+        value: (p) => Number(p.amount),
+        text: (p) => `${p.currencyCode} ${money(p.amount, locale)}`,
+      },
+    ],
+    [l, locale],
+  );
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -56,7 +88,7 @@ export default function PaymentsPage() {
         body: { ...form, journalId: form.journalId || journals[0]?.id, memo: form.memo || null },
       });
       setForm((f) => ({ ...f, amount: "", memo: "" }));
-      setReload((n) => n + 1);
+      list.reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -67,43 +99,15 @@ export default function PaymentsPage() {
       <header className="toolbar">
         <h1>{l("Pembayaran", "Payments")}</h1>
       </header>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>{l("Tanggal", "Date")}</th>
-              <th>{l("Jurnal", "Journal entry")}</th>
-              <th>{l("Partner", "Partner")}</th>
-              <th>{l("Arah", "Direction")}</th>
-              <th>{l("Kas/bank", "Bank/cash")}</th>
-              <th className="num">{l("Jumlah", "Amount")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {payments.map((p) => (
-              <tr key={p.id}>
-                <td>{formatDate(p.date, locale)}</td>
-                <td>
-                  <Link href={`/accounting/moves/${p.moveId}`}>{p.moveName}</Link>
-                </td>
-                <td>{p.partnerName}</td>
-                <td>{p.paymentType === "inbound" ? l("Masuk", "Received") : l("Keluar", "Sent")}</td>
-                <td>{p.journalName}</td>
-                <td className="num">
-                  {p.currencyCode} {money(p.amount, locale)}
-                </td>
-              </tr>
-            ))}
-            {payments.length === 0 && (
-              <tr>
-                <td colSpan={6} className="muted">
-                  {l("Belum ada pembayaran.", "No payments yet.")}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {list.error && <p className="error">{list.error}</p>}
+      <DataTable
+        rows={list.rows}
+        columns={columns}
+        storageKey="payments"
+        rowKey={(p) => p.id}
+        defaultSort={{ key: "date", dir: "desc" }}
+        empty={l("Belum ada pembayaran.", "No payments yet.")}
+      />
 
       {can(me.permissions, "accounting.post") && (
         <form className="panel stack invite" onSubmit={submit}>

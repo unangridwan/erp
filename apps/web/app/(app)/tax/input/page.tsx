@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMe } from "../../../../components/me-context";
 import { RefSelect } from "../../../../components/ref-select";
 import { api } from "../../../../lib/api";
@@ -8,6 +8,8 @@ import { readFile, taxStateClass } from "../../../../lib/download";
 import { formatDate, money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can, INPUT_TAX_STATE_LABEL } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface InputInvoice {
   id: string;
@@ -37,6 +39,42 @@ export default function InputTaxPage() {
   const [error, setError] = useState<string | null>(null);
   const [year, month] = period.split("-").map(Number) as [number, number];
   const canWrite = can(me.permissions, "tax.write");
+
+  const columns = useMemo<ViewColumn<InputInvoice>[]>(
+    () => [
+      { key: "efakturNumber", label: l("Nomor faktur", "Invoice number"), value: (d) => d.efakturNumber },
+      { key: "invoiceDate", label: l("Tanggal", "Date"), type: "date", value: (d) => d.invoiceDate },
+      {
+        key: "seller",
+        label: l("Penjual", "Seller"),
+        value: (d) => d.partnerName ?? d.sellerName,
+        text: (d) => `${d.partnerName ?? d.sellerName} ${d.sellerTin}`,
+      },
+      { key: "taxBase", label: "DPP", type: "number", value: (d) => Number(d.taxBase) },
+      { key: "vat", label: "PPN", type: "number", value: (d) => Number(d.vat) },
+      { key: "move", label: l("Tagihan", "Bill"), value: (d) => d.moveName },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (d) => d.state,
+        optionLabel: (v) => (INPUT_TAX_STATE_LABEL[v] ? tx(INPUT_TAX_STATE_LABEL[v]!) : v),
+        text: (d) => (INPUT_TAX_STATE_LABEL[d.state] ? tx(INPUT_TAX_STATE_LABEL[d.state]!) : d.state),
+      },
+      {
+        key: "credit",
+        label: l("Masa kredit", "Credit period"),
+        type: "enum",
+        value: (d) => (d.creditYear ? `${d.creditYear}-${String(d.creditMonth).padStart(2, "0")}` : null),
+        hidden: true,
+      },
+    ],
+    [l, tx],
+  );
+  const table = useTableView(docs ?? [], columns, {
+    storageKey: "input-tax-invoices",
+    defaultSort: { key: "invoiceDate", dir: "desc" },
+  });
 
   const load = useCallback(() => {
     api<InputInvoice[]>("/input-tax-invoices")
@@ -152,22 +190,42 @@ export default function InputTaxPage() {
         </div>
       )}
       {docs && (
+        <TableTools
+          view={table}
+          placeholder={l("Cari nomor, penjual, NPWP, tagihan…", "Search number, seller, TIN, bill…")}
+        />
+      )}
+      {docs && (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
                 <th />
-                <th>{l("Nomor faktur", "Invoice number")}</th>
-                <th>{l("Tanggal", "Date")}</th>
-                <th>{l("Penjual", "Seller")}</th>
-                <th className="num">DPP</th>
-                <th className="num">PPN</th>
-                <th>{l("Tagihan", "Bill")}</th>
-                <th>{l("Status", "Status")}</th>
+                <SortTh view={table} col="efakturNumber">
+                  {l("Nomor faktur", "Invoice number")}
+                </SortTh>
+                <SortTh view={table} col="invoiceDate">
+                  {l("Tanggal", "Date")}
+                </SortTh>
+                <SortTh view={table} col="seller">
+                  {l("Penjual", "Seller")}
+                </SortTh>
+                <SortTh view={table} col="taxBase" className="num">
+                  DPP
+                </SortTh>
+                <SortTh view={table} col="vat" className="num">
+                  PPN
+                </SortTh>
+                <SortTh view={table} col="move">
+                  {l("Tagihan", "Bill")}
+                </SortTh>
+                <SortTh view={table} col="state">
+                  {l("Status", "Status")}
+                </SortTh>
               </tr>
             </thead>
             <tbody>
-              {docs.map((d) => (
+              {table.rows.map((d) => (
                 <tr key={d.id}>
                   <td>
                     <input
@@ -212,10 +270,12 @@ export default function InputTaxPage() {
                   </td>
                 </tr>
               ))}
-              {docs.length === 0 && (
+              {table.rows.length === 0 && (
                 <tr>
                   <td colSpan={8} className="muted">
-                    {l("Belum ada faktur masukan.", "No input invoices yet.")}
+                    {docs.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Belum ada faktur masukan.", "No input invoices yet.")}
                   </td>
                 </tr>
               )}
@@ -223,6 +283,7 @@ export default function InputTaxPage() {
           </table>
         </div>
       )}
+      {docs && <TablePager view={table} />}
     </>
   );
 }

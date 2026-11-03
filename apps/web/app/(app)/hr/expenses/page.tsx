@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { DataTable, type DataColumn } from "../../../../components/data-table";
 import { ExpenseClaimForm } from "../../../../components/hr/expense-form";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
 import { formatDate, money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can, EXPENSE_STATE_LABEL } from "../../../../lib/resources";
+import { useListData } from "../../../../lib/use-list-data";
 
 interface Claim {
   id: string;
@@ -20,39 +22,72 @@ interface Claim {
   total: string;
 }
 
-/** Klaim biaya karyawan: daftar per status, buat klaim untuk karyawan (HR). */
+/** Klaim biaya karyawan: semua klaim dimuat sekali (cari/filter status di browser), buat klaim untuk karyawan (HR). */
 export default function ExpensesPage() {
   const { l, tx, locale } = useI18n();
   const me = useMe();
-  const [state, setState] = useState("");
-  const [claims, setClaims] = useState<Claim[] | null>(null);
+  const list = useListData<Claim>("/expense-claims");
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [open, setOpen] = useState(false);
-  const [version, setVersion] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    api<Claim[]>(`/expense-claims${state ? `?state=${state}` : ""}`).then(setClaims, (e: Error) =>
-      setError(e.message),
-    );
-  }, [state, version]);
   useEffect(() => {
     api<{ id: string; name: string }[]>("/me/expense-categories").then(setCategories, () =>
       setCategories([]),
     );
   }, []);
 
+  const columns = useMemo<DataColumn<Claim>[]>(
+    () => [
+      {
+        key: "name",
+        label: l("Nomor", "Number"),
+        value: (c) => c.name,
+        render: (c) => <Link href={`/hr/expenses/${c.id}`}>{c.name}</Link>,
+      },
+      { key: "employee", label: l("Karyawan", "Employee"), value: (c) => c.employeeName },
+      {
+        key: "date",
+        label: l("Tanggal", "Date"),
+        type: "date",
+        value: (c) => c.date,
+        text: (c) => formatDate(c.date, locale),
+      },
+      { key: "description", label: l("Keperluan", "Purpose"), value: (c) => c.description },
+      {
+        key: "payMethod",
+        label: l("Dibayar", "Paid"),
+        type: "enum",
+        value: (c) => c.payMethod,
+        text: (c) => (c.payMethod === "cash" ? l("Kas/bank", "Cash/bank") : l("Slip gaji", "Payslip")),
+      },
+      {
+        key: "total",
+        label: l("Jumlah", "Amount"),
+        type: "number",
+        className: "num",
+        value: (c) => Number(c.total),
+        text: (c) => money(c.total, locale),
+      },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (c) => c.state,
+        optionLabel: (v) => (EXPENSE_STATE_LABEL[v] ? tx(EXPENSE_STATE_LABEL[v]!) : v),
+        text: (c) => (EXPENSE_STATE_LABEL[c.state] ? tx(EXPENSE_STATE_LABEL[c.state]!) : c.state),
+        render: (c) => (
+          <span className={`badge state-${c.state === "paid" ? "sale" : c.state}`}>
+            {EXPENSE_STATE_LABEL[c.state] ? tx(EXPENSE_STATE_LABEL[c.state]!) : c.state}
+          </span>
+        ),
+      },
+    ],
+    [l, tx, locale],
+  );
+
   return (
     <div className="panel">
       <header className="toolbar">
         <h1>{l("Klaim Biaya", "Expense Claims")}</h1>
-        <select value={state} onChange={(e) => setState(e.target.value)} aria-label={l("Status", "Status")}>
-          <option value="">{l("Semua status", "All states")}</option>
-          {Object.entries(EXPENSE_STATE_LABEL).map(([k, v]) => (
-            <option key={k} value={k}>
-              {tx(v)}
-            </option>
-          ))}
-        </select>
         {can(me.permissions, "hr.write") && !open && (
           <button type="button" className="primary" onClick={() => setOpen(true)}>
             {l("Klaim baru", "New claim")}
@@ -60,59 +95,27 @@ export default function ExpensesPage() {
         )}
         <Link href="/expense-categories">{l("Kategori klaim", "Expense categories")}</Link>
       </header>
-      {error && <p className="error">{error}</p>}
+      {list.error && <p className="error">{list.error}</p>}
       {open && (
         <ExpenseClaimForm
           categories={categories}
           chooseEmployee
           onSaved={() => {
             setOpen(false);
-            setVersion((v) => v + 1);
+            list.reload();
           }}
           onCancel={() => setOpen(false)}
         />
       )}
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>{l("Nomor", "Number")}</th>
-              <th>{l("Karyawan", "Employee")}</th>
-              <th>{l("Tanggal", "Date")}</th>
-              <th>{l("Keperluan", "Purpose")}</th>
-              <th>{l("Dibayar", "Paid")}</th>
-              <th className="num">{l("Jumlah", "Amount")}</th>
-              <th>{l("Status", "Status")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {claims?.map((c) => (
-              <tr key={c.id}>
-                <td>
-                  <Link href={`/hr/expenses/${c.id}`}>{c.name}</Link>
-                </td>
-                <td>{c.employeeName}</td>
-                <td>{formatDate(c.date, locale)}</td>
-                <td>{c.description}</td>
-                <td>{c.payMethod === "cash" ? l("Kas/bank", "Cash/bank") : l("Slip gaji", "Payslip")}</td>
-                <td className="num">{money(c.total, locale)}</td>
-                <td>
-                  <span className={`badge state-${c.state === "paid" ? "sale" : c.state}`}>
-                    {tx(EXPENSE_STATE_LABEL[c.state]!)}
-                  </span>
-                </td>
-              </tr>
-            ))}
-            {claims?.length === 0 && (
-              <tr>
-                <td colSpan={7} className="muted">
-                  {l("Belum ada klaim.", "No claims yet.")}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        rows={list.rows}
+        columns={columns}
+        storageKey="expense-claims"
+        rowKey={(c) => c.id}
+        defaultSort={{ key: "date", dir: "desc" }}
+        searchPlaceholder={l("Cari nomor, karyawan, keperluan…", "Search number, employee, purpose…")}
+        empty={l("Belum ada klaim.", "No claims yet.")}
+      />
     </div>
   );
 }

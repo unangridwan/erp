@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { COMPENSATION_STATE_LABEL, type CompensationState } from "@erp/shared";
 import { useMe } from "../../../../components/me-context";
 import { cycleStatePill } from "../../../../components/payroll/team-compensation";
@@ -11,6 +11,8 @@ import { api, ApiError } from "../../../../lib/api";
 import { formatDate, money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Cycle {
   id: string;
@@ -41,6 +43,42 @@ export default function CompensationCyclesPage() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const manage = can(me.permissions, "payroll.manage");
+
+  const columns = useMemo<ViewColumn<Cycle>[]>(
+    () => [
+      { key: "name", label: l("Siklus", "Cycle"), value: (c) => c.name },
+      { key: "effectiveDate", label: l("Berlaku", "Effective"), type: "date", value: (c) => c.effectiveDate },
+      { key: "count", label: l("Peserta", "Employees"), type: "number", value: (c) => c.count },
+      {
+        key: "budget",
+        label: l("Anggaran / bln", "Budget / mo"),
+        type: "number",
+        value: (c) => Number(c.budget.budget),
+      },
+      { key: "used", label: l("Terpakai", "Used"), type: "number", value: (c) => Number(c.budget.used) },
+      {
+        key: "average",
+        label: l("Rata-rata", "Average"),
+        type: "number",
+        value: (c) => Number(c.budget.averagePercent),
+      },
+      {
+        key: "state",
+        label: "Status",
+        type: "enum",
+        value: (c) => c.state,
+        optionLabel: (v) =>
+          COMPENSATION_STATE_LABEL[v as CompensationState]
+            ? l(...COMPENSATION_STATE_LABEL[v as CompensationState])
+            : v,
+      },
+    ],
+    [l],
+  );
+  const table = useTableView(rows ?? [], columns, {
+    storageKey: "compensation-cycles",
+    defaultSort: { key: "effectiveDate", dir: "desc" },
+  });
 
   useEffect(() => {
     api<Cycle[]>("/compensation-cycles")
@@ -153,43 +191,68 @@ export default function CompensationCyclesPage() {
         ) : rows.length === 0 ? (
           <p className="muted">{l("Belum ada siklus kenaikan gaji.", "No salary review cycles yet.")}</p>
         ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>{l("Siklus", "Cycle")}</th>
-                  <th>{l("Berlaku", "Effective")}</th>
-                  <th className="num">{l("Peserta", "Employees")}</th>
-                  <th className="num">{l("Anggaran / bln", "Budget / mo")}</th>
-                  <th className="num">{l("Terpakai", "Used")}</th>
-                  <th className="num">{l("Rata-rata", "Average")}</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((c) => (
-                  <tr key={c.id}>
-                    <td>
-                      <Link href={`/payroll/compensation/${c.id}`}>{c.name}</Link>
-                    </td>
-                    <td>{formatDate(c.effectiveDate, locale)}</td>
-                    <td className="num">{c.count}</td>
-                    <td className="num">{money(c.budget.budget, locale)}</td>
-                    <td className={`num ${c.budget.overBudget ? "error" : ""}`}>
-                      {money(c.budget.used, locale)}
-                    </td>
-                    <td className="num">{Number(c.budget.averagePercent)}%</td>
-                    <td>
-                      <span className={`pill ${cycleStatePill(c.state)}`}>
-                        {l(...COMPENSATION_STATE_LABEL[c.state])}
-                      </span>
-                    </td>
+          <>
+            <TableTools view={table} />
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <SortTh view={table} col="name">
+                      {l("Siklus", "Cycle")}
+                    </SortTh>
+                    <SortTh view={table} col="effectiveDate">
+                      {l("Berlaku", "Effective")}
+                    </SortTh>
+                    <SortTh view={table} col="count" className="num">
+                      {l("Peserta", "Employees")}
+                    </SortTh>
+                    <SortTh view={table} col="budget" className="num">
+                      {l("Anggaran / bln", "Budget / mo")}
+                    </SortTh>
+                    <SortTh view={table} col="used" className="num">
+                      {l("Terpakai", "Used")}
+                    </SortTh>
+                    <SortTh view={table} col="average" className="num">
+                      {l("Rata-rata", "Average")}
+                    </SortTh>
+                    <SortTh view={table} col="state">
+                      Status
+                    </SortTh>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {table.rows.map((c) => (
+                    <tr key={c.id}>
+                      <td>
+                        <Link href={`/payroll/compensation/${c.id}`}>{c.name}</Link>
+                      </td>
+                      <td>{formatDate(c.effectiveDate, locale)}</td>
+                      <td className="num">{c.count}</td>
+                      <td className="num">{money(c.budget.budget, locale)}</td>
+                      <td className={`num ${c.budget.overBudget ? "error" : ""}`}>
+                        {money(c.budget.used, locale)}
+                      </td>
+                      <td className="num">{Number(c.budget.averagePercent)}%</td>
+                      <td>
+                        <span className={`pill ${cycleStatePill(c.state)}`}>
+                          {l(...COMPENSATION_STATE_LABEL[c.state])}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {table.rows.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="muted">
+                        {l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
+        {rows && rows.length > 0 && <TablePager view={table} />}
       </section>
     </>
   );

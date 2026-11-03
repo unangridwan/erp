@@ -2,13 +2,15 @@
 
 import { parseCsv } from "@erp/shared";
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
+import { DataTable, type DataColumn } from "../../../../components/data-table";
 import { useOptions, type JournalOption } from "../../../../components/accounting/use-options";
 import { useMe } from "../../../../components/me-context";
 import { api, ApiError } from "../../../../lib/api";
 import { formatDate, money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { useListData } from "../../../../lib/use-list-data";
 
 interface Statement {
   id: string;
@@ -33,7 +35,7 @@ export default function BankStatementsPage() {
   const journals = useOptions<JournalOption>("/journals").filter(
     (j) => j.journalType === "bank" || j.journalType === "cash",
   );
-  const [statements, setStatements] = useState<Statement[]>([]);
+  const list = useListData<Statement>("/bank-statements");
   const [csv, setCsv] = useState("");
   const [headers, setHeaders] = useState<string[]>([]);
   const [form, setForm] = useState({
@@ -52,10 +54,49 @@ export default function BankStatementsPage() {
   const [error, setError] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<{ row: number; message: string }[]>([]);
 
-  const load = () => api<Statement[]>("/bank-statements").then(setStatements);
-  useEffect(() => {
-    load().catch((e: Error) => setError(e.message));
-  }, []);
+  const columns = useMemo<DataColumn<Statement>[]>(
+    () => [
+      {
+        key: "name",
+        label: l("Nama", "Name"),
+        value: (s) => s.name,
+        render: (s) => <Link href={`/accounting/bank/${s.id}`}>{s.name}</Link>,
+      },
+      {
+        key: "date",
+        label: l("Tanggal", "Date"),
+        type: "date",
+        value: (s) => s.date,
+        text: (s) => formatDate(s.date, locale),
+      },
+      { key: "journal", label: l("Jurnal", "Journal"), type: "enum", value: (s) => s.journalName },
+      {
+        key: "total",
+        label: l("Total mutasi", "Net amount"),
+        type: "number",
+        className: "num",
+        value: (s) => Number(s.total),
+        text: (s) => money(s.total, locale),
+      },
+      {
+        key: "status",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (s) => (s.openCount === 0 ? "done" : "open"),
+        optionLabel: (v) => (v === "done" ? l("Selesai", "Done") : l("Belum dicocokkan", "To reconcile")),
+        text: (s) => (s.openCount === 0 ? l("Selesai", "Done") : l("Belum dicocokkan", "To reconcile")),
+        render: (s) =>
+          s.openCount === 0 ? (
+            <span className="badge pay-paid">{l("Selesai", "Done")}</span>
+          ) : (
+            <span className="badge pay-partial">
+              {s.openCount}/{s.lineCount} {l("belum dicocokkan", "to reconcile")}
+            </span>
+          ),
+      },
+    ],
+    [l, locale],
+  );
 
   async function onFile(file: File) {
     const text = await file.text();
@@ -134,47 +175,15 @@ export default function BankStatementsPage() {
       <header className="toolbar">
         <h1>{l("Mutasi bank", "Bank statements")}</h1>
       </header>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>{l("Nama", "Name")}</th>
-              <th>{l("Tanggal", "Date")}</th>
-              <th>{l("Jurnal", "Journal")}</th>
-              <th className="num">{l("Total mutasi", "Net amount")}</th>
-              <th>{l("Status", "Status")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {statements.map((s) => (
-              <tr key={s.id}>
-                <td>
-                  <Link href={`/accounting/bank/${s.id}`}>{s.name}</Link>
-                </td>
-                <td>{formatDate(s.date, locale)}</td>
-                <td>{s.journalName}</td>
-                <td className="num">{money(s.total, locale)}</td>
-                <td>
-                  {s.openCount === 0 ? (
-                    <span className="badge pay-paid">{l("Selesai", "Done")}</span>
-                  ) : (
-                    <span className="badge pay-partial">
-                      {s.openCount}/{s.lineCount} {l("belum dicocokkan", "to reconcile")}
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {statements.length === 0 && (
-              <tr>
-                <td colSpan={5} className="muted">
-                  {l("Belum ada mutasi diimpor.", "No statements imported yet.")}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {list.error && <p className="error">{list.error}</p>}
+      <DataTable
+        rows={list.rows}
+        columns={columns}
+        storageKey="bank-statements"
+        rowKey={(s) => s.id}
+        defaultSort={{ key: "date", dir: "desc" }}
+        empty={l("Belum ada mutasi diimpor.", "No statements imported yet.")}
+      />
 
       {can(me.permissions, "accounting.write") && (
         <form className="panel stack invite" onSubmit={submit}>

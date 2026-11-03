@@ -1,6 +1,12 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { and, asc, count, desc, eq, ilike, inArray, or, schema, sql, type Db, type SQL } from "@erp/db";
-import { weightedRevenue, type convertLeadSchema, type leadSchema, type markLostSchema } from "@erp/shared";
+import {
+  LIST_LOAD_LIMIT,
+  weightedRevenue,
+  type convertLeadSchema,
+  type leadSchema,
+  type markLostSchema,
+} from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
@@ -30,7 +36,7 @@ export class LeadService {
   constructor(@Inject(ActivityService) private readonly activity: ActivityService) {}
 
   async list(tx: Db, query: LeadQuery) {
-    const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 500);
+    const limit = Math.min(Math.max(Number(query.limit) || 50, 1), LIST_LOAD_LIMIT);
     const offset = Math.max(Number(query.offset) || 0, 0);
     const filters: (SQL | undefined)[] = [scope()];
     if (query.q) {
