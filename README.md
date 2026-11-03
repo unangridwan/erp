@@ -238,6 +238,9 @@ Otomatis (tanpa endpoint baru):
 | `POST /payslips/:id/{hold,unhold,release}`                                                                                                                   | Penahanan gaji per slip (tidak ikut transfer/pembayaran), dilepas dengan pembayaran terpisah                                                                                                        |
 | `POST /job-openings/from-fpk/:id`, `/refuse-reasons`, `GET /recruitment/reports?from=&to=`                                                                   | FPK disetujui → lowongan, master alasan penolakan, laporan time-to-fill/time-to-hire, funnel, sumber                                                                                                |
 | `/hiring-requests`, `POST /manpower-plan-lines/:id/hiring-request`, `POST /applicants/:id/cancel-hire`                                                       | FPK & alur penambahan karyawan (0049)                                                                                                                                                               |
+| `/contract-templates[/placeholders]`, `POST /contract-templates/preview`, `GET/PUT /contracts/:id/document`                                                  | Template kontrak berplaceholder (data karyawan & kontrak terisi otomatis), isi dokumen per kontrak (0050)                                                                                           |
+| `GET /contracts/:id/pdf?mode=print\|esign\|signed`, `GET/POST /contracts/:id/signed-file`                                                                    | PDF cetak (TTD basah + meterai), e-sign layanan luar (kolom tanda tangan), bertanda tangan; unggah hasil TTD                                                                                        |
+| `POST /contracts/:id/{request-signature,sign}`, `/me/contracts`, `GET /public/contracts/verify/:code`                                                        | Tanda tangan digital di aplikasi (HR & karyawan via portal), jejak audit, verifikasi publik kode dokumen                                                                                            |
 | `/offer-templates`, `GET/POST /applicants/:id/offers`, `POST /job-offers/:id/{send,accept,decline,cancel}`, `GET …/pdf`                                      | Surat penawaran kerja dari template (placeholder), jawaban pelamar, PDF; hire memakai nilai penawaran                                                                                               |
 | `POST /employees/:id/offboard`, `GET/PUT /employees/:id/exit-interview`, `GET /employees/:id/final-settlement[/pdf]`, `GET /hr/reports/exit-reasons`         | Offboarding: alasan keluar + checklist, exit interview, Full & Final Statement, laporan alasan keluar                                                                                               |
 | `/goals` (pohon + progres), `GET /me/goals`, `GET/POST /goals/:id/checkins`                                                                                  | Sasaran & KRA bertingkat (perusahaan → departemen → karyawan), progres induk = rata-rata berbobot turunan, check-in                                                                                 |
@@ -269,6 +272,20 @@ headcount/payroll) + kontrak draft dari penawaran; kuota lowongan dicek → **ko
 masuk, onboarding dimulai (tugas atasan ke kepala departemen; tugas karyawan ke akunnya saat undangan diterima; tugas
 "tanda tangan kontrak" selesai otomatis). Calon bisa dibatalkan sebelum kontrak dimulai. Halaman FPK menampilkan
 timeline 9 tahap. Lowongan manual tetap boleh (ditandai "Tanpa FPK" di kanban); lowongan dari MPP kini lewat FPK.
+
+**Template & tanda tangan kontrak (migrasi 0050).** Kontrak pertama dibuat **dari form karyawan baru** (tab "Kontrak
+kerja": jenis PKWT/PKWTT, template, tanggal berakhir, upah, metode PPh 21; mulai = tanggal masuk) dan **langsung
+berlaku** saat karyawan disimpan; tombol "Baru" di daftar kontrak diganti, perpanjangan tetap dari tab Penggajian
+karyawan. SDM › Konfigurasi › **Template Kontrak**: isi kontrak dengan placeholder (`{nama}`, `{nik}`, `{jabatan}`,
+`{gaji}`, `{gaji_terbilang}`, `{tanggal_mulai}`, `{masa_kontrak}`, …; 28 kolom) yang diisi otomatis dari data karyawan,
+kontrak, perusahaan & tunjangan tetap; template bawaan PKWT & PKWTT dibuat otomatis; pratinjau PDF dengan data
+karyawan atau contoh. Halaman kontrak › **Dokumen & tanda tangan**: pilih template & penandatangan, ubah isi khusus
+kontrak itu, lalu salah satu cara: **PDF cetak** (kotak meterai, ditandatangani basah lalu scan diunggah), **PDF e-sign**
+(kolom tanda tangan AcroForm untuk PrivyID/Peruri/Adobe Sign; PDF hasilnya diunggah), atau **tanda tangan digital di
+aplikasi** (kanvas; pihak perusahaan oleh HR, karyawan lewat portal "Kontrak kerja saya" setelah diminta atau langsung
+di perangkat HR) → PDF bertanda tangan dengan halaman jejak audit (waktu, IP, hash SHA-256) dan **kode verifikasi**
+yang bisa dicek siapa pun di `/verify/contract/<kode>` (tanpa gaji/isi kontrak). Isi dibekukan saat diminta/
+ditandatangani; setelah ada tanda tangan, syarat kontrak terkunci sampai tanda tangan dibatalkan.
 
 **Lembur dari absensi (migrasi 0048).** Bila diaktifkan di Pengaturan Payroll, setiap absen pulang menghasilkan
 pengajuan lembur: hari kerja = menit setelah jam pulang jadwal (opsional + datang sebelum jam masuk; tanpa jadwal =

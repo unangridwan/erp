@@ -15,6 +15,7 @@ import { EmployeeVehiclesPanel } from "../fleet/fleet-panels";
 import { useMe } from "../me-context";
 import { BenefitEnrollments } from "../payroll/benefits-panel";
 import { TotalRewardsPanel } from "../payroll/total-rewards";
+import { NEW_CONTRACT, NewEmployeeContract, type NewContractValues } from "./contract-document";
 import { FeedbackPanel, NotesPanel } from "./ess-panels";
 import { CareerPanel, ChecklistsPanel, DocumentsPanel, errorText } from "./hr-panels";
 import { OffboardingPanel } from "./offboarding-panel";
@@ -61,7 +62,16 @@ interface ProfileSummary {
   ptkpMismatch: boolean;
 }
 
-type Tab = "work" | "personal" | "payroll" | "benefits" | "history" | "performance" | "projects" | "settings";
+type Tab =
+  | "work"
+  | "contract"
+  | "personal"
+  | "payroll"
+  | "benefits"
+  | "history"
+  | "performance"
+  | "projects"
+  | "settings";
 
 const EMPLOYEES = findResource("employees")!;
 const FIELDS = new Map(EMPLOYEES.fields.map((f) => [f.name, f]));
@@ -120,6 +130,7 @@ const GROUPS: Record<Tab, { title?: [string, string]; fields: string[] }[]> = {
       fields: ["bpjsTkEnrolled", "bpjsTkNo", "bpjsTkDate", "bpjsJpEnrolled"],
     },
   ],
+  contract: [],
   history: [],
   performance: [],
   benefits: [],
@@ -165,6 +176,9 @@ export function EmployeeForm({ id }: { id: string }) {
   /** Foto baru yang belum diunggah (karyawan baru: diunggah setelah dibuat). */
   const [pendingPhoto, setPendingPhoto] = useState<{ type: string; data: string } | null>(null);
   const [photoVersion, setPhotoVersion] = useState(0);
+  /** Karyawan baru: kontrak kerja pertama dibuat bersamaan & langsung berlaku. */
+  const [newContract, setNewContract] = useState<NewContractValues>(NEW_CONTRACT);
+  const withContract = isNew && manage && newContract.enabled;
 
   const loadMeta = useCallback(() => {
     if (isNew) return;
@@ -208,10 +222,30 @@ export function EmployeeForm({ id }: { id: string }) {
     setFieldErrors({});
     try {
       if (isNew) {
-        const body = { ...toPayload(SAVED_FIELDS, values, true), tags: values.tags ?? [] };
-        const created = await api<{ id: string }>("/employees", { method: "POST", body });
+        const body: Values = { ...toPayload(SAVED_FIELDS, values, true), tags: values.tags ?? [] };
+        if (withContract) {
+          if (!newContract.wage.trim()) {
+            setFieldErrors({ "contract.wage": l("Wajib diisi", "Required") });
+            setTab("contract");
+            return;
+          }
+          body.contract = {
+            templateId: newContract.templateId || null,
+            contractType: newContract.contractType,
+            dateEnd: newContract.dateEnd || null,
+            wage: newContract.wage.trim(),
+            wageType: newContract.wageType,
+            taxMethod: newContract.taxMethod,
+          };
+        }
+        const created = await api<{ id: string; contractId?: string }>("/employees", {
+          method: "POST",
+          body,
+        });
         if (pendingPhoto) await api(`/employees/${created.id}/photo`, { method: "PUT", body: pendingPhoto });
-        router.replace(`/employees/${created.id}`);
+        router.replace(
+          created.contractId ? `/hr/contracts/${created.contractId}?created=1` : `/employees/${created.id}`,
+        );
         return;
       }
       const changed = SAVED_FIELDS.filter((f) => !same(values[f.name], original[f.name]));
@@ -233,7 +267,10 @@ export function EmployeeForm({ id }: { id: string }) {
       setNotice(l("Tersimpan.", "Saved."));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-      if (err instanceof ApiError) setFieldErrors(err.fieldErrors);
+      if (err instanceof ApiError) {
+        setFieldErrors(err.fieldErrors);
+        if (Object.keys(err.fieldErrors).some((k) => k.startsWith("contract."))) setTab("contract");
+      }
     } finally {
       setSaving(false);
     }
@@ -329,6 +366,7 @@ export function EmployeeForm({ id }: { id: string }) {
 
   const tabs: [Tab, string, boolean][] = [
     ["work", l("Kerja", "Work"), true],
+    ["contract", l("Kontrak kerja", "Contract"), isNew && manage],
     ["personal", l("Pribadi", "Private"), true],
     ["payroll", l("Penggajian", "Payroll"), true],
     ["benefits", l("Benefit", "Benefits"), !isNew && can(me.permissions, "payroll.read")],
@@ -590,9 +628,22 @@ export function EmployeeForm({ id }: { id: string }) {
                     </h3>
                     {isNew ? (
                       <p className="muted">
-                        {l(
-                          "Simpan karyawan dulu, lalu buat kontrak kerja.",
-                          "Save the employee first, then create an employment contract.",
+                        {manage ? (
+                          <>
+                            {l("Kontrak kerja diisi di tab ", "The employment contract is set in the ")}
+                            <button type="button" className="link" onClick={() => setTab("contract")}>
+                              {l("Kontrak kerja", "Contract")}
+                            </button>
+                            {l(
+                              " dan langsung berlaku saat karyawan disimpan.",
+                              " tab and takes effect when saved.",
+                            )}
+                          </>
+                        ) : (
+                          l(
+                            "Kontrak kerja dibuat oleh pengguna dengan hak kelola SDM.",
+                            "The employment contract is created by a user with HR manage rights.",
+                          )
                         )}
                       </p>
                     ) : overview?.contract ? (
@@ -638,6 +689,15 @@ export function EmployeeForm({ id }: { id: string }) {
                     )}
                   </div>
                 </div>
+              )}
+
+              {tab === "contract" && isNew && manage && (
+                <NewEmployeeContract
+                  value={newContract}
+                  onChange={setNewContract}
+                  errors={fieldErrors}
+                  joinDate={(values.joinDate as string | undefined) || null}
+                />
               )}
 
               {(tab === "work" || tab === "personal" || tab === "settings") && (

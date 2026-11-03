@@ -17,6 +17,7 @@ export * from "./attendance.js";
 export * from "./work-calendar.js";
 export * from "./overtime.js";
 export * from "./hiring.js";
+export * from "./contract-doc.js";
 export * from "./recruitment.js";
 export * from "./performance.js";
 export * from "./fleet.js";

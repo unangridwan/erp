@@ -40,10 +40,16 @@ export default function ContractsPage() {
           <option value="closed">{l("Berakhir", "Expired")}</option>
           <option value="">{l("Semua", "All")}</option>
         </select>
-        <Link className="button primary" href="/hr/contracts/new">
-          {l("Baru", "New")}
+        <Link className="button primary" href="/employees/new">
+          {l("Karyawan baru + kontrak", "New employee + contract")}
         </Link>
       </header>
+      <p className="muted">
+        {l(
+          "Kontrak pertama dibuat bersama data karyawan baru; perpanjangan/kontrak baru dibuat dari tab Penggajian karyawan. Dokumen kontrak (cetak, e-sign, tanda tangan digital) ada di halaman kontrak; templatnya di Konfigurasi › Template Kontrak.",
+          "The first contract is created together with a new employee; renewals are created from the employee's Payroll tab. The contract document (print, e-sign, digital signature) is on the contract page; templates are under Configuration › Contract Templates.",
+        )}
+      </p>
       {error && <p className="error">{error}</p>}
       {rows && (
         <div className="table-wrap">

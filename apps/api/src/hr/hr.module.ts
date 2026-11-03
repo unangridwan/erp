@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   Inject,
@@ -26,6 +27,8 @@ import {
   addDays,
   employeeSchema,
   gradePosition,
+  hasPermission,
+  newEmployeeContractSchema,
   holidaySchema,
   jobPositionSchema,
   leaveAllocationSchema,
@@ -57,6 +60,7 @@ import { ATTENDANCE_COLUMNS, AttendanceService } from "./attendance.service.js";
 import { ApprovalService, beginApproval, type ApprovalModel } from "./approval.service.js";
 import { NotificationService } from "../notifications/notification.service.js";
 import { ChecklistService } from "./checklist.service.js";
+import { ContractDocumentService } from "./contract-document.service.js";
 import { ContractService } from "./contract.service.js";
 import { HistoryService } from "./history.service.js";
 import { EmployeeService } from "./employee.service.js";
@@ -436,6 +440,7 @@ class EmployeesController {
     @Inject(ChecklistService) private readonly checklists: ChecklistService,
     @Inject(HistoryService) private readonly history: HistoryService,
     @Inject(ContractService) private readonly contracts: ContractService,
+    @Inject(ContractDocumentService) private readonly documents: ContractDocumentService,
   ) {}
 
   @Get()
@@ -554,11 +559,19 @@ class EmployeesController {
     });
   }
 
+  /**
+   * Karyawan baru, opsional sekaligus kontrak kerjanya (`contract`): kontrak dibuat mulai tanggal masuk dari template
+   * terpilih dan langsung berlaku; dokumen kontrak lalu dicetak/ditandatangani dari halaman kontrak.
+   */
   @Post()
   @RequirePermission("hr.write")
   create(@Body() body: unknown) {
     const input = parse(employeeSchema, body);
+    const { contract } = parse(z.object({ contract: newEmployeeContractSchema.nullish() }), body ?? {});
+    if (contract && !hasPermission(currentContext().permissions, "hr.manage"))
+      throw new ForbiddenException("Butuh permission hr.manage untuk membuat kontrak kerja");
     return this.tenantDb.run(async (tx) => {
+      if (contract?.templateId) await this.documents.template(tx, contract.templateId);
       const employee = await this.employees.create(tx, input);
       await this.history.record(tx, employee, "join", {
         date: employee.joinDate,
@@ -567,7 +580,27 @@ class EmployeesController {
       // Onboarding otomatis untuk karyawan baru (bukan impor data lama).
       if (employee.joinDate >= addDays(new Date().toISOString().slice(0, 10), -30))
         await this.checklists.autoStart(tx, employee.id, "onboarding");
-      return employee;
+      if (!contract) return employee;
+      const dateEnd = contract.dateEnd ?? employee.resignDate ?? null;
+      if (dateEnd && dateEnd < employee.joinDate)
+        throw fieldError("contract.dateEnd", "Tanggal berakhir sebelum tanggal masuk");
+      const contractId = await this.contracts.create(tx, {
+        employeeId: employee.id,
+        contractType: contract.contractType,
+        wageType: contract.wageType,
+        taxMethod: contract.taxMethod,
+        dateStart: employee.joinDate,
+        dateEnd,
+        wage: contract.wage,
+        allowances: [],
+      });
+      if (contract.templateId)
+        await tx
+          .update(schema.contracts)
+          .set({ templateId: contract.templateId })
+          .where(eq(schema.contracts.id, contractId));
+      await this.contracts.start(tx, contractId);
+      return { ...employee, contractId };
     });
   }
 
@@ -612,6 +645,7 @@ class ContractsController {
     @Inject(ActivityService) private readonly activity: ActivityService,
     @Inject(ContractService) private readonly contracts: ContractService,
     @Inject(EmployeeService) private readonly employees: EmployeeService,
+    @Inject(ContractDocumentService) private readonly documents: ContractDocumentService,
   ) {}
 
   @Get()
@@ -661,6 +695,8 @@ class ContractsController {
         throw new BadRequestException("Kontrak selesai/batal tidak bisa diubah");
       if (input.employeeId !== contract.employeeId)
         throw fieldError("employeeId", "Karyawan kontrak tidak bisa diganti");
+      // Dokumen yang sudah ditandatangani mengikat syarat kontrak; isi template dirender ulang bila belum.
+      await this.documents.assertEditable(tx, contract);
       this.contracts.assertWithinEmployment(await this.employees.find(tx, contract.employeeId), input);
       await this.assertComponents(
         tx,
@@ -679,6 +715,7 @@ class ContractsController {
           updatedAt: sql`now()`,
         })
         .where(eq(C.id, id));
+      await this.documents.refreshAfterContractChange(tx, contract);
       await tx.delete(schema.contractAllowances).where(eq(schema.contractAllowances.contractId, id));
       if (input.allowances.length)
         await tx
@@ -1138,11 +1175,13 @@ class PortalController {
     ChecklistService,
     HistoryService,
     ContractService,
+    ContractDocumentService,
     NotificationService,
     WorkCalendarService,
     OvertimeService,
   ],
   exports: [
+    ContractDocumentService,
     WorkCalendarService,
     OvertimeService,
     NotificationService,
