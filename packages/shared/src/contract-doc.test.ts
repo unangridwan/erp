@@ -38,7 +38,10 @@ describe("dokumen kontrak", () => {
       },
       allowances: [
         { name: "Tunjangan transport", amount: "500000", fixed: true },
-        { name: "Uang makan", amount: "25000", fixed: false },
+        { name: "Uang makan", amount: "25000", fixed: false, calc: "per_attendance_day" },
+        { name: "Premi hadir", amount: "200000", fixed: false, calc: "attendance_premium" },
+        { name: "Iuran koperasi", amount: "50000", fixed: false, kind: "deduction" },
+        { name: "Tunjangan kosong", amount: "0", fixed: true },
       ],
       employee: {
         name: "Nina Baru",
@@ -61,11 +64,21 @@ describe("dokumen kontrak", () => {
       gaji: "Rp 6.500.000",
       gaji_terbilang: "enam juta lima ratus ribu rupiah",
       tunjangan: "Tunjangan transport Rp 500.000",
+      tunjangan_tidak_tetap:
+        "Uang makan Rp 25.000 per hari hadir; Premi hadir Rp 200.000 per bulan bila memenuhi syarat kehadiran",
+      potongan: "Iuran koperasi Rp 50.000 per bulan",
       total_upah: "Rp 7.000.000",
       tanggal_lahir: "2 April 1998",
       golongan: "………………",
       kota: "Jakarta",
     });
+    expect(vars.komponen_gaji!.split("\n")).toEqual([
+      "- Gaji pokok: Rp 6.500.000 per bulan",
+      "- Tunjangan transport (tunjangan tetap): Rp 500.000 per bulan",
+      "- Uang makan (tunjangan tidak tetap): Rp 25.000 per hari hadir",
+      "- Premi hadir (tunjangan tidak tetap): Rp 200.000 per bulan bila memenuhi syarat kehadiran",
+      "- Iuran koperasi (potongan): Rp 50.000 per bulan",
+    ]);
     for (const t of DEFAULT_CONTRACT_TEMPLATES) {
       const out = renderContractTemplate(t.body, vars);
       expect(out).not.toMatch(/\{[a-z_]+\}/);

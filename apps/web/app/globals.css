@@ -2651,3 +2651,27 @@ dl.facts .wide {
 .new-contract .field input.num {
   width: 100%;
 }
+
+/* ---- Komponen gaji kontrak ---- */
+.o-subtitle {
+  margin: 16px 0 4px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.amount-unit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.amount-unit input {
+  min-width: 0;
+  flex: 1;
+}
+.amount-unit small {
+  white-space: nowrap;
+}
+.contract-components select {
+  max-width: 100%;
+}

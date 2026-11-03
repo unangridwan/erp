@@ -50,7 +50,8 @@ export class ContractService {
     return row;
   }
 
-  async assertComponents(tx: Db, ids: string[]) {
+  /** Komponen gaji kontrak harus milik perusahaan & tidak ganda; `prefix` untuk path error (mis. "contract."). */
+  async assertComponents(tx: Db, ids: string[], prefix = "") {
     for (const [i, id] of ids.entries()) {
       const [row] = await tx
         .select({ kind: schema.salaryComponents.kind })
@@ -61,9 +62,9 @@ export class ContractService {
             eq(schema.salaryComponents.companyId, currentContext().companyId),
           ),
         );
-      if (!row) throw fieldError(`allowances.${i}.componentId`, "Komponen gaji tidak ditemukan");
+      if (!row) throw fieldError(`${prefix}allowances.${i}.componentId`, "Komponen gaji tidak ditemukan");
     }
-    if (new Set(ids).size !== ids.length) throw fieldError("allowances", "Komponen ganda");
+    if (new Set(ids).size !== ids.length) throw fieldError(`${prefix}allowances`, "Komponen ganda");
   }
 
   /**

@@ -5,6 +5,7 @@ import { download } from "../accounting/download";
 import { api, apiRaw, ApiError } from "../../lib/api";
 import { formatDate } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
+import { ContractComponentsEditor, type ComponentLine } from "./contract-components";
 import { errorText } from "./hr-panels";
 
 export type SignState = "unsigned" | "pending" | "partial" | "signed";
@@ -882,6 +883,8 @@ export interface NewContractValues {
   wage: string;
   wageType: "monthly" | "daily" | "piece";
   taxMethod: "gross" | "gross_up";
+  /** Komponen gaji lain: tunjangan tetap/tidak tetap & potongan. */
+  allowances: ComponentLine[];
 }
 export const NEW_CONTRACT: NewContractValues = {
   dateStart: "",
@@ -891,6 +894,7 @@ export const NEW_CONTRACT: NewContractValues = {
   wage: "",
   wageType: "monthly",
   taxMethod: "gross",
+  allowances: [],
 };
 /** Tanggal berakhir kontrak `months` bulan sejak `start` (inklusif: 16 Nov + 12 bln → 15 Nov tahun depan). */
 export function contractEnd(start: string, months: number) {
@@ -1042,10 +1046,20 @@ export function NewEmployeeContract({
           </select>
         </label>
       </fieldset>
+      <h4 className="o-subtitle">{l("Komponen gaji lain", "Other pay components")}</h4>
+      <ContractComponentsEditor
+        value={value.allowances}
+        onChange={(allowances) => onChange({ ...value, allowances })}
+        wage={value.wage}
+        wageType={value.wageType}
+        editable
+        errors={errors}
+        errorPrefix="contract."
+      />
       <p className="muted small">
         {l(
-          "Tunjangan tetap ditambahkan di halaman kontrak setelah disimpan. Dokumen kontrak dari template bisa langsung dicetak atau ditandatangani di sana.",
-          "Fixed allowances are added on the contract page after saving. The contract document from the template can be printed or signed there.",
+          "Setelah disimpan, dokumen kontrak dari template bisa langsung dicetak atau ditandatangani di halaman kontrak.",
+          "After saving, the contract document from the template can be printed or signed on the contract page.",
         )}
       </p>
     </section>
