@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { errorText } from "../../../../components/hr/hr-panels";
 import { api } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Item {
   name: string;
@@ -35,6 +37,28 @@ export default function ChecklistTemplatesPage() {
   const [edit, setEdit] = useState<Template | null>(null);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const columns = useMemo<ViewColumn<Template>[]>(
+    () => [
+      { key: "name", label: l("Nama", "Name"), value: (t) => t.name },
+      {
+        key: "kind",
+        label: l("Jenis", "Kind"),
+        type: "enum",
+        value: (t) => t.kind,
+        optionLabel: (v) => (v === "onboarding" ? "Onboarding" : "Offboarding"),
+      },
+      {
+        key: "isDefault",
+        label: l("Bawaan", "Default"),
+        type: "enum",
+        value: (t) => (t.isDefault ? "1" : "0"),
+        optionLabel: (v) => (v === "1" ? l("Bawaan", "Default") : l("Bukan bawaan", "Not default")),
+      },
+      { key: "items", label: l("Tugas", "Tasks"), type: "number", value: (t) => t.items.length },
+    ],
+    [l],
+  );
+  const table = useTableView(templates, columns, { storageKey: "checklist-templates" });
   useEffect(() => {
     api<Template[]>("/hr-checklist-templates").then(setTemplates, (e) => setError(errorText(e)));
   }, [version]);
@@ -185,31 +209,55 @@ export default function ChecklistTemplatesPage() {
           </div>
         </div>
       ) : (
-        <div className="table-scroll">
-          <table>
-            <tbody>
-              {templates.map((t) => (
-                <tr key={t.id}>
-                  <td>
-                    <button type="button" className="link" onClick={() => setEdit(t)}>
-                      {t.name}
-                    </button>
-                  </td>
-                  <td>{t.kind === "onboarding" ? "Onboarding" : "Offboarding"}</td>
-                  <td>{t.isDefault ? l("bawaan", "default") : ""}</td>
-                  <td>
-                    {t.items.length} {l("tugas", "tasks")}
-                  </td>
-                </tr>
-              ))}
-              {templates.length === 0 && (
+        <>
+          <TableTools view={table} />
+          <div className="table-scroll">
+            <table>
+              <thead>
                 <tr>
-                  <td className="muted">{l("Belum ada template.", "No templates yet.")}</td>
+                  <SortTh view={table} col="name">
+                    {l("Nama", "Name")}
+                  </SortTh>
+                  <SortTh view={table} col="kind">
+                    {l("Jenis", "Kind")}
+                  </SortTh>
+                  <SortTh view={table} col="isDefault">
+                    {l("Bawaan", "Default")}
+                  </SortTh>
+                  <SortTh view={table} col="items">
+                    {l("Tugas", "Tasks")}
+                  </SortTh>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {table.rows.map((t) => (
+                  <tr key={t.id}>
+                    <td>
+                      <button type="button" className="link" onClick={() => setEdit(t)}>
+                        {t.name}
+                      </button>
+                    </td>
+                    <td>{t.kind === "onboarding" ? "Onboarding" : "Offboarding"}</td>
+                    <td>{t.isDefault ? l("bawaan", "default") : ""}</td>
+                    <td>
+                      {t.items.length} {l("tugas", "tasks")}
+                    </td>
+                  </tr>
+                ))}
+                {table.rows.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="muted">
+                      {templates.length
+                        ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                        : l("Belum ada template.", "No templates yet.")}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <TablePager view={table} />
+        </>
       )}
     </div>
   );

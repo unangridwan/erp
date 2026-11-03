@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { errorText } from "../../../../components/hr/hr-panels";
 import { RefSelect } from "../../../../components/ref-select";
 import { api } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Item {
   name: string;
@@ -34,6 +36,28 @@ export default function AppraisalTemplatesPage() {
   const [edit, setEdit] = useState<Template | null>(null);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const columns = useMemo<ViewColumn<Template>[]>(
+    () => [
+      { key: "name", label: l("Nama", "Name"), value: (t) => t.name },
+      {
+        key: "job",
+        label: l("Jabatan", "Job"),
+        type: "enum",
+        value: (t) => t.jobName ?? l("(umum)", "(general)"),
+      },
+      { key: "items", label: l("Indikator", "Indicators"), type: "number", value: (t) => t.items.length },
+      {
+        key: "active",
+        label: l("Aktif", "Active"),
+        type: "enum",
+        value: (t) => (t.active ? "1" : "0"),
+        optionLabel: (v) => (v === "1" ? l("Ya", "Yes") : l("Tidak", "No")),
+        hidden: true,
+      },
+    ],
+    [l],
+  );
+  const table = useTableView(templates, columns, { storageKey: "appraisal-templates" });
   useEffect(() => {
     api<Template[]>("/appraisal-templates").then(setTemplates, (e) => setError(errorText(e)));
   }, [version]);
@@ -170,30 +194,51 @@ export default function AppraisalTemplatesPage() {
           </div>
         </div>
       ) : (
-        <div className="table-scroll">
-          <table>
-            <tbody>
-              {templates.map((t) => (
-                <tr key={t.id}>
-                  <td>
-                    <button type="button" className="link" onClick={() => setEdit(t)}>
-                      {t.name}
-                    </button>
-                  </td>
-                  <td>{t.jobName ?? l("(umum)", "(general)")}</td>
-                  <td>
-                    {t.items.length} {l("indikator", "indicators")}
-                  </td>
-                </tr>
-              ))}
-              {templates.length === 0 && (
+        <>
+          <TableTools view={table} />
+          <div className="table-scroll">
+            <table>
+              <thead>
                 <tr>
-                  <td className="muted">{l("Belum ada template.", "No templates yet.")}</td>
+                  <SortTh view={table} col="name">
+                    {l("Nama", "Name")}
+                  </SortTh>
+                  <SortTh view={table} col="job">
+                    {l("Jabatan", "Job")}
+                  </SortTh>
+                  <SortTh view={table} col="items">
+                    {l("Indikator", "Indicators")}
+                  </SortTh>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {table.rows.map((t) => (
+                  <tr key={t.id}>
+                    <td>
+                      <button type="button" className="link" onClick={() => setEdit(t)}>
+                        {t.name}
+                      </button>
+                    </td>
+                    <td>{t.jobName ?? l("(umum)", "(general)")}</td>
+                    <td>
+                      {t.items.length} {l("indikator", "indicators")}
+                    </td>
+                  </tr>
+                ))}
+                {table.rows.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="muted">
+                      {templates.length
+                        ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                        : l("Belum ada template.", "No templates yet.")}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <TablePager view={table} />
+        </>
       )}
     </div>
   );

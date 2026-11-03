@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../../../../lib/api";
 import { money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Report {
   grades: {
@@ -36,6 +38,34 @@ export default function WageScalePage() {
   const { l, locale } = useI18n();
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
+  type Item = Report["items"][number];
+  const columns = useMemo<ViewColumn<Item>[]>(
+    () => [
+      {
+        key: "name",
+        label: l("Karyawan", "Employee"),
+        value: (i) => i.name,
+        text: (i) => `${i.name} ${i.employeeNumber}`,
+      },
+      { key: "job", label: l("Jabatan", "Job"), type: "enum", value: (i) => i.jobName },
+      { key: "grade", label: l("Golongan", "Grade"), type: "enum", value: (i) => i.grade?.code ?? null },
+      { key: "wage", label: l("Upah pokok", "Base wage"), type: "number", value: (i) => Number(i.wage) },
+      {
+        key: "position",
+        label: l("Posisi", "Position"),
+        type: "enum",
+        value: (i) => i.position,
+        optionLabel: (v) =>
+          ({
+            below: l("Di bawah rentang", "Below range"),
+            within: l("Dalam rentang", "Within range"),
+            above: l("Di atas rentang", "Above range"),
+          })[v] ?? v,
+      },
+    ],
+    [l],
+  );
+  const table = useTableView(report?.items ?? [], columns, { storageKey: "wage-scale-items" });
   useEffect(() => {
     api<Report>("/hr/wage-scale")
       .then(setReport)
@@ -94,19 +124,30 @@ export default function WageScalePage() {
             </table>
           </div>
           <h2>{l("Per karyawan", "Per employee")}</h2>
+          <TableTools view={table} placeholder={l("Cari karyawan, jabatan…", "Search employee, job…")} />
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>{l("Karyawan", "Employee")}</th>
-                  <th>{l("Jabatan", "Job")}</th>
-                  <th>{l("Golongan", "Grade")}</th>
-                  <th className="num">{l("Upah pokok", "Base wage")}</th>
-                  <th>{l("Posisi", "Position")}</th>
+                  <SortTh view={table} col="name">
+                    {l("Karyawan", "Employee")}
+                  </SortTh>
+                  <SortTh view={table} col="job">
+                    {l("Jabatan", "Job")}
+                  </SortTh>
+                  <SortTh view={table} col="grade">
+                    {l("Golongan", "Grade")}
+                  </SortTh>
+                  <SortTh view={table} col="wage" className="num">
+                    {l("Upah pokok", "Base wage")}
+                  </SortTh>
+                  <SortTh view={table} col="position">
+                    {l("Posisi", "Position")}
+                  </SortTh>
                 </tr>
               </thead>
               <tbody>
-                {report.items.map((i) => (
+                {table.rows.map((i) => (
                   <tr key={i.employeeId}>
                     <td>
                       <Link href={`/employees/${i.employeeId}`}>{i.name}</Link>{" "}
@@ -120,16 +161,19 @@ export default function WageScalePage() {
                     </td>
                   </tr>
                 ))}
-                {report.items.length === 0 && (
+                {table.rows.length === 0 && (
                   <tr>
                     <td colSpan={5} className="muted">
-                      {l("Belum ada kontrak bulanan berjalan.", "No running monthly contracts yet.")}
+                      {report.items.length
+                        ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                        : l("Belum ada kontrak bulanan berjalan.", "No running monthly contracts yet.")}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+          <TablePager view={table} />
         </>
       )}
     </div>

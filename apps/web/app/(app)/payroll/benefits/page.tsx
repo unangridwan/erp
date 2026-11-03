@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { BENEFIT_KIND_LABEL, BENEFIT_KINDS, type BenefitKind } from "@erp/shared";
 import { useMe } from "../../../../components/me-context";
 import { planValue, type BenefitPlan } from "../../../../components/payroll/benefits-panel";
@@ -11,6 +11,8 @@ import { download } from "../../../../lib/download";
 import { money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Report {
   summary: {
@@ -58,6 +60,48 @@ export default function BenefitPlansPage() {
   const month = today().slice(0, 7);
   const [range, setRange] = useState({ from: `${month.slice(0, 4)}-01`, to: month });
   const [report, setReport] = useState<Report | null>(null);
+  const columns = useMemo<ViewColumn<BenefitPlan>[]>(
+    () => [
+      {
+        key: "name",
+        label: l("Paket", "Plan"),
+        value: (p) => p.name,
+        text: (p) => `${p.name} ${p.code} ${p.policyNo ?? ""}`,
+      },
+      {
+        key: "kind",
+        label: l("Jenis", "Kind"),
+        type: "enum",
+        value: (p) => p.kind,
+        optionLabel: (v) =>
+          BENEFIT_KIND_LABEL[v as BenefitKind] ? l(...BENEFIT_KIND_LABEL[v as BenefitKind]) : v,
+      },
+      { key: "provider", label: l("Penyedia", "Provider"), type: "enum", value: (p) => p.provider },
+      {
+        key: "employer",
+        label: l("Perusahaan", "Employer"),
+        type: "number",
+        value: (p) => Number(p.employerAmount),
+      },
+      {
+        key: "employee",
+        label: l("Karyawan", "Employee"),
+        type: "number",
+        value: (p) => Number(p.employeeAmount),
+      },
+      { key: "members", label: l("Peserta", "Members"), type: "number", value: (p) => p.members },
+      {
+        key: "active",
+        label: l("Aktif", "Active"),
+        type: "enum",
+        value: (p) => (p.active ? "1" : "0"),
+        optionLabel: (v) => (v === "1" ? l("Aktif", "Active") : l("Nonaktif", "Inactive")),
+        hidden: true,
+      },
+    ],
+    [l],
+  );
+  const table = useTableView(rows ?? [], columns, { storageKey: "benefit-plans" });
   const manage = can(me.permissions, "payroll.manage");
 
   useEffect(() => {
@@ -327,51 +371,74 @@ export default function BenefitPlansPage() {
         ) : rows.length === 0 ? (
           <p className="muted">{l("Belum ada paket benefit.", "No benefit plans yet.")}</p>
         ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>{l("Paket", "Plan")}</th>
-                  <th>{l("Jenis", "Kind")}</th>
-                  <th>{l("Penyedia", "Provider")}</th>
-                  <th className="num">{l("Perusahaan", "Employer")}</th>
-                  <th className="num">{l("Karyawan", "Employee")}</th>
-                  <th className="num">{l("Peserta", "Members")}</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((p) => (
-                  <tr key={p.id} className={p.active ? "" : "muted"}>
-                    <td>
-                      <Link href={`/payroll/benefits/${p.id}`}>{p.name}</Link>{" "}
-                      <small className="muted">{p.code}</small>
-                    </td>
-                    <td>
-                      {l(...BENEFIT_KIND_LABEL[p.kind])}
-                      {p.taxable && <small className="muted"> · {l("natura", "in kind")}</small>}
-                    </td>
-                    <td>{p.provider ?? "—"}</td>
-                    <td className="num">{planValue(p.calc, p.employerAmount, locale)}</td>
-                    <td className="num">{planValue(p.calc, p.employeeAmount, locale)}</td>
-                    <td className="num">{p.members}</td>
-                    <td className="nowrap">
-                      {manage && (
-                        <>
-                          <button type="button" className="link" onClick={() => edit(p)}>
-                            {l("Ubah", "Edit")}
-                          </button>
-                          <button type="button" className="link danger" onClick={() => remove(p.id)}>
-                            {l("Hapus", "Delete")}
-                          </button>
-                        </>
-                      )}
-                    </td>
+          <>
+            <TableTools view={table} />
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <SortTh view={table} col="name">
+                      {l("Paket", "Plan")}
+                    </SortTh>
+                    <SortTh view={table} col="kind">
+                      {l("Jenis", "Kind")}
+                    </SortTh>
+                    <SortTh view={table} col="provider">
+                      {l("Penyedia", "Provider")}
+                    </SortTh>
+                    <SortTh view={table} col="employer" className="num">
+                      {l("Perusahaan", "Employer")}
+                    </SortTh>
+                    <SortTh view={table} col="employee" className="num">
+                      {l("Karyawan", "Employee")}
+                    </SortTh>
+                    <SortTh view={table} col="members" className="num">
+                      {l("Peserta", "Members")}
+                    </SortTh>
+                    <th />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {table.rows.map((p) => (
+                    <tr key={p.id} className={p.active ? "" : "muted"}>
+                      <td>
+                        <Link href={`/payroll/benefits/${p.id}`}>{p.name}</Link>{" "}
+                        <small className="muted">{p.code}</small>
+                      </td>
+                      <td>
+                        {l(...BENEFIT_KIND_LABEL[p.kind])}
+                        {p.taxable && <small className="muted"> · {l("natura", "in kind")}</small>}
+                      </td>
+                      <td>{p.provider ?? "—"}</td>
+                      <td className="num">{planValue(p.calc, p.employerAmount, locale)}</td>
+                      <td className="num">{planValue(p.calc, p.employeeAmount, locale)}</td>
+                      <td className="num">{p.members}</td>
+                      <td className="nowrap">
+                        {manage && (
+                          <>
+                            <button type="button" className="link" onClick={() => edit(p)}>
+                              {l("Ubah", "Edit")}
+                            </button>
+                            <button type="button" className="link danger" onClick={() => remove(p.id)}>
+                              {l("Hapus", "Delete")}
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {table.rows.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="muted">
+                        {l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <TablePager view={table} />
+          </>
         )}
       </section>
 

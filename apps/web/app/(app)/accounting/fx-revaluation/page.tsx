@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
 import { formatDate, money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Line {
   accountId: string;
@@ -51,6 +53,18 @@ export default function FxRevaluationPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const m = (v: string) => money(v, locale);
+  const columns = useMemo<ViewColumn<Revaluation>[]>(
+    () => [
+      { key: "date", label: l("Tanggal", "Date"), type: "date", value: (h) => h.date },
+      { key: "move", label: l("Jurnal", "Entry"), value: (h) => h.moveName },
+      { key: "lines", label: l("Baris", "Lines"), type: "number", value: (h) => h.lines.length },
+    ],
+    [l],
+  );
+  const table = useTableView(history, columns, {
+    storageKey: "fx-revaluations",
+    defaultSort: { key: "date", dir: "desc" },
+  });
 
   const loadHistory = useCallback(() => {
     api<Revaluation[]>("/accounting/fx-revaluations")
@@ -167,17 +181,24 @@ export default function FxRevaluationPage() {
         </div>
       )}
       <h2>{l("Riwayat", "History")}</h2>
+      <TableTools view={table} />
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>{l("Tanggal", "Date")}</th>
-              <th>{l("Jurnal", "Entry")}</th>
-              <th className="num">{l("Baris", "Lines")}</th>
+              <SortTh view={table} col="date">
+                {l("Tanggal", "Date")}
+              </SortTh>
+              <SortTh view={table} col="move">
+                {l("Jurnal", "Entry")}
+              </SortTh>
+              <SortTh view={table} col="lines" className="num">
+                {l("Baris", "Lines")}
+              </SortTh>
             </tr>
           </thead>
           <tbody>
-            {history.map((h) => (
+            {table.rows.map((h) => (
               <tr key={h.id}>
                 <td>{formatDate(h.date, locale)}</td>
                 <td>
@@ -195,16 +216,19 @@ export default function FxRevaluationPage() {
                 <td className="num">{h.lines.length}</td>
               </tr>
             ))}
-            {history.length === 0 && (
+            {table.rows.length === 0 && (
               <tr>
                 <td colSpan={3} className="muted">
-                  {l("Belum ada revaluasi.", "No revaluations yet.")}
+                  {history.length
+                    ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                    : l("Belum ada revaluasi.", "No revaluations yet.")}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      <TablePager view={table} />
     </>
   );
 }

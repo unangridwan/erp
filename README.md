@@ -118,9 +118,11 @@ dipilih lewat dropdown (mis. cuti "Menunggu persetujuan", transfer "Belum selesa
 kini jadi filter awal yang bisa dicabut. Parameter yang menentukan datanya (masa pajak, tahun MPP, rentang absensi &
 keterlambatan, gudang di Stok, tanggal saldo cuti/valuasi, tab permintaan persetujuan) tetap memuat ulang dari API.
 Bila data lebih dari 5.000 baris tampil keterangan "Menampilkan 5.000 dari N data" dan pencarian teks diteruskan ke
-server agar baris di luar 5.000 pertama tetap ketemu. Tidak diubah: tabel baris formulir/isian, laporan keuangan &
-rekap (laba rugi, PPN, kartu stok dengan saldo berjalan, komisi), dan tampilan yang dikelompokkan (hari libur per
-bulan, aktivitas CRM per tenggat, pengajuan perubahan data).
+server agar baris di luar 5.000 pertama tetap ketemu. Tabel pengaturan (delegasi persetujuan, mesin absensi, template
+checklist/KPI, alasan tolak pelamar, siklus penilaian, skala upah per karyawan, rentang NSFP, riwayat revaluasi kurs,
+run konsolidasi, paket benefit, tagihan langganan, tenant/paket/tagihan di Platform) memakai alat yang sama. Tidak
+diubah: tabel baris formulir/isian, laporan keuangan & rekap (laba rugi, PPN, kartu stok dengan saldo berjalan,
+komisi), dan tampilan yang dikelompokkan (hari libur per bulan, aktivitas CRM per tenggat, pengajuan perubahan data).
 
 ### Akuntansi (Fase 1)
 

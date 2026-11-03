@@ -456,7 +456,8 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   anggaran akuntansi "Anggaran SDM" (baca saja di Akuntansi), lowongan dari posisi & realisasi, portal kepala departemen
 - [x] Cari, filter per kolom, sort & paginasi di semua daftar tanpa memanggil API lagi — data dimuat sekali s.d. 5.000
       baris (lebih dari itu: keterangan + pencarian teks ke server), status/kategori jadi filter di browser, sort &
-      ukuran halaman diingat per daftar (tanpa migrasi)
+      ukuran halaman diingat per daftar (tanpa migrasi); termasuk tabel pengaturan kecil (delegasi, mesin absensi,
+      template, alasan tolak, siklus penilaian, skala upah, NSFP, revaluasi kurs, konsolidasi, benefit, tagihan, Platform)
 - [x] Komponen gaji lain di kontrak (tunjangan tetap/tidak tetap per hari hadir/premi, potongan, komponen otomatis) —
       diisi saat menambah karyawan & di halaman kontrak, tampil di ringkasan penggajian & dokumen kontrak
 - [x] Tanggal masuk & keluar hanya diinput di kontrak kerja — tanggal masuk = mulai kontrak pertama, tanggal keluar =

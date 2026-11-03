@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMe } from "../../../../components/me-context";
 import { api, ApiError } from "../../../../lib/api";
 import { formatDate, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Delegation {
   id: string;
@@ -44,6 +46,19 @@ export default function ApprovalDelegationsPage() {
       setError(e.message),
     );
   }, [all, version]);
+  const columns = useMemo<ViewColumn<Delegation>[]>(
+    () => [
+      { key: "user", label: l("Penyetuju", "Approver"), type: "enum", value: (d) => d.userName },
+      { key: "delegate", label: l("Delegasi", "Delegate"), type: "enum", value: (d) => d.delegateName },
+      { key: "dateFrom", label: l("Periode", "Period"), type: "date", value: (d) => d.dateFrom },
+      { key: "reason", label: l("Alasan", "Reason"), value: (d) => d.reason },
+    ],
+    [l],
+  );
+  const table = useTableView(rows, columns, {
+    storageKey: "approval-delegations",
+    defaultSort: { key: "dateFrom", dir: "desc" },
+  });
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -145,19 +160,28 @@ export default function ApprovalDelegationsPage() {
         </button>
       </form>
       {error && <p className="error">{error}</p>}
+      <TableTools view={table} />
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>{l("Penyetuju", "Approver")}</th>
-              <th>{l("Delegasi", "Delegate")}</th>
-              <th>{l("Periode", "Period")}</th>
-              <th>{l("Alasan", "Reason")}</th>
+              <SortTh view={table} col="user">
+                {l("Penyetuju", "Approver")}
+              </SortTh>
+              <SortTh view={table} col="delegate">
+                {l("Delegasi", "Delegate")}
+              </SortTh>
+              <SortTh view={table} col="dateFrom">
+                {l("Periode", "Period")}
+              </SortTh>
+              <SortTh view={table} col="reason">
+                {l("Alasan", "Reason")}
+              </SortTh>
               <th />
             </tr>
           </thead>
           <tbody>
-            {rows.map((d) => (
+            {table.rows.map((d) => (
               <tr key={d.id}>
                 <td>{d.userName}</td>
                 <td>{d.delegateName}</td>
@@ -175,16 +199,19 @@ export default function ApprovalDelegationsPage() {
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && (
+            {table.rows.length === 0 && (
               <tr>
                 <td colSpan={5} className="muted">
-                  {l("Belum ada delegasi.", "No delegations yet.")}
+                  {rows.length
+                    ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                    : l("Belum ada delegasi.", "No delegations yet.")}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      <TablePager view={table} />
     </div>
   );
 }

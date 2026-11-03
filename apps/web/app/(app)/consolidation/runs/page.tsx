@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
 import { formatDate, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Run {
   id: string;
@@ -31,6 +33,35 @@ export default function ConsolidationRunsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState<string[]>([]);
+  const columns = useMemo<ViewColumn<Run>[]>(
+    () => [
+      { key: "name", label: l("Proses", "Run"), value: (r) => r.name },
+      { key: "root", label: l("Induk", "Parent"), type: "enum", value: (r) => r.rootName },
+      { key: "dateTo", label: l("Periode", "Period"), type: "date", value: (r) => r.dateTo },
+      { key: "currency", label: l("Mata uang", "Currency"), type: "enum", value: (r) => r.currencyCode },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (r) => r.state,
+        optionLabel: (v) => (v === "final" ? l("Final", "Final") : l("Draft", "Draft")),
+      },
+      {
+        key: "warnings",
+        label: l("Peringatan", "Warnings"),
+        type: "enum",
+        value: (r) => (r.warnings.length ? "1" : "0"),
+        optionLabel: (v) =>
+          v === "1" ? l("Ada peringatan", "Has warnings") : l("Tanpa peringatan", "No warnings"),
+        hidden: true,
+      },
+    ],
+    [l],
+  );
+  const table = useTableView(runs ?? [], columns, {
+    storageKey: "consolidation-runs",
+    defaultSort: { key: "dateTo", dir: "desc" },
+  });
 
   useEffect(() => {
     api<Run[]>("/consolidation/runs")
@@ -109,20 +140,31 @@ export default function ConsolidationRunsPage() {
           </button>
         </form>
       )}
+      {runs && <TableTools view={table} />}
       {runs && (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{l("Proses", "Run")}</th>
-                <th>{l("Induk", "Parent")}</th>
-                <th>{l("Periode", "Period")}</th>
-                <th>{l("Mata uang", "Currency")}</th>
-                <th>{l("Status", "Status")}</th>
+                <SortTh view={table} col="name">
+                  {l("Proses", "Run")}
+                </SortTh>
+                <SortTh view={table} col="root">
+                  {l("Induk", "Parent")}
+                </SortTh>
+                <SortTh view={table} col="dateTo">
+                  {l("Periode", "Period")}
+                </SortTh>
+                <SortTh view={table} col="currency">
+                  {l("Mata uang", "Currency")}
+                </SortTh>
+                <SortTh view={table} col="state">
+                  {l("Status", "Status")}
+                </SortTh>
               </tr>
             </thead>
             <tbody>
-              {runs.map((r) => (
+              {table.rows.map((r) => (
                 <tr key={r.id}>
                   <td>
                     <Link href={`/consolidation/runs/${r.id}`}>{r.name}</Link>
@@ -142,10 +184,12 @@ export default function ConsolidationRunsPage() {
                   </td>
                 </tr>
               ))}
-              {runs.length === 0 && (
+              {table.rows.length === 0 && (
                 <tr>
                   <td colSpan={5} className="muted">
-                    {l("Belum ada proses konsolidasi.", "No consolidation runs yet.")}
+                    {runs.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Belum ada proses konsolidasi.", "No consolidation runs yet.")}
                   </td>
                 </tr>
               )}
@@ -153,6 +197,7 @@ export default function ConsolidationRunsPage() {
           </table>
         </div>
       )}
+      {runs && <TablePager view={table} />}
     </>
   );
 }
