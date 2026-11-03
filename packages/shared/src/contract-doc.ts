@@ -30,8 +30,32 @@ export const CONTRACT_PLACEHOLDERS: [string, string, string][] = [
   ["gaji_terbilang", "Gaji pokok terbilang", "Base wage in words"],
   ["jenis_upah", "Satuan upah (per bulan/hari/satuan)", "Wage unit"],
   ["tunjangan", "Daftar tunjangan tetap", "Fixed allowances"],
+  ["tunjangan_tidak_tetap", "Tunjangan tidak tetap (per hari hadir, premi)", "Variable allowances"],
+  ["potongan", "Potongan tetap", "Deductions"],
+  ["komponen_gaji", "Rincian semua komponen gaji", "All pay components"],
   ["total_upah", "Gaji pokok + tunjangan tetap", "Wage + fixed allowances"],
 ];
+
+export type ComponentCalc = "fixed_amount" | "per_attendance_day" | "attendance_premium";
+
+/** Satuan nilai komponen gaji di kontrak sesuai cara hitungnya. */
+export function componentUnit(calc: ComponentCalc | null | undefined, locale: "id" | "en" = "id") {
+  if (calc === "per_attendance_day") return locale === "en" ? "per day present" : "per hari hadir";
+  if (calc === "attendance_premium")
+    return locale === "en"
+      ? "per month if attendance criteria are met"
+      : "per bulan bila memenuhi syarat kehadiran";
+  return locale === "en" ? "per month" : "per bulan";
+}
+
+/** Komponen gaji kontrak (tunjangan/potongan) untuk dokumen; `kind`/`calc` kosong = tunjangan nilai tetap. */
+export interface ContractDocComponent {
+  name: string;
+  amount: Decimal.Value;
+  fixed: boolean;
+  kind?: "allowance" | "deduction";
+  calc?: ComponentCalc;
+}
 
 const UNITS = [
   "",
@@ -123,7 +147,8 @@ export interface ContractDocInput {
     wage: Decimal.Value;
     wageType: "monthly" | "daily" | "piece";
   };
-  allowances: { name: string; amount: Decimal.Value; fixed: boolean }[];
+  /** Tunjangan & potongan kontrak (termasuk komponen otomatis yang berlaku untuk semua karyawan). */
+  allowances: ContractDocComponent[];
   employee: {
     name: string;
     employeeNumber: string;
@@ -147,8 +172,16 @@ export interface ContractDocInput {
 export function contractVars(input: ContractDocInput): Record<string, string> {
   const blank = "………………";
   const c = input.contract;
-  const fixed = input.allowances.filter((a) => a.fixed && new Decimal(a.amount).gt(0));
+  const items = input.allowances.filter((a) => new Decimal(a.amount).gt(0));
+  const isAllowance = (a: ContractDocComponent) => (a.kind ?? "allowance") === "allowance";
+  const isFixed = (a: ContractDocComponent) => a.fixed && (a.calc ?? "fixed_amount") === "fixed_amount";
+  const fixed = items.filter((a) => isAllowance(a) && isFixed(a));
+  const variable = items.filter((a) => isAllowance(a) && !isFixed(a));
+  const deductions = items.filter((a) => !isAllowance(a));
   const total = fixed.reduce((s, a) => s.plus(a.amount), new Decimal(c.wage));
+  const line = (a: ContractDocComponent) => `${a.name} ${rupiah(a.amount)} ${componentUnit(a.calc)}`;
+  const wageUnit =
+    c.wageType === "daily" ? "per hari" : c.wageType === "piece" ? "per satuan hasil" : "per bulan";
   const months = c.dateEnd ? contractMonths(c.dateStart, c.dateEnd) : 0;
   const date = input.date ?? c.dateStart;
   const v = (x: string | null | undefined) => (x && x.trim() ? x : blank);
@@ -186,9 +219,18 @@ export function contractVars(input: ContractDocInput): Record<string, string> {
     masa_kontrak: c.dateEnd ? `${months} (${words(months) || "nol"}) bulan` : "waktu tidak tertentu",
     gaji: rupiah(c.wage),
     gaji_terbilang: terbilang(c.wage),
-    jenis_upah:
-      c.wageType === "daily" ? "per hari" : c.wageType === "piece" ? "per satuan hasil" : "per bulan",
+    jenis_upah: wageUnit,
     tunjangan: fixed.length ? fixed.map((a) => `${a.name} ${rupiah(a.amount)}`).join("; ") : "tidak ada",
+    tunjangan_tidak_tetap: variable.length ? variable.map(line).join("; ") : "tidak ada",
+    potongan: deductions.length ? deductions.map(line).join("; ") : "tidak ada",
+    komponen_gaji: [
+      `- Gaji pokok: ${rupiah(c.wage)} ${wageUnit}`,
+      ...fixed.map((a) => `- ${a.name} (tunjangan tetap): ${rupiah(a.amount)} per bulan`),
+      ...variable.map(
+        (a) => `- ${a.name} (tunjangan tidak tetap): ${rupiah(a.amount)} ${componentUnit(a.calc)}`,
+      ),
+      ...deductions.map((a) => `- ${a.name} (potongan): ${rupiah(a.amount)} ${componentUnit(a.calc)}`),
+    ].join("\n"),
     total_upah: rupiah(total),
   };
 }
@@ -234,7 +276,7 @@ Pasal 2 – Jangka Waktu
 Perjanjian ini berlaku selama {masa_kontrak}, terhitung sejak {tanggal_mulai} sampai dengan {tanggal_berakhir}, dan berakhir demi hukum pada tanggal tersebut kecuali diperpanjang dengan perjanjian tertulis.
 
 Pasal 3 – Upah
-PIHAK KEDUA menerima upah pokok sebesar {gaji} ({gaji_terbilang}) {jenis_upah}, dengan tunjangan tetap: {tunjangan}. Upah dibayarkan setiap bulan setelah dipotong PPh Pasal 21 dan iuran BPJS bagian pekerja.
+PIHAK KEDUA menerima upah pokok sebesar {gaji} ({gaji_terbilang}) {jenis_upah}, tunjangan tetap: {tunjangan}, dan tunjangan tidak tetap: {tunjangan_tidak_tetap}. Upah dibayarkan setiap bulan setelah dipotong PPh Pasal 21, iuran BPJS bagian pekerja, dan potongan lain yang disepakati: {potongan}.
 
 ${COMMON}
 
@@ -259,7 +301,7 @@ Pasal 2 – Mulai Bekerja dan Masa Percobaan
 Hubungan kerja dimulai pada {tanggal_mulai} untuk waktu tidak tertentu, dengan masa percobaan paling lama 3 (tiga) bulan. Selama masa percobaan PIHAK KEDUA menerima upah tidak kurang dari upah minimum yang berlaku.
 
 Pasal 3 – Upah
-PIHAK KEDUA menerima upah pokok sebesar {gaji} ({gaji_terbilang}) {jenis_upah}, dengan tunjangan tetap: {tunjangan}. Upah dibayarkan setiap bulan setelah dipotong PPh Pasal 21 dan iuran BPJS bagian pekerja.
+PIHAK KEDUA menerima upah pokok sebesar {gaji} ({gaji_terbilang}) {jenis_upah}, tunjangan tetap: {tunjangan}, dan tunjangan tidak tetap: {tunjangan_tidak_tetap}. Upah dibayarkan setiap bulan setelah dipotong PPh Pasal 21, iuran BPJS bagian pekerja, dan potongan lain yang disepakati: {potongan}.
 
 ${COMMON}
 
@@ -323,6 +365,19 @@ export const newEmployeeContractSchema = z
       .number({ invalid_type_error: "Upah harus berupa angka" })
       .positive("Upah harus lebih dari 0")
       .transform((v) => v.toFixed(2)),
+    /** Komponen gaji lain (tunjangan tetap/tidak tetap, potongan) — nilai per bulan atau tarif per hari hadir/premi. */
+    allowances: z
+      .array(
+        z.object({
+          componentId: z.string().uuid(),
+          amount: z.coerce
+            .number({ invalid_type_error: "Nilai harus berupa angka" })
+            .min(0, "Tidak boleh negatif")
+            .transform((v) => v.toFixed(2)),
+        }),
+      )
+      .max(50)
+      .default([]),
   })
   .refine((c) => c.contractType !== "pkwt" || c.dateEnd, {
     message: "PKWT wajib punya tanggal berakhir",

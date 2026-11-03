@@ -280,10 +280,12 @@ masuk, onboarding dimulai (tugas atasan ke kepala departemen; tugas karyawan ke 
 timeline 9 tahap. Lowongan manual tetap boleh (ditandai "Tanpa FPK" di kanban); lowongan dari MPP kini lewat FPK.
 
 **Template & tanda tangan kontrak (migrasi 0050).** Kontrak pertama dibuat **dari form karyawan baru** (tab "Kontrak
-kerja": jenis PKWT/PKWTT, template, tanggal berakhir, upah, metode PPh 21; mulai = tanggal masuk) dan **langsung
+kerja": jenis PKWT/PKWTT, template, tanggal berakhir, upah, metode PPh 21, **komponen gaji lain**; mulai = tanggal
+masuk) dan **langsung
 berlaku** saat karyawan disimpan; tombol "Baru" di daftar kontrak diganti, perpanjangan tetap dari tab Penggajian
 karyawan. SDM › Konfigurasi › **Template Kontrak**: isi kontrak dengan placeholder (`{nama}`, `{nik}`, `{jabatan}`,
-`{gaji}`, `{gaji_terbilang}`, `{tanggal_mulai}`, `{masa_kontrak}`, …; 28 kolom) yang diisi otomatis dari data karyawan,
+`{gaji}`, `{gaji_terbilang}`, `{tunjangan}`, `{tunjangan_tidak_tetap}`, `{potongan}`, `{komponen_gaji}`,
+`{masa_kontrak}`, …; 31 kolom) yang diisi otomatis dari data karyawan,
 kontrak, perusahaan & tunjangan tetap; template bawaan PKWT & PKWTT dibuat otomatis; pratinjau PDF dengan data
 karyawan atau contoh. Halaman kontrak › **Dokumen & tanda tangan**: pilih template & penandatangan, ubah isi khusus
 kontrak itu, lalu salah satu cara: **PDF cetak** (kotak meterai, ditandatangani basah lalu scan diunggah), **PDF e-sign**
@@ -292,6 +294,13 @@ aplikasi** (kanvas; pihak perusahaan oleh HR, karyawan lewat portal "Kontrak ker
 di perangkat HR) → PDF bertanda tangan dengan halaman jejak audit (waktu, IP, hash SHA-256) dan **kode verifikasi**
 yang bisa dicek siapa pun di `/verify/contract/<kode>` (tanpa gaji/isi kontrak). Isi dibekukan saat diminta/
 ditandatangani; setelah ada tanda tangan, syarat kontrak terkunci sampai tanda tangan dibatalkan.
+
+**Komponen gaji di kontrak.** Selain gaji pokok, kontrak memuat komponen gaji lain dari master Komponen Gaji:
+tunjangan tetap (dasar upah BPJS & lembur), tunjangan tidak tetap per hari hadir / premi kehadiran (nilai = tarif;
+kosong = nilai bawaan komponen), dan potongan — diisi langsung di tab Kontrak kerja saat menambah karyawan maupun di
+halaman kontrak (satuan nilai mengikuti cara hitung komponen, nilai bawaan terisi otomatis). Komponen otomatis (berlaku
+untuk semua karyawan) ikut ditampilkan dan bisa ditimpa nilainya. Ringkasan kontrak di tab Penggajian karyawan dan
+dokumen kontrak mencantumkan semua komponen.
 
 **Lembur dari absensi (migrasi 0048).** Bila diaktifkan di Pengaturan Payroll, setiap absen pulang menghasilkan
 pengajuan lembur: hari kerja = menit setelah jam pulang jadwal (opsional + datang sebelum jam masuk; tanpa jadwal =

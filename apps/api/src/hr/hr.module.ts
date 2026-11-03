@@ -492,24 +492,12 @@ class EmployeesController {
         .where(and(eq(C.employeeId, id), eq(C.state, "running")))
         .orderBy(desc(C.dateStart))
         .limit(1);
-      let fixedAllowance = "0";
-      if (contract) {
-        const [row] = await tx
-          .select({ total: sql<string>`coalesce(sum(${schema.contractAllowances.amount}), 0)::text` })
-          .from(schema.contractAllowances)
-          .innerJoin(
-            schema.salaryComponents,
-            eq(schema.salaryComponents.id, schema.contractAllowances.componentId),
-          )
-          .where(
-            and(
-              eq(schema.contractAllowances.contractId, contract.id),
-              eq(schema.salaryComponents.fixed, true),
-              eq(schema.salaryComponents.kind, "allowance"),
-            ),
-          );
-        fixedAllowance = row?.total ?? "0";
-      }
+      // Komponen gaji kontrak (termasuk komponen otomatis); tunjangan tetap = dasar upah BPJS & lembur.
+      const components = contract ? await this.documents.components(tx, contract.id, contract.companyId) : [];
+      const fixedAllowance = components
+        .filter((c) => c.kind === "allowance" && c.fixed && c.calc === "fixed_amount")
+        .reduce((sum, c) => sum.plus(c.amount), new Decimal(0))
+        .toFixed(2);
       const [user] = employee.userId
         ? await tx
             .select({ id: schema.users.id, name: schema.users.name, email: schema.users.email })
@@ -547,6 +535,7 @@ class EmployeesController {
               dateStart: contract.dateStart,
               dateEnd: contract.dateEnd,
               fixedAllowance,
+              components,
             }
           : null,
         account: user
@@ -574,6 +563,12 @@ class EmployeesController {
     );
     return this.tenantDb.run(async (tx) => {
       if (contract?.templateId) await this.documents.template(tx, contract.templateId);
+      if (contract)
+        await this.contracts.assertComponents(
+          tx,
+          contract.allowances.map((a) => a.componentId),
+          "contract.",
+        );
       const employee = await this.employees.create(tx, input);
       await this.history.record(tx, employee, "join", {
         date: employee.joinDate,
@@ -591,7 +586,7 @@ class EmployeesController {
         dateStart: contract.dateStart,
         dateEnd: contract.dateEnd ?? null,
         wage: contract.wage,
-        allowances: [],
+        allowances: contract.allowances,
       });
       if (contract.templateId)
         await tx

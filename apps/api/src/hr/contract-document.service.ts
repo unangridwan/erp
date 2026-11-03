@@ -172,19 +172,7 @@ export class ContractDocumentService {
       .select()
       .from(schema.companies)
       .where(eq(schema.companies.id, contract.companyId));
-    const allowances = await tx
-      .select({
-        name: schema.salaryComponents.name,
-        amount: schema.contractAllowances.amount,
-        fixed: schema.salaryComponents.fixed,
-        kind: schema.salaryComponents.kind,
-      })
-      .from(schema.contractAllowances)
-      .innerJoin(
-        schema.salaryComponents,
-        eq(schema.salaryComponents.id, schema.contractAllowances.componentId),
-      )
-      .where(eq(schema.contractAllowances.contractId, contract.id));
+    const allowances = await this.components(tx, contract.id, contract.companyId);
     const address = company
       ? [company.street, company.city, company.province, company.postalCode].filter(Boolean).join(", ") ||
         null
@@ -198,7 +186,7 @@ export class ContractDocumentService {
         wage: contract.wage,
         wageType: contract.wageType,
       },
-      allowances: allowances.filter((a) => a.kind === "allowance"),
+      allowances,
       employee: {
         name: employee.name,
         employeeNumber: employee.employeeNumber,
@@ -221,6 +209,45 @@ export class ContractDocumentService {
       signer: signer ?? { name: contract.signerName, title: contract.signerTitle, city: contract.signCity },
     };
     return { input, employee, companyAddress: address };
+  }
+
+  /**
+   * Komponen gaji kontrak untuk dokumen: tunjangan/potongan di kontrak (nilai kosong = nilai bawaan komponen) dan
+   * komponen otomatis aktif yang tidak ditimpa kontrak — sama seperti perhitungan payroll.
+   */
+  async components(tx: Db, contractId: string, companyId: string) {
+    const SC = schema.salaryComponents;
+    const rows = await tx
+      .select({
+        componentId: SC.id,
+        name: SC.name,
+        amount: schema.contractAllowances.amount,
+        rate: SC.rate,
+        fixed: SC.fixed,
+        kind: SC.kind,
+        calc: SC.calc,
+      })
+      .from(schema.contractAllowances)
+      .innerJoin(SC, eq(SC.id, schema.contractAllowances.componentId))
+      .where(eq(schema.contractAllowances.contractId, contractId))
+      .orderBy(asc(SC.code));
+    const auto = await tx
+      .select({ id: SC.id, name: SC.name, rate: SC.rate, fixed: SC.fixed, kind: SC.kind, calc: SC.calc })
+      .from(SC)
+      .where(and(eq(SC.companyId, companyId), eq(SC.active, true), eq(SC.autoAssign, true)))
+      .orderBy(asc(SC.code));
+    return [
+      ...rows.map((r) => ({
+        name: r.name,
+        amount: r.calc !== "fixed_amount" && Number(r.amount) <= 0 ? (r.rate ?? "0") : r.amount,
+        fixed: r.fixed,
+        kind: r.kind,
+        calc: r.calc,
+      })),
+      ...auto
+        .filter((a) => !rows.some((r) => r.componentId === a.id))
+        .map((a) => ({ name: a.name, amount: a.rate ?? "0", fixed: a.fixed, kind: a.kind, calc: a.calc })),
+    ];
   }
 
   /** Judul, isi & penandatangan dokumen: isi tersimpan (diedit/dibekukan) atau dirender dari template. */

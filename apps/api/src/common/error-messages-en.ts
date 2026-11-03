@@ -950,4 +950,5 @@ export const MESSAGES_EN: Record<string, string> = {
   "Tanggal mulai kontrak pertama (tanggal masuk) setelah tanggal keluar karyawan":
     "The first contract's start date (join date) is after the employee's leaving date",
   "Pilih alasan keluar": "Choose a leaving reason",
+  "Nilai harus berupa angka": "The value must be a number",
 };

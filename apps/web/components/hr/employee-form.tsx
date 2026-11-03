@@ -49,6 +49,13 @@ interface Overview {
     dateStart: string;
     dateEnd: string | null;
     fixedAllowance: string;
+    components: {
+      name: string;
+      amount: string;
+      fixed: boolean;
+      kind: "allowance" | "deduction";
+      calc: "fixed_amount" | "per_attendance_day" | "attendance_premium";
+    }[];
   } | null;
   account:
     | { status: "linked"; userId: string; name: string; email: string }
@@ -242,6 +249,9 @@ export function EmployeeForm({ id }: { id: string }) {
           wage: newContract.wage.trim(),
           wageType: newContract.wageType,
           taxMethod: newContract.taxMethod,
+          allowances: newContract.allowances
+            .filter((a) => a.componentId)
+            .map((a) => ({ componentId: a.componentId, amount: a.amount.trim() || "0" })),
         };
         const created = await api<{ id: string; contractId?: string }>("/employees", {
           method: "POST",
@@ -679,6 +689,25 @@ export function EmployeeForm({ id }: { id: string }) {
                         <ReadRow label={l("Tunjangan tetap", "Fixed allowances")}>
                           {money(overview.contract.fixedAllowance, locale)}
                         </ReadRow>
+                        {overview.contract.components.length > 0 && (
+                          <ReadRow label={l("Komponen gaji", "Pay components")}>
+                            <ul className="plain-list">
+                              {overview.contract.components.map((c, i) => (
+                                <li key={i}>
+                                  {c.kind === "deduction" ? "− " : ""}
+                                  {c.name}: {money(c.amount, locale, 0)}{" "}
+                                  <small className="muted">
+                                    {c.calc === "per_attendance_day"
+                                      ? l("/ hari hadir", "/ day present")
+                                      : c.calc === "attendance_premium"
+                                        ? l("premi / bulan", "bonus / month")
+                                        : l("/ bulan", "/ month")}
+                                  </small>
+                                </li>
+                              ))}
+                            </ul>
+                          </ReadRow>
+                        )}
                         <ReadRow label={l("Metode PPh 21", "PPh 21 method")}>
                           {overview.contract.taxMethod === "gross_up"
                             ? l("Gross-up (ditanggung perusahaan)", "Gross-up (company-borne)")

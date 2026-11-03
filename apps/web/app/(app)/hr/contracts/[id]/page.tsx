@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
-import { useOptions } from "../../../../../components/accounting/use-options";
+import { ContractComponentsEditor } from "../../../../../components/hr/contract-components";
 import { ContractDocumentPanel } from "../../../../../components/hr/contract-document";
 import { RESIGN_REASON_LABEL } from "../../../../../components/hr/offboarding-panel";
 import { RefSelect } from "../../../../../components/ref-select";
@@ -40,13 +40,6 @@ interface Contract {
     maxWage: string;
     position: "below" | "within" | "above" | null;
   } | null;
-}
-interface Component {
-  id: string;
-  code: string;
-  name: string;
-  kind: string;
-  fixed: boolean;
 }
 
 interface EmployeeDates {
@@ -87,7 +80,6 @@ function Contract() {
   const router = useRouter();
   const { l, tx, locale } = useI18n();
   const isNew = id === "new";
-  const components = useOptions<Component>("/salary-components");
   const [contract, setContract] = useState<Contract | null>(null);
   const [form, setForm] = useState({
     employeeId: presetEmployee,
@@ -175,7 +167,9 @@ function Contract() {
         ...form,
         dateEnd: form.dateEnd || null,
         note: form.note || null,
-        allowances: allowances.filter((a) => a.componentId),
+        allowances: allowances
+          .filter((a) => a.componentId)
+          .map((a) => ({ componentId: a.componentId, amount: a.amount.trim() || "0" })),
       };
       if (isNew) {
         const c = await api<Contract>("/contracts", { method: "POST", body });
@@ -232,10 +226,6 @@ function Contract() {
     });
 
   if (!isNew && !contract) return <p className="muted">{error ?? l("Memuat…", "Loading…")}</p>;
-  const fixedTotal = allowances.reduce(
-    (s, a) => s + (components.find((c) => c.id === a.componentId)?.fixed ? Number(a.amount || 0) : 0),
-    Number(form.wage || 0),
-  );
 
   return (
     <div className="stack-wide">
@@ -553,104 +543,16 @@ function Contract() {
           </label>
         </fieldset>
 
-        <h2>{l("Tunjangan & potongan bulanan", "Monthly allowances & deductions")}</h2>
-        <div className="table-scroll">
-          <table className="lines">
-            <thead>
-              <tr>
-                <th>{l("Komponen", "Component")}</th>
-                <th>{l("Jenis", "Kind")}</th>
-                <th className="num">{l("Jumlah / bulan", "Amount / month")}</th>
-                {editable && <th />}
-              </tr>
-            </thead>
-            <tbody>
-              {allowances.map((a, i) => {
-                const c = components.find((x) => x.id === a.componentId);
-                return (
-                  <tr key={i}>
-                    <td>
-                      <select
-                        disabled={!editable}
-                        value={a.componentId}
-                        onChange={(e) =>
-                          setAllowances((rs) =>
-                            rs.map((r, j) => (j === i ? { ...r, componentId: e.target.value } : r)),
-                          )
-                        }
-                      >
-                        <option value="">—</option>
-                        {components.map((x) => (
-                          <option key={x.id} value={x.id}>
-                            {x.code} — {x.name}
-                          </option>
-                        ))}
-                      </select>
-                      {err(`allowances.${i}.componentId`)}
-                    </td>
-                    <td>
-                      {c
-                        ? c.kind === "deduction"
-                          ? l("Potongan", "Deduction")
-                          : c.fixed
-                            ? l("Tunjangan tetap", "Fixed allowance")
-                            : l("Tunjangan tidak tetap", "Variable allowance")
-                        : ""}
-                    </td>
-                    <td>
-                      <input
-                        disabled={!editable}
-                        className="num"
-                        inputMode="decimal"
-                        value={a.amount}
-                        onChange={(e) =>
-                          setAllowances((rs) =>
-                            rs.map((r, j) => (j === i ? { ...r, amount: e.target.value } : r)),
-                          )
-                        }
-                      />
-                    </td>
-                    {editable && (
-                      <td>
-                        <button
-                          type="button"
-                          className="link"
-                          onClick={() => setAllowances((rs) => rs.filter((_, j) => j !== i))}
-                        >
-                          ✕
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-            {editable && (
-              <tfoot>
-                <tr>
-                  <td colSpan={4}>
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={() => setAllowances((rs) => [...rs, { componentId: "", amount: "0" }])}
-                    >
-                      + {l("Tambah komponen", "Add component")}
-                    </button>
-                  </td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-        {form.wageType === "monthly" ? (
-          <p className="muted">
-            {l(
-              "Upah dasar BPJS & lembur (gaji pokok + tunjangan tetap)",
-              "BPJS & overtime wage base (base + fixed allowances)",
-            )}
-            : {money(fixedTotal, locale)}
-          </p>
-        ) : (
+        <h2>{l("Komponen gaji lain", "Other pay components")}</h2>
+        <ContractComponentsEditor
+          value={allowances}
+          onChange={setAllowances}
+          wage={form.wage}
+          wageType={form.wageType}
+          editable={editable}
+          errors={fieldErrors}
+        />
+        {form.wageType === "monthly" ? null : (
           <p className="muted">
             {form.wageType === "daily"
               ? l(

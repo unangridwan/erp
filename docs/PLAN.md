@@ -454,6 +454,8 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   laporan rencana vs aktual (slip terposting, lowongan), turnover & retensi, demografi, kesetaraan gaji & compa-ratio
 - [x] Man Power Planning (M) — rencana posisi per departemen/tahun, persetujuan MPP, mengisi anggaran tenaga kerja &
   anggaran akuntansi "Anggaran SDM" (baca saja di Akuntansi), lowongan dari posisi & realisasi, portal kepala departemen
+- [x] Komponen gaji lain di kontrak (tunjangan tetap/tidak tetap per hari hadir/premi, potongan, komponen otomatis) —
+      diisi saat menambah karyawan & di halaman kontrak, tampil di ringkasan penggajian & dokumen kontrak
 - [x] Tanggal masuk & keluar hanya diinput di kontrak kerja — tanggal masuk = mulai kontrak pertama, tanggal keluar =
       Akhiri kontrak → karyawan keluar + alasan (ubah/batal keluar), form karyawan tanpa input tanggal (migrasi 0051)
 - [x] Template & tanda tangan kontrak — kontrak dibuat dari form karyawan baru (langsung berlaku), template berplaceholder,
