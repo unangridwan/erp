@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { RESIGN_REASON_LABEL } from "../../../../components/hr/offboarding-panel";
 import { api } from "../../../../lib/api";
 import { formatDate, money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
@@ -16,19 +18,33 @@ interface Row {
   dateEnd: string | null;
   wage: string;
   state: string;
+  endReason: string | null;
 }
 
 export default function ContractsPage() {
+  return (
+    <Suspense>
+      <Contracts />
+    </Suspense>
+  );
+}
+
+/** Daftar kontrak kerja; `?employeeId=` menampilkan semua kontrak satu karyawan (riwayat masuk–keluar). */
+function Contracts() {
   const { l, tx, locale } = useI18n();
-  const [state, setState] = useState("running");
+  const employeeId = useSearchParams().get("employeeId");
+  const [state, setState] = useState(employeeId ? "" : "running");
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api<{ items: Row[] }>(`/contracts${state ? `?state=${state}` : ""}`)
+    const q = new URLSearchParams();
+    if (state) q.set("state", state);
+    if (employeeId) q.set("employeeId", employeeId);
+    api<{ items: Row[] }>(`/contracts?${q}`)
       .then((d) => setRows(d.items))
       .catch((e: Error) => setError(e.message));
-  }, [state]);
+  }, [state, employeeId]);
 
   return (
     <>
@@ -46,10 +62,17 @@ export default function ContractsPage() {
       </header>
       <p className="muted">
         {l(
-          "Kontrak pertama dibuat bersama data karyawan baru; perpanjangan/kontrak baru dibuat dari tab Penggajian karyawan. Dokumen kontrak (cetak, e-sign, tanda tangan digital) ada di halaman kontrak; templatnya di Konfigurasi › Template Kontrak.",
-          "The first contract is created together with a new employee; renewals are created from the employee's Payroll tab. The contract document (print, e-sign, digital signature) is on the contract page; templates are under Configuration › Contract Templates.",
+          "Tanggal masuk karyawan = tanggal mulai kontrak pertama (dibuat bersama data karyawan baru); tanggal keluar diisi lewat Akhiri kontrak → karyawan keluar. Perpanjangan/kontrak baru dibuat dari tab Penggajian karyawan. Dokumen kontrak ada di halaman kontrak; templatnya di Konfigurasi › Template Kontrak.",
+          "An employee's join date = the first contract's start date (created with the new employee); the leaving date is set with End contract → employee leaves. Renewals are created from the employee's Payroll tab. The contract document is on the contract page; templates are under Configuration › Contract Templates.",
         )}
       </p>
+      {employeeId && (
+        <p>
+          <span className="pill">{l("Difilter per karyawan", "Filtered by employee")}</span>{" "}
+          <Link href={`/employees/${employeeId}`}>{l("Buka karyawan", "Open employee")}</Link> ·{" "}
+          <Link href="/hr/contracts">{l("Tampilkan semua", "Show all")}</Link>
+        </p>
+      )}
       {error && <p className="error">{error}</p>}
       {rows && (
         <div className="table-wrap">
@@ -80,6 +103,11 @@ export default function ContractsPage() {
                     <span className={`badge state-${c.state === "running" ? "sale" : c.state}`}>
                       {tx(CONTRACT_STATE_LABEL[c.state]!)}
                     </span>
+                    {c.endReason && (
+                      <span className="pill bad" title={l("Karyawan keluar", "Employee left")}>
+                        {l("Keluar", "Left")}: {l(...(RESIGN_REASON_LABEL[c.endReason] ?? ["", ""]))}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

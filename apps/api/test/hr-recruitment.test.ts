@@ -253,7 +253,9 @@ describe.skipIf(!hasDb)("HR: rekrutmen, dokumen, checklist, pengingat", () => {
     ).body.id;
     await a.post("/hr-checklists", { employeeId: budi, kind: "offboarding" }).expect(400); // tanggal keluar kosong
     await login("budi@example.com");
-    await a.patch(`/employees/${budi}`, { resignDate: addDays(today, 14) }).expect(200);
+    await a
+      .post(`/employees/${budi}/offboard`, { resignDate: addDays(today, 14), resignReason: "resign" })
+      .expect(200);
     const [off] = (await a.get(`/hr-checklists?employeeId=${budi}`).expect(200)).body;
     expect(off).toMatchObject({ kind: "offboarding", baseDate: addDays(today, 14), tasks: 5 });
     const detail = (await a.get(`/hr-checklists/${off.id}`).expect(200)).body;

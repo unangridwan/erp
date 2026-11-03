@@ -6,7 +6,7 @@ import { api, ApiError, apiRaw } from "../lib/api";
 import { AuthImage } from "./auth-image";
 import { ExportDialog, type ExportChoice } from "./export-dialog";
 import { useI18n } from "../lib/i18n";
-import { canExport, canWrite, type Resource } from "../lib/resources";
+import { canCreate, canExport, canWrite, type Resource } from "../lib/resources";
 import { useMe } from "./me-context";
 
 type Row = Record<string, unknown> & { id: string };
@@ -149,7 +149,7 @@ export function ListView({ resource }: { resource: Resource }) {
     <>
       <header className="toolbar control-panel">
         <div className="cp-left">
-          {writable && (
+          {canCreate(me.permissions, resource) && (
             <Link className="button primary" href={`/${resource.path}/new`}>
               {t("list.new")}
             </Link>

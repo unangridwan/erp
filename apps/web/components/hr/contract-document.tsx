@@ -874,7 +874,8 @@ export function MyContracts() {
 }
 
 export interface NewContractValues {
-  enabled: boolean;
+  /** Tanggal mulai kontrak = tanggal masuk karyawan (hanya diinput di sini). */
+  dateStart: string;
   templateId: string;
   contractType: "pkwt" | "pkwtt";
   dateEnd: string;
@@ -883,7 +884,7 @@ export interface NewContractValues {
   taxMethod: "gross" | "gross_up";
 }
 export const NEW_CONTRACT: NewContractValues = {
-  enabled: true,
+  dateStart: "",
   templateId: "",
   contractType: "pkwt",
   dateEnd: "",
@@ -900,19 +901,20 @@ export function contractEnd(start: string, months: number) {
   return target.toISOString().slice(0, 10);
 }
 
-/** Kontrak kerja yang dibuat bersama karyawan baru (mulai = tanggal masuk, langsung berlaku saat disimpan). */
+/**
+ * Kontrak kerja karyawan baru: tanggal mulainya adalah tanggal masuk karyawan (satu-satunya tempat tanggal masuk
+ * diinput). Kontrak langsung berlaku saat karyawan disimpan.
+ */
 export function NewEmployeeContract({
   value,
   onChange,
   errors,
-  joinDate,
 }: {
   value: NewContractValues;
   onChange: (v: NewContractValues) => void;
   errors: Record<string, string>;
-  joinDate: string | null;
 }) {
-  const { l, locale } = useI18n();
+  const { l } = useI18n();
   const [templates, setTemplates] = useState<Template[]>([]);
   useEffect(() => {
     api<{ items: Template[] }>("/contract-templates").then(
@@ -929,133 +931,123 @@ export function NewEmployeeContract({
   return (
     <section className="o-group new-contract">
       <h3 className="o-group-title">{l("Kontrak kerja", "Employment contract")}</h3>
-      <label className="check">
-        <input type="checkbox" checked={value.enabled} onChange={(e) => set("enabled", e.target.checked)} />
-        <span>
-          {l(
-            "Buat kontrak kerja sekarang (langsung berlaku saat karyawan disimpan)",
-            "Create the employment contract now (in effect when the employee is saved)",
+      <p className="muted small">
+        {l(
+          "Tanggal mulai kontrak menjadi tanggal masuk karyawan. Kontrak langsung berlaku saat karyawan disimpan; tanggal keluar nanti diisi lewat Akhiri kontrak.",
+          "The contract start date becomes the employee's join date. The contract takes effect when the employee is saved; the leaving date is later set with End contract.",
+        )}
+      </p>
+      <fieldset className="fields">
+        <label className="field">
+          <span>{l("Tanggal mulai (tanggal masuk) *", "Start date (join date) *")}</span>
+          <input
+            type="date"
+            required
+            value={value.dateStart}
+            onChange={(e) => set("dateStart", e.target.value)}
+          />
+          {fe("dateStart")}
+        </label>
+        <label className="field">
+          <span>{l("Jenis kontrak", "Contract type")}</span>
+          <select
+            value={value.contractType}
+            onChange={(e) =>
+              onChange({
+                ...value,
+                contractType: e.target.value as "pkwt" | "pkwtt",
+                templateId: "",
+                dateEnd: e.target.value === "pkwtt" ? "" : value.dateEnd,
+              })
+            }
+          >
+            <option value="pkwt">{l("PKWT (kontrak waktu tertentu)", "PKWT (fixed-term)")}</option>
+            <option value="pkwtt">{l("PKWTT (karyawan tetap)", "PKWTT (permanent)")}</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>{value.contractType === "pkwt" ? l("Berakhir *", "End *") : l("Berakhir", "End")}</span>
+          <input
+            type="date"
+            value={value.dateEnd}
+            min={value.dateStart || undefined}
+            onChange={(e) => set("dateEnd", e.target.value)}
+          />
+          {value.contractType === "pkwt" && value.dateStart && (
+            <span className="row-actions">
+              {[6, 12, 24].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  className="link small"
+                  onClick={() => set("dateEnd", contractEnd(value.dateStart, m))}
+                >
+                  {m} {l("bln", "mo")}
+                </button>
+              ))}
+            </span>
           )}
-        </span>
-      </label>
-      {value.enabled && (
-        <>
-          <fieldset className="fields">
-            <label className="field">
-              <span>{l("Jenis kontrak", "Contract type")}</span>
-              <select
-                value={value.contractType}
-                onChange={(e) =>
-                  onChange({
-                    ...value,
-                    contractType: e.target.value as "pkwt" | "pkwtt",
-                    templateId: "",
-                    dateEnd: e.target.value === "pkwtt" ? "" : value.dateEnd,
-                  })
-                }
-              >
-                <option value="pkwt">{l("PKWT (kontrak waktu tertentu)", "PKWT (fixed-term)")}</option>
-                <option value="pkwtt">{l("PKWTT (karyawan tetap)", "PKWTT (permanent)")}</option>
-              </select>
-            </label>
-            <label className="field">
-              <span>{l("Template dokumen", "Document template")}</span>
-              <select value={value.templateId} onChange={(e) => set("templateId", e.target.value)}>
-                <option value="">{l("— bawaan —", "— default —")}</option>
-                {options.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                    {t.isDefault ? ` (${l("bawaan", "default")})` : ""}
-                  </option>
-                ))}
-              </select>
-              {fe("templateId")}
-            </label>
-            <label className="field">
-              <span>{l("Mulai", "Start")}</span>
-              <input
-                value={
-                  joinDate
-                    ? formatDate(joinDate, locale)
-                    : l("isi Tanggal masuk di tab Kerja", "set the Join date in the Work tab")
-                }
-                readOnly
-                aria-readonly
-              />
-              <small className="muted">{l("= tanggal masuk karyawan", "= the employee's join date")}</small>
-            </label>
-            <label className="field">
-              <span>{value.contractType === "pkwt" ? l("Berakhir *", "End *") : l("Berakhir", "End")}</span>
-              <input
-                type="date"
-                value={value.dateEnd}
-                min={joinDate ?? undefined}
-                onChange={(e) => set("dateEnd", e.target.value)}
-              />
-              {value.contractType === "pkwt" && joinDate && (
-                <span className="row-actions">
-                  {[6, 12, 24].map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      className="link small"
-                      onClick={() => set("dateEnd", contractEnd(joinDate, m))}
-                    >
-                      {m} {l("bln", "mo")}
-                    </button>
-                  ))}
-                </span>
-              )}
-              {fe("dateEnd")}
-            </label>
-            <label className="field">
-              <span>{l("Jenis upah", "Wage type")}</span>
-              <select
-                value={value.wageType}
-                onChange={(e) => set("wageType", e.target.value as NewContractValues["wageType"])}
-              >
-                <option value="monthly">{l("Bulanan", "Monthly")}</option>
-                <option value="daily">{l("Harian lepas", "Daily")}</option>
-                <option value="piece">{l("Borongan", "Piece rate")}</option>
-              </select>
-            </label>
-            <label className="field">
-              <span>
-                {value.wageType === "daily"
-                  ? l("Upah per hari *", "Wage per day *")
-                  : value.wageType === "piece"
-                    ? l("Upah per satuan *", "Rate per unit *")
-                    : l("Gaji pokok / bulan *", "Base wage / month *")}
-              </span>
-              <input
-                className="num"
-                inputMode="decimal"
-                value={value.wage}
-                onChange={(e) => set("wage", e.target.value)}
-              />
-              {fe("wage")}
-            </label>
-            <label className="field">
-              <span>{l("Metode PPh 21", "PPh 21 method")}</span>
-              <select
-                value={value.taxMethod}
-                onChange={(e) => set("taxMethod", e.target.value as NewContractValues["taxMethod"])}
-              >
-                <option value="gross">{l("Gross — dipotong dari gaji", "Gross — withheld from pay")}</option>
-                <option value="gross_up">
-                  {l("Gross-up — ditanggung perusahaan", "Gross-up — company-borne")}
-                </option>
-              </select>
-            </label>
-          </fieldset>
-          <p className="muted small">
-            {l(
-              "Tunjangan tetap ditambahkan di halaman kontrak setelah disimpan. Dokumen kontrak dari template bisa langsung dicetak atau ditandatangani di sana.",
-              "Fixed allowances are added on the contract page after saving. The contract document from the template can be printed or signed there.",
-            )}
-          </p>
-        </>
-      )}
+          {fe("dateEnd")}
+        </label>
+        <label className="field">
+          <span>{l("Template dokumen", "Document template")}</span>
+          <select value={value.templateId} onChange={(e) => set("templateId", e.target.value)}>
+            <option value="">{l("— bawaan —", "— default —")}</option>
+            {options.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+                {t.isDefault ? ` (${l("bawaan", "default")})` : ""}
+              </option>
+            ))}
+          </select>
+          {fe("templateId")}
+        </label>
+        <label className="field">
+          <span>{l("Jenis upah", "Wage type")}</span>
+          <select
+            value={value.wageType}
+            onChange={(e) => set("wageType", e.target.value as NewContractValues["wageType"])}
+          >
+            <option value="monthly">{l("Bulanan", "Monthly")}</option>
+            <option value="daily">{l("Harian lepas", "Daily")}</option>
+            <option value="piece">{l("Borongan", "Piece rate")}</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>
+            {value.wageType === "daily"
+              ? l("Upah per hari *", "Wage per day *")
+              : value.wageType === "piece"
+                ? l("Upah per satuan *", "Rate per unit *")
+                : l("Gaji pokok / bulan *", "Base wage / month *")}
+          </span>
+          <input
+            className="num"
+            inputMode="decimal"
+            value={value.wage}
+            onChange={(e) => set("wage", e.target.value)}
+          />
+          {fe("wage")}
+        </label>
+        <label className="field">
+          <span>{l("Metode PPh 21", "PPh 21 method")}</span>
+          <select
+            value={value.taxMethod}
+            onChange={(e) => set("taxMethod", e.target.value as NewContractValues["taxMethod"])}
+          >
+            <option value="gross">{l("Gross — dipotong dari gaji", "Gross — withheld from pay")}</option>
+            <option value="gross_up">
+              {l("Gross-up — ditanggung perusahaan", "Gross-up — company-borne")}
+            </option>
+          </select>
+        </label>
+      </fieldset>
+      <p className="muted small">
+        {l(
+          "Tunjangan tetap ditambahkan di halaman kontrak setelah disimpan. Dokumen kontrak dari template bisa langsung dicetak atau ditandatangani di sana.",
+          "Fixed allowances are added on the contract page after saving. The contract document from the template can be printed or signed there.",
+        )}
+      </p>
     </section>
   );
 }

@@ -12,7 +12,7 @@ import {
 } from "@erp/shared";
 import { localDate } from "../schedule.service.js";
 import type { ChecklistService } from "../checklist.service.js";
-import type { ContractService } from "../contract.service.js";
+import { assertDatesUnchanged, type ContractService } from "../contract.service.js";
 import type { EmployeeService } from "../employee.service.js";
 import type { HistoryService } from "../history.service.js";
 import { ATTENDANCE_COLUMNS } from "../attendance.service.js";
@@ -274,7 +274,13 @@ function employeesDataset(svc: HrServices): Dataset {
         if (existing) {
           const sent = validate(employeeSchema.partial().strip(), input) as Record<string, unknown>;
           // Kunci yang tidak dikirim di baris tidak boleh ikut diisi default skema (mis. PTKP, aktif).
-          const values = Object.fromEntries(Object.entries(sent).filter(([k]) => k in input));
+          const values: Record<string, unknown> = Object.fromEntries(
+            Object.entries(sent).filter(([k]) => k in input),
+          );
+          // Tanggal masuk/keluar mengikuti kontrak kerja; nilai sama diabaikan, perubahan ditolak.
+          assertDatesUnchanged(existing, values as { joinDate?: string; resignDate?: string | null });
+          delete values.joinDate;
+          delete values.resignDate;
           if (!Object.keys(values).length) return "skipped";
           await svc.employees.update(tx, existing.id, values);
           const after = await svc.employees.find(tx, existing.id);

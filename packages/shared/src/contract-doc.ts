@@ -312,6 +312,8 @@ export const contractSignedUploadSchema = z.object({
 /** Kontrak yang dibuat bersama karyawan baru (mulai = tanggal masuk). */
 export const newEmployeeContractSchema = z
   .object({
+    /** Tanggal mulai kontrak = tanggal masuk karyawan (hanya diinput di sini). */
+    dateStart: z.string().date(),
     templateId: z.string().uuid().nullish(),
     contractType: z.enum(["pkwt", "pkwtt"]).default("pkwtt"),
     wageType: z.enum(["monthly", "daily", "piece"]).default("monthly"),
@@ -324,5 +326,9 @@ export const newEmployeeContractSchema = z
   })
   .refine((c) => c.contractType !== "pkwt" || c.dateEnd, {
     message: "PKWT wajib punya tanggal berakhir",
+    path: ["dateEnd"],
+  })
+  .refine((c) => !c.dateEnd || c.dateEnd >= c.dateStart, {
+    message: "Tanggal berakhir sebelum mulai",
     path: ["dateEnd"],
   });

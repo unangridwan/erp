@@ -591,16 +591,33 @@ export class OffboardingService {
     @Inject(ContractService) private readonly contracts: ContractService,
   ) {}
 
-  /** Catat karyawan keluar (tanggal & alasan) dan mulai checklist offboarding. */
+  /**
+   * Catat karyawan keluar lewat kontraknya (tanggal keluar hanya diinput di kontrak): kontrak keluar yang sudah ada,
+   * kontrak berjalan, atau kontrak terakhir diakhiri per tanggal keluar dengan alasan. Karyawan tanpa kontrak (data lama)
+   * dicatat langsung.
+   */
   async offboard(tx: Db, employeeId: string, input: z.infer<typeof offboardSchema>) {
     const employee = await this.employees.find(tx, employeeId);
     if (input.resignDate < employee.joinDate)
       throw fieldError("resignDate", "Tanggal keluar sebelum tanggal masuk");
-    // Kontrak draft/berjalan berakhir di tanggal keluar.
-    await this.contracts.syncEmployeeDates(tx, employee, {
-      joinDate: employee.joinDate,
-      resignDate: input.resignDate,
-    });
+    const C = schema.contracts;
+    const contracts = await tx
+      .select()
+      .from(C)
+      .where(and(eq(C.employeeId, employeeId), ne(C.state, "cancel"), ne(C.state, "draft")))
+      .orderBy(desc(C.dateStart));
+    const target =
+      contracts.find((c) => c.endReason) ?? contracts.find((c) => c.state === "running") ?? contracts[0];
+    if (target) {
+      const { checklistId } = await this.contracts.end(tx, target.id, {
+        dateEnd: input.resignDate,
+        exit: true,
+        resignReason: input.resignReason,
+        resignNote: input.resignNote ?? null,
+        startChecklist: input.startChecklist,
+      });
+      return { employeeId, contractId: target.id, checklistId };
+    }
     await tx
       .update(schema.employees)
       .set({
@@ -617,16 +634,17 @@ export class OffboardingService {
         newValue: input.resignDate,
         note: RESIGN_LABEL[input.resignReason],
       });
-    const checklist = input.startChecklist
-      ? await this.checklists.start(tx, { employeeId, kind: "offboarding", baseDate: input.resignDate })
-      : null;
+    const checklist =
+      input.startChecklist && !employee.resignDate
+        ? await this.checklists.start(tx, { employeeId, kind: "offboarding", baseDate: input.resignDate })
+        : null;
     await this.activity.log(tx, {
       resModel: "employee",
       resId: employeeId,
       action: "comment",
       message: `Offboarding: keluar ${input.resignDate} (${RESIGN_LABEL[input.resignReason]})`,
     });
-    return { employeeId, checklistId: checklist?.id ?? null };
+    return { employeeId, contractId: null, checklistId: checklist?.id ?? null };
   }
 
   async exitInterview(tx: Db, employeeId: string) {

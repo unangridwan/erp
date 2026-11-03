@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { and, desc, eq, ilike, inArray, isNull, ne, schema, sql, type Db } from "@erp/db";
-import { addDays, type contractSchema } from "@erp/shared";
+import { and, desc, eq, ilike, isNull, ne, schema, sql, type Db } from "@erp/db";
+import { addDays, RESIGN_REASON_LABEL, type contractEndSchema, type contractSchema } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
 import { fieldError } from "../accounting/context.js";
@@ -12,6 +12,23 @@ import { EmployeeService } from "./employee.service.js";
 import { HistoryService } from "./history.service.js";
 
 const C = schema.contracts;
+
+/**
+ * Tanggal masuk & keluar hanya diinput di kontrak kerja (mulai kontrak pertama / Akhiri kontrak: karyawan keluar);
+ * perubahan lewat data karyawan ditolak, nilai yang sama (mis. form/impor ulang) diabaikan.
+ */
+export function assertDatesUnchanged(
+  current: { joinDate: string; resignDate: string | null },
+  sent: { joinDate?: string | null; resignDate?: string | null },
+) {
+  if ("joinDate" in sent && sent.joinDate && sent.joinDate !== current.joinDate)
+    throw fieldError("joinDate", "Tanggal masuk diubah lewat tanggal mulai kontrak kerja pertama");
+  if ("resignDate" in sent && (sent.resignDate ?? null) !== current.resignDate)
+    throw fieldError(
+      "resignDate",
+      "Tanggal keluar diisi lewat Akhiri kontrak (karyawan keluar) di kontrak kerja",
+    );
+}
 
 /** Pembuatan & mulai berlaku kontrak (dipakai controller kontrak dan impor data). */
 @Injectable()
@@ -50,22 +67,17 @@ export class ContractService {
   }
 
   /**
-   * Masa kontrak harus berada dalam masa kerja karyawan: tidak mulai sebelum tanggal masuk, dan (bila karyawan keluar)
-   * tidak mulai/berakhir setelah tanggal keluar.
+   * Kontrak tidak boleh mulai/berakhir setelah karyawan keluar (tanggal keluar = akhir kontrak "keluar"). Mulai sebelum
+   * tanggal masuk boleh: kontrak itu menjadi kontrak pertama dan tanggal masuk ikut maju (lihat `syncJoinDate`).
    */
   assertWithinEmployment(
-    employee: { joinDate: string; resignDate: string | null },
+    employee: { resignDate: string | null },
     dates: { dateStart: string; dateEnd?: string | null },
   ) {
-    if (dates.dateStart < employee.joinDate)
-      throw fieldError(
-        "dateStart",
-        `Kontrak tidak boleh mulai sebelum tanggal masuk karyawan (${employee.joinDate})`,
-      );
     if (employee.resignDate && dates.dateStart > employee.resignDate)
       throw fieldError(
         "dateStart",
-        `Kontrak tidak boleh mulai setelah tanggal keluar karyawan (${employee.resignDate})`,
+        `Karyawan sudah keluar per ${employee.resignDate}; batalkan keluar di kontrak terakhirnya dulu`,
       );
     if (employee.resignDate && dates.dateEnd && dates.dateEnd > employee.resignDate)
       throw fieldError(
@@ -75,77 +87,199 @@ export class ContractService {
   }
 
   /**
-   * Tanggal masuk/keluar karyawan berubah → kontrak ikut: kontrak yang mulai di tanggal masuk lama (dan belum dipakai
-   * slip gaji) dipindah ke tanggal masuk baru; kontrak draft/berjalan dipotong di tanggal keluar. Kontrak lain yang
-   * jadi di luar masa kerja ditolak dengan pesan agar kontraknya diubah dulu.
+   * Tanggal masuk karyawan diinput hanya lewat kontrak: tanggal masuk = mulai kontrak pertama. Dipanggil setelah kontrak
+   * dibuat/diubah/dihapus. Kontrak yang mulai lebih awal dari tanggal masuk memajukan tanggal masuk; kontrak yang
+   * menentukan tanggal masuk (mulai = tanggal masuk) dipindah/dihapus → tanggal masuk mengikuti kontrak pertama yang
+   * tersisa. Karyawan lama yang tanggal masuknya sebelum kontrak pertama tercatat tidak berubah.
    */
-  async syncEmployeeDates(
-    tx: Db,
-    before: { id: string; joinDate: string; resignDate: string | null },
-    after: { joinDate: string; resignDate: string | null },
-  ) {
-    if (before.joinDate === after.joinDate && before.resignDate === after.resignDate) return;
-    if (after.resignDate && after.resignDate < after.joinDate)
-      throw fieldError("resignDate", "Tanggal keluar sebelum tanggal masuk");
-    const contracts = await tx
-      .select()
+  async syncJoinDate(tx: Db, employeeId: string, change: { before: string | null; after: string | null }) {
+    const E = schema.employees;
+    const [employee] = await tx.select().from(E).where(eq(E.id, employeeId));
+    if (!employee) return;
+    const [first] = await tx
+      .select({ start: sql<string | null>`min(${C.dateStart})::text` })
       .from(C)
-      .where(and(eq(C.employeeId, before.id), ne(C.state, "cancel")));
-    const used = new Set(
-      contracts.length
-        ? (
-            await tx
-              .select({ id: schema.payslips.contractId })
-              .from(schema.payslips)
-              .where(
-                inArray(
-                  schema.payslips.contractId,
-                  contracts.map((c) => c.id),
-                ),
-              )
-          ).map((r) => r.id)
-        : [],
-    );
-    for (const c of contracts) {
-      let dateStart = c.dateStart;
-      let dateEnd = c.dateEnd;
-      if (
-        before.joinDate !== after.joinDate &&
-        c.dateStart === before.joinDate &&
-        c.state !== "closed" &&
-        !used.has(c.id)
-      )
-        dateStart = after.joinDate;
-      if (dateStart < after.joinDate)
-        throw fieldError(
-          "joinDate",
-          `Kontrak ${c.name} mulai ${c.dateStart}, sebelum tanggal masuk baru; ubah kontraknya dulu`,
+      .where(and(eq(C.employeeId, employeeId), ne(C.state, "cancel")));
+    const firstStart = first?.start ?? null;
+    let joinDate = employee.joinDate;
+    if (firstStart && firstStart < joinDate) joinDate = firstStart;
+    else if (firstStart && change.before === employee.joinDate && change.after !== change.before)
+      joinDate = firstStart;
+    if (joinDate === employee.joinDate) return;
+    if (employee.resignDate && joinDate > employee.resignDate)
+      throw fieldError(
+        "dateStart",
+        "Tanggal mulai kontrak pertama (tanggal masuk) setelah tanggal keluar karyawan",
+      );
+    await tx
+      .update(E)
+      .set({ joinDate, updatedAt: sql`now()` })
+      .where(eq(E.id, employeeId));
+    await this.history.record(tx, employee, "join", {
+      date: joinDate,
+      oldValue: employee.joinDate,
+      newValue: joinDate,
+      note: "mengikuti tanggal mulai kontrak",
+    });
+    await this.activity.log(tx, {
+      resModel: "employee",
+      resId: employeeId,
+      action: "comment",
+      message: `Tanggal masuk ${employee.joinDate} → ${joinDate} (mengikuti tanggal mulai kontrak)`,
+    });
+  }
+
+  /**
+   * Akhiri kontrak. Dengan `exit`: karyawan keluar per tanggal berakhir (satu-satunya tempat tanggal keluar diisi) —
+   * tanggal & alasan keluar karyawan diisi, riwayat dicatat, checklist offboarding dimulai. Kontrak keluar yang sudah
+   * berakhir bisa diakhiri ulang untuk mengubah tanggal/alasan keluar; kontrak terakhir yang sudah berakhir (mis. PKWT
+   * habis) bisa ditandai keluar.
+   */
+  async end(tx: Db, id: string, input: z.infer<typeof contractEndSchema>) {
+    const contract = await this.find(tx, id);
+    if (contract.state === "draft" || contract.state === "cancel")
+      throw new BadRequestException("Hanya kontrak berjalan yang bisa diakhiri");
+    if (contract.state === "closed" && !input.exit && !contract.endReason)
+      throw new BadRequestException("Kontrak sudah berakhir");
+    if (input.dateEnd < contract.dateStart) throw fieldError("dateEnd", "Tanggal berakhir sebelum mulai");
+    const others = await tx
+      .select({ id: C.id, name: C.name, state: C.state, dateStart: C.dateStart })
+      .from(C)
+      .where(and(eq(C.employeeId, contract.employeeId), ne(C.state, "cancel"), ne(C.id, contract.id)));
+    if (input.exit) {
+      // Kontrak keluar harus kontrak terakhir: tidak ada kontrak lain yang mulai setelahnya / masih berjalan.
+      const later = others.find((o) => o.dateStart > contract.dateStart || o.state === "running");
+      if (later?.state === "draft")
+        throw new BadRequestException(
+          `Ada kontrak draft ${later.name} setelah kontrak ini; hapus draftnya dulu`,
         );
-      if (after.resignDate && c.state !== "closed") {
-        if (dateStart > after.resignDate)
-          throw fieldError(
-            "resignDate",
-            `Kontrak ${c.name} mulai ${dateStart}, setelah tanggal keluar; batalkan/hapus kontraknya dulu`,
-          );
-        if (!dateEnd || dateEnd > after.resignDate) dateEnd = after.resignDate;
-      }
-      if (dateEnd && dateEnd < dateStart)
-        throw fieldError(
-          "joinDate",
-          `Kontrak ${c.name} berakhir ${dateEnd}, sebelum tanggal masuk baru; ubah kontraknya dulu`,
+      if (later)
+        throw new BadRequestException(
+          `Kontrak ${later.name} masih berjalan setelah kontrak ini; akhiri dari kontrak terakhir`,
         );
-      if (dateStart === c.dateStart && dateEnd === c.dateEnd) continue;
-      await tx
-        .update(C)
-        .set({ dateStart, dateEnd, updatedAt: sql`now()` })
-        .where(eq(C.id, c.id));
-      await this.activity.log(tx, {
-        resModel: "employee",
-        resId: before.id,
-        action: "comment",
-        message: `Kontrak ${c.name} disesuaikan dengan masa kerja: ${dateStart} s.d. ${dateEnd ?? "—"}`,
-      });
     }
+    await tx
+      .update(C)
+      .set({
+        state: "closed",
+        dateEnd: input.dateEnd,
+        endReason: input.exit ? input.resignReason! : null,
+        endNote: input.exit ? (input.resignNote ?? null) : null,
+        // Pertama kali diproses keluar: ingat status & tanggal berakhir semula untuk "batalkan keluar".
+        ...(input.exit && !contract.endReason
+          ? { preExitState: contract.state as "running" | "closed", preExitDateEnd: contract.dateEnd }
+          : {}),
+        ...(!input.exit ? { preExitState: null, preExitDateEnd: null } : {}),
+        updatedAt: sql`now()`,
+      })
+      .where(eq(C.id, id));
+    const E = schema.employees;
+    const employee = await this.employees.find(tx, contract.employeeId);
+    if (!input.exit) {
+      if (contract.endReason) await this.clearExit(tx, employee, contract.name);
+      else
+        await this.activity.log(tx, {
+          resModel: "employee",
+          resId: employee.id,
+          action: "comment",
+          message: `Kontrak ${contract.name} diakhiri per ${input.dateEnd}`,
+        });
+      return { checklistId: null };
+    }
+    await tx
+      .update(E)
+      .set({
+        resignDate: input.dateEnd,
+        resignReason: input.resignReason!,
+        resignNote: input.resignNote ?? null,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(E.id, employee.id));
+    const label = RESIGN_REASON_LABEL[input.resignReason!]?.[0] ?? input.resignReason!;
+    if (employee.resignDate !== input.dateEnd)
+      await this.history.record(tx, employee, "resign", {
+        date: input.dateEnd,
+        oldValue: employee.resignDate,
+        newValue: input.dateEnd,
+        note: label,
+      });
+    // Checklist offboarding hanya saat pertama kali diproses keluar (bukan saat tanggal/alasan diperbaiki).
+    const checklist =
+      input.startChecklist && !employee.resignDate
+        ? await this.checklists.start(tx, {
+            employeeId: employee.id,
+            kind: "offboarding",
+            baseDate: input.dateEnd,
+          })
+        : null;
+    await this.activity.log(tx, {
+      resModel: "employee",
+      resId: employee.id,
+      action: "comment",
+      message: `Kontrak ${contract.name} diakhiri: karyawan keluar ${input.dateEnd} (${label})`,
+    });
+    return { checklistId: checklist?.id ?? null };
+  }
+
+  /**
+   * Batalkan keluar: kontrak kembali ke status & tanggal berakhir sebelum diproses keluar (data lama tanpa catatan itu:
+   * berjalan, PKWTT tanpa tanggal berakhir), data keluar karyawan dihapus.
+   */
+  async cancelExit(tx: Db, id: string) {
+    const contract = await this.find(tx, id);
+    if (!contract.endReason)
+      throw new BadRequestException("Kontrak ini tidak diakhiri karena karyawan keluar");
+    const state = contract.preExitState ?? "running";
+    const dateEnd = contract.preExitState
+      ? contract.preExitDateEnd
+      : contract.contractType === "pkwtt"
+        ? null
+        : contract.dateEnd;
+    if (state === "running") {
+      const [running] = await tx
+        .select({ name: C.name })
+        .from(C)
+        .where(and(eq(C.employeeId, contract.employeeId), eq(C.state, "running"), ne(C.id, contract.id)));
+      if (running)
+        throw new BadRequestException(`Karyawan masih punya kontrak berjalan (${running.name}); akhiri dulu`);
+    }
+    await tx
+      .update(C)
+      .set({
+        state,
+        dateEnd,
+        endReason: null,
+        endNote: null,
+        preExitState: null,
+        preExitDateEnd: null,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(C.id, id));
+    await this.clearExit(tx, await this.employees.find(tx, contract.employeeId), contract.name);
+  }
+
+  private async clearExit(
+    tx: Db,
+    employee: { id: string; companyId: string; resignDate: string | null },
+    name: string,
+  ) {
+    if (!employee.resignDate) return;
+    await tx
+      .update(schema.employees)
+      .set({ resignDate: null, resignReason: null, resignNote: null, updatedAt: sql`now()` })
+      .where(eq(schema.employees.id, employee.id));
+    await this.history.record(tx, employee, "resign", {
+      date: employee.resignDate,
+      oldValue: employee.resignDate,
+      newValue: null,
+      note: `keluar dibatalkan (${name})`,
+    });
+    await this.activity.log(tx, {
+      resModel: "employee",
+      resId: employee.id,
+      action: "comment",
+      message: `Keluar per ${employee.resignDate} dibatalkan (kontrak ${name})`,
+    });
   }
 
   /** Kontrak draft baru; mengembalikan id. */
@@ -188,6 +322,7 @@ export class ContractService {
       action: "comment",
       message: `Kontrak ${name} dibuat`,
     });
+    await this.syncJoinDate(tx, employee.id, { before: null, after: input.dateStart });
     return row!.id;
   }
 

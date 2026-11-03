@@ -278,7 +278,7 @@ function Applicant() {
           </p>
           <div className="inline-panel">
             <label className="field">
-              <span>{l("Tanggal masuk", "Start date")}</span>
+              <span>{l("Mulai kontrak (tanggal masuk)", "Contract start (join date)")}</span>
               <input
                 type="date"
                 value={hire.joinDate}

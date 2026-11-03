@@ -18,7 +18,7 @@ import { TotalRewardsPanel } from "../payroll/total-rewards";
 import { NEW_CONTRACT, NewEmployeeContract, type NewContractValues } from "./contract-document";
 import { FeedbackPanel, NotesPanel } from "./ess-panels";
 import { CareerPanel, ChecklistsPanel, DocumentsPanel, errorText } from "./hr-panels";
-import { OffboardingPanel } from "./offboarding-panel";
+import { OffboardingPanel, RESIGN_REASON_LABEL } from "./offboarding-panel";
 import { ProjectsPanel } from "./projects-panel";
 import {
   EducationPanel,
@@ -82,7 +82,7 @@ const GROUPS: Record<Tab, { title?: [string, string]; fields: string[] }[]> = {
   work: [
     {
       title: ["Posisi", "Position"],
-      fields: ["departmentId", "jobId", "gradeId", "managerId", "joinDate", "resignDate"],
+      fields: ["departmentId", "jobId", "gradeId", "managerId"],
     },
     {
       title: ["Lokasi & jadwal", "Location & schedule"],
@@ -141,7 +141,9 @@ const GROUPS: Record<Tab, { title?: [string, string]; fields: string[] }[]> = {
   ],
 };
 
-const SAVED_FIELDS = EMPLOYEES.fields;
+/** Tanggal masuk & keluar tidak disimpan dari form karyawan: keduanya diinput di kontrak kerja. */
+const CONTRACT_DATE_FIELDS = ["joinDate", "resignDate"];
+const SAVED_FIELDS = EMPLOYEES.fields.filter((f) => !CONTRACT_DATE_FIELDS.includes(f.name));
 
 const WAGE_TYPE: Record<string, [string, string]> = {
   monthly: ["bulan", "month"],
@@ -178,7 +180,6 @@ export function EmployeeForm({ id }: { id: string }) {
   const [photoVersion, setPhotoVersion] = useState(0);
   /** Karyawan baru: kontrak kerja pertama dibuat bersamaan & langsung berlaku. */
   const [newContract, setNewContract] = useState<NewContractValues>(NEW_CONTRACT);
-  const withContract = isNew && manage && newContract.enabled;
 
   const loadMeta = useCallback(() => {
     if (isNew) return;
@@ -223,21 +224,25 @@ export function EmployeeForm({ id }: { id: string }) {
     try {
       if (isNew) {
         const body: Values = { ...toPayload(SAVED_FIELDS, values, true), tags: values.tags ?? [] };
-        if (withContract) {
-          if (!newContract.wage.trim()) {
-            setFieldErrors({ "contract.wage": l("Wajib diisi", "Required") });
-            setTab("contract");
-            return;
-          }
-          body.contract = {
-            templateId: newContract.templateId || null,
-            contractType: newContract.contractType,
-            dateEnd: newContract.dateEnd || null,
-            wage: newContract.wage.trim(),
-            wageType: newContract.wageType,
-            taxMethod: newContract.taxMethod,
-          };
+        // Tanggal masuk = tanggal mulai kontrak kerja (diinput di tab Kontrak kerja).
+        const missing: Record<string, string> = {};
+        if (!newContract.dateStart) missing["contract.dateStart"] = l("Wajib diisi", "Required");
+        if (!newContract.wage.trim()) missing["contract.wage"] = l("Wajib diisi", "Required");
+        if (Object.keys(missing).length) {
+          setFieldErrors(missing);
+          setError(l("Lengkapi tab Kontrak kerja.", "Complete the Contract tab."));
+          setTab("contract");
+          return;
         }
+        body.contract = {
+          dateStart: newContract.dateStart,
+          templateId: newContract.templateId || null,
+          contractType: newContract.contractType,
+          dateEnd: newContract.dateEnd || null,
+          wage: newContract.wage.trim(),
+          wageType: newContract.wageType,
+          taxMethod: newContract.taxMethod,
+        };
         const created = await api<{ id: string; contractId?: string }>("/employees", {
           method: "POST",
           body,
@@ -337,6 +342,19 @@ export function EmployeeForm({ id }: { id: string }) {
   }
 
   if (!loaded) return <p className="muted">{error ?? l("Memuat…", "Loading…")}</p>;
+  // Karyawan baru selalu dibuat bersama kontrak kerjanya (tanggal masuk = mulai kontrak), jadi butuh hak kontrak.
+  if (isNew && !manage)
+    return (
+      <section className="panel">
+        <p className="error">
+          {l(
+            "Menambah karyawan memerlukan hak kelola kontrak kerja (hr.manage), karena tanggal masuk diisi di kontrak kerja.",
+            "Adding employees requires the contract management right (hr.manage), because the join date is set on the employment contract.",
+          )}
+        </p>
+        <Link href="/employees">{l("Kembali ke daftar karyawan", "Back to employees")}</Link>
+      </section>
+    );
 
   const name = String(values.name ?? "");
   const field = (n: string) => FIELDS.get(n);
@@ -628,22 +646,16 @@ export function EmployeeForm({ id }: { id: string }) {
                     </h3>
                     {isNew ? (
                       <p className="muted">
-                        {manage ? (
-                          <>
-                            {l("Kontrak kerja diisi di tab ", "The employment contract is set in the ")}
-                            <button type="button" className="link" onClick={() => setTab("contract")}>
-                              {l("Kontrak kerja", "Contract")}
-                            </button>
-                            {l(
-                              " dan langsung berlaku saat karyawan disimpan.",
-                              " tab and takes effect when saved.",
-                            )}
-                          </>
-                        ) : (
-                          l(
-                            "Kontrak kerja dibuat oleh pengguna dengan hak kelola SDM.",
-                            "The employment contract is created by a user with HR manage rights.",
-                          )
+                        {l(
+                          "Kontrak kerja & tanggal masuk diisi di tab ",
+                          "The contract & join date are set in the ",
+                        )}
+                        <button type="button" className="link" onClick={() => setTab("contract")}>
+                          {l("Kontrak kerja", "Contract")}
+                        </button>
+                        {l(
+                          " dan langsung berlaku saat karyawan disimpan.",
+                          " tab and take effect when saved.",
                         )}
                       </p>
                     ) : overview?.contract ? (
@@ -692,16 +704,41 @@ export function EmployeeForm({ id }: { id: string }) {
               )}
 
               {tab === "contract" && isNew && manage && (
-                <NewEmployeeContract
-                  value={newContract}
-                  onChange={setNewContract}
-                  errors={fieldErrors}
-                  joinDate={(values.joinDate as string | undefined) || null}
-                />
+                <NewEmployeeContract value={newContract} onChange={setNewContract} errors={fieldErrors} />
               )}
 
               {(tab === "work" || tab === "personal" || tab === "settings") && (
-                <div className="o-grid">{groups(tab)}</div>
+                <div className="o-grid">
+                  {groups(tab)}
+                  {tab === "work" && !isNew && (
+                    <section className="o-group">
+                      <h3 className="o-group-title">
+                        {l("Masa kerja", "Employment period")}
+                        <Link className="o-group-link" href={`/hr/contracts?employeeId=${id}`}>
+                          {l("Kontrak kerja", "Contracts")}
+                        </Link>
+                      </h3>
+                      <ReadRow label={l("Tanggal masuk", "Join date")}>
+                        {values.joinDate ? formatDate(values.joinDate as string, locale) : "—"}
+                      </ReadRow>
+                      <ReadRow label={l("Tanggal keluar", "Leaving date")}>
+                        {values.resignDate
+                          ? `${formatDate(values.resignDate as string, locale)}${
+                              values.resignReason && RESIGN_REASON_LABEL[values.resignReason as string]
+                                ? ` · ${l(...RESIGN_REASON_LABEL[values.resignReason as string]!)}`
+                                : ""
+                            }`
+                          : "—"}
+                      </ReadRow>
+                      <p className="muted small">
+                        {l(
+                          "Tanggal masuk mengikuti tanggal mulai kontrak pertama; tanggal keluar diisi lewat Akhiri kontrak (karyawan keluar).",
+                          "The join date follows the first contract's start date; the leaving date is set with End contract (employee leaves).",
+                        )}
+                      </p>
+                    </section>
+                  )}
+                </div>
               )}
             </fieldset>
 

@@ -933,4 +933,21 @@ export const MESSAGES_EN: Record<string, string> = {
   "Karyawan sudah menandatangani": "The employee has already signed",
   "Butuh permission hr.manage untuk membuat kontrak kerja":
     "The hr.manage permission is required to create an employment contract",
+  // Tanggal masuk/keluar dari kontrak kerja
+  "Kontrak sudah berakhir": "The contract has already ended",
+  "Ada kontrak draft {} setelah kontrak ini; hapus draftnya dulu":
+    "There is a draft contract {0} after this one; delete the draft first",
+  "Kontrak {} masih berjalan setelah kontrak ini; akhiri dari kontrak terakhir":
+    "Contract {0} is still running after this one; end the latest contract instead",
+  "Kontrak ini tidak diakhiri karena karyawan keluar":
+    "This contract was not ended because the employee left",
+  "Tanggal masuk diubah lewat tanggal mulai kontrak kerja pertama":
+    "The join date is changed through the start date of the first employment contract",
+  "Tanggal keluar diisi lewat Akhiri kontrak (karyawan keluar) di kontrak kerja":
+    "The leaving date is set with End contract (employee leaves) on the employment contract",
+  "Karyawan sudah keluar per {}; batalkan keluar di kontrak terakhirnya dulu":
+    "The employee left on {0}; cancel the leaving on their last contract first",
+  "Tanggal mulai kontrak pertama (tanggal masuk) setelah tanggal keluar karyawan":
+    "The first contract's start date (join date) is after the employee's leaving date",
+  "Pilih alasan keluar": "Choose a leaving reason",
 };

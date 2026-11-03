@@ -186,7 +186,7 @@ Otomatis (tanpa endpoint baru):
 | Endpoint                                                                                                                                                     | Keterangan                                                                                                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/employees`, `/departments`, `/job-positions`, `/public-holidays`, `/leave-types`, `/leave-allocations`, `/overtimes`                                       | Data karyawan (NIK/NPWP/rekening terenkripsi), struktur, hari libur, cuti, lembur                                                                                                                   |
-| `GET/POST /contracts`, `GET/PUT/DELETE /contracts/:id`, `POST /contracts/:id/{start,close}`                                                                  | Kontrak PKWT/PKWTT dengan tunjangan & potongan bulanan                                                                                                                                              |
+| `GET/POST /contracts`, `GET/PUT/DELETE /contracts/:id`, `POST /contracts/:id/{start,close,cancel-exit}`                                                      | Kontrak PKWT/PKWTT dengan tunjangan & potongan bulanan; `close {exit, resignReason}` = karyawan keluar (0051)                                                                                       |
 | `GET/POST /leaves`, `GET /leaves/balances?employeeId=`, `POST /leaves/:id/{approve,refuse,cancel}`                                                           | Pengajuan cuti (hari kerja di luar libur), saldo jatah                                                                                                                                              |
 | `/work-calendar/{holidays,holidays/import-national,leave-days}`, `POST /me/leave-days`                                                                       | Kalender kerja (0047): libur per perusahaan, impor libur nasional, pratinjau hari cuti                                                                                                              |
 | `POST /attendance/{check-in,check-out}`, `GET/POST /attendance`                                                                                              | Absensi dari portal, rekap & koreksi manual                                                                                                                                                         |
@@ -258,11 +258,17 @@ Otomatis (tanpa endpoint baru):
 | `GET /fleet/reports/{costs,odometer}`, `GET /fleet/reminders`, `GET/PUT /fleet/settings`                                                                     | Biaya per kendaraan/kategori/bulan, tren odometer, pengingat dokumen/kontrak (notifikasi in-app harian)                                                                                             |
 | Kontrak `taxMethod: gross \| gross_up`                                                                                                                       | Gross-up PPh 21 (tunjangan PPh 21 = pajaknya; ikut BPA1), saldo cuti di slip & PDF                                                                                                                  |
 
-**Tanggal karyawan & kontrak.** Kontrak harus berada dalam masa kerja karyawan: tidak mulai sebelum tanggal masuk dan
-tidak mulai/berakhir setelah tanggal keluar. Mengubah tanggal masuk memindahkan kontrak yang mulai di tanggal masuk
-lama (selama belum dipakai slip gaji); mengisi tanggal keluar (form karyawan atau offboarding) membuat kontrak draft/
-berjalan berakhir di tanggal itu. Kontrak baru dari halaman karyawan langsung terisi karyawannya, mulai di tanggal masuk
-(kontrak pertama) atau sehari setelah kontrak terakhir, dan berakhir di tanggal keluar bila ada.
+**Tanggal masuk & keluar hanya di kontrak kerja (migrasi 0051).** Form karyawan tidak lagi punya input tanggal masuk/
+keluar (tampil baca-saja di tab Kerja › Masa kerja). **Tanggal masuk** = tanggal mulai kontrak pertama: diisi di tab
+"Kontrak kerja" saat menambah karyawan, dan mengubah tanggal mulai kontrak pertama ikut mengubah tanggal masuk (kontrak
+yang mulai lebih awal memajukannya). **Tanggal keluar** diisi lewat **Akhiri kontrak** → centang "Karyawan keluar" +
+tanggal + alasan (resign, habis kontrak, PHK, pensiun, …) + catatan: tanggal & alasan keluar karyawan terisi, riwayat
+dicatat, checklist offboarding dimulai. Kontrak keluar bisa diubah ("Ubah data keluar") atau dibatalkan ("Batalkan
+keluar": kontrak kembali ke status & tanggal berakhir semula). Kontrak PKWT yang sudah berakhir bisa "Tandai karyawan
+keluar". Panel Offboarding di halaman karyawan menampilkan data keluar + tautan ke kontraknya (exit interview & Full and
+Final tetap di sana); `POST /employees/:id/offboard` juga lewat kontrak. `PATCH /employees` & impor Excel menolak
+perubahan tanggal masuk/keluar. Menambah karyawan butuh hak kelola kontrak (`hr.manage`). Kontrak baru tidak boleh
+mulai setelah karyawan keluar.
 
 **Alur penambahan karyawan (migrasi 0049).** MPP disetujui → **Usulan Penambahan Karyawan (FPK)** dari baris MPP
 (departemen, jabatan, golongan, gaji terisi otomatis; dibatasi sisa kuota baris; kepala departemen boleh mengajukan)
