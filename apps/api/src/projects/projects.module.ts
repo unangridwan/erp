@@ -25,6 +25,7 @@ import {
   timesheetBatchSchema,
   timesheetEntrySchema,
   type EmployeeRef,
+  LIST_LOAD_LIMIT,
 } from "@erp/shared";
 import type { Request } from "express";
 import type { Principal } from "../auth/auth.service.js";
@@ -458,7 +459,7 @@ class ProjectsController {
           ),
         )
         .orderBy(sql`(${P.status} = 'active') desc`, asc(P.name))
-        .limit(500);
+        .limit(LIST_LOAD_LIMIT);
       return rows;
     });
   }

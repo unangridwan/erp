@@ -30,7 +30,7 @@ import {
   type PgTable,
   type SQL,
 } from "@erp/db";
-import { ALL_PERMISSIONS, parseCsv, toCsv, type Permission } from "@erp/shared";
+import { ALL_PERMISSIONS, LIST_LOAD_LIMIT, parseCsv, toCsv, type Permission } from "@erp/shared";
 import type { Response } from "express";
 import { z } from "zod";
 import type { AnyZodObject } from "zod";
@@ -112,7 +112,8 @@ export function pickColumns(all: string[], requested: string | undefined) {
   return ["id", ...wanted.filter((c) => c !== "id")];
 }
 
-const MAX_LIMIT = 200;
+/** List memuat s.d. 5.000 baris sekali lalu filter/sort/paginasi di browser. */
+const MAX_LIMIT = LIST_LOAD_LIMIT;
 export const MAX_IMPORT_ROWS = 5000;
 const EXPORT_LIMIT = 50_000;
 /** Isi CSV, atau berkas .xlsx dalam base64. */

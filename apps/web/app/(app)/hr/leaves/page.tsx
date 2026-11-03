@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { download } from "../../../../components/accounting/download";
 import { useOptions } from "../../../../components/accounting/use-options";
 import { LeaveRequestForm, type LeaveTypeOption } from "../../../../components/hr/leave-form";
@@ -11,6 +11,8 @@ import { api, ApiError } from "../../../../lib/api";
 import { formatDate, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can, LEAVE_STATE_LABEL } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Row {
   id: string;
@@ -45,7 +47,6 @@ export default function LeavesPage() {
   const me = useMe();
   const { l, tx, locale } = useI18n();
   const types = useOptions<LeaveTypeOption>("/leave-types");
-  const [state, setState] = useState("confirm");
   const [rows, setRows] = useState<Row[] | null>(null);
   const [bulks, setBulks] = useState<Bulk[]>([]);
   const [version, setVersion] = useState(0);
@@ -62,11 +63,50 @@ export default function LeavesPage() {
   const writable = can(me.permissions, "hr.write");
 
   useEffect(() => {
-    api<Row[]>(`/leaves${state ? `?state=${state}` : ""}`)
+    api<Row[]>("/leaves")
       .then(setRows)
       .catch((e: Error) => setError(e.message));
     api<Bulk[]>("/leaves/bulk").then(setBulks, () => setBulks([]));
-  }, [state, version]);
+  }, [version]);
+
+  const columns = useMemo<ViewColumn<Row>[]>(
+    () => [
+      { key: "employee", label: l("Karyawan", "Employee"), value: (r) => r.employeeName },
+      { key: "leaveType", label: l("Jenis", "Type"), type: "enum", value: (r) => r.leaveTypeName },
+      {
+        key: "dateFrom",
+        label: l("Tanggal", "Dates"),
+        type: "date",
+        value: (r) => r.dateFrom,
+        text: (r) => `${formatDate(r.dateFrom, locale)} ${formatDate(r.dateTo, locale)}`,
+      },
+      { key: "days", label: l("Hari", "Days"), type: "number", value: (r) => Number(r.days) },
+      { key: "reason", label: l("Alasan", "Reason"), value: (r) => r.reason },
+      { key: "delegate", label: l("Delegasi", "Delegate"), value: (r) => r.delegateName },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (r) => r.state,
+        optionLabel: (v) => (LEAVE_STATE_LABEL[v] ? tx(LEAVE_STATE_LABEL[v]!) : v),
+        text: (r) => (LEAVE_STATE_LABEL[r.state] ? tx(LEAVE_STATE_LABEL[r.state]!) : r.state),
+      },
+      {
+        key: "bulk",
+        label: l("Cuti massal", "Mass time off"),
+        type: "enum",
+        value: (r) => (r.bulkId ? "1" : "0"),
+        text: (r) => (r.bulkId ? l("Massal", "Mass") : l("Perorangan", "Individual")),
+        hidden: true,
+      },
+    ],
+    [l, tx, locale],
+  );
+  const table = useTableView(rows ?? [], columns, {
+    storageKey: "leaves",
+    defaultSort: { key: "dateFrom", dir: "desc" },
+    initialFilters: { state: { kind: "enum", values: ["confirm"] } },
+  });
 
   async function run(fn: () => Promise<unknown>) {
     setError(null);
@@ -93,12 +133,6 @@ export default function LeavesPage() {
     <>
       <header className="toolbar">
         <h1>{l("Pengajuan Cuti", "Time Off Requests")}</h1>
-        <select value={state} onChange={(e) => setState(e.target.value)} aria-label={l("Status", "Status")}>
-          <option value="confirm">{l("Menunggu persetujuan", "To approve")}</option>
-          <option value="approved">{l("Disetujui", "Approved")}</option>
-          <option value="refused,cancel">{l("Ditolak / batal", "Refused / cancelled")}</option>
-          <option value="">{l("Semua", "All")}</option>
-        </select>
         {writable && (
           <button type="button" onClick={() => setBulkOpen((o) => !o)}>
             {l("Cuti bersama / massal", "Mass time off")}
@@ -231,22 +265,42 @@ export default function LeavesPage() {
       )}
       {writable && <LeaveRequestForm types={types} chooseEmployee onSaved={() => setVersion((v) => v + 1)} />}
       {rows && (
+        <TableTools
+          view={table}
+          placeholder={l("Cari karyawan, jenis, alasan…", "Search employee, type, reason…")}
+        />
+      )}
+      {rows && (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{l("Karyawan", "Employee")}</th>
-                <th>{l("Jenis", "Type")}</th>
-                <th>{l("Tanggal", "Dates")}</th>
-                <th className="num">{l("Hari", "Days")}</th>
-                <th>{l("Alasan", "Reason")}</th>
-                <th>{l("Delegasi", "Delegate")}</th>
-                <th>{l("Status", "Status")}</th>
+                <SortTh view={table} col="employee">
+                  {l("Karyawan", "Employee")}
+                </SortTh>
+                <SortTh view={table} col="leaveType">
+                  {l("Jenis", "Type")}
+                </SortTh>
+                <SortTh view={table} col="dateFrom">
+                  {l("Tanggal", "Dates")}
+                </SortTh>
+                <SortTh view={table} col="days" className="num">
+                  {l("Hari", "Days")}
+                </SortTh>
+                <SortTh view={table} col="reason">
+                  {l("Alasan", "Reason")}
+                </SortTh>
+                <SortTh view={table} col="delegate">
+                  {l("Delegasi", "Delegate")}
+                </SortTh>
+                <SortTh view={table} col="state">
+                  {l("Status", "Status")}
+                </SortTh>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {table.rows.map((r) => (
                 <tr key={r.id}>
                   <td>{r.employeeName}</td>
                   <td>
@@ -317,10 +371,12 @@ export default function LeavesPage() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && (
+              {table.rows.length === 0 && (
                 <tr>
                   <td colSpan={8} className="muted">
-                    {l("Tidak ada pengajuan.", "No requests.")}
+                    {rows.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Tidak ada pengajuan.", "No requests.")}
                   </td>
                 </tr>
               )}
@@ -328,6 +384,7 @@ export default function LeavesPage() {
           </table>
         </div>
       )}
+      {rows && <TablePager view={table} />}
     </>
   );
 }

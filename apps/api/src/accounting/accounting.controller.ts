@@ -15,6 +15,7 @@ import {
 } from "@nestjs/common";
 import { and, count, desc, eq, ilike, or, schema, sql, type SQL } from "@erp/db";
 import {
+  LIST_LOAD_LIMIT,
   accountingSettingsSchema,
   INVOICE_TYPES,
   invoiceSchema,
@@ -40,7 +41,7 @@ const moveListQuery = z.object({
   state: z.enum(["draft", "posted"]).optional(),
   partnerId: z.string().uuid().optional(),
   q: z.string().trim().max(100).optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
+  limit: z.coerce.number().int().min(1).max(LIST_LOAD_LIMIT).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
 const reverseBody = z.object({ date: z.string().date().optional() });
@@ -260,7 +261,7 @@ export class PaymentsController {
         .innerJoin(schema.accountMoves, eq(schema.accountMoves.id, p.moveId))
         .where(eq(p.companyId, currentContext().companyId))
         .orderBy(desc(p.date), desc(p.createdAt))
-        .limit(200),
+        .limit(LIST_LOAD_LIMIT),
     );
   }
 

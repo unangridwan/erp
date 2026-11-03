@@ -20,6 +20,7 @@ import {
   eachDate,
   dayBreakdown,
   type leaveRequestSchema,
+  LIST_LOAD_LIMIT,
 } from "@erp/shared";
 import { randomUUID } from "node:crypto";
 import { Decimal } from "decimal.js";
@@ -99,7 +100,7 @@ export class LeaveService {
       .innerJoin(T, eq(T.id, R.leaveTypeId))
       .where(and(...filters))
       .orderBy(desc(R.dateFrom))
-      .limit(500);
+      .limit(LIST_LOAD_LIMIT);
     const delegateIds = [
       ...new Set(rows.map((r) => r.request.delegateEmployeeId).filter(Boolean)),
     ] as string[];

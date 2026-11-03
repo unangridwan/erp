@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { DataTable, type DataColumn } from "../../../../components/data-table";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
 import { formatDate, money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { truncatedNote, useListData } from "../../../../lib/use-list-data";
 
 interface Asset {
   id: string;
@@ -21,28 +23,88 @@ interface Asset {
 
 function useAssetStateLabel() {
   const { l } = useI18n();
-  return (state: string) =>
-    ({
-      draft: l("Draft", "Draft"),
-      running: l("Berjalan", "Running"),
-      closed: l("Selesai disusutkan", "Fully depreciated"),
-      disposed: l("Dilepas", "Disposed"),
-    })[state] ?? state;
+  return useCallback(
+    (state: string) =>
+      ({
+        draft: l("Draft", "Draft"),
+        running: l("Berjalan", "Running"),
+        closed: l("Selesai disusutkan", "Fully depreciated"),
+        disposed: l("Dilepas", "Disposed"),
+      })[state] ?? state,
+    [l],
+  );
 }
 
 export default function AssetsPage() {
   const me = useMe();
   const { l, locale } = useI18n();
   const stateLabel = useAssetStateLabel();
-  const [assets, setAssets] = useState<Asset[]>([]);
+  const [search, setSearch] = useState("");
+  const list = useListData<Asset>("/assets", {}, search);
   const [date, setDate] = useState(today());
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = () => api<{ items: Asset[] }>("/assets?limit=200").then((d) => setAssets(d.items));
-  useEffect(() => {
-    load().catch((e: Error) => setError(e.message));
-  }, []);
+  const columns = useMemo<DataColumn<Asset>[]>(
+    () => [
+      {
+        key: "name",
+        label: l("Aset", "Asset"),
+        value: (a) => `${a.code ? `${a.code} — ` : ""}${a.name}`,
+        render: (a) => (
+          <Link href={`/accounting/assets/${a.id}`}>
+            {a.code ? `${a.code} — ` : ""}
+            {a.name}
+          </Link>
+        ),
+      },
+      {
+        key: "acquisitionDate",
+        label: l("Tanggal perolehan", "Acquired"),
+        type: "date",
+        value: (a) => a.acquisitionDate,
+        text: (a) => formatDate(a.acquisitionDate, locale),
+      },
+      {
+        key: "method",
+        label: l("Metode", "Method"),
+        type: "enum",
+        value: (a) => a.method,
+        text: (a) =>
+          a.method === "straight_line"
+            ? l("Garis lurus", "Straight line")
+            : l("Saldo menurun", "Declining balance"),
+      },
+      {
+        key: "usefulLifeMonths",
+        label: l("Masa manfaat (bln)", "Life (months)"),
+        type: "number",
+        className: "num",
+        value: (a) => a.usefulLifeMonths,
+      },
+      {
+        key: "cost",
+        label: l("Harga perolehan", "Cost"),
+        type: "number",
+        className: "num",
+        value: (a) => Number(a.cost),
+        text: (a) => money(a.cost, locale),
+      },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (a) => a.state,
+        text: (a) => stateLabel(a.state),
+        render: (a) => (
+          <span className={`badge state-${a.state === "draft" ? "draft" : "posted"}`}>
+            {stateLabel(a.state)}
+          </span>
+        ),
+      },
+    ],
+    [l, locale, stateLabel],
+  );
 
   async function depreciate() {
     setError(null);
@@ -58,7 +120,7 @@ export default function AssetsPage() {
           `${r.posted} depreciation entries posted for ${r.assets} assets.`,
         ),
       );
-      await load();
+      list.reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -88,53 +150,16 @@ export default function AssetsPage() {
         )}
       </header>
       {notice && <p className="notice">{notice}</p>}
-      {error && <p className="error">{error}</p>}
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>{l("Aset", "Asset")}</th>
-              <th>{l("Tanggal perolehan", "Acquired")}</th>
-              <th>{l("Metode", "Method")}</th>
-              <th className="num">{l("Masa manfaat (bln)", "Life (months)")}</th>
-              <th className="num">{l("Harga perolehan", "Cost")}</th>
-              <th>{l("Status", "Status")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {assets.map((a) => (
-              <tr key={a.id}>
-                <td>
-                  <Link href={`/accounting/assets/${a.id}`}>
-                    {a.code ? `${a.code} — ` : ""}
-                    {a.name}
-                  </Link>
-                </td>
-                <td>{formatDate(a.acquisitionDate, locale)}</td>
-                <td>
-                  {a.method === "straight_line"
-                    ? l("Garis lurus", "Straight line")
-                    : l("Saldo menurun", "Declining balance")}
-                </td>
-                <td className="num">{a.usefulLifeMonths}</td>
-                <td className="num">{money(a.cost, locale)}</td>
-                <td>
-                  <span className={`badge state-${a.state === "draft" ? "draft" : "posted"}`}>
-                    {stateLabel(a.state)}
-                  </span>
-                </td>
-              </tr>
-            ))}
-            {assets.length === 0 && (
-              <tr>
-                <td colSpan={6} className="muted">
-                  {l("Belum ada aset.", "No assets yet.")}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {(error ?? list.error) && <p className="error">{error ?? list.error}</p>}
+      <DataTable
+        rows={list.rows}
+        columns={columns}
+        storageKey="assets"
+        rowKey={(a) => a.id}
+        note={truncatedNote(list, l)}
+        onSearch={setSearch}
+        empty={l("Belum ada aset.", "No assets yet.")}
+      />
     </>
   );
 }

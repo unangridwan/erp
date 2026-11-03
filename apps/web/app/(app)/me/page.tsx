@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { download } from "../../../components/accounting/download";
 import {
   MyApprovalRequests,
@@ -27,6 +27,8 @@ import { api, ApiError } from "../../../lib/api";
 import { formatDate, money } from "../../../lib/format";
 import { useI18n } from "../../../lib/i18n";
 import { LEAVE_STATE_LABEL } from "../../../lib/resources";
+import { SortTh, TablePager, type ViewColumn } from "../../../components/data-table";
+import { useTableView } from "../../../lib/use-table-view";
 
 interface Employee {
   name: string;
@@ -72,6 +74,23 @@ export default function MyPortalPage() {
   const [colleagues, setColleagues] = useState<{ id: string; name: string }[]>([]);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const slipColumns = useMemo<ViewColumn<Slip>[]>(
+    () => [
+      { key: "runName", label: l("Payroll", "Payroll"), value: (s) => s.runName },
+      {
+        key: "paymentDate",
+        label: l("Tanggal bayar", "Payment date"),
+        type: "date",
+        value: (s) => s.paymentDate,
+      },
+      { key: "net", label: l("Gaji bersih", "Net pay"), type: "number", value: (s) => Number(s.net) },
+    ],
+    [l],
+  );
+  const slipTable = useTableView(slips, slipColumns, {
+    storageKey: "me-payslips",
+    defaultSort: { key: "paymentDate", dir: "desc" },
+  });
   const [notLinked, setNotLinked] = useState(false);
 
   useEffect(() => {
@@ -262,8 +281,22 @@ export default function MyPortalPage() {
         ) : (
           <div className="table-scroll">
             <table>
+              <thead>
+                <tr>
+                  <SortTh view={slipTable} col="runName">
+                    {l("Payroll", "Payroll")}
+                  </SortTh>
+                  <SortTh view={slipTable} col="paymentDate">
+                    {l("Tanggal bayar", "Payment date")}
+                  </SortTh>
+                  <SortTh view={slipTable} col="net" className="num">
+                    {l("Gaji bersih", "Net pay")}
+                  </SortTh>
+                  <th />
+                </tr>
+              </thead>
               <tbody>
-                {slips.map((s) => (
+                {slipTable.rows.map((s) => (
                   <tr key={s.id}>
                     <td>{s.runName}</td>
                     <td>{formatDate(s.paymentDate, locale)}</td>
@@ -287,6 +320,7 @@ export default function MyPortalPage() {
             </table>
           </div>
         )}
+        <TablePager view={slipTable} />
       </section>
       <MyTaxSlips />
       <MyChangeRequest />

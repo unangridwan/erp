@@ -1,11 +1,13 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { useMe } from "../../../../components/me-context";
-import { api } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
+import { useListData } from "../../../../lib/use-list-data";
 
 interface Row {
   id: string;
@@ -18,14 +20,25 @@ interface Row {
 export default function PricelistsPage() {
   const me = useMe();
   const { l } = useI18n();
-  const [rows, setRows] = useState<Row[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api<{ items: Row[] }>("/pricelists?active=all")
-      .then((d) => setRows(d.items))
-      .catch((e: Error) => setError(e.message));
-  }, []);
+  const list = useListData<Row>("/pricelists", { active: "all" });
+  const rows = list.loading && !list.rows.length ? null : list.rows;
+  const error = list.error;
+  const columns = useMemo<ViewColumn<Row>[]>(
+    () => [
+      { key: "name", label: l("Nama", "Name"), value: (r) => r.name },
+      { key: "currencyCode", label: l("Mata uang", "Currency"), type: "enum", value: (r) => r.currencyCode },
+      { key: "itemCount", label: l("Aturan", "Rules"), type: "number", value: (r) => r.itemCount },
+      {
+        key: "active",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (r) => (r.active ? "1" : "0"),
+        text: (r) => (r.active ? l("Aktif", "Active") : l("Nonaktif", "Inactive")),
+      },
+    ],
+    [l],
+  );
+  const table = useTableView(rows ?? [], columns, { storageKey: "pricelists" });
 
   return (
     <>
@@ -38,19 +51,28 @@ export default function PricelistsPage() {
         )}
       </header>
       {error && <p className="error">{error}</p>}
+      {rows && <TableTools view={table} />}
       {rows && (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{l("Nama", "Name")}</th>
-                <th>{l("Mata uang", "Currency")}</th>
-                <th className="num">{l("Aturan", "Rules")}</th>
-                <th>{l("Status", "Status")}</th>
+                <SortTh view={table} col="name">
+                  {l("Nama", "Name")}
+                </SortTh>
+                <SortTh view={table} col="currencyCode">
+                  {l("Mata uang", "Currency")}
+                </SortTh>
+                <SortTh view={table} col="itemCount" className="num">
+                  {l("Aturan", "Rules")}
+                </SortTh>
+                <SortTh view={table} col="active">
+                  {l("Status", "Status")}
+                </SortTh>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {table.rows.map((r) => (
                 <tr key={r.id}>
                   <td>
                     <Link href={`/sales/pricelists/${r.id}`}>{r.name}</Link>
@@ -60,10 +82,12 @@ export default function PricelistsPage() {
                   <td>{r.active ? l("Aktif", "Active") : l("Nonaktif", "Inactive")}</td>
                 </tr>
               ))}
-              {rows.length === 0 && (
+              {table.rows.length === 0 && (
                 <tr>
                   <td colSpan={4} className="muted">
-                    {l("Belum ada daftar harga.", "No pricelists yet.")}
+                    {rows.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Belum ada daftar harga.", "No pricelists yet.")}
                   </td>
                 </tr>
               )}
@@ -71,6 +95,7 @@ export default function PricelistsPage() {
           </table>
         </div>
       )}
+      {rows && <TablePager view={table} />}
     </>
   );
 }

@@ -1,6 +1,6 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { and, asc, eq, inArray, isNull, or, schema, sql, type Db } from "@erp/db";
-import { hasPermission, type activitySchema, type Permission } from "@erp/shared";
+import { hasPermission, LIST_LOAD_LIMIT, type activitySchema, type Permission } from "@erp/shared";
 import type { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
 import { currentContext } from "../common/request-context.js";
@@ -93,7 +93,7 @@ export class ScheduleService {
       .from(A)
       .where(and(eq(A.userId, ctx.userId), isNull(A.doneAt)))
       .orderBy(asc(A.dueDate))
-      .limit(200)
+      .limit(LIST_LOAD_LIMIT)
       .then((rows) =>
         rows.filter((r) => r.recordName !== null).map((r) => ({ ...r.activity, recordName: r.recordName })),
       );

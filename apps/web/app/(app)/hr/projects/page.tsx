@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { PROJECT_STATUSES, PROJECT_STATUS_LABEL, type ProjectStatus } from "@erp/shared";
+import { useEffect, useMemo, useState } from "react";
+import { PROJECT_STATUS_LABEL, type ProjectStatus } from "@erp/shared";
 import { projectStatusPill } from "../../../../components/hr/projects-panel";
 import { api } from "../../../../lib/api";
 import { formatDate } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface ProjectRow {
   id: string;
@@ -27,40 +29,52 @@ interface ProjectRow {
 export default function ProjectsPage() {
   const { l, locale } = useI18n();
   const [rows, setRows] = useState<ProjectRow[] | null>(null);
-  const [status, setStatus] = useState("active");
-  const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      const params = new URLSearchParams();
-      if (status) params.set("status", status);
-      if (q.trim()) params.set("q", q.trim());
-      api<ProjectRow[]>(`/projects?${params}`)
-        .then(setRows)
-        .catch((e: Error) => setError(e.message));
-    }, 250);
-    return () => clearTimeout(t);
-  }, [status, q]);
+    api<ProjectRow[]>("/projects")
+      .then(setRows)
+      .catch((e: Error) => setError(e.message));
+  }, []);
+  const columns = useMemo<ViewColumn<ProjectRow>[]>(
+    () => [
+      {
+        key: "name",
+        label: l("Proyek", "Project"),
+        value: (p) => p.name,
+        text: (p) => `${p.name} ${p.code ?? ""} ${p.app}`,
+      },
+      {
+        key: "status",
+        label: "Status",
+        type: "enum",
+        value: (p) => p.status,
+        optionLabel: (v) =>
+          PROJECT_STATUS_LABEL[v as ProjectStatus] ? l(...PROJECT_STATUS_LABEL[v as ProjectStatus]) : v,
+      },
+      { key: "manager", label: l("Manajer", "Manager"), type: "enum", value: (p) => p.manager },
+      { key: "startDate", label: l("Periode", "Period"), type: "date", value: (p) => p.startDate },
+      { key: "members", label: l("Anggota", "Members"), type: "number", value: (p) => p.members },
+      { key: "openTasks", label: l("Task terbuka", "Open tasks"), type: "number", value: (p) => p.openTasks },
+      {
+        key: "hoursThisMonth",
+        label: l("Jam bulan ini", "Hours this month"),
+        type: "number",
+        value: (p) => Number(p.hoursThisMonth),
+      },
+      { key: "app", label: l("Aplikasi", "App"), type: "enum", value: (p) => p.app, hidden: true },
+    ],
+    [l],
+  );
+  const table = useTableView(rows ?? [], columns, {
+    storageKey: "projects",
+    initialFilters: { status: { kind: "enum", values: ["active"] } },
+  });
 
   return (
     <>
       <header className="toolbar">
         <h1>{l("Proyek", "Projects")}</h1>
-        <input
-          type="search"
-          placeholder={l("Cari nama / kode…", "Search name / code…")}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">
-          <option value="">{l("Semua status", "All statuses")}</option>
-          {PROJECT_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {l(...PROJECT_STATUS_LABEL[s])}
-            </option>
-          ))}
-        </select>
       </header>
       <p className="muted">
         {l(
@@ -71,21 +85,38 @@ export default function ProjectsPage() {
       {error && <p className="error">{error}</p>}
       {rows && rows.length === 0 && <p className="muted">{l("Tidak ada proyek.", "No projects.")}</p>}
       {rows && rows.length > 0 && (
+        <TableTools view={table} placeholder={l("Cari nama / kode…", "Search name / code…")} />
+      )}
+      {rows && rows.length > 0 && (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{l("Proyek", "Project")}</th>
-                <th>Status</th>
-                <th>{l("Manajer", "Manager")}</th>
-                <th>{l("Periode", "Period")}</th>
-                <th className="num">{l("Anggota", "Members")}</th>
-                <th className="num">{l("Task terbuka", "Open tasks")}</th>
-                <th className="num">{l("Jam bulan ini", "Hours this month")}</th>
+                <SortTh view={table} col="name">
+                  {l("Proyek", "Project")}
+                </SortTh>
+                <SortTh view={table} col="status">
+                  Status
+                </SortTh>
+                <SortTh view={table} col="manager">
+                  {l("Manajer", "Manager")}
+                </SortTh>
+                <SortTh view={table} col="startDate">
+                  {l("Periode", "Period")}
+                </SortTh>
+                <SortTh view={table} col="members" className="num">
+                  {l("Anggota", "Members")}
+                </SortTh>
+                <SortTh view={table} col="openTasks" className="num">
+                  {l("Task terbuka", "Open tasks")}
+                </SortTh>
+                <SortTh view={table} col="hoursThisMonth" className="num">
+                  {l("Jam bulan ini", "Hours this month")}
+                </SortTh>
               </tr>
             </thead>
             <tbody>
-              {rows.map((p) => (
+              {table.rows.map((p) => (
                 <tr key={p.id}>
                   <td>
                     <Link href={`/hr/projects/${p.id}`}>{p.name}</Link>
@@ -110,10 +141,18 @@ export default function ProjectsPage() {
                   </td>
                 </tr>
               ))}
+              {table.rows.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="muted">
+                    {l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       )}
+      {rows && rows.length > 0 && <TablePager view={table} />}
     </>
   );
 }

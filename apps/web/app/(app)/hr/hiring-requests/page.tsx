@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
 import { errorText } from "../../../../components/hr/hr-panels";
 import {
   HIRING_STATE_LABEL,
@@ -13,6 +13,8 @@ import { RefSelect } from "../../../../components/ref-select";
 import { api, ApiError } from "../../../../lib/api";
 import { formatDate } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Row {
   id: string;
@@ -59,7 +61,6 @@ function HiringRequests() {
   const { l, locale } = useI18n();
   const router = useRouter();
   const lineId = useSearchParams().get("lineId");
-  const [state, setState] = useState("");
   const [d, setD] = useState<{ canManage: boolean; items: Row[] } | null>(null);
   const [form, setForm] = useState<typeof empty | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -68,12 +69,55 @@ function HiringRequests() {
 
   useEffect(() => {
     const q = new URLSearchParams();
-    if (state) q.set("state", state);
     if (lineId) q.set("lineId", lineId);
     api<{ canManage: boolean; items: Row[] }>(`/hiring-requests?${q}`).then(setD, (e) =>
       setError(errorText(e)),
     );
-  }, [state, lineId]);
+  }, [lineId]);
+  const columns = useMemo<ViewColumn<Row>[]>(
+    () => [
+      { key: "number", label: l("Nomor", "Number"), value: (r) => r.number },
+      {
+        key: "position",
+        label: l("Posisi", "Position"),
+        value: (r) => `${r.job} – ${r.department}`,
+      },
+      {
+        key: "department",
+        label: l("Departemen", "Department"),
+        type: "enum",
+        value: (r) => r.department,
+        hidden: true,
+      },
+      {
+        key: "kind",
+        label: l("Jenis", "Kind"),
+        type: "enum",
+        value: (r) => r.kind,
+        optionLabel: (v) => (v === "replacement" ? l("Pengganti", "Replacement") : l("Tambahan", "New")),
+        hidden: true,
+      },
+      { key: "quantity", label: l("Jumlah", "Qty"), type: "number", value: (r) => r.quantity },
+      {
+        key: "unplanned",
+        label: l("Asal", "Source"),
+        type: "enum",
+        value: (r) => (r.unplanned ? "1" : "0"),
+        optionLabel: (v) => (v === "1" ? l("Di luar MPP", "Unplanned") : "MPP"),
+      },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (r) => r.state,
+        optionLabel: (v) => (HIRING_STATE_LABEL[v as State] ? l(...HIRING_STATE_LABEL[v as State]) : v),
+      },
+      { key: "targetDate", label: l("Target", "Target"), type: "date", value: (r) => r.targetDate },
+      { key: "active", label: l("Karyawan aktif", "Active hires"), type: "number", value: (r) => r.active },
+    ],
+    [l],
+  );
+  const table = useTableView(d?.items ?? [], columns, { storageKey: "hiring-requests" });
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -113,14 +157,6 @@ function HiringRequests() {
       <section className="panel">
         <header className="toolbar">
           <h1>{l("Usulan Penambahan Karyawan (FPK)", "Hiring Requests")}</h1>
-          <select value={state} onChange={(e) => setState(e.target.value)} aria-label={l("Status", "Status")}>
-            <option value="">{l("Semua status", "All statuses")}</option>
-            {(Object.keys(HIRING_STATE_LABEL) as State[]).map((s) => (
-              <option key={s} value={s}>
-                {l(...HIRING_STATE_LABEL[s])}
-              </option>
-            ))}
-          </select>
           {!form && (
             <button type="button" onClick={() => setForm(empty)}>
               {l("FPK di luar MPP", "Unplanned request")}
@@ -273,21 +309,39 @@ function HiringRequests() {
       </section>
       {d && (
         <section className="panel">
+          <TableTools
+            view={table}
+            placeholder={l("Cari nomor, jabatan, departemen…", "Search number, position, department…")}
+          />
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
-                  <th>{l("Nomor", "Number")}</th>
-                  <th>{l("Posisi", "Position")}</th>
-                  <th className="num">{l("Jumlah", "Qty")}</th>
-                  <th>{l("Asal", "Source")}</th>
-                  <th>{l("Status", "Status")}</th>
-                  <th>{l("Target", "Target")}</th>
-                  <th className="num">{l("Karyawan aktif", "Active hires")}</th>
+                  <SortTh view={table} col="number">
+                    {l("Nomor", "Number")}
+                  </SortTh>
+                  <SortTh view={table} col="position">
+                    {l("Posisi", "Position")}
+                  </SortTh>
+                  <SortTh view={table} col="quantity" className="num">
+                    {l("Jumlah", "Qty")}
+                  </SortTh>
+                  <SortTh view={table} col="unplanned">
+                    {l("Asal", "Source")}
+                  </SortTh>
+                  <SortTh view={table} col="state">
+                    {l("Status", "Status")}
+                  </SortTh>
+                  <SortTh view={table} col="targetDate">
+                    {l("Target", "Target")}
+                  </SortTh>
+                  <SortTh view={table} col="active" className="num">
+                    {l("Karyawan aktif", "Active hires")}
+                  </SortTh>
                 </tr>
               </thead>
               <tbody>
-                {d.items.map((r) => (
+                {table.rows.map((r) => (
                   <tr key={r.id}>
                     <td>
                       <Link href={`/hr/hiring-requests/${r.id}`}>{r.number ?? l("(draft)", "(draft)")}</Link>
@@ -323,16 +377,19 @@ function HiringRequests() {
                     </td>
                   </tr>
                 ))}
-                {!d.items.length && (
+                {!table.rows.length && (
                   <tr>
                     <td colSpan={7} className="muted">
-                      {l("Belum ada FPK.", "No hiring requests yet.")}
+                      {d.items.length
+                        ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                        : l("Belum ada FPK.", "No hiring requests yet.")}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+          <TablePager view={table} />
         </section>
       )}
     </div>

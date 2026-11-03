@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { and, asc, count, eq, ilike, or, schema, sql, type Db, type SQL } from "@erp/db";
-import { hasPermission, type employeeSchema } from "@erp/shared";
+import { hasPermission, LIST_LOAD_LIMIT, type employeeSchema } from "@erp/shared";
 import type { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
 import { assertDimensions, fieldError } from "../accounting/context.js";
@@ -94,7 +94,7 @@ export class EmployeeService {
     tx: Db,
     query: { q?: string; departmentId?: string; active?: string; limit?: string; offset?: string },
   ) {
-    const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 500);
+    const limit = Math.min(Math.max(Number(query.limit) || 50, 1), LIST_LOAD_LIMIT);
     const offset = Math.max(Number(query.offset) || 0, 0);
     const filters: (SQL | undefined)[] = [eq(E.companyId, currentContext().companyId)];
     if (query.q) {

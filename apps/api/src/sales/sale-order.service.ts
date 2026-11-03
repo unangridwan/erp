@@ -23,6 +23,7 @@ import {
   type SQL,
 } from "@erp/db";
 import {
+  LIST_LOAD_LIMIT,
   addDays,
   computeInvoice,
   type createInvoiceFromOrderSchema,
@@ -149,7 +150,7 @@ export class SaleOrderService implements OnModuleInit {
   // ---- Baca ----
 
   async list(tx: Db, query: OrderQuery) {
-    const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
+    const limit = Math.min(Math.max(Number(query.limit) || 50, 1), LIST_LOAD_LIMIT);
     const offset = Math.max(Number(query.offset) || 0, 0);
     const filters: (SQL | undefined)[] = [scope()];
     if (query.q) {

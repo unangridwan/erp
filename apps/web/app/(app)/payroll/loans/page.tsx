@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useOptions } from "../../../../components/accounting/use-options";
 import { useMe } from "../../../../components/me-context";
 import { RefSelect } from "../../../../components/ref-select";
@@ -9,6 +9,8 @@ import { api, ApiError } from "../../../../lib/api";
 import { formatDate, money, today } from "../../../../lib/format";
 import { L, useI18n, type Text } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Loan {
   id: string;
@@ -40,7 +42,6 @@ export default function LoansPage() {
   const { l, tx, locale } = useI18n();
   const journals = useOptions<{ id: string; code: string; name: string; journalType: string }>("/journals");
   const cashJournals = journals.filter((j) => j.journalType === "bank" || j.journalType === "cash");
-  const [state, setState] = useState("");
   const [rows, setRows] = useState<Loan[] | null>(null);
   const [detail, setDetail] = useState<LoanDetail | null>(null);
   const [disburse, setDisburse] = useState({ journalId: "", date: today() });
@@ -58,10 +59,35 @@ export default function LoansPage() {
   const manage = can(me.permissions, "payroll.manage");
 
   useEffect(() => {
-    api<Loan[]>(`/employee-loans${state ? `?state=${state}` : ""}`)
+    api<Loan[]>("/employee-loans")
       .then(setRows)
       .catch((e: Error) => setError(e.message));
-  }, [state, version]);
+  }, [version]);
+  const columns = useMemo<ViewColumn<Loan>[]>(
+    () => [
+      { key: "employee", label: l("Karyawan", "Employee"), value: (r) => r.employeeName },
+      { key: "name", label: l("Keperluan", "Purpose"), value: (r) => r.name },
+      { key: "principal", label: l("Pokok", "Principal"), type: "number", value: (r) => Number(r.principal) },
+      {
+        key: "installment",
+        label: l("Cicilan", "Installment"),
+        type: "number",
+        value: (r) => Number(r.installment),
+      },
+      { key: "startPeriod", label: l("Mulai", "From"), type: "enum", value: (r) => r.startPeriod },
+      { key: "paid", label: l("Terbayar", "Paid"), type: "number", value: (r) => Number(r.paid) },
+      { key: "remaining", label: l("Sisa", "Remaining"), type: "number", value: (r) => Number(r.remaining) },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (r) => r.state,
+        optionLabel: (v) => (STATE[v] ? tx(STATE[v]!) : v),
+      },
+    ],
+    [l, tx],
+  );
+  const table = useTableView(rows ?? [], columns, { storageKey: "employee-loans" });
 
   async function run(fn: () => Promise<unknown>) {
     setError(null);
@@ -94,14 +120,6 @@ export default function LoansPage() {
     <>
       <header className="toolbar">
         <h1>{l("Pinjaman Karyawan", "Employee Loans")}</h1>
-        <select value={state} onChange={(e) => setState(e.target.value)}>
-          <option value="">{l("Semua", "All")}</option>
-          {Object.entries(STATE).map(([k, v]) => (
-            <option key={k} value={k}>
-              {tx(v)}
-            </option>
-          ))}
-        </select>
       </header>
       {error && <p className="error">{error}</p>}
       {writable && (
@@ -159,23 +177,40 @@ export default function LoansPage() {
           <button className="primary">{l("Buat", "Create")}</button>
         </form>
       )}
+      {rows && <TableTools view={table} />}
       {rows && (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{l("Karyawan", "Employee")}</th>
-                <th>{l("Keperluan", "Purpose")}</th>
-                <th className="num">{l("Pokok", "Principal")}</th>
-                <th className="num">{l("Cicilan", "Installment")}</th>
-                <th>{l("Mulai", "From")}</th>
-                <th className="num">{l("Terbayar", "Paid")}</th>
-                <th className="num">{l("Sisa", "Remaining")}</th>
-                <th>{l("Status", "Status")}</th>
+                <SortTh view={table} col="employee">
+                  {l("Karyawan", "Employee")}
+                </SortTh>
+                <SortTh view={table} col="name">
+                  {l("Keperluan", "Purpose")}
+                </SortTh>
+                <SortTh view={table} col="principal" className="num">
+                  {l("Pokok", "Principal")}
+                </SortTh>
+                <SortTh view={table} col="installment" className="num">
+                  {l("Cicilan", "Installment")}
+                </SortTh>
+                <SortTh view={table} col="startPeriod">
+                  {l("Mulai", "From")}
+                </SortTh>
+                <SortTh view={table} col="paid" className="num">
+                  {l("Terbayar", "Paid")}
+                </SortTh>
+                <SortTh view={table} col="remaining" className="num">
+                  {l("Sisa", "Remaining")}
+                </SortTh>
+                <SortTh view={table} col="state">
+                  {l("Status", "Status")}
+                </SortTh>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {table.rows.map((r) => (
                 <Fragment key={r.id}>
                   <tr>
                     <td>{r.employeeName}</td>
@@ -301,10 +336,12 @@ export default function LoansPage() {
                   )}
                 </Fragment>
               ))}
-              {rows.length === 0 && (
+              {table.rows.length === 0 && (
                 <tr>
                   <td colSpan={8} className="muted">
-                    {l("Belum ada pinjaman.", "No loans.")}
+                    {rows.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Belum ada pinjaman.", "No loans.")}
                   </td>
                 </tr>
               )}
@@ -312,6 +349,7 @@ export default function LoansPage() {
           </table>
         </div>
       )}
+      {rows && <TablePager view={table} />}
     </>
   );
 }

@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
+import { DataTable, type DataColumn } from "../../../../components/data-table";
 import { useMe } from "../../../../components/me-context";
-import { api } from "../../../../lib/api";
 import { formatDate } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { useListData } from "../../../../lib/use-list-data";
 
 interface Budget {
   id: string;
@@ -19,13 +20,44 @@ interface Budget {
 export default function BudgetsPage() {
   const me = useMe();
   const { l, locale } = useI18n();
-  const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    api<Budget[]>("/budgets")
-      .then(setBudgets)
-      .catch((e: Error) => setError(e.message));
-  }, []);
+  const list = useListData<Budget>("/budgets");
+  const columns = useMemo<DataColumn<Budget>[]>(
+    () => [
+      {
+        key: "name",
+        label: l("Nama", "Name"),
+        value: (b) => b.name,
+        render: (b) => (
+          <>
+            <Link href={`/accounting/budgets/${b.id}`}>{b.name}</Link>
+            {b.source === "manpower" && (
+              <>
+                {" "}
+                <span className="pill ok">{l("Dari MPP", "From MPP")}</span>
+              </>
+            )}
+          </>
+        ),
+      },
+      {
+        key: "dateFrom",
+        label: l("Periode", "Period"),
+        type: "date",
+        value: (b) => b.dateFrom,
+        text: (b) => `${formatDate(b.dateFrom, locale)} – ${formatDate(b.dateTo, locale)}`,
+      },
+      {
+        key: "source",
+        label: l("Sumber", "Source"),
+        type: "enum",
+        value: (b) => b.source,
+        text: (b) =>
+          b.source === "manpower" ? l("Man Power Planning", "Manpower planning") : l("Manual", "Manual"),
+        hidden: true,
+      },
+    ],
+    [l, locale],
+  );
   return (
     <>
       <header className="toolbar">
@@ -36,42 +68,15 @@ export default function BudgetsPage() {
           </Link>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>{l("Nama", "Name")}</th>
-              <th>{l("Periode", "Period")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {budgets.map((b) => (
-              <tr key={b.id}>
-                <td>
-                  <Link href={`/accounting/budgets/${b.id}`}>{b.name}</Link>
-                  {b.source === "manpower" && (
-                    <>
-                      {" "}
-                      <span className="pill ok">{l("Dari MPP", "From MPP")}</span>
-                    </>
-                  )}
-                </td>
-                <td>
-                  {formatDate(b.dateFrom, locale)} – {formatDate(b.dateTo, locale)}
-                </td>
-              </tr>
-            ))}
-            {budgets.length === 0 && (
-              <tr>
-                <td colSpan={2} className="muted">
-                  {l("Belum ada anggaran.", "No budgets yet.")}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {list.error && <p className="error">{list.error}</p>}
+      <DataTable
+        rows={list.rows}
+        columns={columns}
+        storageKey="budgets"
+        rowKey={(b) => b.id}
+        defaultSort={{ key: "dateFrom", dir: "desc" }}
+        empty={l("Belum ada anggaran.", "No budgets yet.")}
+      />
     </>
   );
 }

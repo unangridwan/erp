@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../../../../lib/api";
 import { money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Valuation {
   date: string;
@@ -32,6 +34,38 @@ export default function ValuationPage() {
       .catch((e: Error) => setError(e.message));
   }, [date]);
 
+  type Item = Valuation["items"][number];
+  const columns = useMemo<ViewColumn<Item>[]>(
+    () => [
+      { key: "product", label: l("Produk", "Product"), value: (r) => `${r.sku} ${r.name}` },
+      {
+        key: "costMethod",
+        label: l("Metode", "Method"),
+        type: "enum",
+        value: (r) => r.costMethod.toUpperCase(),
+      },
+      {
+        key: "quantity",
+        label: l("Kuantitas", "Quantity"),
+        type: "number",
+        value: (r) => Number(r.quantity),
+      },
+      {
+        key: "averageCost",
+        label: l("Biaya rata-rata", "Average cost"),
+        type: "number",
+        value: (r) => (r.averageCost === null ? null : Number(r.averageCost)),
+      },
+      { key: "value", label: l("Nilai", "Value"), type: "number", value: (r) => Number(r.value) },
+    ],
+    [l],
+  );
+  const table = useTableView(data?.items ?? [], columns, { storageKey: "stock-valuation" });
+  const filteredTotal =
+    data && table.total !== data.items.length
+      ? table.filtered.reduce((sum, r) => sum + Number(r.value), 0)
+      : Number(data?.total ?? 0);
+
   return (
     <>
       <header className="toolbar">
@@ -45,20 +79,31 @@ export default function ValuationPage() {
         </button>
       </header>
       {error && <p className="error">{error}</p>}
+      {data && <TableTools view={table} />}
       {data && (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{l("Produk", "Product")}</th>
-                <th>{l("Metode", "Method")}</th>
-                <th className="num">{l("Kuantitas", "Quantity")}</th>
-                <th className="num">{l("Biaya rata-rata", "Average cost")}</th>
-                <th className="num">{l("Nilai", "Value")}</th>
+                <SortTh view={table} col="product">
+                  {l("Produk", "Product")}
+                </SortTh>
+                <SortTh view={table} col="costMethod">
+                  {l("Metode", "Method")}
+                </SortTh>
+                <SortTh view={table} col="quantity" className="num">
+                  {l("Kuantitas", "Quantity")}
+                </SortTh>
+                <SortTh view={table} col="averageCost" className="num">
+                  {l("Biaya rata-rata", "Average cost")}
+                </SortTh>
+                <SortTh view={table} col="value" className="num">
+                  {l("Nilai", "Value")}
+                </SortTh>
               </tr>
             </thead>
             <tbody>
-              {data.items.map((r) => (
+              {table.rows.map((r) => (
                 <tr key={r.productId}>
                   <td>
                     {r.sku} {r.name}
@@ -69,10 +114,12 @@ export default function ValuationPage() {
                   <td className="num">{money(r.value, locale)}</td>
                 </tr>
               ))}
-              {data.items.length === 0 && (
+              {table.rows.length === 0 && (
                 <tr>
                   <td colSpan={5} className="muted">
-                    {l("Belum ada persediaan bernilai.", "No valued inventory yet.")}
+                    {data.items.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Belum ada persediaan bernilai.", "No valued inventory yet.")}
                   </td>
                 </tr>
               )}
@@ -82,12 +129,13 @@ export default function ValuationPage() {
                 <th colSpan={4}>
                   {l("Total (cocokkan dengan akun 1-1400)", "Total (reconcile with account 1-1400)")}
                 </th>
-                <th className="num">{money(data.total, locale)}</th>
+                <th className="num">{money(filteredTotal, locale)}</th>
               </tr>
             </tfoot>
           </table>
         </div>
       )}
+      {data && <TablePager view={table} />}
     </>
   );
 }

@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 export interface ConnectedApp {
   id: string;
@@ -34,6 +36,50 @@ export default function ConnectedAppsPage() {
     timeStyle: "short",
   });
 
+  const columns = useMemo<ViewColumn<ConnectedApp>[]>(
+    () => [
+      { key: "name", label: l("Nama", "Name"), value: (a) => a.name, text: (a) => `${a.name} ${a.clientId}` },
+      {
+        key: "login",
+        label: l("Login", "Sign-in"),
+        value: (a) =>
+          a.redirectUris.length
+            ? a.allowedRoles.length
+              ? a.allowedRoles.map((r) => r.name).join(", ")
+              : l("Semua pengguna", "All users")
+            : null,
+      },
+      { key: "api", label: "API", value: (a) => a.serviceUser?.roles.map((r) => r.name).join(", ") || null },
+      {
+        key: "webhook",
+        label: "Webhook",
+        type: "enum",
+        value: (a) => (!a.webhookUrl ? "none" : a.deliveries.failed > 0 ? "failed" : "ok"),
+        optionLabel: (v) =>
+          v === "none"
+            ? l("Tanpa webhook", "No webhook")
+            : v === "failed"
+              ? l("Ada yang gagal", "Has failures")
+              : l("Lancar", "Healthy"),
+      },
+      {
+        key: "lastUsedAt",
+        label: l("Terakhir dipakai", "Last used"),
+        type: "date",
+        value: (a) => a.lastUsedAt,
+      },
+      {
+        key: "active",
+        label: "Status",
+        type: "enum",
+        value: (a) => (a.active ? "1" : "0"),
+        optionLabel: (v) => (v === "1" ? l("Aktif", "Active") : l("Nonaktif", "Inactive")),
+      },
+    ],
+    [l],
+  );
+  const table = useTableView(apps ?? [], columns, { storageKey: "connected-apps" });
+
   useEffect(() => {
     api<ConnectedApp[]>("/connected-apps")
       .then(setApps)
@@ -58,21 +104,34 @@ export default function ConnectedAppsPage() {
       {apps && apps.length === 0 && (
         <p className="muted">{l("Belum ada aplikasi terhubung.", "No connected apps yet.")}</p>
       )}
+      {apps && apps.length > 0 && <TableTools view={table} />}
       {apps && apps.length > 0 && (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{l("Nama", "Name")}</th>
-                <th>{l("Login", "Sign-in")}</th>
-                <th>API</th>
-                <th>Webhook</th>
-                <th>{l("Terakhir dipakai", "Last used")}</th>
-                <th>Status</th>
+                <SortTh view={table} col="name">
+                  {l("Nama", "Name")}
+                </SortTh>
+                <SortTh view={table} col="login">
+                  {l("Login", "Sign-in")}
+                </SortTh>
+                <SortTh view={table} col="api">
+                  API
+                </SortTh>
+                <SortTh view={table} col="webhook">
+                  Webhook
+                </SortTh>
+                <SortTh view={table} col="lastUsedAt">
+                  {l("Terakhir dipakai", "Last used")}
+                </SortTh>
+                <SortTh view={table} col="active">
+                  Status
+                </SortTh>
               </tr>
             </thead>
             <tbody>
-              {apps.map((a) => (
+              {table.rows.map((a) => (
                 <tr key={a.id}>
                   <td>
                     <Link href={`/settings/connected-apps/${a.id}`}>{a.name}</Link>
@@ -118,6 +177,7 @@ export default function ConnectedAppsPage() {
           </table>
         </div>
       )}
+      {apps && apps.length > 0 && <TablePager view={table} />}
     </>
   );
 }

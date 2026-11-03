@@ -17,6 +17,7 @@ import {
   type attendanceRequestSchema,
   type DaySchedule,
   type shiftRequestSchema,
+  LIST_LOAD_LIMIT,
 } from "@erp/shared";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { z } from "zod";
@@ -613,7 +614,7 @@ export class AttendanceService {
         ),
       )
       .orderBy(desc(AR.createdAt))
-      .limit(500);
+      .limit(LIST_LOAD_LIMIT);
     return rows;
   }
 
@@ -813,7 +814,7 @@ export class AttendanceService {
         ),
       )
       .orderBy(desc(SR.createdAt))
-      .limit(500);
+      .limit(LIST_LOAD_LIMIT);
   }
 
   async getShiftRequest(tx: Db, id: string) {

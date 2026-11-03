@@ -24,6 +24,7 @@ import {
   type SQL,
 } from "@erp/db";
 import {
+  LIST_LOAD_LIMIT,
   addDays,
   computeInvoice,
   hasPermission,
@@ -136,7 +137,7 @@ export class PurchaseOrderService implements OnModuleInit {
   }
 
   async list(tx: Db, query: PurchaseQuery) {
-    const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 200);
+    const limit = Math.min(Math.max(Number(query.limit) || 50, 1), LIST_LOAD_LIMIT);
     const offset = Math.max(Number(query.offset) || 0, 0);
     const filters: (SQL | undefined)[] = [eq(O.companyId, currentContext().companyId)];
     if (query.q) {

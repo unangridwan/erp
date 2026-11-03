@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { api } from "../../lib/api";
+import { useMemo, useState } from "react";
 import { formatDate, money } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
 import {
@@ -12,6 +11,8 @@ import {
   ORDER_STATE_LABEL,
   type OrderKind,
 } from "../../lib/resources";
+import { truncatedNote, useListData } from "../../lib/use-list-data";
+import { DataTable, type DataColumn } from "../data-table";
 import { useMe } from "../me-context";
 
 interface OrderRow {
@@ -21,6 +22,7 @@ interface OrderRow {
   dateOrder: string;
   validityDate: string | null;
   partnerName: string;
+  userId: string | null;
   userName: string | null;
   clientOrderRef: string | null;
   currencyCode: string;
@@ -28,120 +30,111 @@ interface OrderRow {
   invoiceStatus: string;
 }
 
-const PAGE = 50;
-
+/** Penawaran / pesanan penjualan: dimuat sekali, lalu cari, filter, sort & paginasi di browser. */
 export function OrderList({ kind }: { kind: OrderKind }) {
   const me = useMe();
   const { l, tx, locale } = useI18n();
   const def = ORDER_KINDS[kind];
-  const [q, setQ] = useState("");
   const [mine, setMine] = useState(false);
-  const [offset, setOffset] = useState(0);
-  const [data, setData] = useState<{ items: OrderRow[]; total: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const params = new URLSearchParams({ state: def.state, limit: String(PAGE), offset: String(offset) });
-    if (def.invoiceStatus) params.set("invoiceStatus", def.invoiceStatus);
-    if (q) params.set("q", q);
-    if (mine) params.set("userId", "me");
-    const timer = setTimeout(
-      () =>
-        api<{ items: OrderRow[]; total: number }>(`/sale-orders?${params}`)
-          .then(setData)
-          .catch((e: Error) => setError(e.message)),
-      200,
-    );
-    return () => clearTimeout(timer);
-  }, [def, q, mine, offset]);
-
+  const [search, setSearch] = useState("");
+  const list = useListData<OrderRow>(
+    "/sale-orders",
+    { state: def.state, invoiceStatus: def.invoiceStatus || null },
+    search,
+  );
+  const rows = useMemo(
+    () => (mine ? list.rows.filter((o) => o.userId === me.userId) : list.rows),
+    [list.rows, mine, me.userId],
+  );
   const quotations = kind === "quotations";
+
+  const columns = useMemo<DataColumn<OrderRow>[]>(
+    () => [
+      {
+        key: "name",
+        label: l("Nomor", "Number"),
+        value: (o) => o.name,
+        render: (o) => <Link href={`/sales/orders/${o.id}`}>{o.name}</Link>,
+      },
+      {
+        key: "dateOrder",
+        label: l("Tanggal", "Date"),
+        type: "date",
+        value: (o) => o.dateOrder,
+        text: (o) => formatDate(o.dateOrder, locale),
+      },
+      { key: "partner", label: l("Pelanggan", "Customer"), value: (o) => o.partnerName },
+      { key: "clientOrderRef", label: l("Ref. pelanggan", "Customer ref."), value: (o) => o.clientOrderRef },
+      { key: "user", label: l("Penjual", "Salesperson"), type: "enum", value: (o) => o.userName },
+      {
+        key: "amountTotal",
+        label: l("Total", "Total"),
+        type: "number",
+        className: "num",
+        value: (o) => Number(o.amountTotal),
+        text: (o) => `${o.currencyCode} ${money(o.amountTotal, locale)}`,
+      },
+      quotations
+        ? {
+            key: "state",
+            label: l("Status", "Status"),
+            type: "enum",
+            value: (o) => o.state,
+            text: (o) => (ORDER_STATE_LABEL[o.state] ? tx(ORDER_STATE_LABEL[o.state]!) : o.state),
+            render: (o) => (
+              <span className={`badge state-${o.state}`}>{tx(ORDER_STATE_LABEL[o.state]!)}</span>
+            ),
+          }
+        : {
+            key: "invoiceStatus",
+            label: l("Penagihan", "Invoicing"),
+            type: "enum",
+            value: (o) => o.invoiceStatus,
+            text: (o) =>
+              INVOICE_STATUS_LABEL[o.invoiceStatus]
+                ? tx(INVOICE_STATUS_LABEL[o.invoiceStatus]!)
+                : o.invoiceStatus,
+            render: (o) => (
+              <span className={`badge state-${o.invoiceStatus}`}>
+                {tx(INVOICE_STATUS_LABEL[o.invoiceStatus]!)}
+              </span>
+            ),
+          },
+    ],
+    [l, tx, locale, quotations],
+  );
 
   return (
     <>
       <header className="toolbar">
         <h1>{tx(def.title)}</h1>
-        <input
-          type="search"
-          placeholder={l("Cari nomor, pelanggan, ref…", "Search number, customer, reference…")}
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setOffset(0);
-          }}
-        />
-        <label className="field check">
-          <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} />
-          <span>{l("Milik saya", "Mine")}</span>
-        </label>
         {quotations && can(me.permissions, "sales.write") && (
           <Link className="button primary" href="/sales/orders/new">
             {l("Baru", "New")}
           </Link>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
-      {data && (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{l("Nomor", "Number")}</th>
-                <th>{l("Tanggal", "Date")}</th>
-                <th>{l("Pelanggan", "Customer")}</th>
-                <th>{l("Ref. pelanggan", "Customer ref.")}</th>
-                <th>{l("Penjual", "Salesperson")}</th>
-                <th className="num">{l("Total", "Total")}</th>
-                <th>{quotations ? l("Status", "Status") : l("Penagihan", "Invoicing")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((o) => (
-                <tr key={o.id}>
-                  <td>
-                    <Link href={`/sales/orders/${o.id}`}>{o.name}</Link>
-                  </td>
-                  <td>{formatDate(o.dateOrder, locale)}</td>
-                  <td>{o.partnerName}</td>
-                  <td>{o.clientOrderRef}</td>
-                  <td>{o.userName}</td>
-                  <td className="num">
-                    {o.currencyCode} {money(o.amountTotal, locale)}
-                  </td>
-                  <td>
-                    {quotations ? (
-                      <span className={`badge state-${o.state}`}>{tx(ORDER_STATE_LABEL[o.state]!)}</span>
-                    ) : (
-                      <span className={`badge state-${o.invoiceStatus}`}>
-                        {tx(INVOICE_STATUS_LABEL[o.invoiceStatus]!)}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {data.items.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="muted">
-                    {l("Belum ada data.", "No records yet.")}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {data && data.total > PAGE && (
-        <div className="pager">
-          <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>
-            ‹
-          </button>
-          <span>
-            {offset + 1}–{Math.min(offset + PAGE, data.total)} {l("dari", "of")} {data.total}
-          </span>
-          <button disabled={offset + PAGE >= data.total} onClick={() => setOffset(offset + PAGE)}>
-            ›
-          </button>
-        </div>
+      {list.error && <p className="error">{list.error}</p>}
+      {!list.loading || list.rows.length ? (
+        <DataTable
+          rows={rows}
+          columns={columns}
+          storageKey={`sale-orders.${kind}`}
+          rowKey={(o) => o.id}
+          defaultSort={{ key: "dateOrder", dir: "desc" }}
+          note={truncatedNote(list, l)}
+          onSearch={setSearch}
+          searchPlaceholder={l("Cari nomor, pelanggan, ref…", "Search number, customer, reference…")}
+          empty={l("Belum ada data.", "No records yet.")}
+          tools={
+            <label className="check">
+              <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} />
+              <span>{l("Milik saya", "Mine")}</span>
+            </label>
+          }
+        />
+      ) : (
+        <p className="muted">{l("Memuat…", "Loading…")}</p>
       )}
     </>
   );

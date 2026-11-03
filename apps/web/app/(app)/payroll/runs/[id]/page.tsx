@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { download } from "../../../../../components/accounting/download";
 import { useOptions } from "../../../../../components/accounting/use-options";
 import { useMe } from "../../../../../components/me-context";
@@ -11,6 +11,8 @@ import { api } from "../../../../../lib/api";
 import { formatDate, money, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can, PAYROLL_STATE_LABEL } from "../../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../../components/data-table";
+import { useTableView } from "../../../../../lib/use-table-view";
 
 interface Run {
   id: string;
@@ -75,6 +77,79 @@ export default function PayrollRunPage() {
   const [holiday, setHoliday] = useState("");
   const [bankFormat, setBankFormat] = useState("csv");
   const [version, setVersion] = useState(0);
+
+  type Slip = Run["payslips"][number];
+  const columns = useMemo<ViewColumn<Slip>[]>(() => {
+    const amount = (
+      key: "earnings" | "gross" | "pph21" | "kesEmployee" | "tkEmployee" | "net",
+      label: string,
+    ) => ({
+      key,
+      label,
+      type: "number" as const,
+      value: (p: Slip) => Number(p[key]),
+    });
+    return [
+      {
+        key: "employee",
+        label: l("Karyawan", "Employee"),
+        value: (p) => p.employeeName,
+        text: (p) => `${p.employeeName} ${p.employeeNumber}`,
+      },
+      {
+        key: "department",
+        label: l("Departemen", "Department"),
+        type: "enum",
+        value: (p) => p.departmentName,
+        hidden: true,
+      },
+      {
+        key: "ptkp",
+        label: "PTKP / TER",
+        type: "enum",
+        value: (p) => p.ptkpStatus,
+      },
+      {
+        key: "unpaidDays",
+        label: l("Hari tak dibayar", "Unpaid days"),
+        type: "number",
+        value: (p) => Number(p.unpaidDays),
+      },
+      amount("earnings", l("Pendapatan", "Earnings")),
+      amount("gross", l("Bruto PPh 21", "PPh 21 gross")),
+      amount("pph21", "PPh 21"),
+      amount("kesEmployee", l("BPJS Kesehatan", "BPJS Health")),
+      amount("tkEmployee", l("BPJS Ketenagakerjaan", "BPJS Employment")),
+      amount("net", l("Gaji bersih", "Net")),
+      {
+        key: "hold",
+        label: l("Penahanan", "Hold"),
+        type: "enum",
+        value: (p) => (!p.holdReason ? "none" : p.releasedAt ? "released" : "held"),
+        optionLabel: (v) =>
+          v === "held"
+            ? l("Ditahan", "On hold")
+            : v === "released"
+              ? l("Sudah dilepas", "Released")
+              : l("Tidak ditahan", "Not held"),
+        hidden: true,
+      },
+      {
+        key: "emailed",
+        label: l("Slip email", "Payslip email"),
+        type: "enum",
+        value: (p) => (p.emailError ? "error" : p.emailedAt ? "sent" : "none"),
+        optionLabel: (v) =>
+          v === "sent"
+            ? l("Terkirim", "Sent")
+            : v === "error"
+              ? l("Gagal", "Failed")
+              : l("Belum dikirim", "Not sent"),
+        hidden: true,
+      },
+    ];
+  }, [l]);
+  const table = useTableView(run?.payslips ?? [], columns, { storageKey: "payroll-run-slips" });
 
   const load = () =>
     api<Run>(`/payroll-runs/${id}`)
@@ -421,23 +496,42 @@ export default function PayrollRunPage() {
           </li>
         ))}
       </ul>
+      <TableTools view={table} placeholder={l("Cari karyawan, nomor…", "Search employee, number…")} />
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>{l("Karyawan", "Employee")}</th>
-              <th>PTKP / TER</th>
-              <th className="num">{l("Hari tak dibayar", "Unpaid days")}</th>
-              <th className="num">{l("Pendapatan", "Earnings")}</th>
-              <th className="num">{l("Bruto PPh 21", "PPh 21 gross")}</th>
-              <th className="num">PPh 21</th>
-              <th className="num">{l("BPJS Kesehatan", "BPJS Health")}</th>
-              <th className="num">{l("BPJS Ketenagakerjaan", "BPJS Employment")}</th>
-              <th className="num">{l("Gaji bersih", "Net")}</th>
+              <SortTh view={table} col="employee">
+                {l("Karyawan", "Employee")}
+              </SortTh>
+              <SortTh view={table} col="ptkp">
+                PTKP / TER
+              </SortTh>
+              <SortTh view={table} col="unpaidDays" className="num">
+                {l("Hari tak dibayar", "Unpaid days")}
+              </SortTh>
+              <SortTh view={table} col="earnings" className="num">
+                {l("Pendapatan", "Earnings")}
+              </SortTh>
+              <SortTh view={table} col="gross" className="num">
+                {l("Bruto PPh 21", "PPh 21 gross")}
+              </SortTh>
+              <SortTh view={table} col="pph21" className="num">
+                PPh 21
+              </SortTh>
+              <SortTh view={table} col="kesEmployee" className="num">
+                {l("BPJS Kesehatan", "BPJS Health")}
+              </SortTh>
+              <SortTh view={table} col="tkEmployee" className="num">
+                {l("BPJS Ketenagakerjaan", "BPJS Employment")}
+              </SortTh>
+              <SortTh view={table} col="net" className="num">
+                {l("Gaji bersih", "Net")}
+              </SortTh>
             </tr>
           </thead>
           <tbody>
-            {run.payslips.map((p) => (
+            {table.rows.map((p) => (
               <tr key={p.id}>
                 <td>
                   <Link href={`/payroll/payslips/${p.id}`}>{p.employeeName}</Link>
@@ -491,19 +585,22 @@ export default function PayrollRunPage() {
                 </td>
               </tr>
             ))}
-            {run.payslips.length === 0 && (
+            {table.rows.length === 0 && (
               <tr>
                 <td colSpan={9} className="muted">
-                  {l(
-                    "Tidak ada karyawan dengan kontrak berjalan pada periode ini.",
-                    "No employees with a running contract in this period.",
-                  )}
+                  {run.payslips.length
+                    ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                    : l(
+                        "Tidak ada karyawan dengan kontrak berjalan pada periode ini.",
+                        "No employees with a running contract in this period.",
+                      )}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      <TablePager view={table} />
     </div>
   );
 }

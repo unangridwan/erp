@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Category {
   id: string;
@@ -29,6 +31,36 @@ export default function ApprovalCategoriesPage() {
     api<Category[]>("/approval-categories").then(setRows, (e: Error) => setError(e.message));
   }, []);
 
+  const columns = useMemo<ViewColumn<Category>[]>(
+    () => [
+      { key: "code", label: l("Kode", "Code"), value: (r) => r.code },
+      { key: "name", label: l("Nama", "Name"), value: (r) => r.name },
+      { key: "prefix", label: l("Prefix nomor", "Number prefix"), value: (r) => r.prefix },
+      {
+        key: "approvalMode",
+        label: l("Alur", "Flow"),
+        type: "enum",
+        value: (r) => r.approvalMode,
+        optionLabel: (v) => (v === "parallel" ? l("Paralel", "Parallel") : l("Berurutan", "Sequential")),
+      },
+      {
+        key: "approverCount",
+        label: l("Penyetuju", "Approvers"),
+        type: "number",
+        value: (r) => r.approverCount,
+      },
+      {
+        key: "active",
+        label: l("Aktif", "Active"),
+        type: "enum",
+        value: (r) => (r.active ? "1" : "0"),
+        optionLabel: (v) => (v === "1" ? l("Ya", "Yes") : l("Tidak", "No")),
+      },
+    ],
+    [l],
+  );
+  const table = useTableView(rows ?? [], columns, { storageKey: "approval-categories" });
+
   return (
     <div className="panel">
       <header className="toolbar">
@@ -46,20 +78,33 @@ export default function ApprovalCategoriesPage() {
         )}
       </p>
       {error && <p className="error">{error}</p>}
+      <TableTools view={table} />
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>{l("Kode", "Code")}</th>
-              <th>{l("Nama", "Name")}</th>
-              <th>{l("Prefix nomor", "Number prefix")}</th>
-              <th>{l("Alur", "Flow")}</th>
-              <th className="num">{l("Penyetuju", "Approvers")}</th>
-              <th>{l("Aktif", "Active")}</th>
+              <SortTh view={table} col="code">
+                {l("Kode", "Code")}
+              </SortTh>
+              <SortTh view={table} col="name">
+                {l("Nama", "Name")}
+              </SortTh>
+              <SortTh view={table} col="prefix">
+                {l("Prefix nomor", "Number prefix")}
+              </SortTh>
+              <SortTh view={table} col="approvalMode">
+                {l("Alur", "Flow")}
+              </SortTh>
+              <SortTh view={table} col="approverCount" className="num">
+                {l("Penyetuju", "Approvers")}
+              </SortTh>
+              <SortTh view={table} col="active">
+                {l("Aktif", "Active")}
+              </SortTh>
             </tr>
           </thead>
           <tbody>
-            {rows?.map((c) => (
+            {table.rows.map((c) => (
               <tr key={c.id}>
                 <td>
                   <Link href={`/hr/approval-categories/${c.id}`}>{c.code}</Link>
@@ -78,6 +123,7 @@ export default function ApprovalCategoriesPage() {
           </tbody>
         </table>
       </div>
+      <TablePager view={table} />
     </div>
   );
 }

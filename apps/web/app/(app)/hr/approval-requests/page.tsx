@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import {
   ApprovalRequestForm,
   REQUEST_BADGE,
@@ -14,6 +14,8 @@ import { api } from "../../../../lib/api";
 import { formatDate, money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Row {
   id: string;
@@ -46,8 +48,6 @@ function Requests() {
   const [tab, setTab] = useState<Tab>(
     (params.get("tab") as Tab) ?? (params.get("mine") || !hr ? "mine" : "all"),
   );
-  const [state, setState] = useState("");
-  const [categoryId, setCategoryId] = useState("");
   const [rows, setRows] = useState<Row[] | null>(null);
   const [categories, setCategories] = useState<ApprovalCategory[]>([]);
   const [open, setOpen] = useState(false);
@@ -60,11 +60,43 @@ function Requests() {
     const q = new URLSearchParams();
     if (tab === "mine") q.set("mine", "1");
     if (tab === "review") q.set("review", "1");
-    if (state) q.set("state", state);
-    if (categoryId) q.set("categoryId", categoryId);
     setRows(null);
     api<Row[]>(`/approval-requests?${q}`).then(setRows, (e: Error) => setError(e.message));
-  }, [tab, state, categoryId]);
+  }, [tab]);
+
+  const columns = useMemo<ViewColumn<Row>[]>(
+    () => [
+      { key: "number", label: l("Nomor", "Number"), value: (r) => r.number },
+      { key: "subject", label: l("Subjek", "Subject"), value: (r) => r.subject },
+      { key: "category", label: l("Kategori", "Category"), type: "enum", value: (r) => r.categoryName },
+      { key: "requester", label: l("Pemohon", "Requester"), type: "enum", value: (r) => r.requesterName },
+      {
+        key: "createdAt",
+        label: l("Dibuat", "Created"),
+        type: "date",
+        value: (r) => r.createdAt.slice(0, 10),
+      },
+      {
+        key: "amount",
+        label: l("Nominal", "Amount"),
+        type: "number",
+        value: (r) => (r.amount === null ? null : Number(r.amount)),
+      },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (r) => r.state,
+        optionLabel: (v) => (REQUEST_STATE_LABEL[v] ? tx(REQUEST_STATE_LABEL[v]!) : v),
+        text: (r) => (REQUEST_STATE_LABEL[r.state] ? tx(REQUEST_STATE_LABEL[r.state]!) : r.state),
+      },
+    ],
+    [l, tx],
+  );
+  const table = useTableView(rows ?? [], columns, {
+    storageKey: "approval-requests",
+    defaultSort: { key: "createdAt", dir: "desc" },
+  });
 
   const tabs: [Tab, string][] = [
     ["mine", l("Milik saya", "Mine")],
@@ -108,43 +140,41 @@ function Requests() {
             </button>
           ))}
         </div>
-        <select value={state} onChange={(e) => setState(e.target.value)} aria-label={l("Status", "Status")}>
-          <option value="">{l("Semua status", "All states")}</option>
-          {Object.entries(REQUEST_STATE_LABEL).map(([k, v]) => (
-            <option key={k} value={k}>
-              {tx(v)}
-            </option>
-          ))}
-        </select>
-        <select
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          aria-label={l("Kategori", "Category")}
-        >
-          <option value="">{l("Semua kategori", "All categories")}</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
       </div>
       {error && <p className="error">{error}</p>}
+      <TableTools
+        view={table}
+        placeholder={l("Cari nomor, subjek, pemohon…", "Search number, subject, requester…")}
+      />
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>{l("Nomor", "Number")}</th>
-              <th>{l("Subjek", "Subject")}</th>
-              <th>{l("Kategori", "Category")}</th>
-              <th>{l("Pemohon", "Requester")}</th>
-              <th>{l("Dibuat", "Created")}</th>
-              <th className="num">{l("Nominal", "Amount")}</th>
-              <th>{l("Status", "Status")}</th>
+              <SortTh view={table} col="number">
+                {l("Nomor", "Number")}
+              </SortTh>
+              <SortTh view={table} col="subject">
+                {l("Subjek", "Subject")}
+              </SortTh>
+              <SortTh view={table} col="category">
+                {l("Kategori", "Category")}
+              </SortTh>
+              <SortTh view={table} col="requester">
+                {l("Pemohon", "Requester")}
+              </SortTh>
+              <SortTh view={table} col="createdAt">
+                {l("Dibuat", "Created")}
+              </SortTh>
+              <SortTh view={table} col="amount" className="num">
+                {l("Nominal", "Amount")}
+              </SortTh>
+              <SortTh view={table} col="state">
+                {l("Status", "Status")}
+              </SortTh>
             </tr>
           </thead>
           <tbody>
-            {rows?.map((r) => (
+            {table.rows.map((r) => (
               <tr key={r.id}>
                 <td>
                   <Link href={`/hr/approval-requests/${r.id}`}>{r.number ?? l("(draft)", "(draft)")}</Link>
@@ -161,16 +191,19 @@ function Requests() {
                 </td>
               </tr>
             ))}
-            {rows?.length === 0 && (
+            {rows && table.rows.length === 0 && (
               <tr>
                 <td colSpan={7} className="muted">
-                  {l("Belum ada permintaan.", "No requests yet.")}
+                  {rows.length
+                    ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                    : l("Belum ada permintaan.", "No requests yet.")}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      <TablePager view={table} />
     </div>
   );
 }

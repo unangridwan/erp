@@ -16,6 +16,7 @@ import {
   hasPermission,
   missingApprovalFields,
   requestOutcome,
+  LIST_LOAD_LIMIT,
 } from "@erp/shared";
 import type { z } from "zod";
 import { fieldError } from "../accounting/context.js";
@@ -336,7 +337,7 @@ export class ApprovalEngineService {
         ),
       )
       .orderBy(desc(REQ.createdAt))
-      .limit(500);
+      .limit(LIST_LOAD_LIMIT);
     return rows.map((r) => ({
       ...r.request,
       categoryName: r.categoryName,

@@ -42,6 +42,7 @@ import {
   shiftAssignmentSchema,
   workEntrySchema,
   workScheduleSchema,
+  LIST_LOAD_LIMIT,
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { Request, Response } from "express";
@@ -1070,7 +1071,7 @@ class AttendanceController {
           ),
         )
         .orderBy(desc(AT.checkIn))
-        .limit(1000),
+        .limit(LIST_LOAD_LIMIT),
     );
     return rows.map((r) => ({
       ...r.attendance,

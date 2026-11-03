@@ -1,10 +1,11 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
-import { useOptions } from "../../../../components/accounting/use-options";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { api } from "../../../../lib/api";
 import { formatDate, money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Row {
   employeeId: string;
@@ -19,36 +20,54 @@ interface Row {
 /** Rekap keterlambatan dari absen masuk vs jadwal kerja/shift; potongannya otomatis masuk slip gaji. */
 export default function LatenessPage() {
   const { l, locale } = useI18n();
-  const employees = useOptions<{ id: string; name: string }>("/employees");
   const [from, setFrom] = useState(today().slice(0, 8) + "01");
   const [to, setTo] = useState(today());
-  const [employeeId, setEmployeeId] = useState("");
   const [rows, setRows] = useState<Row[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams({ from, to });
-    if (employeeId) params.set("employeeId", employeeId);
     api<Row[]>(`/attendance/lateness?${params}`)
       .then(setRows)
       .catch((e: Error) => setError(e.message));
-  }, [from, to, employeeId]);
+  }, [from, to]);
+  const columns = useMemo<ViewColumn<Row>[]>(
+    () => [
+      { key: "employeeNumber", label: l("No.", "No."), value: (r) => r.employeeNumber },
+      { key: "employee", label: l("Karyawan", "Employee"), value: (r) => r.employeeName },
+      {
+        key: "occurrences",
+        label: l("Kali terlambat", "Occurrences"),
+        type: "number",
+        value: (r) => r.occurrences,
+      },
+      { key: "minutes", label: l("Menit", "Minutes"), type: "number", value: (r) => r.minutes },
+      { key: "penalty", label: l("Potongan", "Deduction"), type: "number", value: (r) => Number(r.penalty) },
+    ],
+    [l],
+  );
+  const table = useTableView(rows ?? [], columns, {
+    storageKey: "lateness",
+    defaultSort: { key: "minutes", dir: "desc" },
+  });
 
   return (
     <>
       <header className="toolbar">
         <h1>{l("Keterlambatan", "Lateness")}</h1>
-        <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}>
-          <option value="">{l("Semua karyawan", "All employees")}</option>
-          {employees.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}
-            </option>
-          ))}
-        </select>
-        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+        <input
+          type="date"
+          aria-label={l("Dari", "From")}
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+        />
+        <input
+          type="date"
+          aria-label={l("Sampai", "To")}
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+        />
       </header>
       <p className="muted">
         {l(
@@ -57,20 +76,31 @@ export default function LatenessPage() {
         )}
       </p>
       {error && <p className="error">{error}</p>}
+      {rows && <TableTools view={table} />}
       {rows && (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{l("No.", "No.")}</th>
-                <th>{l("Karyawan", "Employee")}</th>
-                <th className="num">{l("Kali terlambat", "Occurrences")}</th>
-                <th className="num">{l("Menit", "Minutes")}</th>
-                <th className="num">{l("Potongan", "Deduction")}</th>
+                <SortTh view={table} col="employeeNumber">
+                  {l("No.", "No.")}
+                </SortTh>
+                <SortTh view={table} col="employee">
+                  {l("Karyawan", "Employee")}
+                </SortTh>
+                <SortTh view={table} col="occurrences" className="num">
+                  {l("Kali terlambat", "Occurrences")}
+                </SortTh>
+                <SortTh view={table} col="minutes" className="num">
+                  {l("Menit", "Minutes")}
+                </SortTh>
+                <SortTh view={table} col="penalty" className="num">
+                  {l("Potongan", "Deduction")}
+                </SortTh>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {table.rows.map((r) => (
                 <Fragment key={r.employeeId}>
                   <tr>
                     <td>{r.employeeNumber}</td>
@@ -99,10 +129,12 @@ export default function LatenessPage() {
                     ))}
                 </Fragment>
               ))}
-              {rows.length === 0 && (
+              {table.rows.length === 0 && (
                 <tr>
                   <td colSpan={5} className="muted">
-                    {l("Tidak ada keterlambatan.", "No lateness.")}
+                    {rows.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Tidak ada keterlambatan.", "No lateness.")}
                   </td>
                 </tr>
               )}
@@ -110,6 +142,7 @@ export default function LatenessPage() {
           </table>
         </div>
       )}
+      {rows && <TablePager view={table} />}
     </>
   );
 }

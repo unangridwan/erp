@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { errorText } from "../../../../components/hr/hr-panels";
 import { useMe } from "../../../../components/me-context";
 import { RefSelect } from "../../../../components/ref-select";
@@ -8,6 +8,8 @@ import { api } from "../../../../lib/api";
 import { formatDate } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Announcement {
   id: string;
@@ -34,6 +36,38 @@ export default function AnnouncementsPage() {
   useEffect(() => {
     void load();
   }, []);
+  const columns = useMemo<ViewColumn<Announcement>[]>(
+    () => [
+      {
+        key: "title",
+        label: l("Judul", "Title"),
+        value: (a) => a.title,
+        text: (a) => `${a.title} ${a.body}`,
+      },
+      {
+        key: "audience",
+        label: l("Audiens", "Audience"),
+        type: "enum",
+        value: (a) => a.departmentName ?? l("Semua karyawan", "Everyone"),
+      },
+      { key: "publishedAt", label: l("Terbit", "Published"), type: "date", value: (a) => a.publishedAt },
+      { key: "reads", label: l("Dibaca", "Reads"), type: "number", value: (a) => a.reads },
+      {
+        key: "pinned",
+        label: l("Disematkan", "Pinned"),
+        type: "enum",
+        value: (a) => (a.pinned ? "1" : "0"),
+        optionLabel: (v) => (v === "1" ? l("Ya", "Yes") : l("Tidak", "No")),
+        hidden: true,
+      },
+    ],
+    [l],
+  );
+  const table = useTableView(rows, columns, {
+    storageKey: "announcements",
+    defaultSort: { key: "publishedAt", dir: "desc" },
+  });
+
   async function save() {
     if (!form) return;
     setError(null);
@@ -137,19 +171,28 @@ export default function AnnouncementsPage() {
           </div>
         </form>
       )}
+      <TableTools view={table} />
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>{l("Judul", "Title")}</th>
-              <th>{l("Audiens", "Audience")}</th>
-              <th>{l("Terbit", "Published")}</th>
-              <th className="num">{l("Dibaca", "Reads")}</th>
+              <SortTh view={table} col="title">
+                {l("Judul", "Title")}
+              </SortTh>
+              <SortTh view={table} col="audience">
+                {l("Audiens", "Audience")}
+              </SortTh>
+              <SortTh view={table} col="publishedAt">
+                {l("Terbit", "Published")}
+              </SortTh>
+              <SortTh view={table} col="reads" className="num">
+                {l("Dibaca", "Reads")}
+              </SortTh>
               <th />
             </tr>
           </thead>
           <tbody>
-            {rows.map((a) => (
+            {table.rows.map((a) => (
               <tr key={a.id}>
                 <td>
                   {a.pinned ? "📌 " : ""}
@@ -201,16 +244,19 @@ export default function AnnouncementsPage() {
                 </td>
               </tr>
             ))}
-            {!rows.length && (
+            {!table.rows.length && (
               <tr>
                 <td colSpan={5} className="muted">
-                  {l("Belum ada pengumuman.", "No announcements yet.")}
+                  {rows.length
+                    ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                    : l("Belum ada pengumuman.", "No announcements yet.")}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      <TablePager view={table} />
     </section>
   );
 }

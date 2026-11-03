@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
 import { money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Row {
   id: string;
@@ -42,6 +44,30 @@ export default function ReplenishmentPage() {
   }, [version]);
 
   const n = (v: string) => money(v, locale, 4);
+  const columns = useMemo<ViewColumn<Row>[]>(() => {
+    const qty = (
+      key: "onHand" | "incoming" | "outgoing" | "rfq" | "forecast" | "toOrder",
+      label: string,
+    ) => ({
+      key,
+      label,
+      type: "number" as const,
+      value: (r: Row) => Number(r[key]),
+    });
+    return [
+      { key: "product", label: l("Produk", "Product"), value: (r) => `${r.sku} ${r.productName}` },
+      { key: "warehouse", label: l("Gudang", "Warehouse"), type: "enum", value: (r) => r.warehouseCode },
+      qty("onHand", l("Tersedia", "On hand")),
+      qty("incoming", l("Masuk", "Incoming")),
+      qty("outgoing", l("Keluar", "Outgoing")),
+      qty("rfq", "RFQ"),
+      qty("forecast", l("Perkiraan", "Forecast")),
+      { key: "minQty", label: "Min / Max", type: "number", value: (r) => Number(r.minQty) },
+      qty("toOrder", l("Perlu dipesan", "To order")),
+      { key: "supplier", label: l("Pemasok", "Vendor"), type: "enum", value: (r) => r.supplierName },
+    ];
+  }, [l]);
+  const table = useTableView(rows ?? [], columns, { storageKey: "replenishment" });
   const runAll = async () => {
     setError(null);
     try {
@@ -86,25 +112,46 @@ export default function ReplenishmentPage() {
             )}
         </p>
       )}
+      {rows && <TableTools view={table} />}
       {rows && (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{l("Produk", "Product")}</th>
-                <th>{l("Gudang", "Warehouse")}</th>
-                <th className="num">{l("Tersedia", "On hand")}</th>
-                <th className="num">{l("Masuk", "Incoming")}</th>
-                <th className="num">{l("Keluar", "Outgoing")}</th>
-                <th className="num">RFQ</th>
-                <th className="num">{l("Perkiraan", "Forecast")}</th>
-                <th className="num">Min / Max</th>
-                <th className="num">{l("Perlu dipesan", "To order")}</th>
-                <th>{l("Pemasok", "Vendor")}</th>
+                <SortTh view={table} col="product">
+                  {l("Produk", "Product")}
+                </SortTh>
+                <SortTh view={table} col="warehouse">
+                  {l("Gudang", "Warehouse")}
+                </SortTh>
+                <SortTh view={table} col="onHand" className="num">
+                  {l("Tersedia", "On hand")}
+                </SortTh>
+                <SortTh view={table} col="incoming" className="num">
+                  {l("Masuk", "Incoming")}
+                </SortTh>
+                <SortTh view={table} col="outgoing" className="num">
+                  {l("Keluar", "Outgoing")}
+                </SortTh>
+                <SortTh view={table} col="rfq" className="num">
+                  RFQ
+                </SortTh>
+                <SortTh view={table} col="forecast" className="num">
+                  {l("Perkiraan", "Forecast")}
+                </SortTh>
+                <SortTh view={table} col="minQty" className="num">
+                  Min / Max
+                </SortTh>
+                <SortTh view={table} col="toOrder" className="num">
+                  {l("Perlu dipesan", "To order")}
+                </SortTh>
+                <SortTh view={table} col="supplier">
+                  {l("Pemasok", "Vendor")}
+                </SortTh>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {table.rows.map((r) => (
                 <tr key={r.id}>
                   <td>
                     {r.sku} {r.productName}
@@ -122,10 +169,12 @@ export default function ReplenishmentPage() {
                   <td>{r.supplierName ?? <span className="muted">{l("belum ada", "none")}</span>}</td>
                 </tr>
               ))}
-              {rows.length === 0 && (
+              {table.rows.length === 0 && (
                 <tr>
                   <td colSpan={10} className="muted">
-                    {l("Belum ada aturan pemesanan ulang.", "No reordering rules yet.")}
+                    {rows.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Belum ada aturan pemesanan ulang.", "No reordering rules yet.")}
                   </td>
                 </tr>
               )}
@@ -133,6 +182,7 @@ export default function ReplenishmentPage() {
           </table>
         </div>
       )}
+      {rows && <TablePager view={table} />}
     </>
   );
 }

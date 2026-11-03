@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
 import { download, taxStateClass } from "../../../../lib/download";
 import { formatDate, money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can, TAX_DOC_STATE_LABEL } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface TaxReturn {
   id: string;
@@ -70,7 +72,49 @@ export default function TaxReturnsPage() {
       setError(e instanceof Error ? e.message : String(e));
     }
   }
-  const exportable = (rows ?? []).filter((r) => (r.state === "draft" || r.state === "exported") && r.legacy);
+  const columns = useMemo<ViewColumn<TaxReturn>[]>(
+    () => [
+      {
+        key: "returnNumber",
+        label: l("Nota debit", "Debit note"),
+        value: (r) => r.returnNumber,
+        text: (r) => `${r.returnNumber} ${r.moveName}`,
+      },
+      {
+        key: "returnDate",
+        label: l("Tanggal nota", "Note date"),
+        type: "date",
+        value: (r) => r.returnDate,
+        hidden: true,
+      },
+      { key: "partner", label: l("Pemasok", "Vendor"), value: (r) => r.partnerName },
+      {
+        key: "efakturNumber",
+        label: l("Faktur pajak masukan", "Input tax invoice"),
+        value: (r) => r.efakturNumber,
+        text: (r) => `${r.efakturNumber ?? ""} ${r.coretaxNumber ?? ""}`,
+      },
+      { key: "taxBase", label: "DPP", type: "number", value: (r) => Number(r.taxBase) },
+      { key: "vat", label: "PPN", type: "number", value: (r) => Number(r.vat) },
+      { key: "stlg", label: "PPnBM", type: "number", value: (r) => Number(r.stlg) },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (r) => r.state,
+        optionLabel: (v) => (TAX_DOC_STATE_LABEL[v] ? tx(TAX_DOC_STATE_LABEL[v]!) : v),
+        text: (r) => (TAX_DOC_STATE_LABEL[r.state] ? tx(TAX_DOC_STATE_LABEL[r.state]!) : r.state),
+      },
+    ],
+    [l, tx],
+  );
+  const table = useTableView(rows ?? [], columns, {
+    storageKey: "tax-returns",
+    defaultSort: { key: "returnDate", dir: "asc" },
+  });
+  const exportable = table.filtered.filter(
+    (r) => (r.state === "draft" || r.state === "exported") && r.legacy,
+  );
 
   return (
     <>
@@ -125,6 +169,12 @@ export default function TaxReturnsPage() {
         </div>
       )}
       {rows && (
+        <TableTools
+          view={table}
+          placeholder={l("Cari nota, pemasok, nomor faktur…", "Search note, vendor, invoice number…")}
+        />
+      )}
+      {rows && (
         <div className="table-wrap">
           <table>
             <thead>
@@ -139,18 +189,32 @@ export default function TaxReturnsPage() {
                     }
                   />
                 </th>
-                <th>{l("Nota debit", "Debit note")}</th>
-                <th>{l("Pemasok", "Vendor")}</th>
-                <th>{l("Faktur pajak masukan", "Input tax invoice")}</th>
-                <th className="num">DPP</th>
-                <th className="num">PPN</th>
-                <th className="num">PPnBM</th>
-                <th>{l("Status", "Status")}</th>
+                <SortTh view={table} col="returnNumber">
+                  {l("Nota debit", "Debit note")}
+                </SortTh>
+                <SortTh view={table} col="partner">
+                  {l("Pemasok", "Vendor")}
+                </SortTh>
+                <SortTh view={table} col="efakturNumber">
+                  {l("Faktur pajak masukan", "Input tax invoice")}
+                </SortTh>
+                <SortTh view={table} col="taxBase" className="num">
+                  DPP
+                </SortTh>
+                <SortTh view={table} col="vat" className="num">
+                  PPN
+                </SortTh>
+                <SortTh view={table} col="stlg" className="num">
+                  PPnBM
+                </SortTh>
+                <SortTh view={table} col="state">
+                  {l("Status", "Status")}
+                </SortTh>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {table.rows.map((r) => (
                 <tr key={r.id}>
                   <td>
                     {exportable.includes(r) && (
@@ -248,10 +312,12 @@ export default function TaxReturnsPage() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && (
+              {table.rows.length === 0 && (
                 <tr>
                   <td colSpan={9} className="muted">
-                    {l("Belum ada nota retur pada masa ini.", "No returns in this period.")}
+                    {rows.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Belum ada nota retur pada masa ini.", "No returns in this period.")}
                   </td>
                 </tr>
               )}
@@ -259,6 +325,7 @@ export default function TaxReturnsPage() {
           </table>
         </div>
       )}
+      {rows && <TablePager view={table} />}
     </>
   );
 }

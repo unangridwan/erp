@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api } from "../../../../lib/api";
+import { useMemo, useState } from "react";
+import { DataTable, type DataColumn } from "../../../../components/data-table";
 import { formatDate, money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
+import { useListData } from "../../../../lib/use-list-data";
 
 interface Lot {
   id: string;
@@ -14,83 +15,75 @@ interface Lot {
   onHand: string;
 }
 
-/** Lot & nomor serial beserta stok tersedia dan tanggal kedaluwarsa. */
+/** Lot & nomor serial beserta stok tersedia dan tanggal kedaluwarsa (dimuat sekali, difilter di browser). */
 export default function LotsPage() {
   const { l, locale } = useI18n();
-  const [q, setQ] = useState("");
   const [available, setAvailable] = useState(true);
-  const [rows, setRows] = useState<Lot[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (available) params.set("available", "true");
-    const timer = setTimeout(
-      () =>
-        api<Lot[]>(`/stock/lots?${params}`)
-          .then(setRows)
-          .catch((e: Error) => setError(e.message)),
-      200,
-    );
-    return () => clearTimeout(timer);
-  }, [q, available]);
-
+  const list = useListData<Lot>("/stock/lots");
+  const rows = useMemo(
+    () => (available ? list.rows.filter((r) => Number(r.onHand) > 0) : list.rows),
+    [list.rows, available],
+  );
   const soon = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+
+  const columns = useMemo<DataColumn<Lot>[]>(
+    () => [
+      { key: "name", label: l("Lot / serial", "Lot / serial"), value: (r) => r.name },
+      {
+        key: "product",
+        label: l("Produk", "Product"),
+        type: "enum",
+        value: (r) => `${r.sku} ${r.productName}`,
+      },
+      {
+        key: "onHand",
+        label: l("Tersedia", "On hand"),
+        type: "number",
+        className: "num",
+        value: (r) => Number(r.onHand),
+        text: (r) => money(r.onHand, locale, 4),
+      },
+      {
+        key: "expirationDate",
+        label: l("Kedaluwarsa", "Expiration"),
+        type: "date",
+        value: (r) => r.expirationDate,
+        text: (r) =>
+          `${formatDate(r.expirationDate, locale)}${r.expirationDate && r.expirationDate < today() ? ` (${l("kedaluwarsa", "expired")})` : ""}`,
+        render: (r) => (
+          <span className={r.expirationDate && r.expirationDate <= soon ? "overdue" : ""}>
+            {formatDate(r.expirationDate, locale)}
+            {r.expirationDate && r.expirationDate < today() ? ` (${l("kedaluwarsa", "expired")})` : ""}
+          </span>
+        ),
+      },
+    ],
+    [l, locale, soon],
+  );
 
   return (
     <>
       <header className="toolbar">
         <h1>{l("Lot / Serial", "Lots / Serial Numbers")}</h1>
-        <input
-          type="search"
-          placeholder={l("Cari nomor…", "Search number…")}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <label className="field check">
-          <input type="checkbox" checked={available} onChange={(e) => setAvailable(e.target.checked)} />
-          <span>{l("Hanya yang tersedia", "Available only")}</span>
-        </label>
       </header>
-      {error && <p className="error">{error}</p>}
-      {rows && (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{l("Lot / serial", "Lot / serial")}</th>
-                <th>{l("Produk", "Product")}</th>
-                <th className="num">{l("Tersedia", "On hand")}</th>
-                <th>{l("Kedaluwarsa", "Expiration")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.name}</td>
-                  <td>
-                    {r.sku} {r.productName}
-                  </td>
-                  <td className="num">{money(r.onHand, locale, 4)}</td>
-                  <td className={r.expirationDate && r.expirationDate <= soon ? "overdue" : ""}>
-                    {formatDate(r.expirationDate, locale)}
-                    {r.expirationDate && r.expirationDate < today()
-                      ? ` (${l("kedaluwarsa", "expired")})`
-                      : ""}
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="muted">
-                    {l("Belum ada lot.", "No lots yet.")}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+      {list.error && <p className="error">{list.error}</p>}
+      {!list.loading || list.rows.length ? (
+        <DataTable
+          rows={rows}
+          columns={columns}
+          storageKey="lots"
+          rowKey={(r) => r.id}
+          searchPlaceholder={l("Cari nomor, produk…", "Search number, product…")}
+          empty={l("Belum ada lot.", "No lots yet.")}
+          tools={
+            <label className="check">
+              <input type="checkbox" checked={available} onChange={(e) => setAvailable(e.target.checked)} />
+              <span>{l("Hanya yang tersedia", "Available only")}</span>
+            </label>
+          }
+        />
+      ) : (
+        <p className="muted">{l("Memuat…", "Loading…")}</p>
       )}
     </>
   );

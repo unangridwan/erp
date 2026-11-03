@@ -9,6 +9,8 @@ import { api, ApiError } from "../../../../lib/api";
 import { today } from "../../../../lib/format";
 import { L, useI18n, type Text } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Row {
   id: string;
@@ -141,9 +143,56 @@ export default function AttendancePage() {
     api<typeof todayView>("/attendance/today").then(setTodayView, (e: Error) => setError(e.message));
   }, [tab, version]);
 
+  const columns = useMemo<ViewColumn<Row>[]>(
+    () => [
+      { key: "employee", label: l("Karyawan", "Employee"), value: (r) => r.employeeName },
+      { key: "checkIn", label: l("Masuk", "Check in"), type: "date", value: (r) => r.checkIn },
+      { key: "checkOut", label: l("Pulang", "Check out"), type: "date", value: (r) => r.checkOut },
+      {
+        key: "workedHours",
+        label: l("Jam kerja", "Worked hours"),
+        type: "number",
+        value: (r) => (r.workedHours === null ? null : Number(r.workedHours)),
+      },
+      {
+        key: "source",
+        label: l("Sumber", "Source"),
+        type: "enum",
+        value: (r) => r.source,
+        optionLabel: (v) => tx(SOURCE_LABEL[v] ?? L(v, v)),
+        text: (r) => `${tx(SOURCE_LABEL[r.source] ?? L(r.source, r.source))} ${r.note ?? ""}`,
+      },
+      { key: "distanceM", label: l("Jarak", "Distance"), type: "number", value: (r) => r.distanceM },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (r) => r.state,
+        optionLabel: (v) =>
+          v === "draft"
+            ? l("Draft", "Draft")
+            : v === "validated"
+              ? l("Valid", "Validated")
+              : l("Ditolak", "Refused"),
+      },
+      {
+        key: "autoCheckout",
+        label: l("Pulang otomatis", "Auto check-out"),
+        type: "enum",
+        value: (r) => (r.autoCheckout ? "1" : "0"),
+        text: (r) => (r.autoCheckout ? l("Ya", "Yes") : l("Tidak", "No")),
+        hidden: true,
+      },
+    ],
+    [l, tx],
+  );
+  const table = useTableView(rows ?? [], columns, {
+    storageKey: "attendance",
+    defaultSort: { key: "checkIn", dir: "desc" },
+  });
   const totals = useMemo(() => {
     const map = new Map<string, { name: string; days: Set<string>; hours: number }>();
-    for (const r of rows ?? []) {
+    for (const r of table.filtered) {
       if (r.state === "refused") continue;
       const s = map.get(r.employeeId) ?? { name: r.employeeName, days: new Set<string>(), hours: 0 };
       s.days.add(r.checkIn.slice(0, 10));
@@ -151,7 +200,7 @@ export default function AttendancePage() {
       map.set(r.employeeId, s);
     }
     return [...map.values()];
-  }, [rows]);
+  }, [table.filtered]);
   const time = (v: string | null) =>
     v
       ? new Intl.DateTimeFormat(locale === "id" ? "id-ID" : "en-GB", {
@@ -166,7 +215,7 @@ export default function AttendancePage() {
           new Date(v),
         )
       : "";
-  const drafts = (rows ?? []).filter((r) => r.state === "draft");
+  const drafts = table.filtered.filter((r) => r.state === "draft");
 
   async function decide(decision: "validated" | "refused") {
     setError(null);
@@ -329,22 +378,42 @@ export default function AttendancePage() {
             </div>
           )}
           {rows && (
+            <TableTools
+              view={table}
+              placeholder={l("Cari karyawan, sumber, catatan…", "Search employee, source, note…")}
+            />
+          )}
+          {rows && (
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
                     {writable && <th />}
-                    <th>{l("Karyawan", "Employee")}</th>
-                    <th>{l("Masuk", "Check in")}</th>
-                    <th>{l("Pulang", "Check out")}</th>
-                    <th className="num">{l("Jam kerja", "Worked hours")}</th>
-                    <th>{l("Sumber", "Source")}</th>
-                    <th className="num">{l("Jarak", "Distance")}</th>
-                    <th>{l("Status", "Status")}</th>
+                    <SortTh view={table} col="employee">
+                      {l("Karyawan", "Employee")}
+                    </SortTh>
+                    <SortTh view={table} col="checkIn">
+                      {l("Masuk", "Check in")}
+                    </SortTh>
+                    <SortTh view={table} col="checkOut">
+                      {l("Pulang", "Check out")}
+                    </SortTh>
+                    <SortTh view={table} col="workedHours" className="num">
+                      {l("Jam kerja", "Worked hours")}
+                    </SortTh>
+                    <SortTh view={table} col="source">
+                      {l("Sumber", "Source")}
+                    </SortTh>
+                    <SortTh view={table} col="distanceM" className="num">
+                      {l("Jarak", "Distance")}
+                    </SortTh>
+                    <SortTh view={table} col="state">
+                      {l("Status", "Status")}
+                    </SortTh>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
+                  {table.rows.map((r) => (
                     <tr key={r.id}>
                       {writable && (
                         <td>
@@ -387,10 +456,12 @@ export default function AttendancePage() {
                       </td>
                     </tr>
                   ))}
-                  {rows.length === 0 && (
+                  {table.rows.length === 0 && (
                     <tr>
                       <td colSpan={8} className="muted">
-                        {l("Belum ada absensi pada periode ini.", "No attendance in this period.")}
+                        {rows.length
+                          ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                          : l("Belum ada absensi pada periode ini.", "No attendance in this period.")}
                       </td>
                     </tr>
                   )}
@@ -398,6 +469,7 @@ export default function AttendancePage() {
               </table>
             </div>
           )}
+          {rows && <TablePager view={table} />}
         </>
       )}
 

@@ -28,6 +28,7 @@ import {
   hasPermission,
   overtimeSchema,
   payClaimSchema,
+  LIST_LOAD_LIMIT,
 } from "@erp/shared";
 import type { Response } from "express";
 import { AccountingModule } from "../accounting/accounting.module.js";
@@ -356,7 +357,7 @@ class PortalExtrasController {
         .from(schema.overtimes)
         .where(eq(schema.overtimes.employeeId, employee.id))
         .orderBy(desc(schema.overtimes.date))
-        .limit(100);
+        .limit(LIST_LOAD_LIMIT);
     });
   }
 
