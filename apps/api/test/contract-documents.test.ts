@@ -75,7 +75,13 @@ describe.skipIf(!hasDb)("Template & tanda tangan kontrak", () => {
         birthDate: "1995-06-15",
         gender: "female",
         address: "Jl. Merdeka No. 5, Bandung",
-        contract: { templateId: pkwt.id, contractType: "pkwt", dateEnd: "2027-11-15", wage: 6500000 },
+        contract: {
+          dateStart: "2026-11-16",
+          templateId: pkwt.id,
+          contractType: "pkwt",
+          dateEnd: "2027-11-15",
+          wage: 6500000,
+        },
       })
       .expect(201);
     employeeId = created.body.id;
@@ -114,7 +120,7 @@ describe.skipIf(!hasDb)("Template & tanda tangan kontrak", () => {
       .post("/employees", {
         name: "Gagal Kontrak",
         joinDate: "2026-12-01",
-        contract: { contractType: "pkwt", wage: 5000000 },
+        contract: { dateStart: "2026-12-01", contractType: "pkwt", wage: 5000000 },
       })
       .expect(400);
     expect(res.body.errors?.[0]?.path).toBe("contract.dateEnd");

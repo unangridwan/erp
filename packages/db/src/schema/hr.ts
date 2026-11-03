@@ -208,6 +208,13 @@ export const contracts = pgTable("contracts", {
   signedFileType: text("signed_file_type"),
   signedUploadedAt: timestamp("signed_uploaded_at", { withTimezone: true }),
   signedUploadedBy: uuid("signed_uploaded_by"),
+  /** Diisi saat kontrak diakhiri karena karyawan keluar (sumber tanggal & alasan keluar karyawan). */
+  endReason: text("end_reason", {
+    enum: ["resign", "end_contract", "termination", "retirement", "death", "other"],
+  }),
+  endNote: text("end_note"),
+  preExitState: text("pre_exit_state", { enum: ["running", "closed"] }),
+  preExitDateEnd: date("pre_exit_date_end"),
   ...audit,
 });
 

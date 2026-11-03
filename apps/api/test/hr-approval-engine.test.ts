@@ -312,7 +312,9 @@ describe.skipIf(!hasDb)("SDM: mesin persetujuan generik", () => {
         .post("/leaves", { leaveTypeId: annual, dateFrom: shift(21), dateTo: shift(21) })
         .expect(201)
     ).body;
-    await a.patch(`/employees/${staffEmp}`, { resignDate: shift(-1) }).expect(200);
+    await a
+      .post(`/employees/${staffEmp}/offboard`, { resignDate: shift(-1), resignReason: "resign" })
+      .expect(200);
     expect((await manager.api.post(`/leaves/${leave.id}/approve`).expect(400)).body.message).toContain(
       "resign",
     );

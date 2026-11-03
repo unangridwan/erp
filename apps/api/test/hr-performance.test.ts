@@ -302,7 +302,9 @@ describe.skipIf(!hasDb)("HR: penilaian kinerja, pelatihan, riwayat karir, org ch
     expect(root.reports.map((r: { name: string }) => r.name)).toEqual(["Dewi Staf"]);
     expect(tree.map((n: { name: string }) => n.name).sort()).toEqual(["Budi Manajer", "Eko Lapangan"]);
 
-    await a.patch(`/employees/${eko}`, { resignDate: `${year}-01-31` }).expect(200);
+    await a
+      .post(`/employees/${eko}/offboard`, { resignDate: `${year}-01-31`, resignReason: "resign" })
+      .expect(200);
     const dash = (await a.get(`/hr/dashboard?year=${year}`).expect(200)).body;
     expect(dash).toMatchObject({ year, joins: 2, leavers: 1, trainingCost: "4500000" });
     expect(dash.months).toHaveLength(12);

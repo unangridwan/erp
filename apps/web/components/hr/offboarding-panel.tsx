@@ -1,6 +1,7 @@
 "use client";
 
 import { EXIT_QUESTIONS } from "@erp/shared";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { download } from "../accounting/download";
 import { api } from "../../lib/api";
@@ -54,29 +55,35 @@ interface ExitInterview {
   comment?: string | null;
 }
 
-/** Offboarding karyawan: tanggal & alasan keluar, exit interview, dan Full & Final Statement. */
+/**
+ * Offboarding karyawan: data keluar (diisi lewat Akhiri kontrak di kontrak kerja — satu-satunya tempat tanggal keluar
+ * diinput), exit interview, dan Full & Final Statement.
+ */
 export function OffboardingPanel({ employeeId }: { employeeId: string }) {
   const { l, locale } = useI18n();
   const [s, setS] = useState<Settlement | null>(null);
-  const [form, setForm] = useState({
-    resignDate: today(),
-    resignReason: "resign",
-    resignNote: "",
-    startChecklist: true,
-  });
+  /** Kontrak tempat keluar diproses: kontrak keluar, atau kontrak berjalan/terakhir. */
+  const [contract, setContract] = useState<{ id: string; name: string; endReason: string | null } | null>(
+    null,
+  );
   const [ei, setEi] = useState<ExitInterview>({});
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const load = useCallback(async () => {
     const settlement = await api<Settlement>(`/employees/${employeeId}/final-settlement`);
     setS(settlement);
-    if (settlement.employee.resignDate)
-      setForm((f) => ({
-        ...f,
-        resignDate: settlement.employee.resignDate!,
-        resignReason: settlement.employee.resignReason ?? f.resignReason,
-        resignNote: settlement.employee.resignNote ?? "",
-      }));
+    const contracts = await api<{
+      items: { id: string; name: string; state: string; endReason: string | null }[];
+    }>(`/contracts?employeeId=${employeeId}`).then(
+      (r) => r.items.filter((c) => c.state !== "cancel" && c.state !== "draft"),
+      () => [],
+    );
+    setContract(
+      contracts.find((c) => c.endReason) ??
+        contracts.find((c) => c.state === "running") ??
+        contracts[0] ??
+        null,
+    );
     setEi(await api<ExitInterview>(`/employees/${employeeId}/exit-interview`));
   }, [employeeId]);
   useEffect(() => {
@@ -102,61 +109,36 @@ export function OffboardingPanel({ employeeId }: { employeeId: string }) {
       <h2>{l("Offboarding", "Offboarding")}</h2>
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
-      <div className="inline-panel">
-        <label className="field">
-          <span>{l("Tanggal keluar", "Leaving date")}</span>
-          <input
-            type="date"
-            value={form.resignDate}
-            onChange={(e) => setForm({ ...form, resignDate: e.target.value })}
-          />
-        </label>
-        <label className="field">
-          <span>{l("Alasan keluar", "Leaving reason")}</span>
-          <select
-            value={form.resignReason}
-            onChange={(e) => setForm({ ...form, resignReason: e.target.value })}
-          >
-            {Object.entries(RESIGN_REASON_LABEL).map(([k, [id, en]]) => (
-              <option key={k} value={k}>
-                {l(id, en)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>{l("Catatan", "Note")}</span>
-          <input
-            value={form.resignNote}
-            maxLength={1000}
-            onChange={(e) => setForm({ ...form, resignNote: e.target.value })}
-          />
-        </label>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={form.startChecklist}
-            onChange={(e) => setForm({ ...form, startChecklist: e.target.checked })}
-          />
-          {l("Mulai checklist offboarding", "Start offboarding checklist")}
-        </label>
-        <button
-          type="button"
-          className="primary"
-          onClick={() =>
-            run(
-              () =>
-                api(`/employees/${employeeId}/offboard`, {
-                  method: "POST",
-                  body: { ...form, resignNote: form.resignNote || null },
-                }),
-              l("Data keluar karyawan disimpan.", "Leaving details saved."),
-            )
-          }
-        >
-          {left ? l("Perbarui data keluar", "Update leaving details") : l("Proses keluar", "Process leaving")}
-        </button>
-      </div>
+      {left ? (
+        <p>
+          <span className="pill bad">{l("Keluar", "Left")}</span>{" "}
+          <strong>{formatDate(s.employee.resignDate, locale)}</strong>
+          {s.employee.resignReason && RESIGN_REASON_LABEL[s.employee.resignReason]
+            ? ` — ${l(...RESIGN_REASON_LABEL[s.employee.resignReason]!)}`
+            : ""}
+          {s.employee.resignNote ? ` · ${s.employee.resignNote}` : ""}
+          {contract && (
+            <>
+              {" · "}
+              <Link href={`/hr/contracts/${contract.id}`}>
+                {l(`Ubah di kontrak ${contract.name}`, `Edit on contract ${contract.name}`)}
+              </Link>
+            </>
+          )}
+        </p>
+      ) : (
+        <p className="muted">
+          {l(
+            "Tanggal & alasan keluar diisi di kontrak kerja: buka kontrak lalu pilih Akhiri kontrak → karyawan keluar. Checklist offboarding dimulai otomatis.",
+            "The leaving date & reason are set on the employment contract: open it and choose End contract → employee leaves. The offboarding checklist starts automatically.",
+          )}{" "}
+          {contract && (
+            <Link href={`/hr/contracts/${contract.id}`}>
+              {l(`Buka kontrak ${contract.name}`, `Open contract ${contract.name}`)}
+            </Link>
+          )}
+        </p>
+      )}
 
       {left && (
         <>

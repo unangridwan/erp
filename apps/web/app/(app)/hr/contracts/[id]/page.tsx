@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useOptions } from "../../../../../components/accounting/use-options";
 import { ContractDocumentPanel } from "../../../../../components/hr/contract-document";
+import { RESIGN_REASON_LABEL } from "../../../../../components/hr/offboarding-panel";
 import { RefSelect } from "../../../../../components/ref-select";
 import { api, ApiError } from "../../../../../lib/api";
 import { addDays } from "@erp/shared";
@@ -25,6 +26,11 @@ interface Contract {
   taxMethod: "gross" | "gross_up";
   state: string;
   signState: "unsigned" | "pending" | "partial" | "signed";
+  endReason: string | null;
+  endNote: string | null;
+  isFirst: boolean;
+  isLast: boolean;
+  employee: { joinDate: string; resignDate: string | null; resignReason: string | null } | null;
   note: string | null;
   allowances: { componentId: string; amount: string; name: string; kind: string; fixed: boolean }[];
   grade: {
@@ -188,6 +194,43 @@ function Contract() {
       setVersion((v) => v + 1);
     });
   const err = (p: string) => fieldErrors[p] && <small className="error">{fieldErrors[p]}</small>;
+
+  // Akhiri kontrak: tanggal berakhir, dan bila karyawan keluar → tanggal ini menjadi tanggal keluar karyawan.
+  const [ending, setEnding] = useState<{
+    dateEnd: string;
+    exit: boolean;
+    resignReason: string;
+    resignNote: string;
+    startChecklist: boolean;
+  } | null>(null);
+  const openEnd = (exit: boolean) => {
+    if (!contract) return;
+    setEnding({
+      dateEnd: contract.dateEnd ?? today(),
+      exit,
+      resignReason: contract.endReason ?? (contract.contractType === "pkwt" ? "end_contract" : "resign"),
+      resignNote: contract.endNote ?? "",
+      startChecklist: !contract.employee?.resignDate,
+    });
+    setTimeout(() => document.getElementById("end-contract")?.scrollIntoView({ block: "center" }), 0);
+  };
+  const submitEnd = () =>
+    run(async () => {
+      if (!ending) return;
+      await api(`/contracts/${id}/close`, {
+        method: "POST",
+        body: {
+          dateEnd: ending.dateEnd,
+          exit: ending.exit,
+          resignReason: ending.exit ? ending.resignReason : null,
+          resignNote: ending.exit ? ending.resignNote || null : null,
+          startChecklist: ending.startChecklist,
+        },
+      });
+      setEnding(null);
+      setVersion((v) => v + 1);
+    });
+
   if (!isNew && !contract) return <p className="muted">{error ?? l("Memuat…", "Loading…")}</p>;
   const fixedTotal = allowances.reduce(
     (s, a) => s + (components.find((c) => c.id === a.componentId)?.fixed ? Number(a.amount || 0) : 0),
@@ -196,6 +239,134 @@ function Contract() {
 
   return (
     <div className="stack-wide">
+      {contract?.endReason && (
+        <section className="panel exit-banner">
+          <p>
+            <span className="pill bad">{l("Karyawan keluar", "Employee left")}</span>{" "}
+            <strong>{formatDate(contract.dateEnd, locale)}</strong> —{" "}
+            {l(...(RESIGN_REASON_LABEL[contract.endReason] ?? ["", ""]))}
+            {contract.endNote ? ` · ${contract.endNote}` : ""}
+          </p>
+          <div className="row-actions">
+            <button type="button" onClick={() => openEnd(true)}>
+              {l("Ubah data keluar", "Edit leaving details")}
+            </button>
+            <button
+              type="button"
+              className="danger"
+              onClick={() =>
+                confirm(
+                  l(
+                    "Batalkan keluar? Kontrak kembali berjalan dan tanggal keluar karyawan dihapus.",
+                    "Cancel the leaving? The contract runs again and the employee's leaving date is cleared.",
+                  ),
+                ) && action("cancel-exit")
+              }
+            >
+              {l("Batalkan keluar", "Cancel leaving")}
+            </button>
+            <Link href={`/employees/${contract.employeeId}`}>
+              {l("Offboarding & Full and Final", "Offboarding & Full and Final")}
+            </Link>
+          </div>
+        </section>
+      )}
+      {ending && contract && (
+        <section className="panel" id="end-contract">
+          <h2>
+            {contract.endReason
+              ? l("Ubah data keluar", "Edit leaving details")
+              : l("Akhiri kontrak", "End contract")}
+          </h2>
+          <div className="fields">
+            <label className="field">
+              <span>
+                {ending.exit
+                  ? l("Tanggal keluar *", "Leaving date *")
+                  : l("Tanggal berakhir *", "End date *")}
+              </span>
+              <input
+                type="date"
+                required
+                min={contract.dateStart}
+                value={ending.dateEnd}
+                onChange={(e) => setEnding({ ...ending, dateEnd: e.target.value })}
+              />
+              {err("dateEnd")}
+            </label>
+            {contract.isLast && !contract.endReason && (
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={ending.exit}
+                  onChange={(e) => setEnding({ ...ending, exit: e.target.checked })}
+                />
+                <span>
+                  {l(
+                    "Karyawan keluar (tanggal ini menjadi tanggal keluar karyawan)",
+                    "Employee leaves (this date becomes the employee's leaving date)",
+                  )}
+                </span>
+              </label>
+            )}
+            {ending.exit && (
+              <>
+                <label className="field">
+                  <span>{l("Alasan keluar *", "Leaving reason *")}</span>
+                  <select
+                    value={ending.resignReason}
+                    onChange={(e) => setEnding({ ...ending, resignReason: e.target.value })}
+                  >
+                    {Object.entries(RESIGN_REASON_LABEL).map(([k, v]) => (
+                      <option key={k} value={k}>
+                        {l(...v)}
+                      </option>
+                    ))}
+                  </select>
+                  {err("resignReason")}
+                </label>
+                <label className="field">
+                  <span>{l("Catatan", "Note")}</span>
+                  <input
+                    maxLength={1000}
+                    value={ending.resignNote}
+                    onChange={(e) => setEnding({ ...ending, resignNote: e.target.value })}
+                  />
+                </label>
+                {!contract.employee?.resignDate && (
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={ending.startChecklist}
+                      onChange={(e) => setEnding({ ...ending, startChecklist: e.target.checked })}
+                    />
+                    <span>{l("Mulai checklist offboarding", "Start offboarding checklist")}</span>
+                  </label>
+                )}
+              </>
+            )}
+          </div>
+          {error && <p className="error">{error}</p>}
+          {!ending.exit && (
+            <p className="muted small">
+              {l(
+                'Tanpa "karyawan keluar", kontrak hanya selesai (mis. akan diganti kontrak baru); karyawan tetap tercatat aktif.',
+                'Without "employee leaves", the contract just ends (e.g. to be replaced by a new one); the employee stays active.',
+              )}
+            </p>
+          )}
+          <div className="row-actions">
+            <button type="button" className={ending.exit ? "danger" : "primary"} onClick={submitEnd}>
+              {ending.exit
+                ? l("Simpan & proses keluar", "Save & process leaving")
+                : l("Akhiri kontrak", "End contract")}
+            </button>
+            <button type="button" onClick={() => setEnding(null)}>
+              {l("Batal", "Cancel")}
+            </button>
+          </div>
+        </section>
+      )}
       <form className="panel" onSubmit={save}>
         <header className="toolbar">
           <h1>
@@ -213,14 +384,18 @@ function Contract() {
             </button>
           )}
           {contract?.state === "running" && (
-            <button
-              type="button"
-              className="danger"
-              onClick={() => confirm(l("Akhiri kontrak ini?", "End this contract?")) && action("close")}
-            >
-              {l("Akhiri", "End")}
+            <button type="button" className="danger" onClick={() => openEnd(contract.isLast)}>
+              {l("Akhiri kontrak", "End contract")}
             </button>
           )}
+          {contract?.state === "closed" &&
+            !contract.endReason &&
+            contract.isLast &&
+            !contract.employee?.resignDate && (
+              <button type="button" onClick={() => openEnd(true)}>
+                {l("Tandai karyawan keluar", "Mark employee as left")}
+              </button>
+            )}
         </header>
         {error && <p className="error">{error}</p>}
         {isNew && !presetEmployee && (
@@ -297,11 +472,18 @@ function Contract() {
               type="date"
               required
               value={form.dateStart}
-              min={employeeDates?.joinDate}
               max={employeeDates?.resignDate ?? undefined}
               onChange={(e) => setForm((f) => ({ ...f, dateStart: e.target.value }))}
             />
             {err("dateStart")}
+            {contract?.isFirst && (
+              <small className="muted">
+                {l(
+                  "Kontrak pertama: tanggal mulai = tanggal masuk karyawan.",
+                  "First contract: the start date is the employee's join date.",
+                )}
+              </small>
+            )}
             {employeeDates && (
               <small className="muted">
                 {l("Masa kerja karyawan: ", "Employment: ")}

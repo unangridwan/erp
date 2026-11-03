@@ -3,7 +3,6 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   HttpCode,
   Inject,
@@ -22,12 +21,12 @@ import { and, asc, desc, eq, gte, isNull, lte, ne, schema, sql, type Db } from "
 import {
   attendanceSchema,
   checkInSchema,
+  contractEndSchema,
   contractSchema,
   departmentSchema,
   addDays,
   employeeSchema,
   gradePosition,
-  hasPermission,
   newEmployeeContractSchema,
   holidaySchema,
   jobPositionSchema,
@@ -61,7 +60,7 @@ import { ApprovalService, beginApproval, type ApprovalModel } from "./approval.s
 import { NotificationService } from "../notifications/notification.service.js";
 import { ChecklistService } from "./checklist.service.js";
 import { ContractDocumentService } from "./contract-document.service.js";
-import { ContractService } from "./contract.service.js";
+import { assertDatesUnchanged, ContractService } from "./contract.service.js";
 import { HistoryService } from "./history.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { LeaveService } from "./leave.service.js";
@@ -560,16 +559,19 @@ class EmployeesController {
   }
 
   /**
-   * Karyawan baru, opsional sekaligus kontrak kerjanya (`contract`): kontrak dibuat mulai tanggal masuk dari template
-   * terpilih dan langsung berlaku; dokumen kontrak lalu dicetak/ditandatangani dari halaman kontrak.
+   * Karyawan baru beserta kontrak kerjanya (`contract`): tanggal masuk = tanggal mulai kontrak (hanya diinput di
+   * kontrak), kontrak dibuat dari template terpilih dan langsung berlaku. Tanpa `contract` (API/integrasi lama) tanggal
+   * masuk dari `joinDate`. Hanya pengguna yang berhak mengelola kontrak (hr.manage).
    */
   @Post()
-  @RequirePermission("hr.write")
+  @RequirePermission("hr.manage")
   create(@Body() body: unknown) {
-    const input = parse(employeeSchema, body);
     const { contract } = parse(z.object({ contract: newEmployeeContractSchema.nullish() }), body ?? {});
-    if (contract && !hasPermission(currentContext().permissions, "hr.manage"))
-      throw new ForbiddenException("Butuh permission hr.manage untuk membuat kontrak kerja");
+    const raw = body !== null && typeof body === "object" ? (body as Record<string, unknown>) : {};
+    const input = parse(
+      employeeSchema,
+      contract ? { ...raw, joinDate: contract.dateStart, resignDate: null } : raw,
+    );
     return this.tenantDb.run(async (tx) => {
       if (contract?.templateId) await this.documents.template(tx, contract.templateId);
       const employee = await this.employees.create(tx, input);
@@ -581,16 +583,13 @@ class EmployeesController {
       if (employee.joinDate >= addDays(new Date().toISOString().slice(0, 10), -30))
         await this.checklists.autoStart(tx, employee.id, "onboarding");
       if (!contract) return employee;
-      const dateEnd = contract.dateEnd ?? employee.resignDate ?? null;
-      if (dateEnd && dateEnd < employee.joinDate)
-        throw fieldError("contract.dateEnd", "Tanggal berakhir sebelum tanggal masuk");
       const contractId = await this.contracts.create(tx, {
         employeeId: employee.id,
         contractType: contract.contractType,
         wageType: contract.wageType,
         taxMethod: contract.taxMethod,
-        dateStart: employee.joinDate,
-        dateEnd,
+        dateStart: contract.dateStart,
+        dateEnd: contract.dateEnd ?? null,
         wage: contract.wage,
         allowances: [],
       });
@@ -604,6 +603,7 @@ class EmployeesController {
     });
   }
 
+  /** Ubah data karyawan. Tanggal masuk/keluar tidak diubah di sini: keduanya mengikuti kontrak kerja. */
   @Patch(":id")
   @RequirePermission("hr.write")
   update(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
@@ -613,16 +613,11 @@ class EmployeesController {
     );
     return this.tenantDb.run(async (tx) => {
       const before = await this.employees.find(tx, id);
-      // Kontrak mengikuti tanggal masuk/keluar baru (atau perubahan ditolak bila kontrak di luar masa kerja).
-      if ("joinDate" in sent || "resignDate" in sent)
-        await this.contracts.syncEmployeeDates(tx, before, {
-          joinDate: values.joinDate ?? before.joinDate,
-          resignDate: "resignDate" in sent ? (values.resignDate ?? null) : before.resignDate,
-        });
+      assertDatesUnchanged(before, sent);
+      delete sent.joinDate;
+      delete sent.resignDate;
       const employee = await this.employees.update(tx, id, sent);
       await this.history.diff(tx, before, await this.employees.find(tx, id));
-      // Tanggal keluar baru diisi → checklist offboarding.
-      if (employee.resignDate && !before.resignDate) await this.checklists.autoStart(tx, id, "offboarding");
       return employee;
     });
   }
@@ -716,6 +711,11 @@ class ContractsController {
         })
         .where(eq(C.id, id));
       await this.documents.refreshAfterContractChange(tx, contract);
+      if (input.dateStart !== contract.dateStart)
+        await this.contracts.syncJoinDate(tx, contract.employeeId, {
+          before: contract.dateStart,
+          after: input.dateStart,
+        });
       await tx.delete(schema.contractAllowances).where(eq(schema.contractAllowances.contractId, id));
       if (input.allowances.length)
         await tx
@@ -742,21 +742,35 @@ class ContractsController {
     });
   }
 
+  /**
+   * Akhiri kontrak. `exit: true` + alasan = karyawan keluar per tanggal berakhir (satu-satunya tempat tanggal keluar
+   * diisi; checklist offboarding dimulai). Kontrak keluar yang sudah berakhir bisa diakhiri ulang untuk memperbaiki
+   * tanggal/alasan keluar.
+   */
   @Post(":id/close")
   @HttpCode(200)
   @RequirePermission("hr.manage")
   close(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
-    const { dateEnd } = parse(z.object({ dateEnd: z.string().date().optional() }), body ?? {});
+    const raw = body !== null && typeof body === "object" ? (body as Record<string, unknown>) : {};
     return this.tenantDb.run(async (tx) => {
       const contract = await this.find(tx, id);
-      if (contract.state !== "running")
-        throw new BadRequestException("Hanya kontrak berjalan yang bisa diakhiri");
-      const end = dateEnd ?? contract.dateEnd ?? new Date().toISOString().slice(0, 10);
-      if (end < contract.dateStart) throw fieldError("dateEnd", "Tanggal berakhir sebelum mulai");
-      await tx
-        .update(C)
-        .set({ state: "closed", dateEnd: end, updatedAt: sql`now()` })
-        .where(eq(C.id, id));
+      const input = parse(contractEndSchema, {
+        ...raw,
+        dateEnd: raw.dateEnd ?? contract.dateEnd ?? new Date().toISOString().slice(0, 10),
+      });
+      await this.contracts.end(tx, id, input);
+      return this.load(tx, id);
+    });
+  }
+
+  /** Batalkan keluar: kontrak keluar kembali berjalan, tanggal & alasan keluar karyawan dihapus. */
+  @Post(":id/cancel-exit")
+  @HttpCode(200)
+  @RequirePermission("hr.manage")
+  cancelExit(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run(async (tx) => {
+      await this.documents.assertEditable(tx, await this.find(tx, id));
+      await this.contracts.cancelExit(tx, id);
       return this.load(tx, id);
     });
   }
@@ -769,6 +783,7 @@ class ContractsController {
       const contract = await this.find(tx, id);
       if (contract.state !== "draft") throw new BadRequestException("Hanya kontrak draft yang bisa dihapus");
       await tx.delete(C).where(eq(C.id, id));
+      await this.contracts.syncJoinDate(tx, contract.employeeId, { before: contract.dateStart, after: null });
     });
   }
 
@@ -800,13 +815,55 @@ class ContractsController {
       .where(eq(schema.contractAllowances.contractId, id))
       .orderBy(asc(schema.salaryComponents.code));
     const [employee] = await tx
-      .select({ name: schema.employees.name })
+      .select({
+        name: schema.employees.name,
+        joinDate: schema.employees.joinDate,
+        resignDate: schema.employees.resignDate,
+        resignReason: schema.employees.resignReason,
+        pendingStart: schema.employees.pendingStart,
+      })
       .from(schema.employees)
       .where(eq(schema.employees.id, contract.employeeId));
+    const [earlier] = await tx
+      .select({ id: C.id })
+      .from(C)
+      .where(
+        and(
+          eq(C.employeeId, contract.employeeId),
+          ne(C.state, "cancel"),
+          ne(C.id, contract.id),
+          sql`${C.dateStart} < ${contract.dateStart}`,
+        ),
+      )
+      .limit(1);
+    const [later] = await tx
+      .select({ id: C.id })
+      .from(C)
+      .where(
+        and(
+          eq(C.employeeId, contract.employeeId),
+          ne(C.state, "cancel"),
+          ne(C.id, contract.id),
+          sql`${C.dateStart} > ${contract.dateStart}`,
+        ),
+      )
+      .limit(1);
     const grade = await gradeOf(tx, contract.employeeId);
     return {
       ...contract,
       employeeName: employee?.name ?? "",
+      employee: employee
+        ? {
+            joinDate: employee.joinDate,
+            resignDate: employee.resignDate,
+            resignReason: employee.resignReason,
+            pendingStart: employee.pendingStart,
+          }
+        : null,
+      // Kontrak pertama: tanggal mulainya = tanggal masuk karyawan.
+      isFirst: !earlier,
+      // Kontrak terakhir: hanya kontrak ini yang bisa diakhiri dengan karyawan keluar.
+      isLast: !later,
       allowances,
       // Peringatan struktur & skala upah: upah pokok di luar rentang golongan jabatan.
       grade: grade

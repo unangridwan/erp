@@ -1531,6 +1531,21 @@ export const offboardSchema = z.object({
   startChecklist: z.boolean().default(true),
 });
 
+/**
+ * Akhiri kontrak. `exit` = karyawan keluar: tanggal berakhir menjadi tanggal keluar karyawan (satu-satunya tempat
+ * tanggal keluar diinput), dengan alasan & checklist offboarding. Tanpa `exit` = kontrak selesai (mis. diganti kontrak
+ * baru/perpanjangan).
+ */
+export const contractEndSchema = z
+  .object({
+    dateEnd: z.string().date(),
+    exit: z.boolean().default(false),
+    resignReason: z.enum(["resign", "end_contract", "termination", "retirement", "death", "other"]).nullish(),
+    resignNote: z.string().trim().max(1000).nullish(),
+    startChecklist: z.boolean().default(true),
+  })
+  .refine((v) => !v.exit || v.resignReason, { message: "Pilih alasan keluar", path: ["resignReason"] });
+
 export const exitInterviewSchema = z.object({
   date: z.string().date(),
   interviewerId: optionalUuid,

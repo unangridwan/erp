@@ -34,6 +34,8 @@ export interface Resource {
   csv?: boolean;
   /** Permission untuk menulis bila berbeda dari `<permission>.write`. */
   writePermission?: string;
+  /** Permission untuk membuat data baru bila berbeda dari hak menulis (mis. karyawan: butuh hak kontrak). */
+  createPermission?: string;
   /** Data tidak bisa dihapus (cukup dinonaktifkan). */
   noDelete?: boolean;
   /** Tampilan kartu (kanban) — menjadi tampilan bawaan seperti di Odoo. */
@@ -984,6 +986,10 @@ export const canWrite = (permissions: string[], resource: Resource) =>
     `/${resource.path}`,
     "POST",
   );
+export const canCreate = (permissions: string[], resource: Resource) =>
+  canWrite(permissions, resource) &&
+  (!resource.createPermission ||
+    canPath(permissions, resource.createPermission, `/${resource.path}`, "POST"));
 export const canDelete = (permissions: string[], resource: Resource) =>
   canPath(
     permissions,
@@ -1507,6 +1513,8 @@ RESOURCES.push(
     title: L("Karyawan", "Employees"),
     singular: L("Karyawan", "Employee"),
     permission: "hr",
+    // Karyawan baru dibuat bersama kontrak kerjanya (tanggal masuk = mulai kontrak).
+    createPermission: "hr.manage",
     group: HR,
     columns: [
       { name: "employeeNumber", label: L("No. karyawan", "Employee no.") },
