@@ -332,6 +332,18 @@ export const MESSAGES_EN: Record<string, string> = {
   "Belum absen masuk": "Not checked in yet",
   "Jam pulang sebelum jam masuk": "Check-out time is before check-in time",
   "Tanggal selesai sebelum mulai": "The end date is before the start date",
+  "Kontrak tidak boleh mulai sebelum tanggal masuk karyawan ({})":
+    "The contract cannot start before the employee's join date ({0})",
+  "Kontrak tidak boleh mulai setelah tanggal keluar karyawan ({})":
+    "The contract cannot start after the employee's leave date ({0})",
+  "Kontrak tidak boleh berakhir setelah tanggal keluar karyawan ({})":
+    "The contract cannot end after the employee's leave date ({0})",
+  "Kontrak {} mulai {}, sebelum tanggal masuk baru; ubah kontraknya dulu":
+    "Contract {0} starts {1}, before the new join date; change the contract first",
+  "Kontrak {} mulai {}, setelah tanggal keluar; batalkan/hapus kontraknya dulu":
+    "Contract {0} starts {1}, after the leave date; cancel/delete the contract first",
+  "Kontrak {} berakhir {}, sebelum tanggal masuk baru; ubah kontraknya dulu":
+    "Contract {0} ends {1}, before the new join date; change the contract first",
   "Seluruh kuota posisi ini sudah diajukan lewat FPK":
     "The whole quota of this position has already been requested",
   "Hanya FPK draft yang bisa diubah": "Only draft hiring requests can be edited",

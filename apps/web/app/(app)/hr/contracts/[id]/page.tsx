@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useOptions } from "../../../../../components/accounting/use-options";
 import { RefSelect } from "../../../../../components/ref-select";
 import { api, ApiError } from "../../../../../lib/api";
-import { money, today } from "../../../../../lib/format";
+import { addDays } from "@erp/shared";
+import { formatDate, money, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { CONTRACT_STATE_LABEL } from "../../../../../lib/resources";
 
@@ -40,16 +41,46 @@ interface Component {
   fixed: boolean;
 }
 
+interface EmployeeDates {
+  joinDate: string;
+  resignDate: string | null;
+}
+
+/**
+ * Tanggal bawaan kontrak baru mengikuti masa kerja: kontrak pertama mulai di tanggal masuk karyawan, kontrak
+ * berikutnya sehari setelah kontrak terakhir berakhir; berakhir paling lambat di tanggal keluar.
+ */
+function defaultDates(
+  e: EmployeeDates,
+  contracts: { dateStart: string; dateEnd: string | null; state: string }[],
+) {
+  const ends = contracts
+    .filter((c) => c.state !== "cancel" && c.dateEnd)
+    .map((c) => c.dateEnd!)
+    .sort();
+  const after = ends.length ? addDays(ends[ends.length - 1]!, 1) : e.joinDate;
+  return { dateStart: after > e.joinDate ? after : e.joinDate, dateEnd: e.resignDate ?? "" };
+}
+
 /** Kontrak kerja: PKWT/PKWTT, gaji pokok, tunjangan & potongan bulanan. */
 export default function ContractPage() {
+  return (
+    <Suspense>
+      <Contract />
+    </Suspense>
+  );
+}
+
+function Contract() {
   const { id } = useParams<{ id: string }>();
+  const presetEmployee = useSearchParams().get("employeeId") ?? "";
   const router = useRouter();
   const { l, tx, locale } = useI18n();
   const isNew = id === "new";
   const components = useOptions<Component>("/salary-components");
   const [contract, setContract] = useState<Contract | null>(null);
   const [form, setForm] = useState({
-    employeeId: "",
+    employeeId: presetEmployee,
     contractType: "pkwtt",
     dateStart: today(),
     dateEnd: "",
@@ -62,6 +93,35 @@ export default function ContractPage() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [version, setVersion] = useState(0);
+
+  // Kontrak baru: tanggal mulai/berakhir mengikuti tanggal masuk/keluar karyawan terpilih.
+  const [employeeDates, setEmployeeDates] = useState<EmployeeDates | null>(null);
+  useEffect(() => {
+    if (!isNew || !form.employeeId) {
+      setEmployeeDates(null);
+      return;
+    }
+    let live = true;
+    void (async () => {
+      try {
+        const e = await api<EmployeeDates>(`/employees/${form.employeeId}`);
+        const list = await api<{ items: { dateStart: string; dateEnd: string | null; state: string }[] }>(
+          `/contracts?employeeId=${form.employeeId}`,
+        ).then(
+          (r) => r.items,
+          () => [],
+        );
+        if (!live) return;
+        setEmployeeDates(e);
+        setForm((f) => ({ ...f, ...defaultDates(e, list) }));
+      } catch {
+        if (live) setEmployeeDates(null);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [isNew, form.employeeId]);
 
   useEffect(() => {
     if (isNew) return;
@@ -205,14 +265,28 @@ export default function ContractPage() {
             type="date"
             required
             value={form.dateStart}
+            min={employeeDates?.joinDate}
+            max={employeeDates?.resignDate ?? undefined}
             onChange={(e) => setForm((f) => ({ ...f, dateStart: e.target.value }))}
           />
+          {err("dateStart")}
+          {employeeDates && (
+            <small className="muted">
+              {l("Masa kerja karyawan: ", "Employment: ")}
+              {formatDate(employeeDates.joinDate, locale)} –{" "}
+              {employeeDates.resignDate
+                ? formatDate(employeeDates.resignDate, locale)
+                : l("sekarang", "present")}
+            </small>
+          )}
         </label>
         <label className="field">
           <span>{l("Berakhir", "End")}</span>
           <input
             type="date"
             value={form.dateEnd}
+            min={form.dateStart}
+            max={employeeDates?.resignDate ?? undefined}
             onChange={(e) => setForm((f) => ({ ...f, dateEnd: e.target.value }))}
           />
           {err("dateEnd")}

@@ -435,6 +435,7 @@ class EmployeesController {
     @Inject(EmployeeService) private readonly employees: EmployeeService,
     @Inject(ChecklistService) private readonly checklists: ChecklistService,
     @Inject(HistoryService) private readonly history: HistoryService,
+    @Inject(ContractService) private readonly contracts: ContractService,
   ) {}
 
   @Get()
@@ -579,6 +580,12 @@ class EmployeesController {
     );
     return this.tenantDb.run(async (tx) => {
       const before = await this.employees.find(tx, id);
+      // Kontrak mengikuti tanggal masuk/keluar baru (atau perubahan ditolak bila kontrak di luar masa kerja).
+      if ("joinDate" in sent || "resignDate" in sent)
+        await this.contracts.syncEmployeeDates(tx, before, {
+          joinDate: values.joinDate ?? before.joinDate,
+          resignDate: "resignDate" in sent ? (values.resignDate ?? null) : before.resignDate,
+        });
       const employee = await this.employees.update(tx, id, sent);
       await this.history.diff(tx, before, await this.employees.find(tx, id));
       // Tanggal keluar baru diisi → checklist offboarding.
@@ -604,6 +611,7 @@ class ContractsController {
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(ActivityService) private readonly activity: ActivityService,
     @Inject(ContractService) private readonly contracts: ContractService,
+    @Inject(EmployeeService) private readonly employees: EmployeeService,
   ) {}
 
   @Get()
@@ -653,6 +661,7 @@ class ContractsController {
         throw new BadRequestException("Kontrak selesai/batal tidak bisa diubah");
       if (input.employeeId !== contract.employeeId)
         throw fieldError("employeeId", "Karyawan kontrak tidak bisa diganti");
+      this.contracts.assertWithinEmployment(await this.employees.find(tx, contract.employeeId), input);
       await this.assertComponents(
         tx,
         input.allowances.map((a) => a.componentId),

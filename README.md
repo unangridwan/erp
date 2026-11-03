@@ -255,6 +255,12 @@ Otomatis (tanpa endpoint baru):
 | `GET /fleet/reports/{costs,odometer}`, `GET /fleet/reminders`, `GET/PUT /fleet/settings`                                                                     | Biaya per kendaraan/kategori/bulan, tren odometer, pengingat dokumen/kontrak (notifikasi in-app harian)                                                                                             |
 | Kontrak `taxMethod: gross \| gross_up`                                                                                                                       | Gross-up PPh 21 (tunjangan PPh 21 = pajaknya; ikut BPA1), saldo cuti di slip & PDF                                                                                                                  |
 
+**Tanggal karyawan & kontrak.** Kontrak harus berada dalam masa kerja karyawan: tidak mulai sebelum tanggal masuk dan
+tidak mulai/berakhir setelah tanggal keluar. Mengubah tanggal masuk memindahkan kontrak yang mulai di tanggal masuk
+lama (selama belum dipakai slip gaji); mengisi tanggal keluar (form karyawan atau offboarding) membuat kontrak draft/
+berjalan berakhir di tanggal itu. Kontrak baru dari halaman karyawan langsung terisi karyawannya, mulai di tanggal masuk
+(kontrak pertama) atau sehari setelah kontrak terakhir, dan berakhir di tanggal keluar bila ada.
+
 **Alur penambahan karyawan (migrasi 0049).** MPP disetujui → **Usulan Penambahan Karyawan (FPK)** dari baris MPP
 (departemen, jabatan, golongan, gaji terisi otomatis; dibatasi sisa kuota baris; kepala departemen boleh mengajukan)
 atau **di luar MPP** (ditandai, kategori persetujuan "FPK di luar MPP" untuk penyetuju tambahan) → persetujuan →
