@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { errorText } from "../../../../components/hr/hr-panels";
 import { api } from "../../../../lib/api";
 import { formatDate } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Cycle {
   id: string;
@@ -29,6 +31,33 @@ export default function AppraisalCyclesPage() {
   });
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const columns = useMemo<ViewColumn<Cycle>[]>(
+    () => [
+      { key: "name", label: l("Siklus", "Cycle"), value: (c) => c.name },
+      { key: "dateStart", label: l("Periode", "Period"), type: "date", value: (c) => c.dateStart },
+      {
+        key: "state",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (c) => c.state,
+        optionLabel: (v) =>
+          ({ draft: l("Draft", "Draft"), open: l("Berjalan", "Open"), closed: l("Ditutup", "Closed") })[v] ??
+          v,
+      },
+      {
+        key: "progress",
+        label: l("Progres", "Progress"),
+        type: "number",
+        value: (c) => (c.total ? Math.round((c.done / c.total) * 100) : 0),
+        searchable: false,
+      },
+    ],
+    [l],
+  );
+  const table = useTableView(cycles, columns, {
+    storageKey: "appraisal-cycles",
+    defaultSort: { key: "dateStart", dir: "desc" },
+  });
   useEffect(() => {
     api<Cycle[]>("/appraisal-cycles").then(setCycles, (e) => setError(errorText(e)));
   }, [version]);
@@ -79,10 +108,27 @@ export default function AppraisalCyclesPage() {
         </label>
         <button className="primary">{l("Buat siklus", "Create cycle")}</button>
       </form>
+      <TableTools view={table} />
       <div className="table-scroll">
         <table>
+          <thead>
+            <tr>
+              <SortTh view={table} col="name">
+                {l("Siklus", "Cycle")}
+              </SortTh>
+              <SortTh view={table} col="dateStart">
+                {l("Periode", "Period")}
+              </SortTh>
+              <SortTh view={table} col="state">
+                {l("Status", "Status")}
+              </SortTh>
+              <SortTh view={table} col="progress">
+                {l("Progres", "Progress")}
+              </SortTh>
+            </tr>
+          </thead>
           <tbody>
-            {cycles.map((c) => (
+            {table.rows.map((c) => (
               <tr key={c.id}>
                 <td>
                   <Link href={`/hr/appraisals/${c.id}`}>{c.name}</Link>
@@ -96,9 +142,19 @@ export default function AppraisalCyclesPage() {
                 </td>
               </tr>
             ))}
+            {table.rows.length === 0 && (
+              <tr>
+                <td colSpan={4} className="muted">
+                  {cycles.length
+                    ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                    : l("Belum ada siklus penilaian.", "No appraisal cycles yet.")}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
+      <TablePager view={table} />
     </div>
   );
 }

@@ -152,6 +152,63 @@ export default function PlatformPage() {
     [l, tx],
   );
   const table = useTableView(tenants ?? [], columns, { storageKey: "platform-tenants" });
+  const invoiceColumns = useMemo<ViewColumn<OpenInvoice>[]>(
+    () => [
+      { key: "number", label: l("Nomor", "Number"), value: (i) => i.number },
+      { key: "tenant", label: "Tenant", value: (i) => i.tenantSlug },
+      { key: "plan", label: l("Paket", "Plan"), type: "enum", value: (i) => i.planName },
+      { key: "dueAt", label: l("Jatuh tempo", "Due"), type: "date", value: (i) => i.dueAt },
+      { key: "total", label: "Total", type: "number", value: (i) => Number(i.total) },
+    ],
+    [l],
+  );
+  const invoiceTable = useTableView(invoices, invoiceColumns, {
+    storageKey: "platform-invoices",
+    defaultSort: { key: "dueAt", dir: "asc" },
+  });
+  const planColumns = useMemo<ViewColumn<Plan>[]>(
+    () => [
+      { key: "code", label: l("Kode", "Code"), value: (p) => p.code },
+      { key: "name", label: l("Nama", "Name"), value: (p) => p.name },
+      {
+        key: "priceMonthly",
+        label: l("Bulanan", "Monthly"),
+        type: "number",
+        value: (p) => Number(p.priceMonthly),
+      },
+      {
+        key: "priceYearly",
+        label: l("Tahunan", "Yearly"),
+        type: "number",
+        value: (p) => Number(p.priceYearly),
+      },
+      { key: "maxUsers", label: l("Pengguna", "Users"), type: "number", value: (p) => p.maxUsers },
+      {
+        key: "maxCompanies",
+        label: l("Perusahaan", "Companies"),
+        type: "number",
+        value: (p) => p.maxCompanies,
+      },
+      {
+        key: "active",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (p) => (p.active ? "1" : "0"),
+        optionLabel: (v) => (v === "1" ? l("Aktif", "Active") : l("Nonaktif", "Inactive")),
+      },
+      { key: "tenantCount", label: "Tenant", type: "number", value: (p) => p.tenantCount },
+      {
+        key: "public",
+        label: l("Tampil", "Visibility"),
+        type: "enum",
+        value: (p) => (p.public ? "1" : "0"),
+        optionLabel: (v) => (v === "1" ? l("Publik", "Public") : l("Tersembunyi", "Hidden")),
+        hidden: true,
+      },
+    ],
+    [l],
+  );
+  const planTable = useTableView(plans, planColumns, { storageKey: "platform-plans" });
 
   const load = useCallback(() => {
     Promise.all([
@@ -296,21 +353,32 @@ export default function PlatformPage() {
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
 
+      {tab === "invoices" && <TableTools view={invoiceTable} />}
       {tab === "invoices" && (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{l("Nomor", "Number")}</th>
-                <th>Tenant</th>
-                <th>{l("Paket", "Plan")}</th>
-                <th>{l("Jatuh tempo", "Due")}</th>
-                <th className="num">Total</th>
+                <SortTh view={invoiceTable} col="number">
+                  {l("Nomor", "Number")}
+                </SortTh>
+                <SortTh view={invoiceTable} col="tenant">
+                  Tenant
+                </SortTh>
+                <SortTh view={invoiceTable} col="plan">
+                  {l("Paket", "Plan")}
+                </SortTh>
+                <SortTh view={invoiceTable} col="dueAt">
+                  {l("Jatuh tempo", "Due")}
+                </SortTh>
+                <SortTh view={invoiceTable} col="total" className="num">
+                  Total
+                </SortTh>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {invoices.map((i) => (
+              {invoiceTable.rows.map((i) => (
                 <tr key={i.id}>
                   <td>{i.number}</td>
                   <td>{i.tenantSlug}</td>
@@ -332,10 +400,12 @@ export default function PlatformPage() {
                   </td>
                 </tr>
               ))}
-              {invoices.length === 0 && (
+              {invoiceTable.rows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="muted">
-                    {l("Tidak ada tagihan terbuka.", "No open invoices.")}
+                    {invoices.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Tidak ada tagihan terbuka.", "No open invoices.")}
                   </td>
                 </tr>
               )}
@@ -343,6 +413,7 @@ export default function PlatformPage() {
           </table>
         </div>
       )}
+      {tab === "invoices" && <TablePager view={invoiceTable} />}
 
       {tab === "tenants" && (
         <>
@@ -662,24 +733,41 @@ export default function PlatformPage() {
               </button>
             </div>
           )}
+          <TableTools view={planTable} />
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>{l("Kode", "Code")}</th>
-                  <th>{l("Nama", "Name")}</th>
-                  <th className="num">{l("Bulanan", "Monthly")}</th>
-                  <th className="num">{l("Tahunan", "Yearly")}</th>
-                  <th className="num">{l("Pengguna", "Users")}</th>
-                  <th className="num">{l("Perusahaan", "Companies")}</th>
+                  <SortTh view={planTable} col="code">
+                    {l("Kode", "Code")}
+                  </SortTh>
+                  <SortTh view={planTable} col="name">
+                    {l("Nama", "Name")}
+                  </SortTh>
+                  <SortTh view={planTable} col="priceMonthly" className="num">
+                    {l("Bulanan", "Monthly")}
+                  </SortTh>
+                  <SortTh view={planTable} col="priceYearly" className="num">
+                    {l("Tahunan", "Yearly")}
+                  </SortTh>
+                  <SortTh view={planTable} col="maxUsers" className="num">
+                    {l("Pengguna", "Users")}
+                  </SortTh>
+                  <SortTh view={planTable} col="maxCompanies" className="num">
+                    {l("Perusahaan", "Companies")}
+                  </SortTh>
                   <th>{l("Modul", "Modules")}</th>
-                  <th>{l("Status", "Status")}</th>
-                  <th className="num">Tenant</th>
+                  <SortTh view={planTable} col="active">
+                    {l("Status", "Status")}
+                  </SortTh>
+                  <SortTh view={planTable} col="tenantCount" className="num">
+                    Tenant
+                  </SortTh>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {plans.map((p) => (
+                {planTable.rows.map((p) => (
                   <tr key={p.id}>
                     <td>{p.code}</td>
                     <td>{p.name}</td>
@@ -714,9 +802,19 @@ export default function PlatformPage() {
                     </td>
                   </tr>
                 ))}
+                {planTable.rows.length === 0 && (
+                  <tr>
+                    <td colSpan={10} className="muted">
+                      {plans.length
+                        ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                        : l("Belum ada paket.", "No plans yet.")}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
+          <TablePager view={planTable} />
         </>
       )}
     </>

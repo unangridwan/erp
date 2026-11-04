@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useOptions } from "../../../../components/accounting/use-options";
 import { useMe } from "../../../../components/me-context";
 import { RefSelect } from "../../../../components/ref-select";
 import { api, ApiError } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Device {
   id: string;
@@ -33,6 +35,26 @@ export default function AttendanceDevicesPage() {
   const [version, setVersion] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const columns = useMemo<ViewColumn<Device>[]>(
+    () => [
+      { key: "name", label: l("Nama", "Name"), value: (d) => d.name },
+      { key: "serial", label: l("No. seri", "Serial no."), value: (d) => d.serial },
+      {
+        key: "location",
+        label: l("Lokasi", "Location"),
+        type: "enum",
+        value: (d) => locations.find((x) => x.id === d.workLocationId)?.name ?? null,
+      },
+      {
+        key: "lastSeenAt",
+        label: l("Terakhir terhubung", "Last seen"),
+        type: "date",
+        value: (d) => d.lastSeenAt,
+      },
+    ],
+    [l, locations],
+  );
+  const table = useTableView(rows, columns, { storageKey: "attendance-devices" });
 
   useEffect(() => {
     api<Device[]>("/attendance-devices").then(setRows, (e: Error) => setError(e.message));
@@ -143,19 +165,28 @@ export default function AttendanceDevicesPage() {
             <button className="primary">{l("Daftarkan mesin", "Register device")}</button>
           </form>
         )}
+        <TableTools view={table} />
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{l("Nama", "Name")}</th>
-                <th>{l("No. seri", "Serial no.")}</th>
-                <th>{l("Lokasi", "Location")}</th>
-                <th>{l("Terakhir terhubung", "Last seen")}</th>
+                <SortTh view={table} col="name">
+                  {l("Nama", "Name")}
+                </SortTh>
+                <SortTh view={table} col="serial">
+                  {l("No. seri", "Serial no.")}
+                </SortTh>
+                <SortTh view={table} col="location">
+                  {l("Lokasi", "Location")}
+                </SortTh>
+                <SortTh view={table} col="lastSeenAt">
+                  {l("Terakhir terhubung", "Last seen")}
+                </SortTh>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {rows.map((d) => (
+              {table.rows.map((d) => (
                 <tr key={d.id}>
                   <td>{d.name}</td>
                   <td>{d.serial}</td>
@@ -201,16 +232,19 @@ export default function AttendanceDevicesPage() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && (
+              {table.rows.length === 0 && (
                 <tr>
                   <td colSpan={5} className="muted">
-                    {l("Belum ada mesin terdaftar.", "No devices yet.")}
+                    {rows.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Belum ada mesin terdaftar.", "No devices yet.")}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+        <TablePager view={table} />
       </section>
       {manage && (
         <section className="panel">

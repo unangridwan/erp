@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Range {
   id: string;
@@ -24,6 +26,22 @@ export default function NsfpPage() {
   const [rows, setRows] = useState<Range[] | null>(null);
   const [form, setForm] = useState({ start: "", end: "", note: "" });
   const [error, setError] = useState<string | null>(null);
+  const columns = useMemo<ViewColumn<Range>[]>(
+    () => [
+      {
+        key: "start",
+        label: l("Awal", "Start"),
+        value: (r) => r.start,
+        text: (r) => `${r.start} ${show(r.start)}`,
+      },
+      { key: "end", label: l("Akhir", "End"), value: (r) => r.end, text: (r) => `${r.end} ${show(r.end)}` },
+      { key: "used", label: l("Terpakai", "Used"), type: "number", value: (r) => r.used },
+      { key: "remaining", label: l("Sisa", "Remaining"), type: "number", value: (r) => r.remaining },
+      { key: "note", label: l("Catatan", "Note"), value: (r) => r.note },
+    ],
+    [l],
+  );
+  const table = useTableView(rows ?? [], columns, { storageKey: "nsfp-ranges" });
   const manage = can(me.permissions, "tax.manage");
 
   useEffect(() => {
@@ -96,21 +114,32 @@ export default function NsfpPage() {
           <button className="primary">{l("Tambah rentang", "Add range")}</button>
         </form>
       )}
+      {rows && <TableTools view={table} />}
       {rows && (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{l("Awal", "Start")}</th>
-                <th>{l("Akhir", "End")}</th>
-                <th className="num">{l("Terpakai", "Used")}</th>
-                <th className="num">{l("Sisa", "Remaining")}</th>
-                <th>{l("Catatan", "Note")}</th>
+                <SortTh view={table} col="start">
+                  {l("Awal", "Start")}
+                </SortTh>
+                <SortTh view={table} col="end">
+                  {l("Akhir", "End")}
+                </SortTh>
+                <SortTh view={table} col="used" className="num">
+                  {l("Terpakai", "Used")}
+                </SortTh>
+                <SortTh view={table} col="remaining" className="num">
+                  {l("Sisa", "Remaining")}
+                </SortTh>
+                <SortTh view={table} col="note">
+                  {l("Catatan", "Note")}
+                </SortTh>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {table.rows.map((r) => (
                 <tr key={r.id}>
                   <td>{show(r.start)}</td>
                   <td>{show(r.end)}</td>
@@ -126,10 +155,12 @@ export default function NsfpPage() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && (
+              {table.rows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="muted">
-                    {l("Belum ada rentang NSFP.", "No ranges yet.")}
+                    {rows.length
+                      ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                      : l("Belum ada rentang NSFP.", "No ranges yet.")}
                   </td>
                 </tr>
               )}
@@ -137,6 +168,7 @@ export default function NsfpPage() {
           </table>
         </div>
       )}
+      {rows && <TablePager view={table} />}
     </>
   );
 }

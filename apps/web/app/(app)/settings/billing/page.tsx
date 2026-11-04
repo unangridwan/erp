@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../../../lib/api";
 import { formatDate, money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { SUBSCRIPTION_STATUS_LABEL } from "../../../../lib/resources";
+import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useTableView } from "../../../../lib/use-table-view";
 
 interface Plan {
   id: string;
@@ -67,6 +69,33 @@ export default function BillingPage() {
   const [cycle, setCycle] = useState<"monthly" | "yearly">("monthly");
   const [instructions, setInstructions] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const invoiceColumns = useMemo<ViewColumn<Invoice>[]>(
+    () => [
+      { key: "number", label: l("Nomor", "Number"), value: (i) => i.number },
+      { key: "plan", label: l("Paket", "Plan"), type: "enum", value: (i) => i.planName },
+      { key: "issuedAt", label: l("Terbit", "Issued"), type: "date", value: (i) => i.issuedAt },
+      { key: "dueAt", label: l("Jatuh tempo", "Due"), type: "date", value: (i) => i.dueAt },
+      {
+        key: "total",
+        label: l("Total (incl. PPN)", "Total (incl. VAT)"),
+        type: "number",
+        value: (i) => Number(i.total),
+      },
+      {
+        key: "status",
+        label: l("Status", "Status"),
+        type: "enum",
+        value: (i) => i.status,
+        optionLabel: (v) =>
+          v === "paid" ? l("Lunas", "Paid") : v === "void" ? l("Batal", "Void") : l("Belum dibayar", "Open"),
+      },
+    ],
+    [l],
+  );
+  const invoiceTable = useTableView(data?.invoices ?? [], invoiceColumns, {
+    storageKey: "billing-invoices",
+    defaultSort: { key: "issuedAt", dir: "desc" },
+  });
 
   const load = useCallback(() => {
     api<Billing>("/billing")
@@ -218,21 +247,34 @@ export default function BillingPage() {
       </div>
 
       <h2>{l("Tagihan", "Invoices")}</h2>
+      <TableTools view={invoiceTable} />
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>{l("Nomor", "Number")}</th>
-              <th>{l("Paket", "Plan")}</th>
-              <th>{l("Terbit", "Issued")}</th>
-              <th>{l("Jatuh tempo", "Due")}</th>
-              <th className="num">{l("Total (incl. PPN)", "Total (incl. VAT)")}</th>
-              <th>{l("Status", "Status")}</th>
+              <SortTh view={invoiceTable} col="number">
+                {l("Nomor", "Number")}
+              </SortTh>
+              <SortTh view={invoiceTable} col="plan">
+                {l("Paket", "Plan")}
+              </SortTh>
+              <SortTh view={invoiceTable} col="issuedAt">
+                {l("Terbit", "Issued")}
+              </SortTh>
+              <SortTh view={invoiceTable} col="dueAt">
+                {l("Jatuh tempo", "Due")}
+              </SortTh>
+              <SortTh view={invoiceTable} col="total" className="num">
+                {l("Total (incl. PPN)", "Total (incl. VAT)")}
+              </SortTh>
+              <SortTh view={invoiceTable} col="status">
+                {l("Status", "Status")}
+              </SortTh>
               <th />
             </tr>
           </thead>
           <tbody>
-            {data.invoices.map((i) => (
+            {invoiceTable.rows.map((i) => (
               <tr key={i.id}>
                 <td>{i.number}</td>
                 <td>
@@ -270,16 +312,19 @@ export default function BillingPage() {
                 </td>
               </tr>
             ))}
-            {data.invoices.length === 0 && (
+            {invoiceTable.rows.length === 0 && (
               <tr>
                 <td colSpan={7} className="muted">
-                  {l("Belum ada tagihan.", "No invoices yet.")}
+                  {data.invoices.length
+                    ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
+                    : l("Belum ada tagihan.", "No invoices yet.")}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      <TablePager view={invoiceTable} />
     </>
   );
 }
