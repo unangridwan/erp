@@ -478,6 +478,8 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   judul dokumen per jenis, template kontrak umum, SDM › Konfigurasi › Jenis Kontrak
 - [x] Aturan penggajian per jenis kontrak (migrasi 0054) — ikut payroll, BPJS per program (Kes/JKK/JKM/JHT/JP) sebagai
   batas kepesertaan, kategori PPh 21 (tetap/tidak tetap/bukan pegawai/tidak dipotong), THR, pesangon/kompensasi; hak lembur per karyawan (0055)
+- [x] Usia pensiun per perusahaan (migrasi 0056) — usia bawaan, aturan tanggal, pengingat, pengecualian per
+  jabatan/golongan/departemen & usia khusus karyawan; daftar akan pensiun, pengingat HR, batas kontrak, pintasan offboarding
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

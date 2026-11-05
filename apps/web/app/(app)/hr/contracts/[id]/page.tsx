@@ -193,6 +193,14 @@ function Contract() {
   const err = (p: string) => fieldErrors[p] && <small className="error">{fieldErrors[p]}</small>;
 
   // Akhiri kontrak: tanggal berakhir, dan bila karyawan keluar → tanggal ini menjadi tanggal keluar karyawan.
+  const [retirement, setRetirement] = useState<{ age: number; date: string | null } | null>(null);
+  useEffect(() => {
+    if (!contract?.employeeId) return;
+    api<{ age: number; date: string | null }>(`/employees/${contract.employeeId}/retirement`).then(
+      setRetirement,
+      () => setRetirement(null),
+    );
+  }, [contract?.employeeId]);
   const [ending, setEnding] = useState<{
     dateEnd: string;
     exit: boolean;
@@ -287,6 +295,25 @@ function Contract() {
                 onChange={(e) => setEnding({ ...ending, dateEnd: e.target.value })}
               />
               {err("dateEnd")}
+              {retirement?.date && contract.isLast && (
+                <button
+                  type="button"
+                  className="link small"
+                  onClick={() =>
+                    setEnding({
+                      ...ending,
+                      dateEnd: retirement.date!,
+                      exit: true,
+                      resignReason: "retirement",
+                    })
+                  }
+                >
+                  {l(
+                    `Pensiun: ${formatDate(retirement.date, locale)} (usia ${retirement.age} tahun)`,
+                    `Retirement: ${formatDate(retirement.date, locale)} (age ${retirement.age})`,
+                  )}
+                </button>
+              )}
             </label>
             {contract.isLast && !contract.endReason && (
               <label className="check">

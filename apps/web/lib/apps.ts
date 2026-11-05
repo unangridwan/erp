@@ -302,6 +302,7 @@ export const APPS: App[] = [
         link("Kategori Persetujuan", "Approval Categories", "/hr/approval-categories", "hr.manage"),
         link("Template Checklist", "Checklist Templates", "/hr/checklist-templates", "hr.read"),
         link("Jenis Kontrak", "Contract Types", "/hr/contract-types", "hr.read"),
+        link("Usia Pensiun", "Retirement Age", "/hr/retirement", "hr.read"),
         link("Template Kontrak", "Contract Templates", "/hr/contract-templates", "hr.read"),
         link("Penawaran & Alasan Tolak", "Offers & Refusal Reasons", "/hr/recruitment-settings", "hr.read"),
         link("Template KPI", "KPI Templates", "/hr/appraisal-templates", "hr.read"),

@@ -313,7 +313,12 @@ JKK, JKM, JHT, JP — menjadi batas; centang di data karyawan tetap bisa mengecu
 mengikuti jenis upah, pegawai tetap TER, tidak tetap tarif harian, bukan pegawai 50% bruto × Pasal 17, atau tidak
 dipotong; bukti potong A1/BPMP hanya pegawai tetap), hak THR, dan hak saat berakhir (pesangon, uang kompensasi PKWT, atau tidak ada). Hak upah lembur diatur **per karyawan** (centang "Berhak upah lembur" di tab Penggajian karyawan; bila tidak, lembur
 ditolak, tidak dibuat dari absensi, dan tidak dibayar). Bawaan: magang hanya JKK+JKM tanpa THR,
-mitra tanpa BPJS dengan PPh 21 bukan pegawai. SDM › Konfigurasi › **Template Kontrak**: isi kontrak dengan placeholder (`{nama}`, `{nik}`, `{jabatan}`,
+mitra tanpa BPJS dengan PPh 21 bukan pegawai. SDM › Konfigurasi › **Usia Pensiun** (0056): kebijakan per perusahaan — usia pensiun bawaan, tanggal pensiun
+(tepat ulang tahun / akhir bulan ulang tahun / awal bulan berikutnya), pengingat N bulan sebelumnya, dan pengecualian
+per jabatan, golongan, atau departemen; usia khusus per karyawan di tab Kerja (urutan: karyawan → jabatan → golongan →
+departemen → bawaan). Tanggal pensiun tampil di tab Penggajian karyawan, daftar "Akan pensiun" & Pengingat HR (juga
+email harian); kontrak tidak bisa mulai/berakhir setelah tanggal pensiun; dialog Akhiri kontrak punya pintasan
+"Pensiun" (tanggal & alasan terisi). SDM › Konfigurasi › **Template Kontrak**: isi kontrak dengan placeholder (`{nama}`, `{nik}`, `{jabatan}`,
 `{gaji}`, `{gaji_terbilang}`, `{tunjangan}`, `{tunjangan_tidak_tetap}`, `{potongan}`, `{komponen_gaji}`,
 `{masa_kontrak}`, …; 31 kolom) yang diisi otomatis dari data karyawan,
 kontrak, perusahaan & tunjangan tetap; template bawaan PKWT & PKWTT dibuat otomatis; pratinjau PDF dengan data

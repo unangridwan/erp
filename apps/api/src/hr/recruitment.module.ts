@@ -50,6 +50,7 @@ import { ChecklistService } from "./checklist.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { HrModule } from "./hr.module.js";
 import { assertContractType, fixedTermCodes } from "./contract-types.module.js";
+import { retirementPolicy, upcomingRetirements } from "./retirement.module.js";
 
 const D = schema.hrDocuments;
 const AP = schema.applicants;
@@ -261,7 +262,12 @@ async function reminders(tx: Db, companyId: string, days: number) {
       ),
     )
     .orderBy(asc(schema.employeeWarnings.validUntil));
+  // Karyawan yang pensiun dalam masa pengingat kebijakan (atau `days`, mana yang lebih panjang).
+  const policy = await retirementPolicy(tx, companyId);
+  const retirementDays = Math.max(days, Math.round(policy.reminderMonths * 30.44));
+  const retirements = await upcomingRetirements(tx, companyId, addDays(today(), retirementDays));
   return {
+    retirements: retirements.map((r) => ({ ...r, expiry: expiryStatus(r.date, today(), retirementDays) })),
     documents: await expiringDocuments(tx, companyId, days),
     contracts: contracts.map((c) => ({ ...c, expiry: expiryStatus(c.dateEnd, today(), days) })),
     overdueTasks: tasks,
@@ -325,7 +331,13 @@ export class HrReminderService implements OnApplicationBootstrap, OnApplicationS
             .from(schema.companies);
           for (const company of companies) {
             const r = await reminders(tx, company.id, 30);
-            if (!r.documents.length && !r.contracts.length && !r.overdueTasks.length && !r.warnings.length)
+            if (
+              !r.documents.length &&
+              !r.contracts.length &&
+              !r.overdueTasks.length &&
+              !r.warnings.length &&
+              !r.retirements.length
+            )
               continue;
             const [logged] = await tx
               .insert(schema.hrReminderLog)
@@ -358,6 +370,7 @@ export class HrReminderService implements OnApplicationBootstrap, OnApplicationS
               ...r.warnings.map(
                 (w) => `- ${w.level.toUpperCase()} ${w.employeeName} berakhir ${w.validUntil}`,
               ),
+              ...r.retirements.map((x) => `- ${x.name} memasuki usia pensiun ${x.age} tahun pada ${x.date}`),
             ];
             for (const { email } of recipients)
               out.push({

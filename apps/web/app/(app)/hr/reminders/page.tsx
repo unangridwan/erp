@@ -19,6 +19,7 @@ interface Reminders {
     expiry: Expiry;
   }[];
   contracts: { id: string; name: string; dateEnd: string; employeeName: string; expiry: Expiry }[];
+  retirements?: { employeeId: string; name: string; age: number; date: string; expiry: Expiry }[];
   overdueTasks: { id: string; name: string; dueDate: string; checklistId: string; employeeName: string }[];
 }
 
@@ -82,6 +83,32 @@ export default function RemindersPage() {
               </table>
             </div>
           )}
+          <h2>{l("Karyawan akan pensiun", "Upcoming retirements")}</h2>
+          {!r.retirements?.length ? (
+            <p className="muted">—</p>
+          ) : (
+            <div className="table-scroll">
+              <table>
+                <tbody>
+                  {r.retirements.map((x) => (
+                    <tr key={x.employeeId}>
+                      <td>
+                        <Link href={`/employees/${x.employeeId}`}>{x.name}</Link>
+                      </td>
+                      <td>{l(`usia ${x.age} tahun`, `age ${x.age}`)}</td>
+                      <td>{formatDate(x.date, locale)}</td>
+                      <td className={x.expiry?.status === "expired" ? "error" : undefined}>
+                        {left(x.expiry)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="muted small">
+            <Link href="/hr/retirement">{l("Atur kebijakan usia pensiun", "Retirement age policy")}</Link>
+          </p>
           <h2>{l("Dokumen kedaluwarsa", "Expiring documents")}</h2>
           {r.documents.length === 0 ? (
             <p className="muted">—</p>

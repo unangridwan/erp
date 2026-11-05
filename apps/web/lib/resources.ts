@@ -1650,6 +1650,14 @@ RESOURCES.push(
         type: "boolean",
       },
       {
+        name: "retirementAge",
+        label: L(
+          "Usia pensiun khusus (kosong = ikut kebijakan perusahaan)",
+          "Specific retirement age (empty = company policy)",
+        ),
+        type: "number",
+      },
+      {
         name: "overtimeEligible",
         label: L("Berhak upah lembur", "Entitled to overtime pay"),
         type: "boolean",

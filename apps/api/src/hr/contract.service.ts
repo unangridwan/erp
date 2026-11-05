@@ -11,6 +11,7 @@ import { ChecklistService } from "./checklist.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { HistoryService } from "./history.service.js";
 import { assertContractType, contractTypeOf } from "./contract-types.module.js";
+import { assertBeforeRetirement } from "./retirement.module.js";
 
 const C = schema.contracts;
 
@@ -288,6 +289,7 @@ export class ContractService {
   async create(tx: Db, input: z.infer<typeof contractSchema>) {
     const employee = await this.employees.find(tx, input.employeeId);
     this.assertWithinEmployment(employee, input);
+    await assertBeforeRetirement(tx, employee, input);
     await assertContractType(tx, input.contractType, input);
     await this.assertComponents(
       tx,
