@@ -975,4 +975,11 @@ export const MESSAGES_EN: Record<string, string> = {
     "Contract type {0} receives fixed-term compensation, not severance",
   "Jenis kontrak {} mendapat pesangon, bukan uang kompensasi PKWT":
     "Contract type {0} receives severance, not fixed-term compensation",
+  "Kontrak mulai melewati tanggal pensiun {} (usia {} tahun); atur usia pensiun khusus karyawan bila masa kerja diperpanjang":
+    "The contract starts after the retirement date {0} (age {1}); set an employee-specific retirement age to extend employment",
+  "Kontrak berakhir melewati tanggal pensiun {} (usia {} tahun); atur usia pensiun khusus karyawan bila masa kerja diperpanjang":
+    "The contract ends after the retirement date {0} (age {1}); set an employee-specific retirement age to extend employment",
+  "Pengecualian ganda": "Duplicate exception",
+  "Jabatan/golongan/departemen tidak ditemukan": "Job position/grade/department not found",
+  "Usia pensiun 40–80 tahun": "Retirement age must be 40–80",
 };

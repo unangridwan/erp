@@ -126,6 +126,13 @@ const EMPLOYEE_COLUMNS: Column[] = [
     example: "ya",
     note: "ya/tidak",
   },
+  {
+    key: "retirementAge",
+    header: "Usia Pensiun Khusus",
+    group: "Penggajian",
+    numeric: true,
+    note: "Kosongkan = ikut kebijakan perusahaan",
+  },
   { key: "birthPlace", header: "Tempat Lahir", group: "Biodata", example: "Bandung" },
   { key: "birthDate", header: "Tanggal Lahir", group: "Biodata", example: "1993-05-12" },
   { key: "gender", header: "Jenis Kelamin", group: "Biodata", example: "Perempuan" },
@@ -188,6 +195,8 @@ async function employeeInput(row: Row, ctx: Ctx, lookups: Lookups) {
   for (const f of ["bpjsKesEnrolled", "bpjsTkEnrolled", "bpjsJpEnrolled", "overtimeEligible"])
     if (get(row, f)) input[f] = bool(f, get(row, f));
   if (get(row, "bpjsKesClass")) input.bpjsKesClass = Number(num("bpjsKesClass", get(row, "bpjsKesClass")));
+  if (get(row, "retirementAge"))
+    input.retirementAge = Number(num("retirementAge", get(row, "retirementAge")));
   for (const f of ["heightCm", "weightKg"]) if (get(row, f)) input[f] = Number(num(f, get(row, f)));
   if (get(row, "active")) input.active = bool("active", get(row, "active"));
   if (get(row, "department"))
@@ -270,6 +279,7 @@ function employeesDataset(svc: HrServices): Dataset {
           bpjsTkEnrolled: r.bpjsTkEnrolled ? "ya" : "tidak",
           bpjsJpEnrolled: r.bpjsJpEnrolled ? "ya" : "tidak",
           overtimeEligible: r.overtimeEligible ? "ya" : "tidak",
+          retirementAge: r.retirementAge ?? "",
           ...Object.fromEntries(ENUM_FIELDS.map((f) => [f, label(f, r[f])])),
         };
       });

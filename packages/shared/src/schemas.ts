@@ -915,6 +915,12 @@ export const employeeSchema = z.object({
   bpjsTkDate: z.string().date().nullish(),
   bpjsJpEnrolled: z.boolean().default(true),
   overtimeEligible: z.boolean().default(true),
+  retirementAge: z.coerce
+    .number()
+    .int()
+    .min(40, "Usia pensiun 40–80 tahun")
+    .max(80, "Usia pensiun 40–80 tahun")
+    .nullish(),
   bankName: optionalText,
   bankAccount: z
     .string()

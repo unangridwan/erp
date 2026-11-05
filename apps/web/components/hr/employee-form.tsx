@@ -32,6 +32,7 @@ import { contractRuleText, useContractTypes } from "../../lib/use-contract-types
 type Values = Record<string, unknown>;
 
 interface Overview {
+  retirement?: { age: number; source: string; date: string | null };
   appraisals: number;
   openAppraisals: number;
   goals: number;
@@ -84,6 +85,7 @@ const GROUPS: Record<Tab, { title?: [string, string]; fields: string[] }[]> = {
       title: ["Lokasi & jadwal", "Location & schedule"],
       fields: ["branchId", "businessUnitId", "workLocationId", "scheduleId"],
     },
+    { title: ["Pensiun", "Retirement"], fields: ["retirementAge"] },
   ],
   personal: [
     {
@@ -653,6 +655,19 @@ export function EmployeeForm({ id }: { id: string }) {
                         <ReadRow label={l("Kontrak", "Contract")}>
                           {overview.contract.name} · {types.label(overview.contract.contractType)}
                         </ReadRow>
+                        {overview.retirement && (
+                          <ReadRow label={l("Pensiun", "Retirement")}>
+                            {overview.retirement.date
+                              ? `${formatDate(overview.retirement.date, locale)} · ${l(
+                                  `usia ${overview.retirement.age} tahun`,
+                                  `age ${overview.retirement.age}`,
+                                )}`
+                              : l(
+                                  `usia ${overview.retirement.age} tahun (isi tanggal lahir)`,
+                                  `age ${overview.retirement.age} (set birth date)`,
+                                )}
+                          </ReadRow>
+                        )}
                         {types.find(overview.contract.contractType) && (
                           <ReadRow label={l("Aturan jenis kontrak", "Contract type rules")}>
                             {contractRuleText(types.find(overview.contract.contractType)!, l)}

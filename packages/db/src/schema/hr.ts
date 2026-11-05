@@ -104,6 +104,8 @@ export const employees = pgTable("employees", {
   bpjsJpEnrolled: boolean("bpjs_jp_enrolled").notNull().default(true),
   /** Berhak upah lembur (0055): bila tidak, lembur ditolak & tidak dibayar. */
   overtimeEligible: boolean("overtime_eligible").notNull().default(true),
+  /** Usia pensiun khusus karyawan (0056); kosong = ikut kebijakan perusahaan. */
+  retirementAge: smallint("retirement_age"),
   bankName: text("bank_name"),
   bankAccountName: text("bank_account_name"),
   joinDate: date("join_date").notNull(),
@@ -165,6 +167,32 @@ export const salaryComponents = pgTable("salary_components", {
   premiumMaxLate: integer("premium_max_late"),
   premiumMaxAbsent: integer("premium_max_absent"),
   ...audit,
+});
+
+/** Kebijakan usia pensiun per perusahaan (0056). */
+export const retirementPolicies = pgTable("retirement_policies", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  retirementAge: smallint("retirement_age").notNull().default(56),
+  dateRule: text("date_rule", { enum: ["birthday", "end_of_month", "next_month_start"] })
+    .notNull()
+    .default("end_of_month"),
+  reminderMonths: smallint("reminder_months").notNull().default(6),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Pengecualian usia pensiun per jabatan / golongan / departemen (0056). */
+export const retirementRules = pgTable("retirement_rules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  kind: text("kind", { enum: ["job", "grade", "department"] }).notNull(),
+  refId: uuid("ref_id").notNull(),
+  retirementAge: smallint("retirement_age").notNull(),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /** Jenis kontrak kerja (master): PKWT, PKWTT, harian lepas, magang, kemitraan, dst. Dokumen menyimpan `code`. */

@@ -70,6 +70,7 @@ import { WorkCalendarController } from "./work-calendar.controller.js";
 import { WorkCalendarService } from "./work-calendar.service.js";
 import { localDate, ScheduleService } from "./schedule.service.js";
 import { assertContractType, assertOvertimeAllowed } from "./contract-types.module.js";
+import { assertBeforeRetirement, retirementOf } from "./retirement.module.js";
 
 /** Karyawan yang dirujuk harus milik perusahaan yang sama. */
 const sameCompanyEmployee = async (tx: Db, values: Record<string, unknown>) => {
@@ -513,6 +514,7 @@ class EmployeesController {
         .limit(1);
       const pending = invitation && !invitation.acceptedAt && invitation.expiresAt > new Date();
       return {
+        retirement: await retirementOf(tx, employee),
         appraisals: stats?.appraisals ?? 0,
         openAppraisals: stats?.open_appraisals ?? 0,
         goals: stats?.goals ?? 0,
@@ -557,6 +559,16 @@ class EmployeesController {
     );
     return this.tenantDb.run(async (tx) => {
       if (contract?.templateId) await this.documents.template(tx, contract.templateId);
+      if (contract)
+        await assertBeforeRetirement(
+          tx,
+          {
+            ...input,
+            companyId: currentContext().companyId,
+          } as unknown as typeof schema.employees.$inferSelect,
+          { dateStart: contract.dateStart, dateEnd: contract.dateEnd },
+          "contract.",
+        );
       if (contract)
         await assertContractType(tx, contract.contractType, {
           dateStart: contract.dateStart,
@@ -688,7 +700,9 @@ class ContractsController {
         throw fieldError("employeeId", "Karyawan kontrak tidak bisa diganti");
       // Dokumen yang sudah ditandatangani mengikat syarat kontrak; isi template dirender ulang bila belum.
       await this.documents.assertEditable(tx, contract);
-      this.contracts.assertWithinEmployment(await this.employees.find(tx, contract.employeeId), input);
+      const owner = await this.employees.find(tx, contract.employeeId);
+      this.contracts.assertWithinEmployment(owner, input);
+      await assertBeforeRetirement(tx, owner, input);
       await assertContractType(tx, input.contractType, input, contract.contractType);
       await this.assertComponents(
         tx,
