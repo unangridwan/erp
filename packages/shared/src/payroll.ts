@@ -248,6 +248,17 @@ export interface BpjsSettings {
   jpWageCap: Decimal.Value;
 }
 
+/**
+ * Parameter yang berlaku pada `date`: baris dengan `effectiveFrom` terakhir yang tidak melewati tanggal itu
+ * (null bila semua baris mulai sesudahnya).
+ */
+export function parameterOn<T extends { effectiveFrom: string }>(rows: T[], date: string): T | null {
+  let found: T | null = null;
+  for (const r of rows)
+    if (r.effectiveFrom <= date && (!found || r.effectiveFrom > found.effectiveFrom)) found = r;
+  return found;
+}
+
 export const DEFAULT_BPJS: BpjsSettings = { jkkRate: "0.24", kesWageCap: "12000000", jpWageCap: "10547400" };
 
 /**

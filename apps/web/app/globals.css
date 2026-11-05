@@ -346,6 +346,13 @@ tbody tr:last-child td {
 .stack .field {
   align-self: stretch;
 }
+/* Tabel di dalam panel bertumpuk: selebar panel dan menggulung sendiri (bukan melebarkan halaman di ponsel). */
+.stack > .table-wrap,
+.stack > .fields {
+  align-self: stretch;
+  max-width: 100%;
+  min-width: 0;
+}
 .invite {
   margin-top: 24px;
   align-items: stretch;

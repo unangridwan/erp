@@ -4,6 +4,7 @@ import {
   GROSS_UP_CODE,
   PPH21_A1_OBJECT_CODE,
   PPH21_PERMANENT_OBJECT_CODE,
+  bp21Xml,
   bpa1Xml,
   bpmpXml,
   bppuXml,
@@ -18,7 +19,7 @@ import { EmployeeService } from "../hr/employee.service.js";
 import { companyTaxIds, periodRange, xmlFileName } from "./company-tax.js";
 
 const W = schema.withholdingSlips;
-type Kind = "bppu" | "bpmp" | "bpa1";
+type Kind = "bppu" | "bpmp" | "bpa1" | "bp21";
 
 @Injectable()
 export class WithholdingService {
@@ -49,6 +50,7 @@ export class WithholdingService {
     const withholder = await companyTaxIds(tx, companyId);
     if (input.kind === "bppu") return this.generateBppu(tx, companyId, withholder.idtku, input);
     if (input.kind === "bpa1") return this.generateBpa1(tx, companyId, withholder.idtku, input);
+    if (input.kind === "bp21") return this.generateBp21(tx, companyId, withholder.idtku, input);
     return this.generateBpmp(tx, companyId, withholder.idtku, input);
   }
 
@@ -255,6 +257,84 @@ export class WithholdingService {
     return { created: created.length, ids: created, skipped: [] as { name: string; reason: string }[] };
   }
 
+  /**
+   * BP21 per masa untuk slip terposting pegawai tidak tetap (upah harian/borongan, DPP 100% bruto) dan bukan pegawai
+   * (DPP 50% bruto, tarif Pasal 17). Kode objek pajak bawaan dari Pengaturan Payroll (bisa diubah per bukti potong).
+   */
+  private async generateBp21(
+    tx: Db,
+    companyId: string,
+    withholderIdtku: string,
+    input: { year: number; month: number },
+  ) {
+    const { from } = periodRange(input.year, input.month);
+    const [settings] = await tx
+      .select({
+        nonPermanent: schema.payrollSettings.bp21NonPermanentCode,
+        nonEmployee: schema.payrollSettings.bp21NonEmployeeCode,
+      })
+      .from(schema.payrollSettings)
+      .where(eq(schema.payrollSettings.companyId, companyId));
+    const slips = await tx
+      .select({ slip: schema.payslips, run: schema.payrollRuns, employee: schema.employees })
+      .from(schema.payslips)
+      .innerJoin(schema.payrollRuns, eq(schema.payrollRuns.id, schema.payslips.runId))
+      .innerJoin(schema.employees, eq(schema.employees.id, schema.payslips.employeeId))
+      .where(
+        and(
+          eq(schema.payslips.companyId, companyId),
+          eq(schema.payrollRuns.periodStart, from),
+          inArray(schema.payrollRuns.state, ["done", "paid"]),
+          inArray(schema.payslips.taxCategory, ["non_permanent", "non_employee"]),
+          sql`not exists (select 1 from withholding_slips w where w.payslip_id = ${schema.payslips.id} and w.state <> 'cancelled')`,
+        ),
+      )
+      .orderBy(asc(schema.employees.name));
+    const created: string[] = [];
+    const skipped: { name: string; reason: string }[] = [];
+    for (const { slip, run, employee } of slips) {
+      if (new Decimal(slip.gross).lte(0)) {
+        skipped.push({ name: employee.name, reason: "Penghasilan bruto nol" });
+        continue;
+      }
+      const nonEmployee = slip.taxCategory === "non_employee";
+      const deemed = new Decimal(nonEmployee ? 50 : 100);
+      const base = new Decimal(slip.gross).times(deemed).div(100);
+      // Tarif efektif atas DPP (TER harian / Pasal 17), dari PPh 21 yang dipotong di slip.
+      const rate = base.gt(0) ? new Decimal(slip.pph21).div(base).times(100) : new Decimal(0);
+      const data = this.employees.decrypted(employee);
+      const tin = tin16(data.npwp) ?? tin16(data.nik);
+      const [row] = await tx
+        .insert(W)
+        .values({
+          companyId,
+          kind: "bp21",
+          periodYear: input.year,
+          periodMonth: input.month,
+          employeeId: employee.id,
+          payslipId: slip.id,
+          counterpartName: employee.name,
+          counterpartTin: tin,
+          ptkpStatus: nonEmployee ? null : slip.ptkpStatus,
+          position: nonEmployee ? "Bukan pegawai" : "Pegawai tidak tetap",
+          taxObjectCode: (nonEmployee ? settings?.nonEmployee : settings?.nonPermanent) ?? null,
+          gross: slip.gross,
+          deemedRate: deemed.toFixed(2),
+          taxBase: base.toFixed(2),
+          rate: rate.toDecimalPlaces(4).toFixed(4),
+          taxAmount: slip.pph21,
+          documentType: "PaymentProof",
+          documentNumber: run.name,
+          documentDate: run.paymentDate,
+          withholderIdtku,
+          withholdingDate: run.paymentDate,
+        })
+        .returning({ id: W.id });
+      created.push(row!.id);
+    }
+    return { created: created.length, ids: created, skipped };
+  }
+
   private async generateBpmp(
     tx: Db,
     companyId: string,
@@ -292,7 +372,7 @@ export class WithholdingService {
           reason:
             slip.taxCategory === "none"
               ? "Tidak dipotong PPh 21 (jenis kontrak)"
-              : "Bukan pegawai tetap — laporkan lewat bukti potong PPh 21 (BP21)",
+              : "Bukan pegawai tetap — dibuat sebagai bukti potong BP21",
         });
         continue;
       }
@@ -361,7 +441,8 @@ export class WithholdingService {
     if (slips.length !== new Set(ids).size)
       throw new NotFoundException("Sebagian bukti potong tidak ditemukan");
     const kinds = new Set(slips.map((s) => s.kind));
-    if (kinds.size > 1) throw new BadRequestException("Ekspor BPPU, BPMP, dan BPA1 dalam berkas terpisah");
+    if (kinds.size > 1)
+      throw new BadRequestException("Ekspor BPPU, BPMP, BP21, dan BPA1 dalam berkas terpisah");
     const kind = slips[0]!.kind;
     const problems: string[] = [];
     for (const s of slips) {
@@ -401,44 +482,69 @@ export class WithholdingService {
               withholdingDate: s.withholdingDate,
             })),
           )
-        : kind === "bppu"
-          ? bppuXml(
+        : kind === "bp21"
+          ? bp21Xml(
               withholder.tin,
               slips.map((s) => ({
                 periodMonth: s.periodMonth,
                 periodYear: s.periodYear,
                 counterpartTin: s.counterpartTin!,
-                counterpartIdtku: s.counterpartIdtku!,
+                ptkpStatus: s.ptkpStatus,
                 taxCertificate: s.taxCertificate,
                 taxObjectCode: s.taxObjectCode!,
-                taxBase: s.taxBase,
+                gross: s.gross ?? s.taxBase,
+                deemed: s.deemedRate ?? 100,
                 rate: s.rate,
-                documentType: s.documentType ?? "CommercialInvoice",
                 documentNumber: s.documentNumber ?? "",
                 documentDate: s.documentDate ?? s.withholdingDate,
                 withholderIdtku: s.withholderIdtku,
                 withholdingDate: s.withholdingDate,
               })),
             )
-          : bpmpXml(
-              withholder.tin,
-              slips.map((s) => ({
-                periodMonth: s.periodMonth,
-                periodYear: s.periodYear,
-                counterpartTin: s.counterpartTin!,
-                ptkpStatus: s.ptkpStatus ?? "TK/0",
-                position: s.position ?? "Pegawai",
-                taxCertificate: s.taxCertificate,
-                taxObjectCode: s.taxObjectCode!,
-                gross: s.taxBase,
-                rate: s.rate,
-                withholderIdtku: s.withholderIdtku,
-                withholdingDate: s.withholdingDate,
-              })),
-            );
+          : kind === "bppu"
+            ? bppuXml(
+                withholder.tin,
+                slips.map((s) => ({
+                  periodMonth: s.periodMonth,
+                  periodYear: s.periodYear,
+                  counterpartTin: s.counterpartTin!,
+                  counterpartIdtku: s.counterpartIdtku!,
+                  taxCertificate: s.taxCertificate,
+                  taxObjectCode: s.taxObjectCode!,
+                  taxBase: s.taxBase,
+                  rate: s.rate,
+                  documentType: s.documentType ?? "CommercialInvoice",
+                  documentNumber: s.documentNumber ?? "",
+                  documentDate: s.documentDate ?? s.withholdingDate,
+                  withholderIdtku: s.withholderIdtku,
+                  withholdingDate: s.withholdingDate,
+                })),
+              )
+            : bpmpXml(
+                withholder.tin,
+                slips.map((s) => ({
+                  periodMonth: s.periodMonth,
+                  periodYear: s.periodYear,
+                  counterpartTin: s.counterpartTin!,
+                  ptkpStatus: s.ptkpStatus ?? "TK/0",
+                  position: s.position ?? "Pegawai",
+                  taxCertificate: s.taxCertificate,
+                  taxObjectCode: s.taxObjectCode!,
+                  gross: s.taxBase,
+                  rate: s.rate,
+                  withholderIdtku: s.withholderIdtku,
+                  withholdingDate: s.withholdingDate,
+                })),
+              );
     const first = slips[0]!;
     const fileName = xmlFileName(
-      kind === "bppu" ? "bupot-unifikasi" : kind === "bpa1" ? "bupot-a1" : "bupot-pph21",
+      kind === "bppu"
+        ? "bupot-unifikasi"
+        : kind === "bpa1"
+          ? "bupot-a1"
+          : kind === "bp21"
+            ? "bupot-bp21"
+            : "bupot-pph21",
       first.periodYear,
       first.periodMonth,
     );

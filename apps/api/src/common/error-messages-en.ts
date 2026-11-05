@@ -424,7 +424,12 @@ export const MESSAGES_EN: Record<string, string> = {
   "Nota retur sudah dibatalkan": "The return note is already cancelled",
   "Pilih faktur pajak masukan yang diretur dulu": "Choose the returned input tax invoice first",
   "Hanya bukti potong draft yang bisa diubah": "Only draft withholding slips can be edited",
-  "Ekspor BPPU, BPMP, dan BPA1 dalam berkas terpisah": "Export BPPU, BPMP, and BPA1 in separate files",
+  "Ekspor BPPU, BPMP, BP21, dan BPA1 dalam berkas terpisah":
+    "Export BPPU, BPMP, BP21 and BPA1 in separate files",
+  "Sudah ada parameter yang berlaku mulai tanggal ini": "A parameter already takes effect on this date",
+  "Parameter payroll tidak ditemukan": "Payroll parameter not found",
+  "Kode objek pajak, mis. 21-100-03": "Tax object code, e.g. 21-100-03",
+  "Minimal satu parameter payroll harus ada": "At least one payroll parameter must remain",
   "Bukti potong sudah dibatalkan": "The withholding slip is already cancelled",
   "Lengkapi NPWP perusahaan (Pengaturan → Perusahaan) terlebih dahulu":
     "Complete the company NPWP (Settings → Company) first",

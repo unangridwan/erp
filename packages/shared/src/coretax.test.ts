@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bp21Xml,
   bpmpXml,
   bppuXml,
   efakturXml,
@@ -301,5 +302,32 @@ describe("impor faktur masukan", () => {
   it("posisi PPN", () => {
     expect(vatPosition("110000", "50000")).toEqual({ payable: "60000.00", status: "kurang_bayar" });
     expect(vatPosition("0", "50000").status).toBe("lebih_bayar");
+  });
+});
+
+describe("BP21 (PPh 21 selain pegawai tetap)", () => {
+  it("menulis bruto, persentase DPP & tarif per penerima", () => {
+    const xml = bp21Xml("0012345678901000", [
+      {
+        periodMonth: 3,
+        periodYear: 2026,
+        counterpartTin: "3201010101010001",
+        ptkpStatus: null,
+        taxCertificate: "N/A",
+        taxObjectCode: "21-100-03",
+        gross: "10000000",
+        deemed: "50.00",
+        rate: "7.6000",
+        documentNumber: "PAY/2026/03",
+        documentDate: "2026-03-25",
+        withholderIdtku: "0012345678901000000000",
+        withholdingDate: "2026-03-25",
+      },
+    ]);
+    expect(xml).toContain("<Bp21Bulk");
+    expect(xml).toContain("<Gross>10000000</Gross>");
+    expect(xml).toContain("<Deemed>50</Deemed>");
+    expect(xml).toContain("<Rate>7.6</Rate>");
+    expect(xml).toContain("<TaxObjectCode>21-100-03</TaxObjectCode>");
   });
 });

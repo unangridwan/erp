@@ -876,6 +876,16 @@ export const applyGradeBaseWageSchema = z.object({
   includeAdjusted: z.boolean().default(false),
 });
 
+/** Batas upah BPJS & tarif JKK yang berlaku mulai tanggal tertentu. */
+export const payrollParameterSchema = z.object({
+  effectiveFrom: z.string().date(),
+  kesWageCap: nonNegative(2),
+  jpWageCap: nonNegative(2),
+  /** Tarif JKK per kelompok risiko (PP 44/2015). */
+  jkkRate: z.enum(["0.24", "0.54", "0.89", "1.27", "1.74"]),
+  note: z.string().trim().max(300).nullish(),
+});
+
 export const PTKP_STATUS_VALUES = ["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"] as const;
 
 export const RELIGION_VALUES = [
@@ -1269,7 +1279,17 @@ export const devicePushSchema = z.object({
     .max(1000),
 });
 
+const taxObjectCode = z
+  .string()
+  .trim()
+  .regex(/^\d{2}-\d{3}-\d{2}$/, "Kode objek pajak, mis. 21-100-03")
+  .nullish()
+  .or(z.literal("").transform(() => null));
+
 export const payrollSettingsSchema = z.object({
+  /** Kode objek pajak bawaan BP21 (pegawai tidak tetap, bukan pegawai). */
+  bp21NonPermanentCode: taxObjectCode,
+  bp21NonEmployeeCode: taxObjectCode,
   jkkRate: z.enum(["0.24", "0.54", "0.89", "1.27", "1.74"]),
   kesWageCap: nonNegative(2),
   jpWageCap: nonNegative(2),
@@ -1855,7 +1875,10 @@ export const inputTaxCreditSchema = z.object({
   ...period,
 });
 
-export const withholdingGenerateSchema = z.object({ kind: z.enum(["bppu", "bpmp", "bpa1"]), ...period });
+export const withholdingGenerateSchema = z.object({
+  kind: z.enum(["bppu", "bpmp", "bpa1", "bp21"]),
+  ...period,
+});
 
 /** Rentang NSFP e-Faktur 3.x (13 digit, tanda baca boleh). */
 export const nsfpRangeSchema = z.object({

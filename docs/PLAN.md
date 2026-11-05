@@ -485,6 +485,8 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   pilih kolom, empty state), beranda (perlu tindakan, favorit & terakhir dibuka, buat cepat), fokus keyboard
 - [x] Gaji pokok standar per golongan (migrasi 0057) — terisi otomatis di kontrak dari golongan karyawan/jabatan, tetap
   bisa diubah (penanda "Disesuaikan" + Pakai standar), terapkan gaji pokok baru ke kontrak berjalan
+- [x] Parameter payroll per tanggal & BP21 (migrasi 0058) — batas upah BPJS Kes/JP & tarif JKK berlaku mulai tanggal
+  tertentu (hitung ulang periode lama tetap), bukti potong BP21 pegawai tidak tetap & bukan pegawai + XML Coretax
 
 ## Rekomendasi berikutnya — SDM & Payroll
 
@@ -501,7 +503,7 @@ Dari audit ketiga PRD SDM (Okt 2026), diurutkan menurut dampak bisnis:
 3. **Kasbon / uang muka karyawan**: pencairan, penyelesaian dengan klaim, sisa dipotong gaji; bukti wajib per kategori.
 4. **Notifikasi email (dan push)** untuk pengajuan & keputusan persetujuan.
 5. **Persetujuan berjenjang** untuk payroll run, mutasi/promosi, penawaran kerja, offboarding/F&F.
-6. **Parameter payroll berlaku per tanggal** (batas BPJS, JKK, tarif) agar perhitungan periode lama tetap.
+6. ✅ **Parameter payroll berlaku per tanggal** (batas BPJS, JKK) agar perhitungan periode lama tetap (0058).
 7. **Keamanan slip gaji**: password/PIN slip ditentukan karyawan + OTP sebelum melihat slip.
 8. **UU PDP**: persetujuan pelamar, retensi & anonimisasi, log akses data pribadi.
 9. 🟡 **Kontrak & surat**: ✅ template kontrak + tanda tangan digital/basah/e-sign luar (0050); sisa: masa percobaan,
