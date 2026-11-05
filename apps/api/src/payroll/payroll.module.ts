@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   HttpCode,
@@ -28,6 +29,7 @@ import {
   payrollRunSchema,
   payslipHoldSchema,
   payrollSettingsSchema,
+  payrollParameterSchema,
   payslipInputsSchema,
   salaryComponentSchema,
   severanceInputSchema,
@@ -109,6 +111,33 @@ class PayrollController {
   updateSettings(@Body() body: unknown) {
     const input = parse(payrollSettingsSchema, body);
     return this.tenantDb.run((tx) => this.payroll.updateSettings(tx, input));
+  }
+
+  /** Batas upah BPJS & tarif JKK per tanggal berlaku (run dihitung dengan nilai pada awal periodenya). */
+  @Get("payroll-parameters")
+  @RequirePermission("payroll.read")
+  parameters() {
+    return this.tenantDb.run((tx) => this.payroll.parameters(tx));
+  }
+
+  @Post("payroll-parameters")
+  @RequirePermission("payroll.manage")
+  createParameter(@Body() body: unknown) {
+    const input = parse(payrollParameterSchema, body);
+    return this.tenantDb.run((tx) => this.payroll.saveParameter(tx, null, input));
+  }
+
+  @Put("payroll-parameters/:id")
+  @RequirePermission("payroll.manage")
+  updateParameter(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(payrollParameterSchema, body);
+    return this.tenantDb.run((tx) => this.payroll.saveParameter(tx, id, input));
+  }
+
+  @Delete("payroll-parameters/:id")
+  @RequirePermission("payroll.manage")
+  deleteParameter(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.payroll.deleteParameter(tx, id));
   }
 
   @Get("payroll-runs")

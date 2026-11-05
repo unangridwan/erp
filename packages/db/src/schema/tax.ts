@@ -72,7 +72,7 @@ export const taxExportBatches = pgTable("tax_export_batches", {
   tenantId: tenantId(),
   companyId: uuid("company_id").notNull(),
   kind: text("kind", {
-    enum: ["efaktur", "bppu", "bpmp", "bpa1", "efaktur_legacy", "retur_legacy"],
+    enum: ["efaktur", "bppu", "bpmp", "bpa1", "bp21", "efaktur_legacy", "retur_legacy"],
   }).notNull(),
   fileName: text("file_name").notNull(),
   content: text("content").notNull(),
@@ -108,7 +108,7 @@ export const withholdingSlips = pgTable("withholding_slips", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
   companyId: uuid("company_id").notNull(),
-  kind: text("kind", { enum: ["bppu", "bpmp", "bpa1"] }).notNull(),
+  kind: text("kind", { enum: ["bppu", "bpmp", "bpa1", "bp21"] }).notNull(),
   state: text("state", { enum: TAX_DOC_STATES }).notNull().default("draft"),
   periodMonth: smallint("period_month").notNull(),
   periodYear: smallint("period_year").notNull(),
@@ -127,6 +127,9 @@ export const withholdingSlips = pgTable("withholding_slips", {
   taxBase: numeric("tax_base", { precision: 20, scale: 2 }).notNull(),
   rate: numeric("rate", { precision: 7, scale: 4 }).notNull(),
   taxAmount: numeric("tax_amount", { precision: 20, scale: 2 }).notNull(),
+  /** BP21: penghasilan bruto & persentase DPP (100% pegawai tidak tetap, 50% bukan pegawai). */
+  gross: numeric("gross", { precision: 20, scale: 2 }),
+  deemedRate: numeric("deemed_rate", { precision: 5, scale: 2 }),
   documentType: text("document_type"),
   documentNumber: text("document_number"),
   documentDate: date("document_date"),

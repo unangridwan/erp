@@ -588,12 +588,28 @@ export const overtimes = pgTable("overtimes", {
   ...audit,
 });
 
+/** Batas upah BPJS & tarif JKK yang berlaku mulai tanggal tertentu (run memakai nilai pada awal periodenya). */
+export const payrollParameters = pgTable("payroll_parameters", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  effectiveFrom: date("effective_from").notNull(),
+  kesWageCap: numeric("kes_wage_cap", { precision: 20, scale: 2 }).notNull(),
+  jpWageCap: numeric("jp_wage_cap", { precision: 20, scale: 2 }).notNull(),
+  jkkRate: numeric("jkk_rate", { precision: 5, scale: 2 }).notNull(),
+  note: text("note"),
+  ...audit,
+});
+
 export const payrollSettings = pgTable("payroll_settings", {
   companyId: uuid("company_id").primaryKey(),
   tenantId: tenantId(),
   jkkRate: numeric("jkk_rate", { precision: 5, scale: 2 }).notNull().default("0.24"),
   kesWageCap: numeric("kes_wage_cap", { precision: 20, scale: 2 }).notNull().default("12000000"),
   jpWageCap: numeric("jp_wage_cap", { precision: 20, scale: 2 }).notNull().default("10547400"),
+  /** Kode objek pajak bawaan BP21: pegawai tidak tetap & bukan pegawai (kosong = diisi per bukti potong). */
+  bp21NonPermanentCode: text("bp21_non_permanent_code"),
+  bp21NonEmployeeCode: text("bp21_non_employee_code"),
   salaryExpenseAccountId: uuid("salary_expense_account_id").notNull(),
   bpjsKesExpenseAccountId: uuid("bpjs_kes_expense_account_id").notNull(),
   bpjsTkExpenseAccountId: uuid("bpjs_tk_expense_account_id").notNull(),

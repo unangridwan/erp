@@ -13,7 +13,7 @@ import { ask } from "../../../../components/feedback";
 
 interface Slip {
   id: string;
-  kind: "bppu" | "bpmp" | "bpa1";
+  kind: "bppu" | "bpmp" | "bpa1" | "bp21";
   state: string;
   monthStart: number | null;
   monthEnd: number | null;
@@ -33,7 +33,7 @@ interface Slip {
 export default function WithholdingPage() {
   const me = useMe();
   const { l, tx, locale } = useI18n();
-  const [kind, setKind] = useState<"bppu" | "bpmp" | "bpa1">("bppu");
+  const [kind, setKind] = useState<"bppu" | "bpmp" | "bpa1" | "bp21">("bppu");
   const [period, setPeriod] = useState(today().slice(0, 7));
   const [slips, setSlips] = useState<Slip[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -128,6 +128,9 @@ export default function WithholdingPage() {
           <button className={kind === "bpmp" ? "primary" : ""} onClick={() => setKind("bpmp")}>
             {l("PPh 21 bulanan", "Monthly PPh 21")}
           </button>
+          <button className={kind === "bp21" ? "primary" : ""} onClick={() => setKind("bp21")}>
+            {l("PPh 21 tidak tetap & bukan pegawai", "PPh 21 non-permanent & non-employee")}
+          </button>
           <button className={kind === "bpa1" ? "primary" : ""} onClick={() => setKind("bpa1")}>
             {l("A1 tahunan", "Annual A1")}
           </button>
@@ -143,15 +146,20 @@ export default function WithholdingPage() {
               "Dibuat dari slip masa pajak terakhir (Desember atau bulan karyawan keluar): penghasilan setahun dari slip yang diposting dan PPh 21 terutang setahun. Susunan XML mengikuti template konverter BPA1 DJP (DJP tidak menerbitkan XSD); impor di e-Bupot PPh 21/26 → BP A1.",
               "Built from the final-period payslip (December or the resignation month): yearly income from posted payslips and yearly PPh 21. The XML follows DJP's BPA1 converter template (no official XSD); import in e-Bupot PPh 21/26 → BP A1.",
             )
-          : kind === "bppu"
+          : kind === "bp21"
             ? l(
-                "Dibuat dari tagihan pemasok yang memakai pajak PPh potong (mis. PPh 23). Isi kode objek pajak di master pajak agar terisi otomatis.",
-                "Built from vendor bills with withholding taxes (e.g. art. 23). Set the tax object code on the tax to prefill it.",
+                'BP21 dari payroll yang sudah diposting untuk pegawai tidak tetap (DPP 100% bruto) dan bukan pegawai (DPP 50% bruto). Kode objek pajak bawaan diatur di Pengaturan Payroll; pilih sesuai "Nama Objek Pajak" di e-Bupot Coretax.',
+                'BP21 from posted payroll for non-permanent employees (base 100% of gross) and non-employees (base 50% of gross). Default tax object codes are set in Payroll Settings; choose them to match the Coretax e-Bupot "tax object name".',
               )
-            : l(
-                "Dibuat dari payroll yang sudah diposting (pegawai tetap, kode 21-100-01). Masa pajak terakhir (Desember/keluar) dilaporkan dengan bukti potong A1 di Coretax.",
-                "Built from posted payroll (permanent employees, code 21-100-01). The final period (December/resignation) uses the A1 slip in Coretax.",
-              )}
+            : kind === "bppu"
+              ? l(
+                  "Dibuat dari tagihan pemasok yang memakai pajak PPh potong (mis. PPh 23). Isi kode objek pajak di master pajak agar terisi otomatis.",
+                  "Built from vendor bills with withholding taxes (e.g. art. 23). Set the tax object code on the tax to prefill it.",
+                )
+              : l(
+                  "Dibuat dari payroll yang sudah diposting (pegawai tetap, kode 21-100-01). Masa pajak terakhir (Desember/keluar) dilaporkan dengan bukti potong A1 di Coretax.",
+                  "Built from posted payroll (permanent employees, code 21-100-01). The final period (December/resignation) uses the A1 slip in Coretax.",
+                )}
       </p>
       {error && <p className="error">{error}</p>}
       {message && <p className="success">{message}</p>}

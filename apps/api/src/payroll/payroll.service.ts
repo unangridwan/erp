@@ -13,6 +13,7 @@ import {
   bpjsProgram,
   computePayslip,
   effectiveEnrollment,
+  parameterOn,
   resolveTaxCategory,
   retroPay,
   thrAmount,
@@ -26,6 +27,7 @@ import {
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
+import type { payrollParameterSchema } from "@erp/shared";
 import { ActivityService } from "../activity/activity.service.js";
 import { assertCompanyAccounts, assertCompanyJournal, fieldError } from "../accounting/context.js";
 import { MoveService } from "../accounting/move.service.js";
@@ -38,6 +40,7 @@ import { WorkCalendarService, type WorkCalendar } from "../hr/work-calendar.serv
 import { localDate, ScheduleService } from "../hr/schedule.service.js";
 import { LoanService } from "./loan.service.js";
 
+const PARAM = schema.payrollParameters;
 const RUN = schema.payrollRuns;
 
 export interface PayrollWarning {
@@ -158,7 +161,102 @@ export class PayrollService {
       .set({ ...input, updatedAt: sql`now()` })
       .where(eq(schema.payrollSettings.companyId, companyId))
       .returning();
+    // Batas & tarif yang diubah di sini berlaku untuk parameter yang sedang berlaku hari ini; perubahan mulai tanggal
+    // tertentu (mis. batas JP tahun depan) ditambahkan lewat parameter per tanggal.
+    const today = new Date().toISOString().slice(0, 10);
+    const current = parameterOn(await tx.select().from(PARAM).where(eq(PARAM.companyId, companyId)), today);
+    const caps = { jkkRate: input.jkkRate, kesWageCap: input.kesWageCap, jpWageCap: input.jpWageCap };
+    if (current)
+      await tx
+        .update(PARAM)
+        .set({ ...caps, updatedAt: sql`now()` })
+        .where(eq(PARAM.id, current.id));
+    else await tx.insert(PARAM).values({ companyId, effectiveFrom: "2000-01-01", ...caps });
     return row!;
+  }
+
+  // ---- Parameter payroll per tanggal (batas upah BPJS & tarif JKK) ----
+
+  /** Batas upah BPJS & tarif JKK yang berlaku pada `date` (awal periode run); tanpa baris = Pengaturan Payroll. */
+  async bpjsOn(tx: Db, settings: typeof schema.payrollSettings.$inferSelect, date: string) {
+    const rows = await tx
+      .select()
+      .from(PARAM)
+      .where(and(eq(PARAM.companyId, settings.companyId), lte(PARAM.effectiveFrom, date)));
+    const p = parameterOn(rows, date) ?? settings;
+    return { jkkRate: p.jkkRate, kesWageCap: p.kesWageCap, jpWageCap: p.jpWageCap };
+  }
+
+  parameters(tx: Db) {
+    return tx
+      .select()
+      .from(PARAM)
+      .where(eq(PARAM.companyId, currentContext().companyId))
+      .orderBy(desc(PARAM.effectiveFrom));
+  }
+
+  async saveParameter(tx: Db, id: string | null, input: z.infer<typeof payrollParameterSchema>) {
+    const companyId = currentContext().companyId;
+    const settings = await this.settings(tx, companyId);
+    // Perusahaan tanpa riwayat parameter: nilai Pengaturan Payroll menjadi parameter awal untuk periode lama.
+    const [any] = await tx
+      .select({ id: PARAM.id })
+      .from(PARAM)
+      .where(eq(PARAM.companyId, companyId))
+      .limit(1);
+    if (!any && input.effectiveFrom > "2000-01-01")
+      await tx.insert(PARAM).values({
+        companyId,
+        effectiveFrom: "2000-01-01",
+        jkkRate: settings.jkkRate,
+        kesWageCap: settings.kesWageCap,
+        jpWageCap: settings.jpWageCap,
+        note: "Nilai awal dari Pengaturan Payroll",
+      });
+    const [clash] = await tx
+      .select({ id: PARAM.id })
+      .from(PARAM)
+      .where(and(eq(PARAM.companyId, companyId), eq(PARAM.effectiveFrom, input.effectiveFrom)));
+    if (clash && clash.id !== id)
+      throw fieldError("effectiveFrom", "Sudah ada parameter yang berlaku mulai tanggal ini");
+    const values = { ...input, note: input.note ?? null, updatedAt: sql`now()` };
+    if (id) {
+      const [row] = await tx
+        .update(PARAM)
+        .set(values)
+        .where(and(eq(PARAM.id, id), eq(PARAM.companyId, companyId)))
+        .returning();
+      if (!row) throw new NotFoundException("Parameter payroll tidak ditemukan");
+    } else await tx.insert(PARAM).values({ companyId, ...values });
+    await this.syncCurrentParameter(tx, companyId);
+    return this.parameters(tx);
+  }
+
+  async deleteParameter(tx: Db, id: string) {
+    const companyId = currentContext().companyId;
+    const rows = await tx.select({ id: PARAM.id }).from(PARAM).where(eq(PARAM.companyId, companyId));
+    if (!rows.some((r) => r.id === id)) throw new NotFoundException("Parameter payroll tidak ditemukan");
+    if (rows.length === 1) throw new BadRequestException("Minimal satu parameter payroll harus ada");
+    await tx.delete(PARAM).where(eq(PARAM.id, id));
+    await this.syncCurrentParameter(tx, companyId);
+    return this.parameters(tx);
+  }
+
+  /** Nilai di Pengaturan Payroll mengikuti parameter yang berlaku hari ini (dipakai tampilan & modul lain). */
+  private async syncCurrentParameter(tx: Db, companyId: string) {
+    const rows = await tx.select().from(PARAM).where(eq(PARAM.companyId, companyId));
+    const today = new Date().toISOString().slice(0, 10);
+    const current = parameterOn(rows, today);
+    if (!current) return;
+    await tx
+      .update(schema.payrollSettings)
+      .set({
+        jkkRate: current.jkkRate,
+        kesWageCap: current.kesWageCap,
+        jpWageCap: current.jpWageCap,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(schema.payrollSettings.companyId, companyId));
   }
 
   // ---- Payroll run ----
@@ -720,7 +818,7 @@ export class PayrollService {
       workingDays: monthDays,
       status: employee.ptkpStatus,
       hasNpwp,
-      bpjs: { jkkRate: settings.jkkRate, kesWageCap: settings.kesWageCap, jpWageCap: settings.jpWageCap },
+      bpjs: await this.bpjsOn(tx, settings, run.periodStart),
       isFinal,
       ytd: {
         gross: ytd?.gross ?? 0,

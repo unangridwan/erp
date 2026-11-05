@@ -415,6 +415,65 @@ export function bpmpXml(withholderTin: string, records: BpmpRecord[]): string {
   ].join("\n");
 }
 
+export interface Bp21Record {
+  periodMonth: number;
+  periodYear: number;
+  /** NIK/NPWP 16 digit penerima penghasilan. */
+  counterpartTin: string;
+  ptkpStatus: string | null;
+  taxCertificate: string;
+  taxObjectCode: string;
+  gross: Decimal.Value;
+  /** Persentase DPP dari bruto: 100 (pegawai tidak tetap) atau 50 (bukan pegawai). */
+  deemed: Decimal.Value;
+  /** Tarif efektif (persen) atas DPP. */
+  rate: Decimal.Value;
+  documentNumber: string;
+  documentDate: string;
+  withholderIdtku: string;
+  withholdingDate: string;
+}
+
+/**
+ * XML impor bukti potong PPh 21 selain pegawai tetap (BP21) untuk e-Bupot PPh 21/26 Coretax: pegawai tidak tetap
+ * (upah harian/borongan, DPP 100% bruto) dan bukan pegawai (DPP 50% bruto, tarif Pasal 17).
+ */
+export function bp21Xml(withholderTin: string, records: Bp21Record[]): string {
+  return [
+    XML_HEADER,
+    `<Bp21Bulk ${XSI} xsi:noNamespaceSchemaLocation="schema.xsd">`,
+    element("TIN", withholderTin, "  "),
+    "  <ListOfBp21>",
+    ...records.map((r) =>
+      block(
+        "Bp21",
+        [
+          ["TaxPeriodMonth", r.periodMonth],
+          ["TaxPeriodYear", r.periodYear],
+          ["CounterpartOpt", "Resident"],
+          ["CounterpartPassport", ""],
+          ["CounterpartTin", r.counterpartTin],
+          ["StatusTaxExemption", r.ptkpStatus ?? ""],
+          ["TaxCertificate", r.taxCertificate],
+          ["TaxObjectCode", r.taxObjectCode],
+          ["Gross", whole(r.gross)],
+          ["Deemed", plain(r.deemed)],
+          ["Rate", plain(r.rate)],
+          ["Document", "PaymentProof"],
+          ["DocumentNumber", r.documentNumber],
+          ["DocumentDate", r.documentDate],
+          ["IDPlaceOfBusinessActivity", r.withholderIdtku],
+          ["WithholdingDate", r.withholdingDate],
+        ],
+        "    ",
+      ),
+    ),
+    "  </ListOfBp21>",
+    "</Bp21Bulk>",
+    "",
+  ].join("\n");
+}
+
 // ---- Impor faktur pajak masukan ----
 
 export interface InputTaxInvoiceRow {

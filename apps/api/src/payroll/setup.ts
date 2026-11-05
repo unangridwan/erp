@@ -44,17 +44,29 @@ export async function installPayroll(tx: Db, companyId: string) {
   const account = (code: string) => accounts.find((a) => a.code === code)?.id;
   const required = ["6-1000", "6-1100", "2-1500", "2-1300", "2-1400"].map(account);
   if (required.some((id) => !id) || !journal) return; // bagan akun non-standar: atur manual
-  await tx.insert(schema.payrollSettings).values({
+  const [settings] = await tx
+    .insert(schema.payrollSettings)
+    .values({
+      companyId,
+      salaryExpenseAccountId: account("6-1000")!,
+      bpjsTkExpenseAccountId: account("6-1100")!,
+      bpjsKesExpenseAccountId: account("6-1110") ?? account("6-1100")!,
+      salaryPayableAccountId: account("2-1500")!,
+      pph21PayableAccountId: account("2-1300")!,
+      bpjsTkPayableAccountId: account("2-1400")!,
+      bpjsKesPayableAccountId: account("2-1410") ?? account("2-1400")!,
+      employeeLoanAccountId: account("1-1800") ?? null,
+      journalId: journal.id,
+    })
+    .returning();
+  // Parameter awal (batas upah BPJS & tarif JKK) yang berlaku untuk semua periode sampai ada perubahan per tanggal.
+  await tx.insert(schema.payrollParameters).values({
     companyId,
-    salaryExpenseAccountId: account("6-1000")!,
-    bpjsTkExpenseAccountId: account("6-1100")!,
-    bpjsKesExpenseAccountId: account("6-1110") ?? account("6-1100")!,
-    salaryPayableAccountId: account("2-1500")!,
-    pph21PayableAccountId: account("2-1300")!,
-    bpjsTkPayableAccountId: account("2-1400")!,
-    bpjsKesPayableAccountId: account("2-1410") ?? account("2-1400")!,
-    employeeLoanAccountId: account("1-1800") ?? null,
-    journalId: journal.id,
+    effectiveFrom: "2000-01-01",
+    kesWageCap: settings!.kesWageCap,
+    jpWageCap: settings!.jpWageCap,
+    jkkRate: settings!.jkkRate,
+    note: "Nilai awal",
   });
   await tx
     .insert(schema.salaryComponents)

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  parameterOn,
   DEFAULT_BPJS,
   bpjsContributions,
   bpjsProgram,
@@ -267,5 +268,17 @@ describe("aturan payroll per jenis kontrak", () => {
     expect(computePayslip({ ...input, enrollment, taxCategory: "none" }).pph21).toBe("0");
     expect(resolveTaxCategory({ pph21Category: "auto" }, "daily")).toBe("non_permanent");
     expect(resolveTaxCategory({ pph21Category: "auto" }, "monthly")).toBe("permanent");
+  });
+});
+
+describe("parameter payroll per tanggal", () => {
+  const rows = [
+    { effectiveFrom: "2000-01-01", jpWageCap: "10042300" },
+    { effectiveFrom: "2026-03-01", jpWageCap: "10547400" },
+  ];
+  it("memakai baris terakhir yang berlaku pada tanggal itu", () => {
+    expect(parameterOn(rows, "2026-02-01")?.jpWageCap).toBe("10042300");
+    expect(parameterOn(rows, "2026-03-01")?.jpWageCap).toBe("10547400");
+    expect(parameterOn(rows, "1999-12-01")).toBeNull();
   });
 });
