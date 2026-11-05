@@ -1650,6 +1650,11 @@ RESOURCES.push(
         type: "boolean",
       },
       {
+        name: "overtimeEligible",
+        label: L("Berhak upah lembur", "Entitled to overtime pay"),
+        type: "boolean",
+      },
+      {
         name: "birthPlace",
         label: L("Tempat lahir", "Place of birth"),
         type: "text",

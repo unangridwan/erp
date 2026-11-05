@@ -14,7 +14,6 @@ export interface ContractPayroll {
   bpjsJp: boolean;
   pph21Category: "auto" | "permanent" | "non_permanent" | "non_employee" | "none";
   thr: boolean;
-  overtime: boolean;
   severance: "pesangon" | "compensation" | "none";
 }
 
@@ -83,7 +82,6 @@ export function contractRuleText(t: ContractPayroll, l: (id: string, en: string)
   return [
     bpjs.length ? `BPJS ${bpjs.join(", ")}` : l("tanpa BPJS", "no BPJS"),
     !t.thr && l("tanpa THR", "no THR"),
-    !t.overtime && l("tanpa lembur", "no overtime"),
   ]
     .filter(Boolean)
     .join(" · ");

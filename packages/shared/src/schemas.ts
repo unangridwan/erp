@@ -914,6 +914,7 @@ export const employeeSchema = z.object({
   bpjsTkEnrolled: z.boolean().default(true),
   bpjsTkDate: z.string().date().nullish(),
   bpjsJpEnrolled: z.boolean().default(true),
+  overtimeEligible: z.boolean().default(true),
   bankName: optionalText,
   bankAccount: z
     .string()

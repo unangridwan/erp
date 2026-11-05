@@ -368,7 +368,7 @@ class PortalExtrasController {
     return this.tenantDb.run(async (tx) => {
       const employee = await this.employees.mine(tx);
       const input = parse(overtimeSchema, { ...(body as object), employeeId: employee.id });
-      await assertOvertimeAllowed(tx, employee.id, input.date);
+      await assertOvertimeAllowed(tx, employee.id);
       const [s] = await tx
         .select({ levels: schema.payrollSettings.overtimeApprovalLevels })
         .from(schema.payrollSettings)

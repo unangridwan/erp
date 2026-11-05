@@ -39,7 +39,6 @@ const DEFAULT_PAYROLL: ContractPayroll = {
   bpjsJp: true,
   pph21Category: "auto",
   thr: true,
-  overtime: true,
   severance: "pesangon",
 };
 const BPJS_PROGRAMS: [keyof ContractPayroll, string, string][] = [
@@ -85,7 +84,6 @@ const toDraft = (t: Row): Draft => ({
     bpjsJp: t.bpjsJp,
     pph21Category: t.pph21Category,
     thr: t.thr,
-    overtime: t.overtime,
     severance: t.severance,
   },
 });
@@ -246,7 +244,6 @@ export default function ContractTypesPage() {
               <span className="muted">
                 PPh 21: {l(...PPH21_CATEGORY_LABEL[t.pph21Category]).split(" (")[0]}
                 {t.thr ? "" : ` · ${l("tanpa THR", "no THR")}`}
-                {t.overtime ? "" : ` · ${l("tanpa lembur", "no overtime")}`}
               </span>
             </small>
           ) : (
@@ -464,14 +461,6 @@ export default function ContractTypesPage() {
                     onChange={(e) => setPayroll("thr", e.target.checked)}
                   />
                   <span>{l("Berhak THR", "Entitled to THR")}</span>
-                </label>
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={draft.payroll.overtime}
-                    onChange={(e) => setPayroll("overtime", e.target.checked)}
-                  />
-                  <span>{l("Berhak upah lembur", "Entitled to overtime pay")}</span>
                 </label>
               </>
             )}

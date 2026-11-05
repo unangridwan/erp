@@ -87,11 +87,14 @@ export async function contractTypeOnDate(tx: Db, employeeId: string, date: strin
   return row?.type ?? null;
 }
 
-/** Tolak lembur untuk karyawan yang jenis kontraknya tidak berhak lembur. */
-export async function assertOvertimeAllowed(tx: Db, employeeId: string, date: string) {
-  const type = await contractTypeOnDate(tx, employeeId, date);
-  if (type && !type.overtime)
-    throw fieldError("date", `Jenis kontrak ${type.name} tidak mendapat upah lembur`);
+/** Tolak lembur untuk karyawan yang tidak berhak upah lembur (diatur per karyawan). */
+export async function assertOvertimeAllowed(tx: Db, employeeId: string) {
+  const [employee] = await tx
+    .select({ name: schema.employees.name, eligible: schema.employees.overtimeEligible })
+    .from(schema.employees)
+    .where(eq(schema.employees.id, employeeId));
+  if (employee && !employee.eligible)
+    throw fieldError("employeeId", `${employee.name} tidak berhak upah lembur`);
 }
 
 /** Kode jenis kontrak berjangka waktu (wajib tanggal berakhir). */

@@ -102,6 +102,8 @@ export const employees = pgTable("employees", {
   bpjsTkEnrolled: boolean("bpjs_tk_enrolled").notNull().default(true),
   bpjsTkDate: date("bpjs_tk_date"),
   bpjsJpEnrolled: boolean("bpjs_jp_enrolled").notNull().default(true),
+  /** Berhak upah lembur (0055): bila tidak, lembur ditolak & tidak dibayar. */
+  overtimeEligible: boolean("overtime_eligible").notNull().default(true),
   bankName: text("bank_name"),
   bankAccountName: text("bank_account_name"),
   joinDate: date("join_date").notNull(),
@@ -194,7 +196,6 @@ export const contractTypes = pgTable("contract_types", {
     .notNull()
     .default("auto"),
   thr: boolean("thr").notNull().default(true),
-  overtime: boolean("overtime").notNull().default(true),
   severance: text("severance", { enum: ["pesangon", "compensation", "none"] })
     .notNull()
     .default("pesangon"),

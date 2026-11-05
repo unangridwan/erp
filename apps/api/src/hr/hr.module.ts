@@ -294,8 +294,7 @@ const OvertimesController = createCrudController({
       const [row] = await tx.select().from(schema.overtimes).where(eq(schema.overtimes.id, id));
       if (row?.payslipId) throw new BadRequestException("Lembur sudah dibayar lewat slip gaji");
     }
-    if (values.employeeId && values.date)
-      await assertOvertimeAllowed(tx, String(values.employeeId), String(values.date));
+    if (values.employeeId && values.date) await assertOvertimeAllowed(tx, String(values.employeeId));
   },
   beforeDelete: async (_tx, row) => {
     if (row.payslipId) throw new BadRequestException("Lembur sudah dibayar lewat slip gaji");

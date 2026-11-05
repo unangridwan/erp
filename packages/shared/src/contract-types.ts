@@ -32,7 +32,6 @@ export const contractTypeSchema = z.object({
     bpjsJp: z.boolean().default(true),
     pph21Category: z.enum(["auto", "permanent", "non_permanent", "non_employee", "none"]).default("auto"),
     thr: z.boolean().default(true),
-    overtime: z.boolean().default(true),
     severance: z.enum(["pesangon", "compensation", "none"]).default("pesangon"),
   },
 });
@@ -72,7 +71,6 @@ export interface ContractPayrollRule {
   bpjsJp: boolean;
   pph21Category: Pph21Category | "auto";
   thr: boolean;
-  overtime: boolean;
   severance: "pesangon" | "compensation" | "none";
 }
 
@@ -127,7 +125,6 @@ export const DEFAULT_CONTRACT_TYPES: (ContractTypeInput & { isSystem: boolean })
     bpjsJp: true,
     pph21Category: "auto",
     thr: true,
-    overtime: true,
     severance: "compensation",
     isSystem: true,
   },
@@ -149,7 +146,6 @@ export const DEFAULT_CONTRACT_TYPES: (ContractTypeInput & { isSystem: boolean })
     bpjsJp: true,
     pph21Category: "auto",
     thr: true,
-    overtime: true,
     severance: "pesangon",
     isSystem: true,
   },
@@ -171,7 +167,6 @@ export const DEFAULT_CONTRACT_TYPES: (ContractTypeInput & { isSystem: boolean })
     bpjsJp: true,
     pph21Category: "auto",
     thr: true,
-    overtime: true,
     severance: "none",
     isSystem: false,
   },
@@ -193,7 +188,6 @@ export const DEFAULT_CONTRACT_TYPES: (ContractTypeInput & { isSystem: boolean })
     bpjsJp: false,
     pph21Category: "auto",
     thr: false,
-    overtime: false,
     severance: "none",
     isSystem: false,
   },
@@ -215,7 +209,6 @@ export const DEFAULT_CONTRACT_TYPES: (ContractTypeInput & { isSystem: boolean })
     bpjsJp: false,
     pph21Category: "non_employee",
     thr: false,
-    overtime: false,
     severance: "none",
     isSystem: false,
   },
