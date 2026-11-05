@@ -430,12 +430,6 @@ export const PERMISSION_CATALOG: readonly ModuleDef[] = [
     specials: [],
   },
   {
-    key: "project",
-    label: ["Proyek dari aplikasi terhubung", "Projects from connected apps"],
-    features: [],
-    specials: [],
-  },
-  {
     key: "integration",
     label: ["Aplikasi terhubung (login & API)", "Connected apps (sign-in & API)"],
     features: [],

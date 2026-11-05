@@ -550,9 +550,6 @@ email umum, atau NameID.
 | `/connected-apps`, `POST /connected-apps/:id/{rotate-secret,rotate-webhook-secret,webhook-test}` | Kelola aplikasi (`integration.manage`, admin penuh): redirect URI, peran boleh masuk, akun layanan, webhook   |
 | `GET /connected-apps/:id/deliveries`, `POST /webhook-deliveries/:id/retry`                       | Log & kirim ulang webhook                                                                                     |
 | `GET /integrations/{employees,departments}?updatedSince=&cursor=&limit=`                         | Sinkron data karyawan/departemen untuk aplikasi (tanpa data sensitif), `hr.read`                              |
-| `PUT/DELETE /integrations/projects/:externalId`, `PUT/DELETE /integrations/tasks/:externalId`    | Aplikasi mengirim proyek + anggota & task (akun layanan, `project.write`; upsert idempoten per aplikasi)      |
-| `POST /integrations/timesheets/batch`, `DELETE /integrations/timesheets/:externalId`             | Timesheet ≤ 1000 baris per kiriman; baris salah dilaporkan per baris                                          |
-| `GET /projects`, `GET /projects/:id`, `GET /employees/:id/projects`, `GET /me/projects`          | Proyek, anggota, task terbuka, & jam timesheet per karyawan (SDM `hr.read`, portal karyawan)                  |
 
 Aplikasi lain (mis. manajemen proyek) memakai akun ERP untuk login, token akun layanan (`client_credentials`; hak =
 peran akun layanan) untuk API, dan webhook bertanda tangan HMAC (`X-ERP-Signature`) saat karyawan/departemen berubah.

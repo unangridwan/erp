@@ -19,7 +19,6 @@ import { NEW_CONTRACT, NewEmployeeContract, type NewContractValues } from "./con
 import { FeedbackPanel, NotesPanel } from "./ess-panels";
 import { CareerPanel, ChecklistsPanel, DocumentsPanel, errorText } from "./hr-panels";
 import { OffboardingPanel, RESIGN_REASON_LABEL } from "./offboarding-panel";
-import { ProjectsPanel } from "./projects-panel";
 import {
   EducationPanel,
   ExperiencePanel,
@@ -37,8 +36,6 @@ interface Overview {
   goals: number;
   hoursThisMonth: string;
   hasPhoto: boolean;
-  projects: number;
-  projectHoursThisMonth: string;
   contract: {
     id: string;
     name: string;
@@ -69,16 +66,7 @@ interface ProfileSummary {
   ptkpMismatch: boolean;
 }
 
-type Tab =
-  | "work"
-  | "contract"
-  | "personal"
-  | "payroll"
-  | "benefits"
-  | "history"
-  | "performance"
-  | "projects"
-  | "settings";
+type Tab = "work" | "contract" | "personal" | "payroll" | "benefits" | "history" | "performance" | "settings";
 
 const EMPLOYEES = findResource("employees")!;
 const FIELDS = new Map(EMPLOYEES.fields.map((f) => [f.name, f]));
@@ -141,7 +129,6 @@ const GROUPS: Record<Tab, { title?: [string, string]; fields: string[] }[]> = {
   history: [],
   performance: [],
   benefits: [],
-  projects: [],
   settings: [
     { title: ["Identitas karyawan", "Employee identity"], fields: ["employeeNumber", "active"] },
     { title: ["Akses & absensi", "Access & attendance"], fields: ["userId", "badgeCode"] },
@@ -400,7 +387,6 @@ export function EmployeeForm({ id }: { id: string }) {
     ["benefits", l("Benefit", "Benefits"), !isNew && can(me.permissions, "payroll.read")],
     ["history", l("Dokumen & Riwayat", "Documents & History"), !isNew],
     ["performance", l("Kinerja", "Performance"), !isNew],
-    ["projects", l("Proyek", "Projects"), !isNew],
     ["settings", l("Pengaturan", "Settings"), true],
   ];
 
@@ -481,15 +467,6 @@ export function EmployeeForm({ id }: { id: string }) {
                 <strong>{overview.goals}</strong>
               </span>
             </Link>
-            {overview.projects > 0 && (
-              <button type="button" className="stat-button" onClick={() => setTab("projects")}>
-                <FolderIcon />
-                <span>
-                  <small>{l("Proyek", "Projects")}</small>
-                  <strong>{overview.projects}</strong>
-                </span>
-              </button>
-            )}
             <Link className="stat-button" href={`/hr/attendance?employeeId=${id}`}>
               <ClockIcon />
               <span>
@@ -804,7 +781,6 @@ export function EmployeeForm({ id }: { id: string }) {
             <TotalRewardsPanel employeeId={id} />
           )}
           {!isNew && tab === "benefits" && <BenefitEnrollments employeeId={id} />}
-          {!isNew && tab === "projects" && <ProjectsPanel employeeId={id} />}
           {!isNew && tab === "settings" && can(me.permissions, "fleet.read") && (
             <EmployeeVehiclesPanel employeeId={id} />
           )}
@@ -1082,8 +1058,6 @@ const TargetIcon = () =>
       <circle cx="12" cy="12" r="1" />
     </>,
   );
-const FolderIcon = () =>
-  svg(<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />);
 const ClockIcon = () =>
   svg(
     <>

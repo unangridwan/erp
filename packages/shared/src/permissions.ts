@@ -61,8 +61,6 @@ export const PERMISSIONS = [
   "approval.manage",
   /** Aplikasi terhubung: klien login (OIDC), akun layanan API, webhook. */
   "integration.manage",
-  /** Mengirim proyek, task, & timesheet dari aplikasi terhubung (untuk akun layanan). */
-  "project.write",
   "settings.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
