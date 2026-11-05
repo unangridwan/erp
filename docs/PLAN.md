@@ -225,8 +225,8 @@ mobile app (React Native/Expo), integrasi marketplace (Tokopedia/Shopee), paymen
 BI dashboard, public REST API + webhook untuk partner.
 
 _Sudah dibuat dari daftar ini:_ Fleet (Armada), approval engine generik, public REST API (akun layanan
-`client_credentials`) + webhook + login OIDC untuk aplikasi partner, Project & Timesheet (disinkron dari aplikasi
-proyek terhubung). Sisanya belum.
+`client_credentials`) + webhook + login OIDC untuk aplikasi partner. Sisanya belum (sinkron proyek & timesheet dari
+aplikasi proyek pernah dibuat lalu dihapus).
 
 ---
 
@@ -439,8 +439,8 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] Aplikasi terhubung (K1) — ERP sebagai penyedia login OpenID Connect (authorization code + PKCE, refresh token
   berotasi, logout), akun layanan API (`client_credentials`, hak = peran), webhook keluar bertanda tangan HMAC untuk
   karyawan & departemen (outbox + coba ulang), sinkron `/integrations/*`, Pengaturan › Aplikasi Terhubung
-- [x] Aplikasi terhubung (K2) — proyek, anggota, task, timesheet dari aplikasi proyek (upsert idempoten per aplikasi)
-  tampil di form karyawan (tab & tombol Proyek), SDM › Proyek, dan portal karyawan
+- [x] ~~Aplikasi terhubung (K2) — proyek, task, timesheet dari aplikasi proyek~~ — dihapus (menu SDM › Proyek, tab
+  Proyek karyawan, portal "Proyek saya", API `/integrations/projects|tasks|timesheets`, tabel di-drop migrasi 0052)
 - [x] Kompensasi & benefit (L1) — tunjangan per hari hadir & premi kehadiran, paket benefit (asuransi kesehatan swasta
   sebagai natura PPh 21, DPLK pengurang PPh 21, fasilitas), kepesertaan + tanggungan, jurnal utang premi, laporan premi
   per penyedia (Excel), plafon klaim per golongan, tab Benefit di form karyawan & portal "Benefit saya"
