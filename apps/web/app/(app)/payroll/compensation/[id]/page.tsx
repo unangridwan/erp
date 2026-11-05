@@ -10,6 +10,7 @@ import { api } from "../../../../../lib/api";
 import { formatDate, money } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { ask } from "../../../../../components/feedback";
 
 interface Proposal {
   id: string;
@@ -137,13 +138,13 @@ export default function CompensationCyclePage() {
           <button
             type="button"
             className="primary"
-            onClick={() =>
-              confirm(
+            onClick={async () =>
+              (await ask(
                 l(
                   `Buat kontrak upah baru berlaku ${c.effectiveDate} untuk semua usulan?`,
                   `Create new wage contracts effective ${c.effectiveDate} for all proposals?`,
                 ),
-              ) &&
+              )) &&
               act(
                 () => api(`/compensation-cycles/${id}/apply`, { method: "POST" }),
                 l("Siklus diterapkan.", "Cycle applied."),
@@ -157,8 +158,8 @@ export default function CompensationCyclePage() {
           <button
             type="button"
             className="danger"
-            onClick={() =>
-              confirm(l("Batalkan siklus ini?", "Cancel this cycle?")) &&
+            onClick={async () =>
+              (await ask(l("Batalkan siklus ini?", "Cancel this cycle?"))) &&
               act(() => api(`/compensation-cycles/${id}/cancel`, { method: "POST" }))
             }
           >

@@ -27,6 +27,7 @@ import { Chatter } from "../chatter";
 import { UomPick } from "../uom-pick";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
+import { ask } from "../feedback";
 
 interface Line {
   id: string;
@@ -338,7 +339,9 @@ export function PurchaseForm({ id }: { id: string }) {
                 type="button"
                 className="danger"
                 disabled={busy}
-                onClick={() => confirm(l("Batalkan pesanan ini?", "Cancel this order?")) && action("cancel")}
+                onClick={async () =>
+                  (await ask(l("Batalkan pesanan ini?", "Cancel this order?"))) && action("cancel")
+                }
               >
                 {l("Batalkan", "Cancel")}
               </button>
@@ -356,7 +359,7 @@ export function PurchaseForm({ id }: { id: string }) {
                   className="link"
                   onClick={() =>
                     run(async () => {
-                      if (!confirm(l("Hapus pesanan ini?", "Delete this order?"))) return;
+                      if (!(await ask(l("Hapus pesanan ini?", "Delete this order?")))) return;
                       await api(`/purchase-orders/${order.id}`, { method: "DELETE" });
                       router.replace("/purchase/rfq");
                     })

@@ -25,6 +25,7 @@ import {
   WarningsPanel,
 } from "./hr/profile-panels";
 import { useMe } from "./me-context";
+import { ask } from "./feedback";
 
 interface Attribute {
   id: string;
@@ -354,7 +355,7 @@ export function SeverancePanel({ id }: { id: string }) {
   }
   const preview = async () => setResult(await call("severance/preview"));
   const save = async () => {
-    if (!confirm(l("Catat & jurnal hak akhir ini?", "Record and post this final settlement?"))) return;
+    if (!(await ask(l("Catat & jurnal hak akhir ini?", "Record and post this final settlement?")))) return;
     if (await call("severances")) {
       setResult(null);
       setVersion((v) => v + 1);

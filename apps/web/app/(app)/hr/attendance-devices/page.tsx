@@ -9,6 +9,7 @@ import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
 import { useTableView } from "../../../../lib/use-table-view";
+import { ask } from "../../../../components/feedback";
 
 interface Device {
   id: string;
@@ -198,13 +199,13 @@ export default function AttendanceDevicesPage() {
                         <button
                           type="button"
                           className="link"
-                          onClick={() =>
-                            confirm(
+                          onClick={async () =>
+                            (await ask(
                               l(
                                 "Buat kunci baru? Kunci lama berhenti berlaku.",
                                 "Create a new key? The old key stops working.",
                               ),
-                            ) &&
+                            )) &&
                             run(async () => {
                               const r = await api<{ key: string }>(`/attendance-devices/${d.id}/rotate-key`, {
                                 method: "POST",
@@ -218,8 +219,8 @@ export default function AttendanceDevicesPage() {
                         <button
                           type="button"
                           className="link"
-                          onClick={() =>
-                            confirm(l("Hapus mesin ini?", "Delete this device?")) &&
+                          onClick={async () =>
+                            (await ask(l("Hapus mesin ini?", "Delete this device?"))) &&
                             run(async () => {
                               await api(`/attendance-devices/${d.id}`, { method: "DELETE" });
                             })

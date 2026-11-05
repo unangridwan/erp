@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { CommandPalette } from "../../components/command-palette";
 import { MeContext } from "../../components/me-context";
 import { Navbar } from "../../components/navbar";
 import { api, ApiError, session, type Me } from "../../lib/api";
@@ -49,6 +50,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     <MeContext.Provider value={me}>
       <div className={`app ${pathname === "/" ? "home" : ""}`}>
         <Navbar me={me} app={app} />
+        <CommandPalette me={me} />
         <main className="content">
           <SubscriptionBanner me={me} home={pathname === "/"} />
           {children}

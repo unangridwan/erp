@@ -10,6 +10,7 @@ import { ApprovalSummary } from "../../../../../components/settings/approval-pan
 import { api } from "../../../../../lib/api";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { ask } from "../../../../../components/feedback";
 
 interface Role {
   id: string;
@@ -63,7 +64,7 @@ export default function RoleFormPage() {
     }
   }
   async function remove() {
-    if (!confirm(l("Hapus peran ini?", "Delete this role?"))) return;
+    if (!(await ask(l("Hapus peran ini?", "Delete this role?")))) return;
     try {
       await api(`/roles/${id}`, { method: "DELETE" });
       router.replace("/settings/roles");

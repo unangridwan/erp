@@ -181,6 +181,7 @@ export default function BankStatementsPage() {
         columns={columns}
         storageKey="bank-statements"
         rowKey={(s) => s.id}
+        rowHref={(s) => `/accounting/bank/${s.id}`}
         defaultSort={{ key: "date", dir: "desc" }}
         empty={l("Belum ada mutasi diimpor.", "No statements imported yet.")}
       />

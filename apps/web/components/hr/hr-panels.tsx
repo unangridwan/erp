@@ -7,6 +7,7 @@ import { formatDate, money } from "../../lib/format";
 import { useI18n, type Text, L } from "../../lib/i18n";
 import { download } from "../accounting/download";
 import { AuthImage } from "../auth-image";
+import { ask } from "../feedback";
 
 export const DOCUMENT_KIND_LABEL: Record<string, Text> = {
   ktp: L("KTP", "ID card (KTP)"),
@@ -169,8 +170,8 @@ export function DocumentsPanel({ employeeId, applicantId }: { employeeId?: strin
                     <button
                       type="button"
                       className="link"
-                      onClick={() =>
-                        confirm(l("Hapus dokumen ini?", "Delete this document?")) &&
+                      onClick={async () =>
+                        (await ask(l("Hapus dokumen ini?", "Delete this document?"))) &&
                         api(`/hr-documents/${d.id}`, { method: "DELETE" }).then(load, (e) =>
                           setError(errorText(e)),
                         )

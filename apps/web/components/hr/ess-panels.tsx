@@ -7,6 +7,7 @@ import { formatDate, money, today } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
 import { RefSelect } from "../ref-select";
 import { errorText } from "./hr-panels";
+import { ask } from "../feedback";
 
 // ---- Sasaran ----
 
@@ -132,9 +133,10 @@ export function GoalTree({ path, allowCreate }: { path: string; allowCreate: boo
             <button
               type="button"
               className="link"
-              onClick={() =>
-                confirm(l("Hapus sasaran ini beserta turunannya?", "Delete this goal and its sub-goals?")) &&
-                run(() => api(`/goals/${g.id}`, { method: "DELETE" }))
+              onClick={async () =>
+                (await ask(
+                  l("Hapus sasaran ini beserta turunannya?", "Delete this goal and its sub-goals?"),
+                )) && run(() => api(`/goals/${g.id}`, { method: "DELETE" }))
               }
             >
               {l("Hapus", "Delete")}

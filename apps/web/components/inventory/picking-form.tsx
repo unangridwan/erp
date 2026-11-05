@@ -11,6 +11,7 @@ import { useOptions } from "../accounting/use-options";
 import { Chatter } from "../chatter";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
+import { ask, toast } from "../feedback";
 
 interface Move {
   id: string;
@@ -264,7 +265,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
       });
       setDocuments(res.documents ?? []);
       if (res.backorderId)
-        alert(
+        toast.info(
           l("Sisa kuantitas dibuat sebagai backorder.", "The remaining quantity was moved to a backorder."),
         );
       setVersion((v) => v + 1);
@@ -359,8 +360,8 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
                 type="button"
                 className="danger"
                 disabled={busy}
-                onClick={() =>
-                  confirm(l("Batalkan transfer ini?", "Cancel this transfer?")) && action("cancel")
+                onClick={async () =>
+                  (await ask(l("Batalkan transfer ini?", "Cancel this transfer?"))) && action("cancel")
                 }
               >
                 {l("Batalkan", "Cancel")}
@@ -393,7 +394,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
                 className="link"
                 onClick={() =>
                   run(async () => {
-                    if (!confirm(l("Hapus transfer ini?", "Delete this transfer?"))) return;
+                    if (!(await ask(l("Hapus transfer ini?", "Delete this transfer?")))) return;
                     await api(`/pickings/${id}`, { method: "DELETE" });
                     router.replace("/inventory/overview");
                   })

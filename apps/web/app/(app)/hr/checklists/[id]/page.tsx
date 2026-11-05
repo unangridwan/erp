@@ -7,6 +7,7 @@ import { errorText } from "../../../../../components/hr/hr-panels";
 import { api } from "../../../../../lib/api";
 import { formatDate, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
+import { ask } from "../../../../../components/feedback";
 
 interface Checklist {
   id: string;
@@ -88,19 +89,20 @@ export default function ChecklistPage() {
                     type="checkbox"
                     aria-label={t.name}
                     checked={Boolean(t.doneAt)}
-                    onChange={(e) => {
+                    onChange={async (e) => {
+                      const checked = e.target.checked;
                       if (
-                        e.target.checked &&
+                        checked &&
                         t.action === "deactivate_user" &&
-                        !confirm(
+                        !(await ask(
                           l(
                             "Akun login karyawan akan dinonaktifkan. Lanjutkan?",
                             "The employee's login will be deactivated. Continue?",
                           ),
-                        )
+                        ))
                       )
                         return;
-                      toggle(t.id, e.target.checked);
+                      toggle(t.id, checked);
                     }}
                   />
                 </td>

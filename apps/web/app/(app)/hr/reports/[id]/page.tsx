@@ -18,6 +18,7 @@ import { ReportChart } from "../../../../../components/reports/report-chart";
 import { api, ApiError } from "../../../../../lib/api";
 import { download } from "../../../../../lib/download";
 import { useI18n } from "../../../../../lib/i18n";
+import { ask } from "../../../../../components/feedback";
 
 interface DatasetInfo {
   key: string;
@@ -209,7 +210,8 @@ export default function ReportEditorPage() {
     }
   };
   const remove = async () => {
-    if (!confirm(l("Hapus laporan ini beserta jadwalnya?", "Delete this report and its schedules?"))) return;
+    if (!(await ask(l("Hapus laporan ini beserta jadwalnya?", "Delete this report and its schedules?"))))
+      return;
     try {
       await api(`/saved-reports/${id}`, { method: "DELETE" });
       router.push("/hr/reports");
@@ -965,8 +967,8 @@ function Schedules({
                     <button
                       type="button"
                       className="link danger"
-                      onClick={() =>
-                        confirm(l("Hapus jadwal ini?", "Delete this schedule?")) &&
+                      onClick={async () =>
+                        (await ask(l("Hapus jadwal ini?", "Delete this schedule?"))) &&
                         call(() => api(`/report-schedules/${s.id}`, { method: "DELETE" }))
                       }
                     >

@@ -7,10 +7,12 @@ import { api, ApiError, apiRaw } from "../lib/api";
 import { truncatedNote, useListData } from "../lib/use-list-data";
 import { useTableView, type ViewColumn } from "../lib/use-table-view";
 import { AuthImage } from "./auth-image";
-import { SortSelect, SortTh, TablePager, TableTools } from "./data-table";
+import { SortSelect, SortTh, TablePager, TableTools, useRowLink } from "./data-table";
+import { EmptyState } from "./empty-state";
+import { ask, Skeleton, toast } from "./feedback";
 import { ExportDialog, type ExportChoice } from "./export-dialog";
 import { useI18n } from "../lib/i18n";
-import { canCreate, canExport, canWrite, type Resource } from "../lib/resources";
+import { canCreate, canDelete, canExport, canWrite, type Resource } from "../lib/resources";
 import { useMe } from "./me-context";
 
 type Row = Record<string, unknown> & { id: string };
@@ -91,6 +93,13 @@ export function ListView({ resource }: { resource: Resource }) {
   const writable = canWrite(me.permissions, resource);
   const refLabels = useRefLabels(resource);
   const [view, setView] = useViewMode(resource);
+  const rowLink = useRowLink();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const deletable = !resource.noDelete && canDelete(me.permissions, resource);
+  const hasActive = resource.fields.some((f) => f.name === "active");
+  const selectable =
+    view === "list" && (deletable || (writable && hasActive) || canExport(me.permissions, resource));
 
   // Data dimuat sekali (s.d. 5.000 baris); cari/filter/sort/paginasi di browser.
   const list = useListData<Row>(`/${resource.path}`, {}, search);
@@ -140,6 +149,90 @@ export function ListView({ resource }: { resource: Resource }) {
   const table = useTableView(list.rows, columns, { storageKey: `list.${resource.path}` });
   useEffect(() => setSearch(table.state.q), [table.state.q]);
   const data = list.loading && !list.rows.length ? null : list;
+  const shownColumns = resource.columns.filter((c) => !table.hidden.includes(c.name));
+  // Pilihan hanya untuk baris yang masih ada setelah dimuat ulang.
+  useEffect(() => {
+    setSelected((s) => {
+      const ids = new Set(list.rows.map((r) => r.id));
+      const next = new Set([...s].filter((id) => ids.has(id)));
+      return next.size === s.size ? s : next;
+    });
+  }, [list.rows]);
+  const pageIds = table.rows.map((r) => r.id);
+  const allOnPage = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const toggle = (id: string) =>
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const recordLabel = (row: Row) => cell(row, resource.columns[0]?.name ?? "id") || row.id;
+
+  async function bulk(kind: "delete" | "archive" | "activate") {
+    const ids = [...selected];
+    const n = ids.length;
+    const verb =
+      kind === "delete"
+        ? l("Hapus", "Delete")
+        : kind === "archive"
+          ? l("Arsipkan", "Archive")
+          : l("Aktifkan", "Activate");
+    if (
+      !(await ask({
+        title: `${verb} ${n} ${tx(resource.singular).toLowerCase()}`,
+        message:
+          kind === "delete"
+            ? l(
+                `Hapus ${n} data terpilih? Tindakan ini tidak bisa dibatalkan.`,
+                `Delete ${n} selected records? This cannot be undone.`,
+              )
+            : l(`${verb} ${n} data terpilih?`, `${verb} ${n} selected records?`),
+        confirmLabel: verb,
+        danger: kind !== "activate",
+      }))
+    )
+      return;
+    setBulkBusy(true);
+    const failed: string[] = [];
+    for (const id of ids) {
+      try {
+        if (kind === "delete") await api(`/${resource.path}/${id}`, { method: "DELETE" });
+        else await api(`/${resource.path}/${id}`, { method: "PATCH", body: { active: kind === "activate" } });
+      } catch (e) {
+        const row = list.rows.find((r) => r.id === id);
+        failed.push(`${row ? recordLabel(row) : id}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    setBulkBusy(false);
+    setSelected(new Set());
+    list.reload();
+    const ok = n - failed.length;
+    if (ok) toast.success(l(`${verb}: ${ok} data berhasil.`, `${verb}: ${ok} records done.`));
+    if (failed.length)
+      toast.error(
+        l(
+          `${failed.length} gagal — ${failed.slice(0, 3).join("; ")}`,
+          `${failed.length} failed — ${failed.slice(0, 3).join("; ")}`,
+        ),
+      );
+  }
+
+  function exportSelected() {
+    const rows = list.rows.filter((r) => selected.has(r.id));
+    const esc = (v: string) => (/[",\n;]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    const csv = [
+      shownColumns.map((c) => esc(tx(c.label))).join(","),
+      ...rows.map((r) => shownColumns.map((c) => esc(cell(r, c.name))).join(",")),
+    ].join("\r\n");
+    const url = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${resource.path}-terpilih.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(l(`${rows.length} data diekspor.`, `${rows.length} records exported.`));
+  }
 
   async function openExport() {
     setError(null);
@@ -175,9 +268,11 @@ export function ListView({ resource }: { resource: Resource }) {
         body: /\.xlsx$/i.test(file.name) ? { xlsx: await toBase64(file) } : { csv: await file.text() },
       });
       setNotice(t("list.imported", result));
+      toast.success(t("list.imported", result));
       list.reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      toast.error(e instanceof Error ? e.message : String(e));
       if (e instanceof ApiError) setImportErrors((e.body.errors as typeof importErrors) ?? []);
     }
   }
@@ -235,7 +330,12 @@ export function ListView({ resource }: { resource: Resource }) {
       </header>
       {notice && <p className="notice">{notice}</p>}
       {(error ?? list.error) && <p className="error">{error ?? list.error}</p>}
-      <TableTools view={table} placeholder={t("list.search")} note={truncatedNote(list, l)}>
+      <TableTools
+        view={table}
+        placeholder={t("list.search")}
+        note={truncatedNote(list, l)}
+        columnChooser={view === "list"}
+      >
         {view === "kanban" && resource.kanban && <SortSelect view={table} />}
       </TableTools>
       {importErrors.length > 0 && (
@@ -284,7 +384,67 @@ export function ListView({ resource }: { resource: Resource }) {
               </Link>
             );
           })}
-          {table.rows.length === 0 && <p className="muted">{t("list.empty")}</p>}
+          {table.rows.length === 0 && (
+            <EmptyState
+              filtered={list.rows.length > 0}
+              onClear={table.clearFilters}
+              createHref={canCreate(me.permissions, resource) ? `/${resource.path}/new` : undefined}
+              createLabel={l(
+                `Buat ${tx(resource.singular).toLowerCase()} pertama`,
+                `Create the first ${tx(resource.singular).toLowerCase()}`,
+              )}
+            />
+          )}
+        </div>
+      )}
+      {!data && !list.error && <Skeleton rows={6} />}
+      {selectable && selected.size > 0 && (
+        <div
+          className="bulk-bar"
+          role="toolbar"
+          aria-label={l("Aksi untuk data terpilih", "Actions for selected rows")}
+        >
+          <strong>{l(`${selected.size} dipilih`, `${selected.size} selected`)}</strong>
+          {table.filtered.length > selected.size && (
+            <button
+              type="button"
+              className="link"
+              onClick={() => setSelected(new Set(table.filtered.map((r) => r.id)))}
+            >
+              {l(`Pilih semua ${table.filtered.length} hasil`, `Select all ${table.filtered.length} results`)}
+            </button>
+          )}
+          <span className="bulk-actions">
+            {canExport(me.permissions, resource) && (
+              <button type="button" onClick={exportSelected} disabled={bulkBusy}>
+                {l("Ekspor CSV", "Export CSV")}
+              </button>
+            )}
+            {writable && hasActive && (
+              <>
+                <button type="button" onClick={() => void bulk("archive")} disabled={bulkBusy}>
+                  {l("Arsipkan", "Archive")}
+                </button>
+                <button type="button" onClick={() => void bulk("activate")} disabled={bulkBusy}>
+                  {l("Aktifkan", "Activate")}
+                </button>
+              </>
+            )}
+            {deletable && (
+              <button
+                type="button"
+                className="danger"
+                onClick={() => void bulk("delete")}
+                disabled={bulkBusy}
+                aria-busy={bulkBusy}
+              >
+                {l("Hapus", "Delete")}
+              </button>
+            )}
+            <button type="button" className="link" onClick={() => setSelected(new Set())}>
+              {l("Batal pilih", "Clear selection")}
+            </button>
+          </span>
         </div>
       )}
       {data && view === "list" && (
@@ -292,7 +452,26 @@ export function ListView({ resource }: { resource: Resource }) {
           <table>
             <thead>
               <tr>
-                {resource.columns.map((c) => (
+                {selectable && (
+                  <th className="col-check">
+                    <input
+                      type="checkbox"
+                      aria-label={l("Pilih semua di halaman ini", "Select all on this page")}
+                      checked={allOnPage}
+                      onChange={() =>
+                        setSelected((s) => {
+                          const next = new Set(s);
+                          for (const id of pageIds) {
+                            if (allOnPage) next.delete(id);
+                            else next.add(id);
+                          }
+                          return next;
+                        })
+                      }
+                    />
+                  </th>
+                )}
+                {shownColumns.map((c) => (
                   <SortTh key={c.name} view={table} col={c.name}>
                     {tx(c.label)}
                   </SortTh>
@@ -300,23 +479,49 @@ export function ListView({ resource }: { resource: Resource }) {
               </tr>
             </thead>
             <tbody>
-              {table.rows.map((row) => (
-                <tr key={row.id}>
-                  {resource.columns.map((c, i) => (
-                    <td key={c.name}>
-                      {i === 0 ? (
-                        <Link href={`/${resource.path}/${row.id}`}>{cell(row, c.name) || "—"}</Link>
-                      ) : (
-                        cell(row, c.name)
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {table.rows.map((row) => {
+                const link = rowLink(`/${resource.path}/${row.id}`);
+                return (
+                  <tr
+                    key={row.id}
+                    {...link}
+                    className={`${link.className}${selected.has(row.id) ? " selected" : ""}`}
+                  >
+                    {selectable && (
+                      <td className="col-check">
+                        <input
+                          type="checkbox"
+                          aria-label={l(`Pilih ${recordLabel(row)}`, `Select ${recordLabel(row)}`)}
+                          checked={selected.has(row.id)}
+                          onChange={() => toggle(row.id)}
+                        />
+                      </td>
+                    )}
+                    {shownColumns.map((c, i) => (
+                      <td key={c.name}>
+                        {i === 0 ? (
+                          <Link href={`/${resource.path}/${row.id}`}>{cell(row, c.name) || "—"}</Link>
+                        ) : (
+                          cell(row, c.name)
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
               {table.rows.length === 0 && (
                 <tr>
-                  <td colSpan={resource.columns.length} className="muted">
-                    {t("list.empty")}
+                  <td colSpan={shownColumns.length + (selectable ? 1 : 0)}>
+                    <EmptyState
+                      compact
+                      filtered={list.rows.length > 0}
+                      onClear={table.clearFilters}
+                      createHref={canCreate(me.permissions, resource) ? `/${resource.path}/new` : undefined}
+                      createLabel={l(
+                        `Buat ${tx(resource.singular).toLowerCase()} pertama`,
+                        `Create the first ${tx(resource.singular).toLowerCase()}`,
+                      )}
+                    />
                   </td>
                 </tr>
               )}

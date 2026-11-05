@@ -9,6 +9,7 @@ import { download } from "../../../../../lib/download";
 import { formatDate, money } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { ask } from "../../../../../components/feedback";
 
 interface Entity {
   companyId: string;
@@ -319,9 +320,9 @@ export default function ConsolidationRunPage() {
               <button
                 className="primary"
                 disabled={busy}
-                onClick={() => {
+                onClick={async () => {
                   if (
-                    window.confirm(
+                    await ask(
                       l("Finalkan? Proses tidak bisa diubah lagi.", "Finalize? The run will be locked."),
                     )
                   )
@@ -333,7 +334,7 @@ export default function ConsolidationRunPage() {
               <button
                 className="danger"
                 onClick={async () => {
-                  if (!window.confirm(l("Hapus proses ini?", "Delete this run?"))) return;
+                  if (!(await ask(l("Hapus proses ini?", "Delete this run?")))) return;
                   await api(`/consolidation/runs/${id}`, { method: "DELETE" });
                   router.replace("/consolidation/runs");
                 }}

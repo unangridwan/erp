@@ -19,6 +19,9 @@ export type Field = (
 ) & {
   /** Judul seksi form yang dimulai dari field ini (form panjang, mis. karyawan). */
   section?: Text;
+  /** Teks bantuan di bawah field. */
+  help?: Text;
+  placeholder?: Text;
 };
 
 export interface Resource {

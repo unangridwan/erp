@@ -480,6 +480,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   batas kepesertaan, kategori PPh 21 (tetap/tidak tetap/bukan pegawai/tidak dipotong), THR, pesangon/kompensasi; hak lembur per karyawan (0055)
 - [x] Usia pensiun per perusahaan (migrasi 0056) — usia bawaan, aturan tanggal, pengingat, pengecualian per
   jabatan/golongan/departemen & usia khusus karyawan; daftar akan pensiun, pengingat HR, batas kontrak, pintasan offboarding
+- [x] UI lebih interaktif — toast & dialog konfirmasi aplikasi, skeleton, palet perintah Ctrl+K (menu, buat baru, cari
+  data), form (belum disimpan, Buang, Ctrl+S, penjaga navigasi, validasi & fokus error), daftar (klik baris, aksi massal,
+  pilih kolom, empty state), beranda (perlu tindakan, favorit & terakhir dibuka, buat cepat), fokus keyboard
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

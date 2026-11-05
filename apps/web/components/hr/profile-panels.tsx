@@ -10,6 +10,7 @@ import { AuthImage, bumpImage } from "../auth-image";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
 import { errorText } from "./hr-panels";
+import { ask } from "../feedback";
 
 const readFile = (file: Blob) =>
   new Promise<string>((resolve, reject) => {
@@ -364,8 +365,8 @@ function RowsPanel({
                       <button
                         type="button"
                         className="link"
-                        onClick={() =>
-                          confirm(l("Hapus data ini?", "Delete this entry?")) &&
+                        onClick={async () =>
+                          (await ask(l("Hapus data ini?", "Delete this entry?"))) &&
                           api(`${endpoint}/${row.id}`, { method: "DELETE" }).then(load, (e) =>
                             setError(errorText(e)),
                           )
@@ -715,8 +716,8 @@ export function WarningsPanel({ employeeId }: { employeeId?: string }) {
                     <button
                       type="button"
                       className="link"
-                      onClick={() =>
-                        confirm(l("Hapus surat peringatan ini?", "Delete this warning letter?")) &&
+                      onClick={async () =>
+                        (await ask(l("Hapus surat peringatan ini?", "Delete this warning letter?"))) &&
                         api(`/employee-warnings/${w.id}`, { method: "DELETE" }).then(load, (e) =>
                           setError(errorText(e)),
                         )
@@ -799,7 +800,7 @@ export function MovementsPanel({ employeeId }: { employeeId?: string }) {
   useEffect(() => {
     void load();
   }, [load]);
-  const act = (id: string, action: "apply" | "cancel") => {
+  const act = async (id: string, action: "apply" | "cancel") => {
     setError(null);
     const question =
       action === "apply"
@@ -808,7 +809,7 @@ export function MovementsPanel({ employeeId }: { employeeId?: string }) {
             "Apply this decree? Employee data is updated and (with a new wage) a new contract starts.",
           )
         : l("Batalkan mutasi ini?", "Cancel this movement?");
-    if (!confirm(question)) return;
+    if (!(await ask(question))) return;
     api(`/employee-movements/${id}/${action}`, { method: "POST" }).then(load, (e) => setError(errorText(e)));
   };
   async function save(e: FormEvent) {

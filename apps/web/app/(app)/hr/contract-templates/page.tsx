@@ -10,6 +10,7 @@ import { api, ApiError } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
 import { useContractTypes } from "../../../../lib/use-contract-types";
+import { ask } from "../../../../components/feedback";
 
 interface Template {
   id: string;
@@ -323,8 +324,8 @@ export default function ContractTemplatesPage() {
                     type="button"
                     className="danger"
                     disabled={busy}
-                    onClick={() =>
-                      confirm(l("Hapus template ini?", "Delete this template?")) &&
+                    onClick={async () =>
+                      (await ask(l("Hapus template ini?", "Delete this template?"))) &&
                       run(
                         async () => {
                           await api(`/contract-templates/${draft.id}`, { method: "DELETE" });

@@ -13,6 +13,7 @@ import { money, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { APPLICANT_STAGE_LABEL, can } from "../../../../../lib/resources";
 import { useContractTypes } from "../../../../../lib/use-contract-types";
+import { ask } from "../../../../../components/feedback";
 
 interface Applicant {
   id: string;
@@ -392,12 +393,12 @@ function Applicant() {
                 className="danger"
                 onClick={async () => {
                   if (
-                    !confirm(
+                    !(await ask(
                       l(
                         "Batalkan calon karyawan? Kontrak draft dihapus dan pelamar kembali ke tahap penawaran.",
                         "Cancel this pre-hire? The draft contract is deleted and the applicant goes back to the offer stage.",
                       ),
-                    )
+                    ))
                   )
                     return;
                   setError(null);

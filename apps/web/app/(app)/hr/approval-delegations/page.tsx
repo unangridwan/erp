@@ -8,6 +8,7 @@ import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
 import { useTableView } from "../../../../lib/use-table-view";
+import { ask } from "../../../../components/feedback";
 
 interface Delegation {
   id: string;
@@ -81,7 +82,7 @@ export default function ApprovalDelegationsPage() {
     }
   }
   async function remove(id: string) {
-    if (!confirm(l("Hapus delegasi ini?", "Delete this delegation?"))) return;
+    if (!(await ask(l("Hapus delegasi ini?", "Delete this delegation?")))) return;
     await api(`/approval-delegations/${id}`, { method: "DELETE" }).then(
       () => setVersion((v) => v + 1),
       (e: Error) => setError(e.message),

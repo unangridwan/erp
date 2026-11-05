@@ -6,6 +6,7 @@ import { formatDate, money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { portalApi, portalDownload } from "../../../../lib/portal-api";
 import { PortalHeader } from "../../portal-header";
+import { ask } from "../../../../components/feedback";
 
 interface Order {
   id: string;
@@ -73,7 +74,7 @@ export default function PortalOrderPage() {
                   className="primary"
                   disabled={busy}
                   onClick={async () => {
-                    if (!confirm(l("Setujui penawaran ini?", "Accept this quotation?"))) return;
+                    if (!(await ask(l("Setujui penawaran ini?", "Accept this quotation?")))) return;
                     setBusy(true);
                     try {
                       setOrder(await portalApi<Order>(`/portal/orders/${id}/accept`, { method: "POST" }));

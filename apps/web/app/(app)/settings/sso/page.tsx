@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
+import { ask } from "../../../../components/feedback";
 
 type Protocol = "oidc" | "saml";
 interface Config {
@@ -121,7 +122,7 @@ export default function SsoSettingsPage() {
     }
   }
   async function remove() {
-    if (!confirm(l("Hapus konfigurasi SSO?", "Remove the SSO configuration?"))) return;
+    if (!(await ask(l("Hapus konfigurasi SSO?", "Remove the SSO configuration?")))) return;
     await api("/auth/sso/config", { method: "DELETE" });
     setConfig((c) => (c ? { redirectUri: c.redirectUri, saml: c.saml } : c));
     setForm(EMPTY);

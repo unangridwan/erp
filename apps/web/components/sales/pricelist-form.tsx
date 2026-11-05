@@ -7,6 +7,7 @@ import { useI18n } from "../../lib/i18n";
 import { can } from "../../lib/resources";
 import { useOptions, type CurrencyOption, type ProductOption } from "../accounting/use-options";
 import { useMe } from "../me-context";
+import { ask } from "../feedback";
 
 interface Item {
   productId: string;
@@ -111,7 +112,7 @@ export function PricelistForm({ id }: { id: string }) {
   }
 
   async function remove() {
-    if (!confirm(l("Hapus daftar harga ini?", "Delete this pricelist?"))) return;
+    if (!(await ask(l("Hapus daftar harga ini?", "Delete this pricelist?")))) return;
     try {
       await api(`/pricelists/${id}`, { method: "DELETE" });
       router.replace("/sales/pricelists");

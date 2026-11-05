@@ -139,6 +139,7 @@ export function MoveList({ kind }: { kind: MoveKind }) {
           columns={columns}
           storageKey={`moves.${kind}`}
           rowKey={(m) => m.id}
+          rowHref={(m) => `/accounting/moves/${m.id}`}
           defaultSort={{ key: "date", dir: "desc" }}
           note={truncatedNote(list, l)}
           onSearch={setSearch}

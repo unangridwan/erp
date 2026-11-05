@@ -14,6 +14,7 @@ import { formatDate, money, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { CONTRACT_STATE_LABEL } from "../../../../../lib/resources";
 import { useContractTypes } from "../../../../../lib/use-contract-types";
+import { ask } from "../../../../../components/feedback";
 
 interface Contract {
   id: string;
@@ -256,13 +257,13 @@ function Contract() {
             <button
               type="button"
               className="danger"
-              onClick={() =>
-                confirm(
+              onClick={async () =>
+                (await ask(
                   l(
                     "Batalkan keluar? Kontrak kembali berjalan dan tanggal keluar karyawan dihapus.",
                     "Cancel the leaving? The contract runs again and the employee's leaving date is cleared.",
                   ),
-                ) && action("cancel-exit")
+                )) && action("cancel-exit")
               }
             >
               {l("Batalkan keluar", "Cancel leaving")}

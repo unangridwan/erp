@@ -23,6 +23,7 @@ import { Chatter } from "../chatter";
 import { ActivitiesPanel } from "../crm/activities-panel";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
+import { ask } from "../feedback";
 
 interface OrderLine {
   id: string;
@@ -414,7 +415,9 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                 type="button"
                 className="danger"
                 disabled={busy}
-                onClick={() => confirm(l("Batalkan pesanan ini?", "Cancel this order?")) && action("cancel")}
+                onClick={async () =>
+                  (await ask(l("Batalkan pesanan ini?", "Cancel this order?"))) && action("cancel")
+                }
               >
                 {l("Batalkan", "Cancel")}
               </button>
@@ -435,7 +438,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                   disabled={busy}
                   onClick={() =>
                     run(async () => {
-                      if (!confirm(l("Hapus penawaran ini?", "Delete this quotation?"))) return;
+                      if (!(await ask(l("Hapus penawaran ini?", "Delete this quotation?")))) return;
                       await api(`/sale-orders/${order.id}`, { method: "DELETE" });
                       router.replace("/sales/quotations");
                     })

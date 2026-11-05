@@ -10,6 +10,7 @@ import { formatDate, money } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { APPLICANT_STAGE_LABEL } from "../../../../../lib/resources";
 import { useContractTypes } from "../../../../../lib/use-contract-types";
+import { ask } from "../../../../../components/feedback";
 
 const STEPS = [
   ["plan", "Man Power Planning", "Manpower plan"],
@@ -137,7 +138,7 @@ export default function HiringRequestPage() {
                 className="danger"
                 disabled={busy}
                 onClick={async () => {
-                  if (!confirm(l("Hapus FPK draft ini?", "Delete this draft?"))) return;
+                  if (!(await ask(l("Hapus FPK draft ini?", "Delete this draft?")))) return;
                   try {
                     await api(`/hiring-requests/${id}`, { method: "DELETE" });
                     router.push("/hr/hiring-requests");
@@ -164,7 +165,9 @@ export default function HiringRequestPage() {
             <button
               type="button"
               disabled={busy}
-              onClick={() => confirm(l("Batalkan FPK ini?", "Cancel this request?")) && act("cancel")}
+              onClick={async () =>
+                (await ask(l("Batalkan FPK ini?", "Cancel this request?"))) && act("cancel")
+              }
             >
               {l("Batalkan", "Cancel")}
             </button>

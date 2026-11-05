@@ -11,6 +11,7 @@ import { L, useI18n, type Text } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
 import { useTableView } from "../../../../lib/use-table-view";
+import { ask } from "../../../../components/feedback";
 
 interface Loan {
   id: string;
@@ -318,8 +319,8 @@ export default function LoansPage() {
                                 <button
                                   type="button"
                                   className="danger"
-                                  onClick={() =>
-                                    confirm(l("Batalkan pinjaman ini?", "Cancel this loan?")) &&
+                                  onClick={async () =>
+                                    (await ask(l("Batalkan pinjaman ini?", "Cancel this loan?"))) &&
                                     run(async () => {
                                       await api(`/employee-loans/${r.id}/cancel`, { method: "POST" });
                                       await refresh(r.id);

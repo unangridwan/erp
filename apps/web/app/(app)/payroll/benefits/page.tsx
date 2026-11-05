@@ -13,6 +13,7 @@ import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
 import { useTableView } from "../../../../lib/use-table-view";
+import { ask } from "../../../../components/feedback";
 
 interface Report {
   summary: {
@@ -163,7 +164,7 @@ export default function BenefitPlansPage() {
     }
   };
   const remove = async (id: string) => {
-    if (!confirm(l("Hapus paket benefit ini?", "Delete this benefit plan?"))) return;
+    if (!(await ask(l("Hapus paket benefit ini?", "Delete this benefit plan?")))) return;
     try {
       await api(`/benefit-plans/${id}`, { method: "DELETE" });
       setVersion((v) => v + 1);

@@ -2,14 +2,18 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { canDelete, canWrite, type Field, type Resource } from "../lib/resources";
 import { Chatter } from "./chatter";
+import { FavoriteStar } from "./favorite-star";
 import { FormExtras } from "./form-extras";
 import { useMe } from "./me-context";
 import { RefSelect } from "./ref-select";
+import { ask, Skeleton, toast } from "./feedback";
+import { focusFirstError, useDirtyGuard, useSaveShortcut } from "../lib/use-form-guard";
+import { rememberRecent } from "../lib/recent";
 
 type Values = Record<string, unknown>;
 
@@ -34,7 +38,7 @@ export function toPayload(fields: Field[], values: Values, isNew: boolean): Valu
 
 export function FormView({ resource, id }: { resource: Resource; id: string }) {
   const me = useMe();
-  const { t, tx } = useI18n();
+  const { t, tx, l } = useI18n();
   const router = useRouter();
   const isNew = id === "new";
   const editable = canWrite(me.permissions, resource);
@@ -47,19 +51,53 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [version, setVersion] = useState(0);
+  /** Nilai terakhir yang tersimpan (untuk deteksi perubahan & tombol Buang). */
+  const [saved, setSaved] = useState<Values>(values);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  const dirty = useMemo(
+    () => editable && resource.fields.some((f) => !same(values[f.name], saved[f.name])),
+    [editable, resource.fields, values, saved],
+  );
+  useDirtyGuard(dirty && !saving);
+  useSaveShortcut(() => formRef.current?.requestSubmit(), editable);
 
   useEffect(() => {
     if (isNew) return;
     api<Values>(`/${resource.path}/${id}`)
       .then((row) => {
         setValues(row);
+        setSaved(row);
         setLoaded(true);
       })
       .catch((e: Error) => setError(e.message));
   }, [resource.path, id, isNew]);
 
+  // Catat sebagai "terakhir dibuka" (beranda & Ctrl+K).
+  const recordName = isNew
+    ? `${tx(resource.singular)} ${t("form.new")}`
+    : String(values.name ?? values.code ?? values.licensePlate ?? values.reference ?? tx(resource.singular));
+  useEffect(() => {
+    if (!isNew && loaded)
+      rememberRecent({ href: `/${resource.path}/${id}`, title: recordName, kind: tx(resource.singular) });
+  }, [isNew, loaded, resource.path, id, recordName, resource.singular, tx]);
+
+  const missing = (f: Field) =>
+    "required" in f &&
+    f.required &&
+    (values[f.name] === undefined || values[f.name] === null || values[f.name] === "");
+  const clientErrors = Object.fromEntries(
+    resource.fields.filter(missing).map((f) => [f.name, l("Wajib diisi", "Required")]),
+  );
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (Object.keys(clientErrors).length) {
+      setTouched(Object.fromEntries(Object.keys(clientErrors).map((k) => [k, true])));
+      toast.error(l("Lengkapi field yang wajib diisi.", "Please fill in the required fields."));
+      requestAnimationFrame(() => focusFirstError(formRef.current, Object.keys(clientErrors)));
+      return;
+    }
     setSaving(true);
     setError(null);
     setFieldErrors({});
@@ -67,36 +105,54 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
       const body = toPayload(resource.fields, values, isNew);
       if (isNew) {
         const created = await api<{ id: string }>(`/${resource.path}`, { method: "POST", body });
+        setSaved(values);
+        toast.success(l(`${tx(resource.singular)} dibuat.`, `${tx(resource.singular)} created.`));
         router.replace(`/${resource.path}/${created.id}`);
       } else {
-        setValues(await api<Values>(`/${resource.path}/${id}`, { method: "PATCH", body }));
+        const row = await api<Values>(`/${resource.path}/${id}`, { method: "PATCH", body });
+        setValues(row);
+        setSaved(row);
         setVersion((v) => v + 1);
+        toast.success(l("Perubahan disimpan.", "Changes saved."));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      if (err instanceof ApiError) setFieldErrors(err.fieldErrors);
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      toast.error(message);
+      if (err instanceof ApiError) {
+        setFieldErrors(err.fieldErrors);
+        requestAnimationFrame(() => focusFirstError(formRef.current, Object.keys(err.fieldErrors)));
+      }
     } finally {
       setSaving(false);
     }
   }
 
+  async function onDiscard() {
+    if (!(await ask({ message: l("Buang semua perubahan?", "Discard all changes?"), danger: true }))) return;
+    setValues(saved);
+    setFieldErrors({});
+    setTouched({});
+    setError(null);
+  }
+
   async function onDelete() {
-    if (!confirm(t("form.confirmDelete"))) return;
+    if (!(await ask(t("form.confirmDelete")))) return;
     try {
       await api(`/${resource.path}/${id}`, { method: "DELETE" });
+      setSaved(values);
+      toast.success(l(`${recordName} dihapus.`, `${recordName} deleted.`));
       router.replace(`/${resource.path}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      toast.error(message);
     }
   }
 
-  if (!loaded) return <p className="muted">{error ?? t("app.loading")}</p>;
+  if (!loaded) return error ? <p className="error">{error}</p> : <Skeleton form rows={6} />;
 
   const set = (name: string, value: unknown) => setValues((v) => ({ ...v, [name]: value }));
-
-  const recordName = isNew
-    ? `${tx(resource.singular)} ${t("form.new")}`
-    : String(values.name ?? values.code ?? values.licensePlate ?? values.reference ?? tx(resource.singular));
 
   return (
     <>
@@ -106,11 +162,34 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
             <Link href={`/${resource.path}`}>{tx(resource.title)}</Link>
             <span>/</span>
             <h1>{recordName}</h1>
+            {!isNew && (
+              <FavoriteStar
+                href={`/${resource.path}/${id}`}
+                title={recordName}
+                kind={tx(resource.singular)}
+              />
+            )}
           </nav>
           {editable && (
-            <button className="primary" form="record-form" disabled={saving}>
+            <button
+              className="primary"
+              form="record-form"
+              disabled={saving || (!isNew && !dirty)}
+              aria-busy={saving}
+              title={l("Simpan (Ctrl+S)", "Save (Ctrl+S)")}
+            >
               {saving ? t("form.saving") : t("form.save")}
             </button>
+          )}
+          {editable && dirty && !saving && (
+            <>
+              <button type="button" onClick={onDiscard}>
+                {l("Buang", "Discard")}
+              </button>
+              <span className="dirty-dot" role="status">
+                {l("Belum disimpan", "Unsaved changes")}
+              </span>
+            </>
           )}
           {editable && !isNew && !resource.noDelete && canDelete(me.permissions, resource) && (
             <button type="button" className="danger" onClick={onDelete}>
@@ -121,7 +200,7 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
       </header>
       <div className="form-layout">
         <div className="stack-wide">
-          <form id="record-form" className="panel" onSubmit={onSubmit}>
+          <form id="record-form" ref={formRef} className="panel" onSubmit={onSubmit} noValidate>
             {error && <p className="error">{error}</p>}
             <fieldset disabled={!editable} className="fields">
               {resource.fields.map((f) => [
@@ -130,13 +209,32 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
                     {tx(f.section)}
                   </h3>
                 ),
-                <label key={f.name} className={f.type === "boolean" ? "field check" : "field"}>
+                <label
+                  key={f.name}
+                  data-field={f.name}
+                  className={f.type === "boolean" ? "field check" : "field"}
+                  onBlur={() => setTouched((t) => (t[f.name] ? t : { ...t, [f.name]: true }))}
+                >
                   <span>
                     {tx(f.label)}
                     {"required" in f && f.required ? " *" : ""}
                   </span>
-                  <FieldInput field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} />
-                  {fieldErrors[f.name] && <small className="error">{fieldErrors[f.name]}</small>}
+                  <FieldInput
+                    field={f}
+                    value={values[f.name]}
+                    onChange={(v) => {
+                      set(f.name, v);
+                      if (fieldErrors[f.name]) setFieldErrors(({ [f.name]: _, ...rest }) => rest);
+                    }}
+                    invalid={Boolean(fieldErrors[f.name] || (touched[f.name] && clientErrors[f.name]))}
+                  />
+                  {fieldErrors[f.name] ? (
+                    <small className="error">{fieldErrors[f.name]}</small>
+                  ) : touched[f.name] && clientErrors[f.name] ? (
+                    <small className="error">{clientErrors[f.name]}</small>
+                  ) : f.help ? (
+                    <small className="muted">{tx(f.help)}</small>
+                  ) : null}
                 </label>,
               ])}
             </fieldset>
@@ -156,23 +254,39 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
   );
 }
 
+/** Nilai sama (abaikan beda "" / null / undefined dan angka vs teks). */
+function same(a: unknown, b: unknown) {
+  const norm = (v: unknown) => (v === undefined || v === null || v === "" ? "" : String(v));
+  return norm(a) === norm(b);
+}
+
 export function FieldInput({
   field,
   value,
   onChange,
+  invalid,
 }: {
   field: Field;
   value: unknown;
   onChange: (v: unknown) => void;
+  invalid?: boolean;
 }) {
   const { tx } = useI18n();
+  const aria = invalid ? { "aria-invalid": true as const } : {};
+  const placeholder = field.placeholder ? tx(field.placeholder) : undefined;
   const str = value === null || value === undefined ? "" : String(value);
   switch (field.type) {
     case "boolean":
       return <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />;
     case "select":
       return (
-        <select value={str} required={field.required} onChange={(e) => onChange(e.target.value)}>
+        <select
+          name={field.name}
+          value={str}
+          required={field.required}
+          {...aria}
+          onChange={(e) => onChange(e.target.value)}
+        >
           <option value="">—</option>
           {field.options.map(([v, label]) => (
             <option key={v} value={v}>
@@ -196,10 +310,13 @@ export function FieldInput({
     default:
       return (
         <input
+          name={field.name}
           type={field.type}
           step={field.type === "number" ? "any" : undefined}
           value={str}
           required={field.required}
+          placeholder={placeholder}
+          {...aria}
           onChange={(e) => onChange(e.target.value)}
         />
       );

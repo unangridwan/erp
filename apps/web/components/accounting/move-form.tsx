@@ -19,6 +19,7 @@ import {
   type ProductOption,
   type TaxOption,
 } from "./use-options";
+import { ask } from "../feedback";
 
 interface MoveLine {
   id: string;
@@ -283,14 +284,15 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
 
   const remove = () =>
     run(async () => {
-      if (!confirm(l("Hapus draft ini?", "Delete this draft?"))) return;
+      if (!(await ask(l("Hapus draft ini?", "Delete this draft?")))) return;
       await api(`/moves/${id}`, { method: "DELETE" });
       router.replace(isEntry ? "/accounting/entries" : sale ? "/accounting/invoices" : "/accounting/bills");
     });
 
   const reverse = () =>
     run(async () => {
-      if (!confirm(l("Buat jurnal balik untuk dokumen ini?", "Create a reversal for this document?"))) return;
+      if (!(await ask(l("Buat jurnal balik untuk dokumen ini?", "Create a reversal for this document?"))))
+        return;
       const reversal = await api<Move>(`/moves/${id}/reverse`, { method: "POST", body: {} });
       router.push(`/accounting/moves/${reversal.id}`);
     });

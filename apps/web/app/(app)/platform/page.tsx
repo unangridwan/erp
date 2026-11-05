@@ -8,6 +8,7 @@ import { useI18n } from "../../../lib/i18n";
 import { SUBSCRIPTION_STATUS_LABEL } from "../../../lib/resources";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../components/data-table";
 import { useTableView } from "../../../lib/use-table-view";
+import { ask } from "../../../components/feedback";
 
 interface Tenant {
   id: string;
@@ -388,8 +389,8 @@ export default function PlatformPage() {
                   <td>
                     <button
                       className="link"
-                      onClick={() => {
-                        if (window.confirm(l(`Tandai ${i.number} lunas?`, `Mark ${i.number} as paid?`)))
+                      onClick={async () => {
+                        if (await ask(l(`Tandai ${i.number} lunas?`, `Mark ${i.number} as paid?`)))
                           void run(() =>
                             api(`/platform/invoices/${i.id}/mark-paid`, { method: "POST", body: {} }),
                           );
@@ -530,10 +531,8 @@ export default function PlatformPage() {
                       {t.complimentary ? (
                         <button
                           className="link"
-                          onClick={() => {
-                            if (
-                              window.confirm(l(`Cabut gratis ${t.slug}?`, `Revoke free plan for ${t.slug}?`))
-                            )
+                          onClick={async () => {
+                            if (await ask(l(`Cabut gratis ${t.slug}?`, `Revoke free plan for ${t.slug}?`)))
                               void patch(t, { complimentary: false });
                           }}
                         >
@@ -564,8 +563,8 @@ export default function PlatformPage() {
                       ) : (
                         <button
                           className="link danger"
-                          onClick={() => {
-                            if (window.confirm(l(`Tangguhkan ${t.slug}?`, `Suspend ${t.slug}?`)))
+                          onClick={async () => {
+                            if (await ask(l(`Tangguhkan ${t.slug}?`, `Suspend ${t.slug}?`)))
                               void patch(t, { status: "suspended" });
                           }}
                         >
@@ -789,8 +788,8 @@ export default function PlatformPage() {
                       </button>
                       <button
                         className="link danger"
-                        onClick={() => {
-                          if (window.confirm(l(`Hapus paket ${p.name}?`, `Delete plan ${p.name}?`)))
+                        onClick={async () => {
+                          if (await ask(l(`Hapus paket ${p.name}?`, `Delete plan ${p.name}?`)))
                             void run(
                               () => api(`/platform/plans/${p.id}`, { method: "DELETE" }),
                               l("Paket dihapus.", "Plan deleted."),
