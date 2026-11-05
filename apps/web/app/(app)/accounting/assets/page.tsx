@@ -156,6 +156,7 @@ export default function AssetsPage() {
         columns={columns}
         storageKey="assets"
         rowKey={(a) => a.id}
+        rowHref={(a) => `/accounting/assets/${a.id}`}
         note={truncatedNote(list, l)}
         onSearch={setSearch}
         empty={l("Belum ada aset.", "No assets yet.")}

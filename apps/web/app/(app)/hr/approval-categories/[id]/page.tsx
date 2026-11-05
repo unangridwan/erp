@@ -11,6 +11,7 @@ import { useMe } from "../../../../../components/me-context";
 import { api, ApiError } from "../../../../../lib/api";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { ask } from "../../../../../components/feedback";
 
 interface Approver {
   /** `u:<id>` (pengguna) atau `r:<id>` (peran). */
@@ -125,7 +126,7 @@ export default function ApprovalCategoryPage() {
     }
   }
   async function remove() {
-    if (!confirm(l("Hapus kategori ini?", "Delete this category?"))) return;
+    if (!(await ask(l("Hapus kategori ini?", "Delete this category?")))) return;
     try {
       await api(`/approval-categories/${id}`, { method: "DELETE" });
       router.push("/hr/approval-categories");

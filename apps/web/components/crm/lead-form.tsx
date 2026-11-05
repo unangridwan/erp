@@ -12,6 +12,7 @@ import { Chatter } from "../chatter";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
 import { ActivitiesPanel } from "./activities-panel";
+import { ask } from "../feedback";
 
 interface Lead {
   id: string;
@@ -237,7 +238,7 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
                 disabled={busy}
                 onClick={() =>
                   run(async () => {
-                    if (!confirm(l("Hapus lead ini?", "Delete this lead?"))) return;
+                    if (!(await ask(l("Hapus lead ini?", "Delete this lead?")))) return;
                     await api(`/leads/${id}`, { method: "DELETE" });
                     router.replace(leadType === "lead" ? "/crm/leads" : "/crm/pipeline");
                   })

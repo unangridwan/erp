@@ -28,6 +28,10 @@ import {
   WarningsPanel,
 } from "./profile-panels";
 import { contractRuleText, useContractTypes } from "../../lib/use-contract-types";
+import { ask, toast } from "../feedback";
+import { FavoriteStar } from "../favorite-star";
+import { rememberRecent } from "../../lib/recent";
+import { useDirtyGuard, useSaveShortcut } from "../../lib/use-form-guard";
 
 type Values = Record<string, unknown>;
 
@@ -205,13 +209,17 @@ export function EmployeeForm({ id }: { id: string }) {
     [values, original, pendingPhoto],
   );
 
-  // Peringatan saat meninggalkan halaman dengan perubahan yang belum disimpan.
+  // Peringatan saat meninggalkan halaman (tutup tab / klik menu) dengan perubahan yang belum disimpan; Ctrl+S simpan.
+  useDirtyGuard(dirty && !saving);
+  useSaveShortcut(() => {
+    if (editable && (dirty || isNew) && !saving) void save();
+  }, editable);
+  // Catat sebagai "terakhir dibuka" (beranda & Ctrl+K).
+  const savedName = String(original.name ?? "");
   useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+    if (!isNew && savedName)
+      rememberRecent({ href: `/employees/${id}`, title: savedName, kind: l("Karyawan", "Employee") });
+  }, [isNew, id, savedName, l]);
 
   const set = (name: string, value: unknown) => setValues((v) => ({ ...v, [name]: value }));
 
@@ -230,6 +238,7 @@ export function EmployeeForm({ id }: { id: string }) {
         if (Object.keys(missing).length) {
           setFieldErrors(missing);
           setError(l("Lengkapi tab Kontrak kerja.", "Complete the Contract tab."));
+          toast.error(l("Lengkapi tab Kontrak kerja.", "Complete the Contract tab."));
           setTab("contract");
           return;
         }
@@ -250,6 +259,9 @@ export function EmployeeForm({ id }: { id: string }) {
           body,
         });
         if (pendingPhoto) await api(`/employees/${created.id}/photo`, { method: "PUT", body: pendingPhoto });
+        setOriginal(values);
+        setPendingPhoto(null);
+        toast.success(l("Karyawan dibuat.", "Employee created."));
         router.replace(
           created.contractId ? `/hr/contracts/${created.contractId}?created=1` : `/employees/${created.id}`,
         );
@@ -271,9 +283,10 @@ export function EmployeeForm({ id }: { id: string }) {
       }
       setVersion((v) => v + 1);
       loadMeta();
-      setNotice(l("Tersimpan.", "Saved."));
+      toast.success(l("Perubahan disimpan.", "Changes saved."));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      toast.error(err instanceof Error ? err.message : String(err));
       if (err instanceof ApiError) {
         setFieldErrors(err.fieldErrors);
         if (Object.keys(err.fieldErrors).some((k) => k.startsWith("contract."))) setTab("contract");
@@ -283,7 +296,8 @@ export function EmployeeForm({ id }: { id: string }) {
     }
   }
 
-  function discard() {
+  async function discard() {
+    if (!(await ask({ message: l("Buang semua perubahan?", "Discard all changes?"), danger: true }))) return;
     setValues(original);
     setPendingPhoto(null);
     setFieldErrors({});
@@ -291,7 +305,7 @@ export function EmployeeForm({ id }: { id: string }) {
   }
 
   async function removePhoto() {
-    if (!confirm(l("Hapus foto?", "Remove photo?"))) return;
+    if (!(await ask(l("Hapus foto?", "Remove photo?")))) return;
     try {
       await api(`/employees/${id}/photo`, { method: "DELETE" });
       bumpImage(`/employees/${id}/photo`);
@@ -334,7 +348,7 @@ export function EmployeeForm({ id }: { id: string }) {
   }
 
   async function remove() {
-    if (!confirm(l("Hapus karyawan ini?", "Delete this employee?"))) return;
+    if (!(await ask(l("Hapus karyawan ini?", "Delete this employee?")))) return;
     try {
       await api(`/employees/${id}`, { method: "DELETE" });
       router.replace("/employees");
@@ -403,15 +417,19 @@ export function EmployeeForm({ id }: { id: string }) {
             <Link href="/employees">{l("Karyawan", "Employees")}</Link>
             <span>/</span>
             <h1>{isNew ? l("Baru", "New") : name || "—"}</h1>
+            {!isNew && (
+              <FavoriteStar href={`/employees/${id}`} title={name || "—"} kind={l("Karyawan", "Employee")} />
+            )}
           </nav>
           {editable && (dirty || isNew) && (
             <span className="save-actions">
               <button
                 type="button"
                 className="icon-btn primary"
-                title={l("Simpan", "Save")}
+                title={l("Simpan (Ctrl+S)", "Save (Ctrl+S)")}
                 aria-label={l("Simpan", "Save")}
                 disabled={saving}
+                aria-busy={saving}
                 onClick={save}
               >
                 <CloudIcon />

@@ -10,6 +10,7 @@ import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
 import { useTableView } from "../../../../lib/use-table-view";
+import { ask } from "../../../../components/feedback";
 
 interface Announcement {
   id: string;
@@ -230,8 +231,8 @@ export default function AnnouncementsPage() {
                       <button
                         type="button"
                         className="link"
-                        onClick={() =>
-                          confirm(l("Hapus pengumuman ini?", "Delete this announcement?")) &&
+                        onClick={async () =>
+                          (await ask(l("Hapus pengumuman ini?", "Delete this announcement?"))) &&
                           api(`/announcements/${a.id}`, { method: "DELETE" }).then(load, (e) =>
                             setError(errorText(e)),
                           )

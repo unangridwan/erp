@@ -8,6 +8,7 @@ import { formatDate } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { useMe } from "../../../../components/me-context";
 import { can } from "../../../../lib/resources";
+import { ask } from "../../../../components/feedback";
 
 type Kind = "national" | "collective" | "company";
 interface Holiday {
@@ -108,7 +109,7 @@ export default function HolidaysPage() {
   };
 
   const remove = async (h: Holiday) => {
-    if (!confirm(l(`Hapus "${h.name}"?`, `Delete "${h.name}"?`))) return;
+    if (!(await ask(l(`Hapus "${h.name}"?`, `Delete "${h.name}"?`)))) return;
     try {
       await api(`/public-holidays/${h.id}`, { method: "DELETE" });
       load();

@@ -13,6 +13,7 @@ import {
   type ContractPayroll,
   type ContractType,
 } from "../../../../lib/use-contract-types";
+import { ask } from "../../../../components/feedback";
 
 type Row = ContractType & { usage: number };
 interface Draft {
@@ -166,8 +167,8 @@ export default function ContractTypesPage() {
       },
       l("Jenis kontrak disimpan.", "Contract type saved."),
     );
-  const remove = (t: Row) =>
-    confirm(l(`Hapus jenis kontrak ${t.name}?`, `Delete contract type ${t.name}?`)) &&
+  const remove = async (t: Row) =>
+    (await ask(l(`Hapus jenis kontrak ${t.name}?`, `Delete contract type ${t.name}?`))) &&
     run(
       async () => {
         await api(`/contract-types/${t.id}`, { method: "DELETE" });

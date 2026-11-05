@@ -109,6 +109,7 @@ export function LeadList() {
           columns={columns}
           storageKey="leads"
           rowKey={(x) => x.id}
+          rowHref={(x) => `/crm/leads/${x.id}`}
           defaultSort={{ key: "createdAt", dir: "desc" }}
           initialFilters={{ state: { kind: "enum", values: ["open"] } }}
           note={truncatedNote(list, l)}

@@ -7,7 +7,9 @@ import {
   type ColumnFilter,
   type TableState,
 } from "@erp/shared";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
+import { EmptyState } from "./empty-state";
 import { formatDate } from "../lib/format";
 import { useI18n } from "../lib/i18n";
 import { useTableView, type TableView, type ViewColumn } from "../lib/use-table-view";
@@ -34,6 +36,7 @@ export function TableTools<T>({
   placeholder,
   note,
   children,
+  columnChooser,
 }: {
   view: TableView<T>;
   placeholder?: string;
@@ -41,6 +44,8 @@ export function TableTools<T>({
   note?: ReactNode;
   /** Tombol/kontrol tambahan di kanan. */
   children?: ReactNode;
+  /** Tampilkan menu "Kolom" (hanya untuk tabel yang menyembunyikan kolom sesuai `view.hidden`). */
+  columnChooser?: boolean;
 }) {
   const { l, locale } = useI18n();
   const [open, setOpen] = useState(false);
@@ -88,6 +93,7 @@ export function TableTools<T>({
           </button>
         )}
         {children}
+        {columnChooser && <ColumnChooser view={view} />}
         <span className="muted table-count">
           {view.total === view.source.length
             ? l(`${view.total} data`, `${view.total} rows`)
@@ -127,6 +133,89 @@ export function TableTools<T>({
       )}
     </div>
   );
+}
+
+/** Menu "Kolom": centang kolom yang ditampilkan (diingat per tabel). */
+function ColumnChooser<T>({ view }: { view: TableView<T> }) {
+  const { l } = useI18n();
+  const [open, setOpen] = useState(false);
+  const cols = view.columns.filter((c) => !(c as DataColumn<T>).hidden);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !(e.target as Element).closest(".column-chooser"))
+        setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [open]);
+  if (cols.length < 3) return null;
+  const shown = cols.filter((c) => !view.hidden.includes(c.key)).length;
+  return (
+    <span className="column-chooser">
+      <button
+        type="button"
+        aria-expanded={open}
+        className={view.hidden.some((k) => cols.some((c) => c.key === k)) ? "active" : ""}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {l("Kolom", "Columns")}
+      </button>
+      {open && (
+        <span className="column-menu" role="menu">
+          {cols.map((c) => {
+            const on = !view.hidden.includes(c.key);
+            return (
+              <label key={c.key} className="check">
+                <input
+                  type="checkbox"
+                  checked={on}
+                  disabled={on && shown === 1}
+                  onChange={() => view.toggleHidden(c.key)}
+                />
+                <span>{c.label}</span>
+              </label>
+            );
+          })}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Baris tabel yang bisa diklik/Enter untuk membuka `href` (Ctrl/⌘-klik = tab baru); klik pada kontrol tidak. */
+export function useRowLink() {
+  const router = useRouter();
+  return (href: string | undefined) =>
+    href
+      ? {
+          className: "row-link",
+          tabIndex: 0,
+          onClick: (e: React.MouseEvent<HTMLTableRowElement>) => {
+            if ((e.target as Element).closest("a, button, input, select, textarea, label")) return;
+            if (window.getSelection()?.toString()) return;
+            if (e.ctrlKey || e.metaKey) window.open(href, "_blank");
+            else router.push(href);
+          },
+          onKeyDown: (e: React.KeyboardEvent<HTMLTableRowElement>) => {
+            if (e.target !== e.currentTarget) return;
+            if (e.key === "Enter") router.push(href);
+            else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              const next = (
+                e.key === "ArrowDown"
+                  ? e.currentTarget.nextElementSibling
+                  : e.currentTarget.previousElementSibling
+              ) as HTMLElement | null;
+              next?.focus();
+            }
+          },
+        }
+      : {};
 }
 
 function ColumnFilterField<T>({ view, col }: { view: TableView<T>; col: ViewColumn<T> }) {
@@ -339,6 +428,9 @@ export function DataTable<T>({
   foot,
   onSearch,
   searchPlaceholder,
+  rowHref,
+  createHref,
+  createLabel,
 }: {
   rows: T[];
   columns: DataColumn<T>[];
@@ -358,14 +450,19 @@ export function DataTable<T>({
   /** Teks pencarian (mis. diteruskan ke server bila data terpotong). */
   onSearch?: (q: string) => void;
   searchPlaceholder?: string;
+  /** Seluruh baris bisa diklik untuk membuka tautan ini. */
+  rowHref?: (row: T) => string | undefined;
+  /** Tombol "buat" di keadaan kosong. */
+  createHref?: string;
+  createLabel?: string;
 }) {
-  const { l } = useI18n();
   const view = useTableView(rows, columns, { storageKey, defaultSort, initialFilters, pageSize });
-  const shown = columns.filter((c) => !c.hidden);
+  const rowLink = useRowLink();
+  const shown = columns.filter((c) => !c.hidden && (foot || !view.hidden.includes(c.key)));
   useEffect(() => onSearch?.(view.state.q), [onSearch, view.state.q]);
   return (
     <>
-      <TableTools view={view} note={note} placeholder={searchPlaceholder}>
+      <TableTools view={view} note={note} placeholder={searchPlaceholder} columnChooser={!foot}>
         {tools}
       </TableTools>
       <div className="table-wrap">
@@ -380,21 +477,33 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {view.rows.map((row, i) => (
-              <tr key={rowKey(row, i)} className={rowClassName?.(row)}>
-                {shown.map((c) => (
-                  <td key={c.key} className={c.className}>
-                    {c.render ? c.render(row) : cellText(c, row)}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {view.rows.map((row, i) => {
+              const link = rowLink(rowHref?.(row));
+              return (
+                <tr
+                  key={rowKey(row, i)}
+                  {...link}
+                  className={[rowClassName?.(row), link.className].filter(Boolean).join(" ") || undefined}
+                >
+                  {shown.map((c) => (
+                    <td key={c.key} className={c.className}>
+                      {c.render ? c.render(row) : cellText(c, row)}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
             {view.rows.length === 0 && (
               <tr>
-                <td colSpan={shown.length} className="muted">
-                  {view.source.length
-                    ? l("Tidak ada data yang cocok dengan filter.", "No rows match the filters.")
-                    : (empty ?? l("Belum ada data.", "No data yet."))}
+                <td colSpan={shown.length}>
+                  <EmptyState
+                    compact
+                    filtered={view.source.length > 0}
+                    onClear={view.clearFilters}
+                    message={view.source.length ? undefined : empty}
+                    createHref={createHref}
+                    createLabel={createLabel}
+                  />
                 </td>
               </tr>
             )}

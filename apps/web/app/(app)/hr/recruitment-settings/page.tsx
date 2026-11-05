@@ -9,6 +9,7 @@ import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
 import { useTableView } from "../../../../lib/use-table-view";
+import { ask } from "../../../../components/feedback";
 
 interface Reason {
   id: string;
@@ -109,8 +110,8 @@ export default function RecruitmentSettingsPage() {
                         <button
                           type="button"
                           className="link"
-                          onClick={() =>
-                            confirm(l("Hapus alasan ini?", "Delete this reason?")) &&
+                          onClick={async () =>
+                            (await ask(l("Hapus alasan ini?", "Delete this reason?"))) &&
                             run(() => api(`/refuse-reasons/${r.id}`, { method: "DELETE" }))
                           }
                         >
@@ -237,8 +238,8 @@ export default function RecruitmentSettingsPage() {
                 <button
                   type="button"
                   className="danger"
-                  onClick={() =>
-                    confirm(l("Hapus template ini?", "Delete this template?")) &&
+                  onClick={async () =>
+                    (await ask(l("Hapus template ini?", "Delete this template?"))) &&
                     run(async () => {
                       await api(`/offer-templates/${edit.id}`, { method: "DELETE" });
                       setEdit(null);

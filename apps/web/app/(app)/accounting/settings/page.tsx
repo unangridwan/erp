@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
+import { ask } from "../../../../components/feedback";
 
 interface Settings {
   lockDate: string | null;
@@ -60,12 +61,12 @@ export default function AccountingSettingsPage() {
     setError(null);
     setNotice(null);
     if (
-      !confirm(
+      !(await ask(
         l(
           `Tutup buku tahun fiskal ${fiscalYear}? Saldo laba rugi dipindah ke saldo laba dan periode dikunci.`,
           `Close fiscal year ${fiscalYear}? P&L balances move to retained earnings and the period is locked.`,
         ),
-      )
+      ))
     )
       return;
     try {

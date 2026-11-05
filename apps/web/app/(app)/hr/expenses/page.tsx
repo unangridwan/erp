@@ -112,6 +112,7 @@ export default function ExpensesPage() {
         columns={columns}
         storageKey="expense-claims"
         rowKey={(c) => c.id}
+        rowHref={(c) => `/hr/expenses/${c.id}`}
         defaultSort={{ key: "date", dir: "desc" }}
         searchPlaceholder={l("Cari nomor, karyawan, keperluan…", "Search number, employee, purpose…")}
         empty={l("Belum ada klaim.", "No claims yet.")}

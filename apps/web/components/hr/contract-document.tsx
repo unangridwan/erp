@@ -9,6 +9,7 @@ import { ContractComponentsEditor, type ComponentLine } from "./contract-compone
 import { errorText } from "./hr-panels";
 import { useContractTypes } from "../../lib/use-contract-types";
 import { ContractTypeOptions } from "./contract-type-options";
+import { ask } from "../feedback";
 
 export type SignState = "unsigned" | "pending" | "partial" | "signed";
 export type SignMethod = "digital" | "manual" | "external";
@@ -659,13 +660,13 @@ export function ContractDocumentPanel({
             type="button"
             className="link danger"
             disabled={busy}
-            onClick={() =>
-              confirm(
+            onClick={async () =>
+              (await ask(
                 l(
                   "Batalkan semua tanda tangan & berkas bertanda tangan? Kontrak harus ditandatangani ulang.",
                   "Revoke all signatures and the signed file? The contract will have to be signed again.",
                 ),
-              ) &&
+              )) &&
               run(
                 () => api<ContractDocument>(`/contracts/${contractId}/signatures`, { method: "DELETE" }),
                 l("Tanda tangan dibatalkan.", "Signatures revoked."),

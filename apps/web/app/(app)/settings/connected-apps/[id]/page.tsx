@@ -7,6 +7,7 @@ import { WEBHOOK_EVENTS, WEBHOOK_EVENT_LABEL, type WebhookEvent } from "@erp/sha
 import { api, ApiError } from "../../../../../lib/api";
 import { useI18n } from "../../../../../lib/i18n";
 import type { ConnectedApp } from "../page";
+import { ask } from "../../../../../components/feedback";
 
 interface Delivery {
   id: string;
@@ -137,12 +138,12 @@ export default function ConnectedAppPage() {
   async function rotate(kind: "secret" | "webhook-secret") {
     const what = kind === "secret" ? "client secret" : l("secret webhook", "webhook secret");
     if (
-      !confirm(
+      !(await ask(
         l(
           `Ganti ${what}? Secret lama langsung tidak berlaku; perbarui konfigurasi aplikasi.`,
           `Replace the ${what}? The old secret stops working immediately; update the app's configuration.`,
         ),
-      )
+      ))
     )
       return;
     try {
@@ -178,12 +179,12 @@ export default function ConnectedAppPage() {
 
   async function remove() {
     if (
-      !confirm(
+      !(await ask(
         l(
           "Hapus aplikasi ini? Login & token API aplikasi langsung berhenti.",
           "Delete this app? Its sign-in and API tokens stop working immediately.",
         ),
-      )
+      ))
     )
       return;
     try {

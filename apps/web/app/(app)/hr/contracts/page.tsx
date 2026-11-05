@@ -140,6 +140,7 @@ function Contracts() {
           columns={columns}
           storageKey="contracts"
           rowKey={(c) => c.id}
+          rowHref={(c) => `/hr/contracts/${c.id}`}
           defaultSort={{ key: "dateStart", dir: "desc" }}
           initialFilters={employeeId ? undefined : { state: { kind: "enum", values: ["running"] } }}
           searchPlaceholder={l("Cari nomor, karyawan…", "Search number, employee…")}

@@ -107,6 +107,17 @@ Header opsional `X-Company-Id` memilih perusahaan aktif (harus termasuk perusaha
 | `GET /activity/:model/:id`                                                               | Riwayat perubahan (chatter)                                       |
 | `GET /sequences`                                                                         | Penomoran dokumen perusahaan aktif (penghitung per tahun dokumen) |
 
+**Kenyamanan pakai (web).** Pesan sukses/gagal tampil sebagai _toast_ yang hilang sendiri; konfirmasi (hapus,
+batalkan, dst.) memakai dialog aplikasi (Esc = batal) — tidak lagi `confirm()` browser. **Ctrl+K / ⌘K** (atau `/`,
+atau tombol Cari di navbar) membuka palet perintah: buka menu/aplikasi mana pun, "Buat … baru", favorit & terakhir
+dibuka, dan cari data (karyawan, kontak, produk, pesanan penjualan/pembelian, faktur) sesuai hak akses. Form: penanda
+"Belum disimpan", tombol **Buang**, **Ctrl+S** untuk menyimpan, peringatan saat meninggalkan halaman dengan perubahan,
+field wajib divalidasi saat ditinggalkan & fokus otomatis ke field yang salah. Daftar: klik di mana saja pada baris
+untuk membuka (Ctrl/⌘-klik = tab baru, ↑↓ + Enter), pilih banyak baris → **Hapus / Arsipkan / Aktifkan / Ekspor CSV**,
+menu **Kolom** untuk menyembunyikan kolom (diingat per daftar), dan keadaan kosong dengan tombol "Buat … pertama" /
+"Hapus filter". Beranda menampilkan **Perlu tindakan saya** (persetujuan menunggu, notifikasi), **Favorit & terakhir
+dibuka** (☆ di judul data), dan **Buat cepat** di atas grid aplikasi.
+
 **Daftar (list) di web: cari, filter, sort & paginasi tanpa memanggil API lagi.** Setiap daftar memuat datanya sekali
 (s.d. 5.000 baris, `LIST_LOAD_LIMIT` di `@erp/shared`; endpoint daftar menerima `limit` sampai angka itu, CRUD bawaan
 tetap 50), lalu semua olah tampilan berjalan di browser (`packages/shared/src/table-view.ts`, komponen

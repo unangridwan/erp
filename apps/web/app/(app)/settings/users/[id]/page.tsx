@@ -16,6 +16,7 @@ import { api } from "../../../../../lib/api";
 import { formatDate } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { ask } from "../../../../../components/feedback";
 
 interface Detail {
   id: string;
@@ -119,13 +120,13 @@ export default function UserDetailPage() {
             <button
               type="button"
               className="danger"
-              onClick={() =>
-                confirm(
+              onClick={async () =>
+                (await ask(
                   l(
                     "Nonaktifkan akun ini? Semua sesinya akan keluar.",
                     "Deactivate this account? All its sessions end.",
                   ),
-                ) &&
+                )) &&
                 run(
                   () => api(`/users/${id}/deactivate`, { method: "POST" }),
                   l("Akun dinonaktifkan.", "Account deactivated."),
@@ -150,13 +151,13 @@ export default function UserDetailPage() {
         {writable && user.twoFactorEnabled && (
           <button
             type="button"
-            onClick={() =>
-              confirm(
+            onClick={async () =>
+              (await ask(
                 l(
                   "Reset verifikasi dua langkah pengguna ini?",
                   "Reset this user's two-factor authentication?",
                 ),
-              ) &&
+              )) &&
               run(() => api(`/users/${id}/reset-2fa`, { method: "POST" }), l("2FA direset.", "2FA reset."))
             }
           >

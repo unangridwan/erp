@@ -74,6 +74,7 @@ export default function BudgetsPage() {
         columns={columns}
         storageKey="budgets"
         rowKey={(b) => b.id}
+        rowHref={(b) => `/accounting/budgets/${b.id}`}
         defaultSort={{ key: "dateFrom", dir: "desc" }}
         empty={l("Belum ada anggaran.", "No budgets yet.")}
       />

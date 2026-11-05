@@ -13,6 +13,7 @@ import { useI18n } from "../../../../lib/i18n";
 import { can, LEAVE_STATE_LABEL } from "../../../../lib/resources";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
 import { useTableView } from "../../../../lib/use-table-view";
+import { ask } from "../../../../components/feedback";
 
 interface Row {
   id: string;
@@ -246,8 +247,8 @@ export default function LeavesPage() {
                           <button
                             type="button"
                             className="link"
-                            onClick={() =>
-                              confirm(l("Batalkan cuti massal ini?", "Cancel this mass time off?")) &&
+                            onClick={async () =>
+                              (await ask(l("Batalkan cuti massal ini?", "Cancel this mass time off?"))) &&
                               run(() => api(`/leaves/bulk/${b.bulkId}/cancel`, { method: "POST" }))
                             }
                           >

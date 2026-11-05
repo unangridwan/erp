@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { RefSelect } from "./ref-select";
+import { ask } from "./feedback";
 
 export interface ExportColumn {
   key: string;
@@ -192,14 +193,13 @@ export function ExportDialog({
               <span>{l("Hapus profil", "Delete profile")}</span>
               <select
                 value=""
-                onChange={(e) =>
-                  e.target.value &&
-                  confirm(l("Hapus profil ekspor ini?", "Delete this export profile?")) &&
-                  api(`${presetsPath}/${e.target.value}`, { method: "DELETE" }).then(
-                    loadPresets,
-                    (err: Error) => setError(err.message),
-                  )
-                }
+                onChange={async (e) => {
+                  const id = e.target.value;
+                  if (id && (await ask(l("Hapus profil ekspor ini?", "Delete this export profile?"))))
+                    api(`${presetsPath}/${id}`, { method: "DELETE" }).then(loadPresets, (err: Error) =>
+                      setError(err.message),
+                    );
+                }}
               >
                 <option value="">—</option>
                 {presets

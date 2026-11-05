@@ -9,6 +9,7 @@ import { api, ApiError } from "../../../../../lib/api";
 import { formatDate, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { ask } from "../../../../../components/feedback";
 
 interface Form {
   leaveTypeId: string;
@@ -173,13 +174,13 @@ export default function LeavePlanPage() {
                 <button
                   type="button"
                   className="link"
-                  onClick={() =>
-                    confirm(
+                  onClick={async () =>
+                    (await ask(
                       l(
                         "Hapus rencana ini? Jatah yang sudah dibuat tetap ada.",
                         "Delete this plan? Created allocations remain.",
                       ),
-                    ) &&
+                    )) &&
                     act(async () => {
                       await api(`/leave-accrual-plans/${id}`, { method: "DELETE" });
                       router.push("/hr/leave-plans");

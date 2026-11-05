@@ -7,7 +7,7 @@ import {
   type TableColumn,
   type TableState,
 } from "@erp/shared";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /** Kolom tabel di web: kolom shared + label tampilan (sudah diterjemahkan). */
 export interface ViewColumn<T> extends TableColumn<T> {
@@ -33,6 +33,9 @@ export interface TableView<T> {
   setSort: (sort: TableState["sort"]) => void;
   setPage: (page: number) => void;
   setPageSize: (size: number) => void;
+  /** Kolom yang disembunyikan pengguna (diingat per tabel). */
+  hidden: string[];
+  toggleHidden: (key: string) => void;
 }
 
 const STORE = "erp.table.";
@@ -57,29 +60,38 @@ export function useTableView<T>(
     filters: opts.initialFilters ?? {},
   }));
 
+  const [hidden, setHidden] = useState<string[]>([]);
+  const hiddenRef = useRef(hidden);
+  hiddenRef.current = hidden;
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   // Preferensi tersimpan dimuat setelah mount (hindari beda render server/klien).
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(STORE + opts.storageKey) ?? "null") as {
         sort?: TableState["sort"];
         pageSize?: number;
+        hidden?: string[];
       } | null;
-      if (saved)
+      if (saved) {
         setState((s) => ({
           ...s,
           sort: saved.sort === undefined ? s.sort : saved.sort,
           pageSize: typeof saved.pageSize === "number" ? saved.pageSize : s.pageSize,
         }));
+        if (Array.isArray(saved.hidden)) setHidden(saved.hidden);
+      }
     } catch {
       // localStorage tidak tersedia
     }
   }, [opts.storageKey]);
   const persist = useCallback(
-    (next: TableState) => {
+    (next: TableState, nextHidden = hiddenRef.current) => {
       try {
         localStorage.setItem(
           STORE + opts.storageKey,
-          JSON.stringify({ sort: next.sort, pageSize: next.pageSize }),
+          JSON.stringify({ sort: next.sort, pageSize: next.pageSize, hidden: nextHidden }),
         );
       } catch {
         // abaikan
@@ -126,5 +138,13 @@ export function useTableView<T>(
         persist(next);
         return next;
       }),
+    hidden,
+    toggleHidden: (key) => {
+      const next = hiddenRef.current.includes(key)
+        ? hiddenRef.current.filter((k) => k !== key)
+        : [...hiddenRef.current, key];
+      setHidden(next);
+      persist(stateRef.current, next);
+    },
   };
 }

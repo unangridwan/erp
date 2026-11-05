@@ -9,6 +9,7 @@ import { useI18n } from "../../../../lib/i18n";
 import { can, TAX_DOC_STATE_LABEL, TRX_CODES } from "../../../../lib/resources";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
 import { useTableView } from "../../../../lib/use-table-view";
+import { ask } from "../../../../components/feedback";
 
 interface TaxInvoice {
   id: string;
@@ -436,8 +437,8 @@ export default function TaxInvoicesPage() {
                     {canWrite && d.state !== "cancelled" && d.state !== "replaced" && (
                       <button
                         className="link danger"
-                        onClick={() => {
-                          if (window.confirm(l("Batalkan faktur pajak ini?", "Cancel this tax invoice?")))
+                        onClick={async () => {
+                          if (await ask(l("Batalkan faktur pajak ini?", "Cancel this tax invoice?")))
                             void run(() => api(`/tax-invoices/${d.id}/cancel`, { method: "POST" }));
                         }}
                       >

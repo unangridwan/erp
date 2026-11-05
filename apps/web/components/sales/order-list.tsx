@@ -121,6 +121,7 @@ export function OrderList({ kind }: { kind: OrderKind }) {
           columns={columns}
           storageKey={`sale-orders.${kind}`}
           rowKey={(o) => o.id}
+          rowHref={(o) => `/sales/orders/${o.id}`}
           defaultSort={{ key: "dateOrder", dir: "desc" }}
           note={truncatedNote(list, l)}
           onSearch={setSearch}

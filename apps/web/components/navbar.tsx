@@ -8,6 +8,7 @@ import { visibleMenu, type App, type MenuEntry } from "../lib/apps";
 import { useI18n } from "../lib/i18n";
 import { useTheme, useThemeLabels } from "../lib/theme";
 import { AppIcon, AppsGlyph } from "./app-icon";
+import { openCommandPalette } from "./command-palette";
 import { NotificationBell } from "./notification-bell";
 
 /** Tutup dropdown saat klik di luar elemen atau setelah navigasi. */
@@ -20,8 +21,15 @@ function useDropdown() {
     const close = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(null);
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(null);
+    };
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", onKey);
+    };
   }, []);
   return { open, setOpen, ref };
 }
@@ -149,6 +157,17 @@ export function Navbar({ me, app }: { me: Me; app: App | null }) {
         ) : (
           <span className="nav-company-name">{me.companies[0]?.name}</span>
         )}
+        <button
+          type="button"
+          className="nav-search"
+          onClick={openCommandPalette}
+          title={l("Cari menu & data (Ctrl+K)", "Search menus & records (Ctrl+K)")}
+          aria-label={l("Cari", "Search")}
+        >
+          <span aria-hidden>⌕</span>
+          <span className="nav-search-label">{l("Cari…", "Search…")}</span>
+          <kbd>Ctrl K</kbd>
+        </button>
         <NotificationBell />
         <div className="nav-dropdown nav-user">
           <button className="avatar" title={me.name} onClick={() => toggle("user")}>

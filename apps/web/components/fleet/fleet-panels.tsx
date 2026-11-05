@@ -9,6 +9,7 @@ import { can } from "../../lib/resources";
 import { errorText } from "../hr/hr-panels";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
+import { ask } from "../feedback";
 
 interface Overview {
   vehicle: {
@@ -400,8 +401,9 @@ export function ContractActions({ id }: { id: string }) {
         )}
         <button
           type="button"
-          onClick={() =>
-            confirm(l("Tutup kontrak ini?", "Close this contract?")) && act("close", l("Ditutup.", "Closed."))
+          onClick={async () =>
+            (await ask(l("Tutup kontrak ini?", "Close this contract?"))) &&
+            act("close", l("Ditutup.", "Closed."))
           }
         >
           {l("Tutup kontrak", "Close contract")}

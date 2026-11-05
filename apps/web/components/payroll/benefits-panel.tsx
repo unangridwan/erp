@@ -9,6 +9,7 @@ import { useI18n, type Locale } from "../../lib/i18n";
 import { can } from "../../lib/resources";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
+import { ask } from "../feedback";
 
 export interface BenefitPlan {
   id: string;
@@ -178,8 +179,8 @@ export function BenefitEnrollments({
       }),
     );
   };
-  const remove = (id: string) => {
-    if (confirm(l("Hapus kepesertaan ini?", "Delete this enrollment?")))
+  const remove = async (id: string) => {
+    if (await ask(l("Hapus kepesertaan ini?", "Delete this enrollment?")))
       void call(() => api(`/benefit-enrollments/${id}`, { method: "DELETE" }));
   };
   const err = (p: string) => fieldErrors[p] && <small className="error">{fieldErrors[p]}</small>;

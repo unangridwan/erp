@@ -13,6 +13,7 @@ import { useI18n } from "../../../../../lib/i18n";
 import { can, PAYROLL_STATE_LABEL } from "../../../../../lib/resources";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../../components/data-table";
 import { useTableView } from "../../../../../lib/use-table-view";
+import { ask } from "../../../../../components/feedback";
 
 interface Run {
   id: string;
@@ -257,13 +258,13 @@ export default function PayrollRunPage() {
             type="button"
             className="primary"
             disabled={busy}
-            onClick={() =>
-              confirm(
+            onClick={async () =>
+              (await ask(
                 l(
                   "Posting payroll ke jurnal? Slip tidak bisa diubah lagi.",
                   "Post payroll? Payslips will be locked.",
                 ),
-              ) && act("post")
+              )) && act("post")
             }
           >
             {l("Posting", "Post")}
@@ -275,7 +276,7 @@ export default function PayrollRunPage() {
             className="danger"
             disabled={busy}
             onClick={async () => {
-              if (!confirm(l("Batalkan payroll ini?", "Cancel this payroll run?"))) return;
+              if (!(await ask(l("Batalkan payroll ini?", "Cancel this payroll run?")))) return;
               await api(`/payroll-runs/${id}/cancel`, { method: "POST" }).catch((e: Error) =>
                 setError(e.message),
               );
@@ -336,13 +337,13 @@ export default function PayrollRunPage() {
               <button
                 type="button"
                 disabled={busy}
-                onClick={() =>
-                  confirm(
+                onClick={async () =>
+                  (await ask(
                     l(
                       "Kirim slip gaji (PDF berkata sandi tanggal lahir) ke email kerja karyawan?",
                       "Email payslips (PDF protected with the birth date) to employees' work emails?",
                     ),
-                  ) &&
+                  )) &&
                   summaryAction<{ sent: number; failed: number; skipped: { name: string }[] }>(
                     "email-payslips",
                     {},

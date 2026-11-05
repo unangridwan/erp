@@ -9,6 +9,7 @@ import { useI18n } from "../../../../lib/i18n";
 import { can, TAX_DOC_STATE_LABEL } from "../../../../lib/resources";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
 import { useTableView } from "../../../../lib/use-table-view";
+import { ask } from "../../../../components/feedback";
 
 interface Slip {
   id: string;
@@ -328,8 +329,8 @@ export default function WithholdingPage() {
                     {canWrite && s.state !== "cancelled" && (
                       <button
                         className="link danger"
-                        onClick={() => {
-                          if (window.confirm(l("Batalkan bukti potong ini?", "Cancel this slip?")))
+                        onClick={async () => {
+                          if (await ask(l("Batalkan bukti potong ini?", "Cancel this slip?")))
                             void run(() => api(`/withholding-slips/${s.id}/cancel`, { method: "POST" }));
                         }}
                       >

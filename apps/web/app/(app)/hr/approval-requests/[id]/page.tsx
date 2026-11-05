@@ -17,6 +17,7 @@ import { api, ApiError } from "../../../../../lib/api";
 import { formatDate, money } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { ask } from "../../../../../components/feedback";
 
 interface Step {
   id: string;
@@ -96,7 +97,7 @@ export default function ApprovalRequestPage() {
     }
   }
   async function remove() {
-    if (!confirm(l("Hapus draft ini?", "Delete this draft?"))) return;
+    if (!(await ask(l("Hapus draft ini?", "Delete this draft?")))) return;
     try {
       await api(`/approval-requests/${id}`, { method: "DELETE" });
       router.push("/hr/approval-requests?tab=mine");
@@ -159,7 +160,9 @@ export default function ApprovalRequestPage() {
           <button
             type="button"
             className="danger"
-            onClick={() => confirm(l("Batalkan permintaan ini?", "Cancel this request?")) && act("cancel")}
+            onClick={async () =>
+              (await ask(l("Batalkan permintaan ini?", "Cancel this request?"))) && act("cancel")
+            }
           >
             {l("Batalkan", "Cancel")}
           </button>

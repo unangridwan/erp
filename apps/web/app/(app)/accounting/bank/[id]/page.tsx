@@ -9,6 +9,7 @@ import { api } from "../../../../../lib/api";
 import { formatDate, money } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { ask } from "../../../../../components/feedback";
 
 interface StatementLine {
   id: string;
@@ -54,12 +55,12 @@ export default function StatementPage() {
 
   async function undo(lineId: string) {
     if (
-      !confirm(
+      !(await ask(
         l(
           "Batalkan rekonsiliasi baris ini? Entri jurnalnya akan dibalik.",
           "Undo this reconciliation? Its journal entry will be reversed.",
         ),
-      )
+      ))
     )
       return;
     try {

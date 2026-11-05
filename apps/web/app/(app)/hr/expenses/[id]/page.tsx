@@ -11,6 +11,7 @@ import { api, ApiError } from "../../../../../lib/api";
 import { formatDate, money, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can, EXPENSE_STATE_LABEL } from "../../../../../lib/resources";
+import { ask } from "../../../../../components/feedback";
 
 interface Claim {
   id: string;
@@ -108,7 +109,7 @@ export default function ExpenseClaimPage() {
           <button
             type="button"
             className="danger"
-            onClick={() => confirm(l("Batalkan klaim ini?", "Cancel this claim?")) && act("cancel")}
+            onClick={async () => (await ask(l("Batalkan klaim ini?", "Cancel this claim?"))) && act("cancel")}
           >
             {l("Batalkan", "Cancel")}
           </button>

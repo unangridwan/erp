@@ -17,6 +17,7 @@ import { api } from "../../../../../lib/api";
 import { download } from "../../../../../lib/download";
 import { money } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
+import { ask } from "../../../../../components/feedback";
 
 type Kind = "existing" | "new" | "replacement";
 interface Line {
@@ -192,7 +193,7 @@ export default function ManpowerPlanPage() {
       },
     ]);
   const remove = async () => {
-    if (!confirm(l("Hapus MPP draft ini?", "Delete this draft plan?"))) return;
+    if (!(await ask(l("Hapus MPP draft ini?", "Delete this draft plan?")))) return;
     try {
       await api(`/manpower-plans/${id}`, { method: "DELETE" });
       router.push(`/hr/manpower-plans?year=${d?.year ?? ""}`);
@@ -268,13 +269,13 @@ export default function ManpowerPlanPage() {
               type="button"
               className="danger"
               disabled={busy}
-              onClick={() =>
-                confirm(
+              onClick={async () =>
+                (await ask(
                   l(
                     "Batalkan MPP ini? Anggarannya akan dicabut.",
                     "Cancel this plan? Its budget will be removed.",
                   ),
-                ) && act(`/manpower-plans/${id}/cancel`, l("MPP dibatalkan.", "Plan cancelled."))
+                )) && act(`/manpower-plans/${id}/cancel`, l("MPP dibatalkan.", "Plan cancelled."))
               }
             >
               {l("Batalkan", "Cancel")}

@@ -99,6 +99,7 @@ export function PickingList({ kind }: { kind: PickingKind }) {
           columns={columns}
           storageKey={`pickings.${kind}`}
           rowKey={(p) => p.id}
+          rowHref={(p) => `/inventory/pickings/${p.id}`}
           defaultSort={{ key: "scheduledDate", dir: "desc" }}
           initialFilters={{ state: { kind: "enum", values: ["draft", "ready"] } }}
           note={truncatedNote(list, l)}
