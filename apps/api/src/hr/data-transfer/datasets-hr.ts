@@ -356,7 +356,7 @@ function contractsDataset(svc: HrServices): Dataset {
           group: "Kontrak",
           required: true,
           example: "PKWTT",
-          note: "PKWT/PKWTT",
+          note: "Kode jenis kontrak (SDM › Konfigurasi › Jenis Kontrak), mis. pkwt, pkwtt, harian, magang, mitra",
         },
         {
           key: "wageType",

@@ -49,6 +49,7 @@ import { SequenceService } from "../sequences/sequence.service.js";
 import { ChecklistService } from "./checklist.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { HrModule } from "./hr.module.js";
+import { assertContractType, fixedTermCodes } from "./contract-types.module.js";
 
 const D = schema.hrDocuments;
 const AP = schema.applicants;
@@ -215,7 +216,7 @@ async function reminders(tx: Db, companyId: string, days: number) {
       and(
         eq(schema.contracts.companyId, companyId),
         eq(schema.contracts.state, "running"),
-        eq(schema.contracts.contractType, "pkwt"),
+        inArray(schema.contracts.contractType, await fixedTermCodes(tx)),
         isNotNull(schema.contracts.dateEnd),
         lte(schema.contracts.dateEnd, addDays(today(), days)),
       ),
@@ -602,8 +603,7 @@ class ApplicantsController {
       };
       if (!input.joinDate) throw fieldError("joinDate", "Isi tanggal mulai bekerja");
       if (!input.wage) throw fieldError("wage", "Isi gaji");
-      if (input.contractType === "pkwt" && !input.dateEnd)
-        throw fieldError("dateEnd", "PKWT wajib punya tanggal berakhir");
+      await assertContractType(tx, input.contractType, { dateStart: input.joinDate, dateEnd: input.dateEnd });
       const opening = await this.opening(tx, a.openingId);
       const [filled] = await tx
         .select({ n: sql<number>`count(*)::int` })

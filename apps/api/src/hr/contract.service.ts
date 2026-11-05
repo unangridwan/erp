@@ -10,6 +10,7 @@ import { SequenceService } from "../sequences/sequence.service.js";
 import { ChecklistService } from "./checklist.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { HistoryService } from "./history.service.js";
+import { assertContractType, contractTypeOf } from "./contract-types.module.js";
 
 const C = schema.contracts;
 
@@ -233,7 +234,7 @@ export class ContractService {
     const state = contract.preExitState ?? "running";
     const dateEnd = contract.preExitState
       ? contract.preExitDateEnd
-      : contract.contractType === "pkwtt"
+      : (await contractTypeOf(tx, contract.contractType))?.fixedTerm === false
         ? null
         : contract.dateEnd;
     if (state === "running") {
@@ -287,6 +288,7 @@ export class ContractService {
   async create(tx: Db, input: z.infer<typeof contractSchema>) {
     const employee = await this.employees.find(tx, input.employeeId);
     this.assertWithinEmployment(employee, input);
+    await assertContractType(tx, input.contractType, input);
     await this.assertComponents(
       tx,
       input.allowances.map((a) => a.componentId),

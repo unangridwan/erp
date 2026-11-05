@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { ContractComponentsEditor } from "../../../../../components/hr/contract-components";
 import { ContractDocumentPanel } from "../../../../../components/hr/contract-document";
+import { ContractTypeOptions } from "../../../../../components/hr/contract-type-options";
 import { RESIGN_REASON_LABEL } from "../../../../../components/hr/offboarding-panel";
 import { RefSelect } from "../../../../../components/ref-select";
 import { api, ApiError } from "../../../../../lib/api";
@@ -12,13 +13,14 @@ import { addDays } from "@erp/shared";
 import { formatDate, money, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { CONTRACT_STATE_LABEL } from "../../../../../lib/resources";
+import { useContractTypes } from "../../../../../lib/use-contract-types";
 
 interface Contract {
   id: string;
   name: string;
   employeeId: string;
   employeeName: string;
-  contractType: "pkwt" | "pkwtt";
+  contractType: string;
   dateStart: string;
   dateEnd: string | null;
   wage: string;
@@ -79,6 +81,7 @@ function Contract() {
   const justCreated = params.get("created") === "1";
   const router = useRouter();
   const { l, tx, locale } = useI18n();
+  const types = useContractTypes();
   const isNew = id === "new";
   const [contract, setContract] = useState<Contract | null>(null);
   const [form, setForm] = useState({
@@ -202,7 +205,8 @@ function Contract() {
     setEnding({
       dateEnd: contract.dateEnd ?? today(),
       exit,
-      resignReason: contract.endReason ?? (contract.contractType === "pkwt" ? "end_contract" : "resign"),
+      resignReason:
+        contract.endReason ?? (types.fixedTerm(contract.contractType) ? "end_contract" : "resign"),
       resignNote: contract.endNote ?? "",
       startChecklist: !contract.employee?.resignDate,
     });
@@ -452,9 +456,12 @@ function Contract() {
               value={form.contractType}
               onChange={(e) => setForm((f) => ({ ...f, contractType: e.target.value }))}
             >
-              <option value="pkwtt">{l("PKWTT (karyawan tetap)", "PKWTT (permanent)")}</option>
-              <option value="pkwt">{l("PKWT (kontrak waktu tertentu)", "PKWT (fixed-term)")}</option>
+              <ContractTypeOptions types={types} current={contract?.contractType ?? form.contractType} />
             </select>
+            {types.find(form.contractType)?.legalBasis && (
+              <small className="muted">{types.find(form.contractType)!.legalBasis}</small>
+            )}
+            {err("contractType")}
           </label>
           <label className="field">
             <span>{l("Mulai *", "Start *")}</span>
@@ -485,7 +492,9 @@ function Contract() {
             )}
           </label>
           <label className="field">
-            <span>{l("Berakhir", "End")}</span>
+            <span>
+              {types.fixedTerm(form.contractType) ? l("Berakhir *", "End *") : l("Berakhir", "End")}
+            </span>
             <input
               type="date"
               value={form.dateEnd}

@@ -7,6 +7,8 @@ import { formatDate } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
 import { ContractComponentsEditor, type ComponentLine } from "./contract-components";
 import { errorText } from "./hr-panels";
+import { useContractTypes } from "../../lib/use-contract-types";
+import { ContractTypeOptions } from "./contract-type-options";
 
 export type SignState = "unsigned" | "pending" | "partial" | "signed";
 export type SignMethod = "digital" | "manual" | "external";
@@ -54,7 +56,7 @@ export interface ContractDocument {
 interface Template {
   id: string;
   name: string;
-  contractType: "pkwt" | "pkwtt" | null;
+  contractType: string | null;
   active: boolean;
   isDefault: boolean;
 }
@@ -269,7 +271,7 @@ export function ContractDocumentPanel({
   onChange,
 }: {
   contractId: string;
-  contractType: "pkwt" | "pkwtt";
+  contractType: string;
   onChange?: () => void;
 }) {
   const { l, locale } = useI18n();
@@ -753,7 +755,8 @@ export function ContractDocumentPanel({
 interface MyContract {
   id: string;
   name: string;
-  contractType: "pkwt" | "pkwtt";
+  contractType: string;
+  contractTypeName: string | null;
   state: string;
   dateStart: string;
   dateEnd: string | null;
@@ -800,7 +803,7 @@ export function MyContracts() {
             {rows.map((c) => (
               <tr key={c.id}>
                 <td>
-                  {c.name} · {c.contractType.toUpperCase()}
+                  {c.name} · {c.contractTypeName ?? c.contractType.toUpperCase()}
                 </td>
                 <td>
                   {formatDate(c.dateStart, locale)} –{" "}
@@ -878,7 +881,7 @@ export interface NewContractValues {
   /** Tanggal mulai kontrak = tanggal masuk karyawan (hanya diinput di sini). */
   dateStart: string;
   templateId: string;
-  contractType: "pkwt" | "pkwtt";
+  contractType: string;
   dateEnd: string;
   wage: string;
   wageType: "monthly" | "daily" | "piece";
@@ -919,6 +922,9 @@ export function NewEmployeeContract({
   errors: Record<string, string>;
 }) {
   const { l } = useI18n();
+  const types = useContractTypes();
+  const type = types.find(value.contractType);
+  const fixedTerm = types.fixedTerm(value.contractType);
   const [templates, setTemplates] = useState<Template[]>([]);
   useEffect(() => {
     api<{ items: Template[] }>("/contract-templates").then(
@@ -959,36 +965,39 @@ export function NewEmployeeContract({
             onChange={(e) =>
               onChange({
                 ...value,
-                contractType: e.target.value as "pkwt" | "pkwtt",
+                contractType: e.target.value,
                 templateId: "",
-                dateEnd: e.target.value === "pkwtt" ? "" : value.dateEnd,
+                dateEnd: types.fixedTerm(e.target.value) ? value.dateEnd : "",
               })
             }
           >
-            <option value="pkwt">{l("PKWT (kontrak waktu tertentu)", "PKWT (fixed-term)")}</option>
-            <option value="pkwtt">{l("PKWTT (karyawan tetap)", "PKWTT (permanent)")}</option>
+            <ContractTypeOptions types={types} current={value.contractType} />
           </select>
+          {type?.legalBasis && <small className="muted">{type.legalBasis}</small>}
+          {fe("contractType")}
         </label>
         <label className="field">
-          <span>{value.contractType === "pkwt" ? l("Berakhir *", "End *") : l("Berakhir", "End")}</span>
+          <span>{fixedTerm ? l("Berakhir *", "End *") : l("Berakhir", "End")}</span>
           <input
             type="date"
             value={value.dateEnd}
             min={value.dateStart || undefined}
             onChange={(e) => set("dateEnd", e.target.value)}
           />
-          {value.contractType === "pkwt" && value.dateStart && (
+          {fixedTerm && value.dateStart && (
             <span className="row-actions">
-              {[6, 12, 24].map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  className="link small"
-                  onClick={() => set("dateEnd", contractEnd(value.dateStart, m))}
-                >
-                  {m} {l("bln", "mo")}
-                </button>
-              ))}
+              {[6, 12, 24]
+                .filter((m) => !type?.maxMonths || m <= type.maxMonths)
+                .map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    className="link small"
+                    onClick={() => set("dateEnd", contractEnd(value.dateStart, m))}
+                  >
+                    {m} {l("bln", "mo")}
+                  </button>
+                ))}
             </span>
           )}
           {fe("dateEnd")}

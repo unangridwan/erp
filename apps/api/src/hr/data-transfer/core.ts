@@ -143,6 +143,8 @@ export function code(field: string, column: string, raw: string) {
   const value = raw.trim().toLowerCase();
   for (const [c, aliases] of Object.entries(ENUMS[field] ?? {}))
     if (c.toLowerCase() === value || aliases.some((a) => a.toLowerCase() === value)) return c;
+  // Jenis kontrak = master data: kode lain divalidasi saat disimpan.
+  if (field === "contractType" && /^[a-z0-9_-]{2,20}$/.test(value)) return value;
   throw new RowError(column, `Nilai "${raw}" tidak dikenal (pilihan: ${choices(field)})`);
 }
 

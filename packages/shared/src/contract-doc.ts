@@ -1,6 +1,7 @@
 /** Dokumen kontrak kerja: placeholder template, isi dari data karyawan & kontrak, terbilang, template bawaan. */
 import { Decimal } from "decimal.js";
 import { z } from "zod";
+import { contractTypeCode } from "./contract-types.js";
 
 export const CONTRACT_PLACEHOLDERS: [string, string, string][] = [
   ["nomor_kontrak", "Nomor kontrak", "Contract number"],
@@ -141,7 +142,9 @@ export function contractMonths(start: string, end: string): number {
 export interface ContractDocInput {
   contract: {
     name: string;
-    contractType: "pkwt" | "pkwtt";
+    contractType: string;
+    /** Nama jenis kontrak (master) untuk placeholder {jenis_kontrak}. */
+    contractTypeName?: string | null;
     dateStart: string;
     dateEnd: string | null;
     wage: Decimal.Value;
@@ -211,9 +214,12 @@ export function contractVars(input: ContractDocInput): Record<string, string> {
     golongan: v(input.employee.grade),
     lokasi_kerja: v(input.employee.workLocation ?? input.company.city),
     jenis_kontrak:
-      c.contractType === "pkwt"
+      c.contractTypeName ??
+      (c.contractType === "pkwt"
         ? "Perjanjian Kerja Waktu Tertentu (PKWT)"
-        : "Perjanjian Kerja Waktu Tidak Tertentu (PKWTT)",
+        : c.contractType === "pkwtt"
+          ? "Perjanjian Kerja Waktu Tidak Tertentu (PKWTT)"
+          : c.contractType.toUpperCase()),
     tanggal_mulai: tanggalPanjang(c.dateStart),
     tanggal_berakhir: c.dateEnd ? tanggalPanjang(c.dateEnd) : "tidak ditentukan",
     masa_kontrak: c.dateEnd ? `${months} (${words(months) || "nol"}) bulan` : "waktu tidak tertentu",
@@ -255,9 +261,39 @@ PIHAK PERTAMA mendaftarkan PIHAK KEDUA sebagai peserta BPJS Kesehatan dan BPJS K
 Pasal 6 – Kewajiban dan Kerahasiaan
 PIHAK KEDUA wajib melaksanakan tugas dengan penuh tanggung jawab, menaati Peraturan Perusahaan, serta menjaga kerahasiaan informasi PIHAK PERTAMA selama dan sesudah hubungan kerja berakhir.`;
 
+/**
+ * Template umum untuk jenis kontrak tanpa template sendiri (harian lepas, magang, kemitraan, jenis baru dari master):
+ * nama jenis & masa kontrak diambil dari placeholder.
+ */
+export const GENERAL_CONTRACT_TEMPLATE = {
+  name: "Perjanjian kerja umum",
+  contractType: null,
+  title: "PERJANJIAN KERJA",
+  body: `${PARTIES}
+
+Para pihak sepakat mengikatkan diri dalam perjanjian {jenis_kontrak} dengan ketentuan sebagai berikut:
+
+Pasal 1 – Jabatan dan Penempatan
+PIHAK KEDUA bekerja dengan jabatan {jabatan} pada departemen {departemen}, dengan lokasi kerja di {lokasi_kerja}.
+
+Pasal 2 – Jangka Waktu
+Perjanjian ini berlaku sejak {tanggal_mulai}; tanggal berakhir: {tanggal_berakhir} (masa perjanjian: {masa_kontrak}).
+
+Pasal 3 – Upah
+PIHAK KEDUA menerima upah pokok sebesar {gaji} ({gaji_terbilang}) {jenis_upah}, tunjangan tetap: {tunjangan}, dan tunjangan tidak tetap: {tunjangan_tidak_tetap}. Upah dibayarkan setelah dipotong pajak, iuran yang berlaku, dan potongan lain yang disepakati: {potongan}.
+
+${COMMON}
+
+Pasal 7 – Berakhirnya Perjanjian
+Berakhirnya perjanjian dan hak-hak yang timbul karenanya mengikuti peraturan perundang-undangan yang berlaku untuk jenis perjanjian ini.
+
+Pasal 8 – Penutup
+Hal-hal yang belum diatur dalam perjanjian ini mengikuti Peraturan Perusahaan dan peraturan perundang-undangan yang berlaku. Perjanjian ini dibuat dalam rangkap dua yang masing-masing mempunyai kekuatan hukum yang sama.`,
+};
+
 export const DEFAULT_CONTRACT_TEMPLATES: {
   name: string;
-  contractType: "pkwt" | "pkwtt";
+  contractType: string | null;
   title: string;
   body: string;
 }[] = [
@@ -311,11 +347,12 @@ Pemutusan hubungan kerja dan hak-hak yang timbul karenanya (uang pesangon, uang 
 Pasal 8 – Penutup
 Hal-hal yang belum diatur dalam perjanjian ini mengikuti Peraturan Perusahaan dan peraturan perundang-undangan yang berlaku. Perjanjian ini dibuat dalam rangkap dua yang masing-masing mempunyai kekuatan hukum yang sama.`,
   },
+  GENERAL_CONTRACT_TEMPLATE,
 ];
 
 export const contractTemplateSchema = z.object({
   name: z.string().trim().min(1).max(200),
-  contractType: z.enum(["pkwt", "pkwtt"]).nullish(),
+  contractType: contractTypeCode.nullish(),
   title: z.string().trim().min(1).max(200),
   body: z.string().trim().min(1).max(60000),
   signerName: z.string().trim().max(200).nullish(),
@@ -357,7 +394,7 @@ export const newEmployeeContractSchema = z
     /** Tanggal mulai kontrak = tanggal masuk karyawan (hanya diinput di sini). */
     dateStart: z.string().date(),
     templateId: z.string().uuid().nullish(),
-    contractType: z.enum(["pkwt", "pkwtt"]).default("pkwtt"),
+    contractType: contractTypeCode.default("pkwtt"),
     wageType: z.enum(["monthly", "daily", "piece"]).default("monthly"),
     taxMethod: z.enum(["gross", "gross_up"]).default("gross"),
     dateEnd: z.string().date().nullish(),
@@ -378,10 +415,6 @@ export const newEmployeeContractSchema = z
       )
       .max(50)
       .default([]),
-  })
-  .refine((c) => c.contractType !== "pkwt" || c.dateEnd, {
-    message: "PKWT wajib punya tanggal berakhir",
-    path: ["dateEnd"],
   })
   .refine((c) => !c.dateEnd || c.dateEnd >= c.dateStart, {
     message: "Tanggal berakhir sebelum mulai",

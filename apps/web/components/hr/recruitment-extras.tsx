@@ -6,6 +6,8 @@ import { download } from "../accounting/download";
 import { api } from "../../lib/api";
 import { formatDate, money, today } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
+import { useContractTypes } from "../../lib/use-contract-types";
+import { ContractTypeOptions } from "./contract-type-options";
 import { errorText } from "./hr-panels";
 
 interface Reason {
@@ -78,7 +80,7 @@ interface Offer {
   number: string | null;
   wage: string;
   benefits: string | null;
-  contractType: "pkwt" | "pkwtt";
+  contractType: string;
   contractEnd: string | null;
   startDate: string;
   validUntil: string;
@@ -107,6 +109,7 @@ export function OffersPanel({
   onChange: () => void;
 }) {
   const { l, locale } = useI18n();
+  const types = useContractTypes();
   const [offers, setOffers] = useState<Offer[]>([]);
   const [templates, setTemplates] = useState<{ id: string; name: string; active: boolean }[]>([]);
   const [form, setForm] = useState({
@@ -296,11 +299,10 @@ export function OffersPanel({
               value={form.contractType}
               onChange={(e) => setForm({ ...form, contractType: e.target.value })}
             >
-              <option value="pkwtt">PKWTT</option>
-              <option value="pkwt">PKWT</option>
+              <ContractTypeOptions types={types} current={form.contractType} />
             </select>
           </label>
-          {form.contractType === "pkwt" && (
+          {types.fixedTerm(form.contractType) && (
             <label className="field">
               <span>{l("Kontrak berakhir", "Contract end")}</span>
               <input
@@ -337,7 +339,7 @@ export function OffersPanel({
                   body: {
                     ...form,
                     benefits: form.benefits || null,
-                    contractEnd: form.contractType === "pkwt" ? form.contractEnd || null : null,
+                    contractEnd: types.fixedTerm(form.contractType) ? form.contractEnd || null : null,
                   },
                 }),
               )

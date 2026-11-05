@@ -6,11 +6,13 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { DocumentsPanel, errorText } from "../../../../../components/hr/hr-panels";
 import { useMe } from "../../../../../components/me-context";
 import { OffersPanel, RefuseForm } from "../../../../../components/hr/recruitment-extras";
+import { ContractTypeOptions } from "../../../../../components/hr/contract-type-options";
 import { RefSelect } from "../../../../../components/ref-select";
 import { api } from "../../../../../lib/api";
 import { money, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { APPLICANT_STAGE_LABEL, can } from "../../../../../lib/resources";
+import { useContractTypes } from "../../../../../lib/use-contract-types";
 
 interface Applicant {
   id: string;
@@ -57,6 +59,7 @@ function Applicant() {
   const { id } = useParams<{ id: string }>();
   const refuseFirst = useSearchParams().get("refuse") === "1";
   const { l, tx, locale } = useI18n();
+  const types = useContractTypes();
   const me = useMe();
   const [a, setA] = useState<Applicant | null>(null);
   const [interview, setInterview] = useState({
@@ -300,11 +303,10 @@ function Applicant() {
                 value={hire.contractType}
                 onChange={(e) => setHire((f) => ({ ...f, contractType: e.target.value }))}
               >
-                <option value="pkwtt">PKWTT</option>
-                <option value="pkwt">PKWT</option>
+                <ContractTypeOptions types={types} current={hire.contractType} />
               </select>
             </label>
-            {hire.contractType === "pkwt" && (
+            {types.fixedTerm(hire.contractType) && (
               <label className="field">
                 <span>{l("Berakhir", "End")}</span>
                 <input

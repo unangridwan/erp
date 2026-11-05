@@ -17,7 +17,8 @@ interface Result {
   title: string | null;
   company: string;
   employee: string;
-  contractType: "pkwt" | "pkwtt";
+  contractType: string;
+  contractTypeName: string | null;
   dateStart: string;
   dateEnd: string | null;
   cancelled: boolean;
@@ -87,7 +88,7 @@ export default function VerifyContractPage() {
               </div>
               <div>
                 <dt>{l("Dokumen", "Document")}</dt>
-                <dd>{result.title ?? (result.contractType === "pkwt" ? "PKWT" : "PKWTT")}</dd>
+                <dd>{result.title ?? result.contractTypeName ?? result.contractType.toUpperCase()}</dd>
               </div>
               <div>
                 <dt>{l("Perusahaan", "Company")}</dt>

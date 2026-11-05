@@ -9,11 +9,13 @@ import {
   hiringStatePill,
   type HiringState as State,
 } from "../../../../components/hr/hiring";
+import { ContractTypeOptions } from "../../../../components/hr/contract-type-options";
 import { RefSelect } from "../../../../components/ref-select";
 import { api, ApiError } from "../../../../lib/api";
 import { formatDate } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
+import { useContractTypes } from "../../../../lib/use-contract-types";
 import { useTableView } from "../../../../lib/use-table-view";
 
 interface Row {
@@ -59,6 +61,7 @@ export default function HiringRequestsPage() {
 
 function HiringRequests() {
   const { l, locale } = useI18n();
+  const types = useContractTypes();
   const router = useRouter();
   const lineId = useSearchParams().get("lineId");
   const [d, setD] = useState<{ canManage: boolean; items: Row[] } | null>(null);
@@ -257,9 +260,9 @@ function HiringRequests() {
             <label className="field">
               <span>{l("Jenis kontrak", "Contract type")}</span>
               <select value={form.contractType} onChange={(e) => set("contractType")(e.target.value)}>
-                <option value="pkwt">PKWT</option>
-                <option value="pkwtt">PKWTT</option>
+                <ContractTypeOptions types={types} current={form.contractType} />
               </select>
+              {fe("contractType")}
             </label>
             <label className="field">
               <span>{l("Gaji min.", "Min. wage")}</span>

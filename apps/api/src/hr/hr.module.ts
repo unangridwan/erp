@@ -69,6 +69,7 @@ import { OvertimeService } from "./overtime.service.js";
 import { WorkCalendarController } from "./work-calendar.controller.js";
 import { WorkCalendarService } from "./work-calendar.service.js";
 import { localDate, ScheduleService } from "./schedule.service.js";
+import { assertContractType } from "./contract-types.module.js";
 
 /** Karyawan yang dirujuk harus milik perusahaan yang sama. */
 const sameCompanyEmployee = async (tx: Db, values: Record<string, unknown>) => {
@@ -556,6 +557,13 @@ class EmployeesController {
     return this.tenantDb.run(async (tx) => {
       if (contract?.templateId) await this.documents.template(tx, contract.templateId);
       if (contract)
+        await assertContractType(tx, contract.contractType, {
+          dateStart: contract.dateStart,
+          dateEnd: contract.dateEnd,
+          field: "contract.contractType",
+          endField: "contract.dateEnd",
+        });
+      if (contract)
         await this.contracts.assertComponents(
           tx,
           contract.allowances.map((a) => a.componentId),
@@ -680,6 +688,7 @@ class ContractsController {
       // Dokumen yang sudah ditandatangani mengikat syarat kontrak; isi template dirender ulang bila belum.
       await this.documents.assertEditable(tx, contract);
       this.contracts.assertWithinEmployment(await this.employees.find(tx, contract.employeeId), input);
+      await assertContractType(tx, input.contractType, input, contract.contractType);
       await this.assertComponents(
         tx,
         input.allowances.map((a) => a.componentId),

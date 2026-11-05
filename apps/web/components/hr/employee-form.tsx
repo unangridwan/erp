@@ -27,6 +27,7 @@ import {
   resizePhoto,
   WarningsPanel,
 } from "./profile-panels";
+import { useContractTypes } from "../../lib/use-contract-types";
 
 type Values = Record<string, unknown>;
 
@@ -39,7 +40,7 @@ interface Overview {
   contract: {
     id: string;
     name: string;
-    contractType: "pkwt" | "pkwtt";
+    contractType: string;
     wage: string;
     wageType: "monthly" | "daily" | "piece";
     taxMethod: "gross" | "gross_up";
@@ -155,6 +156,7 @@ export function EmployeeForm({ id }: { id: string }) {
   const me = useMe();
   const router = useRouter();
   const { l, tx, locale } = useI18n();
+  const types = useContractTypes();
   const isNew = id === "new";
   const editable = can(me.permissions, "hr.write");
   const manage = can(me.permissions, "hr.manage");
@@ -648,10 +650,7 @@ export function EmployeeForm({ id }: { id: string }) {
                     ) : overview?.contract ? (
                       <>
                         <ReadRow label={l("Kontrak", "Contract")}>
-                          {overview.contract.name} ·{" "}
-                          {overview.contract.contractType === "pkwt"
-                            ? l("PKWT (waktu tertentu)", "Fixed-term (PKWT)")
-                            : l("PKWTT (tetap)", "Permanent (PKWTT)")}
+                          {overview.contract.name} · {types.label(overview.contract.contractType)}
                         </ReadRow>
                         <ReadRow label={l("Periode", "Period")}>
                           {formatDate(overview.contract.dateStart, locale)} –{" "}

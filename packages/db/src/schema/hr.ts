@@ -165,15 +165,33 @@ export const salaryComponents = pgTable("salary_components", {
   ...audit,
 });
 
+/** Jenis kontrak kerja (master): PKWT, PKWTT, harian lepas, magang, kemitraan, dst. Dokumen menyimpan `code`. */
+export const contractTypes = pgTable("contract_types", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  legalBasis: text("legal_basis"),
+  /** Wajib tanggal berakhir (waktu tertentu); ikut pengingat kontrak berakhir. */
+  fixedTerm: boolean("fixed_term").notNull().default(false),
+  /** Batas masa satu kontrak dalam bulan; null = tanpa batas. */
+  maxMonths: integer("max_months"),
+  documentTitle: text("document_title"),
+  sequence: integer("sequence").notNull().default(10),
+  isSystem: boolean("is_system").notNull().default(false),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const contracts = pgTable("contracts", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
   companyId: uuid("company_id").notNull(),
   employeeId: uuid("employee_id").notNull(),
   name: text("name").notNull(),
-  contractType: text("contract_type", { enum: ["pkwt", "pkwtt"] })
-    .notNull()
-    .default("pkwtt"),
+  contractType: text("contract_type").notNull().default("pkwtt"),
   dateStart: date("date_start").notNull(),
   dateEnd: date("date_end"),
   wage: numeric("wage", { precision: 20, scale: 2 }).notNull(),
@@ -224,7 +242,7 @@ export const contractTemplates = pgTable("contract_templates", {
   tenantId: tenantId(),
   companyId: uuid("company_id").notNull(),
   name: text("name").notNull(),
-  contractType: text("contract_type", { enum: ["pkwt", "pkwtt"] }),
+  contractType: text("contract_type"),
   title: text("title").notNull(),
   body: text("body").notNull(),
   signerName: text("signer_name"),
@@ -860,9 +878,7 @@ export const hiringRequests = pgTable("hiring_requests", {
     .notNull()
     .default("new"),
   quantity: smallint("quantity").notNull(),
-  contractType: text("contract_type", { enum: ["pkwt", "pkwtt"] })
-    .notNull()
-    .default("pkwt"),
+  contractType: text("contract_type").notNull().default("pkwt"),
   wageMin: numeric("wage_min", { precision: 20, scale: 2 }),
   wageMax: numeric("wage_max", { precision: 20, scale: 2 }),
   targetDate: date("target_date"),
@@ -936,9 +952,7 @@ export const jobOffers = pgTable("job_offers", {
   number: text("number"),
   wage: numeric("wage", { precision: 20, scale: 2 }).notNull(),
   benefits: text("benefits"),
-  contractType: text("contract_type", { enum: ["pkwt", "pkwtt"] })
-    .notNull()
-    .default("pkwtt"),
+  contractType: text("contract_type").notNull().default("pkwtt"),
   contractEnd: date("contract_end"),
   startDate: date("start_date").notNull(),
   validUntil: date("valid_until").notNull(),

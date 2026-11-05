@@ -8,6 +8,7 @@ import { RESIGN_REASON_LABEL } from "../../../../components/hr/offboarding-panel
 import { formatDate, money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { CONTRACT_STATE_LABEL } from "../../../../lib/resources";
+import { useContractTypes } from "../../../../lib/use-contract-types";
 import { useListData } from "../../../../lib/use-list-data";
 
 interface Row {
@@ -38,6 +39,7 @@ function Contracts() {
   const { l, tx, locale } = useI18n();
   const employeeId = useSearchParams().get("employeeId");
   const list = useListData<Row>("/contracts", { employeeId });
+  const types = useContractTypes();
   const columns = useMemo<DataColumn<Row>[]>(
     () => [
       {
@@ -51,7 +53,9 @@ function Contracts() {
         key: "contractType",
         label: l("Jenis", "Type"),
         type: "enum",
-        value: (c) => c.contractType.toUpperCase(),
+        value: (c) => c.contractType,
+        optionLabel: (v) => types.label(v),
+        text: (c) => types.label(c.contractType),
       },
       {
         key: "dateStart",
@@ -104,7 +108,7 @@ function Contracts() {
         hidden: true,
       },
     ],
-    [l, tx, locale],
+    [l, tx, locale, types],
   );
 
   return (

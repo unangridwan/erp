@@ -34,6 +34,7 @@ import { ContractDocumentService, type PdfMode } from "./contract-document.servi
 import { ContractService } from "./contract.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { HrModule } from "./hr.module.js";
+import { assertContractType } from "./contract-types.module.js";
 
 const C = schema.contracts;
 const T = schema.contractTemplates;
@@ -108,6 +109,7 @@ class ContractTemplatesController {
     return this.tenantDb.run(async (tx) => {
       const companyId = currentContext().companyId;
       await this.docs.ensureTemplates(tx, companyId);
+      if (input.contractType) await assertContractType(tx, input.contractType);
       const [row] = await tx
         .insert(T)
         .values({ ...input, companyId })
@@ -123,6 +125,8 @@ class ContractTemplatesController {
     const input = parse(contractTemplateSchema, body);
     return this.tenantDb.run(async (tx) => {
       const current = await this.docs.template(tx, id);
+      if (input.contractType)
+        await assertContractType(tx, input.contractType, undefined, current.contractType);
       const [row] = await tx
         .update(T)
         .set({ ...input, contractType: input.contractType ?? null, updatedAt: sql`now()` })
@@ -283,6 +287,7 @@ class MyContractsController {
           id: C.id,
           name: C.name,
           contractType: C.contractType,
+          contractTypeName: schema.contractTypes.name,
           state: C.state,
           dateStart: C.dateStart,
           dateEnd: C.dateEnd,
@@ -293,6 +298,10 @@ class MyContractsController {
           hasSignedFile: sql<boolean>`${C.signedFileName} is not null`,
         })
         .from(C)
+        .leftJoin(
+          schema.contractTypes,
+          and(eq(schema.contractTypes.tenantId, C.tenantId), eq(schema.contractTypes.code, C.contractType)),
+        )
         .where(
           and(
             eq(C.employeeId, employee.id),
@@ -407,12 +416,17 @@ class ContractVerifyController {
         signMethod: C.signMethod,
         documentHash: C.documentHash,
         title: C.documentTitle,
+        contractTypeName: schema.contractTypes.name,
         company: schema.companies.name,
         employee: schema.employees.name,
       })
       .from(C)
       .innerJoin(schema.companies, eq(schema.companies.id, C.companyId))
       .innerJoin(schema.employees, eq(schema.employees.id, C.employeeId))
+      .leftJoin(
+        schema.contractTypes,
+        and(eq(schema.contractTypes.tenantId, C.tenantId), eq(schema.contractTypes.code, C.contractType)),
+      )
       .where(eq(C.verifyCode, code.toUpperCase()));
     if (!row) throw new NotFoundException("Kode verifikasi tidak dikenal");
     const signatures = await this.db
@@ -426,6 +440,7 @@ class ContractVerifyController {
       company: row.company,
       employee: maskName(row.employee),
       contractType: row.contractType,
+      contractTypeName: row.contractTypeName,
       dateStart: row.dateStart,
       dateEnd: row.dateEnd,
       cancelled: row.state === "cancel",

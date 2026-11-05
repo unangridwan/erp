@@ -255,6 +255,7 @@ Otomatis (tanpa endpoint baru):
 | `POST /payslips/:id/{hold,unhold,release}`                                                                                                                   | Penahanan gaji per slip (tidak ikut transfer/pembayaran), dilepas dengan pembayaran terpisah                                                                                                        |
 | `POST /job-openings/from-fpk/:id`, `/refuse-reasons`, `GET /recruitment/reports?from=&to=`                                                                   | FPK disetujui → lowongan, master alasan penolakan, laporan time-to-fill/time-to-hire, funnel, sumber                                                                                                |
 | `/hiring-requests`, `POST /manpower-plan-lines/:id/hiring-request`, `POST /applicants/:id/cancel-hire`                                                       | FPK & alur penambahan karyawan (0049)                                                                                                                                                               |
+| `GET/POST /contract-types`, `GET/PUT/DELETE /contract-types/:id`                                                                                             | Master jenis kontrak (PKWT, PKWTT, harian lepas, magang, mitra, …): aturan waktu tertentu & batas masa kontrak (0053)                                                                               |
 | `/contract-templates[/placeholders]`, `POST /contract-templates/preview`, `GET/PUT /contracts/:id/document`                                                  | Template kontrak berplaceholder (data karyawan & kontrak terisi otomatis), isi dokumen per kontrak (0050)                                                                                           |
 | `GET /contracts/:id/pdf?mode=print\|esign\|signed`, `GET/POST /contracts/:id/signed-file`                                                                    | PDF cetak (TTD basah + meterai), e-sign layanan luar (kolom tanda tangan), bertanda tangan; unggah hasil TTD                                                                                        |
 | `POST /contracts/:id/{request-signature,sign}`, `/me/contracts`, `GET /public/contracts/verify/:code`                                                        | Tanda tangan digital di aplikasi (HR & karyawan via portal), jejak audit, verifikasi publik kode dokumen                                                                                            |
@@ -297,10 +298,18 @@ masuk, onboarding dimulai (tugas atasan ke kepala departemen; tugas karyawan ke 
 timeline 9 tahap. Lowongan manual tetap boleh (ditandai "Tanpa FPK" di kanban); lowongan dari MPP kini lewat FPK.
 
 **Template & tanda tangan kontrak (migrasi 0050).** Kontrak pertama dibuat **dari form karyawan baru** (tab "Kontrak
-kerja": jenis PKWT/PKWTT, template, tanggal berakhir, upah, metode PPh 21, **komponen gaji lain**; mulai = tanggal
+kerja": jenis kontrak dari master, template, tanggal berakhir, upah, metode PPh 21, **komponen gaji lain**; mulai = tanggal
 masuk) dan **langsung
 berlaku** saat karyawan disimpan; tombol "Baru" di daftar kontrak diganti, perpanjangan tetap dari tab Penggajian
-karyawan. SDM › Konfigurasi › **Template Kontrak**: isi kontrak dengan placeholder (`{nama}`, `{nik}`, `{jabatan}`,
+karyawan. SDM › Konfigurasi › **Jenis Kontrak** (0053): master jenis perjanjian kerja — bawaan PKWT (waktu tertentu,
+maks. 60 bulan), PKWTT, harian lepas, magang (waktu tertentu, maks. 12 bulan), mitra/kemitraan — bisa ditambah, diubah
+(nama, keterangan, dasar hukum, wajib tanggal berakhir, batas masa kontrak, judul dokumen bawaan, urutan) dan
+dinonaktifkan agar mengikuti perubahan peraturan tanpa rilis baru. Aturannya diperiksa saat kontrak, karyawan baru +
+kontrak, FPK, penawaran kerja & proses kontrak pelamar disimpan; jenis "waktu tertentu" ikut pengingat kontrak
+berakhir. Kode tersimpan di dokumen (tidak bisa diganti); PKWT/PKWTT tidak bisa dihapus/dinonaktifkan; jenis yang sudah
+dipakai tidak bisa dihapus. Jenis tanpa template sendiri memakai template **Perjanjian kerja umum** (`{jenis_kontrak}`,
+`{masa_kontrak}`) dengan judul dari master. Catatan: pengecualian BPJS/PPh untuk kemitraan belum otomatis — atur lewat
+komponen & pengaturan karyawan. SDM › Konfigurasi › **Template Kontrak**: isi kontrak dengan placeholder (`{nama}`, `{nik}`, `{jabatan}`,
 `{gaji}`, `{gaji_terbilang}`, `{tunjangan}`, `{tunjangan_tidak_tetap}`, `{potongan}`, `{komponen_gaji}`,
 `{masa_kontrak}`, …; 31 kolom) yang diisi otomatis dari data karyawan,
 kontrak, perusahaan & tunjangan tetap; template bawaan PKWT & PKWTT dibuat otomatis; pratinjau PDF dengan data
