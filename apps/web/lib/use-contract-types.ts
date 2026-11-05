@@ -4,7 +4,21 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 
 /** Jenis kontrak dari master (SDM › Konfigurasi › Jenis Kontrak). */
-export interface ContractType {
+/** Aturan penggajian jenis kontrak (0054). */
+export interface ContractPayroll {
+  inPayroll: boolean;
+  bpjsKes: boolean;
+  bpjsJkk: boolean;
+  bpjsJkm: boolean;
+  bpjsJht: boolean;
+  bpjsJp: boolean;
+  pph21Category: "auto" | "permanent" | "non_permanent" | "non_employee" | "none";
+  thr: boolean;
+  overtime: boolean;
+  severance: "pesangon" | "compensation" | "none";
+}
+
+export interface ContractType extends ContractPayroll {
   id: string;
   code: string;
   name: string;
@@ -54,4 +68,23 @@ export function useContractTypes() {
         types.filter((t) => t.active || t.code === current).map((t) => ({ value: t.code, label: t.name })),
     };
   }, [types]);
+}
+
+/** Ringkasan aturan penggajian jenis kontrak (BPJS, PPh 21, THR, lembur) untuk ditampilkan. */
+export function contractRuleText(t: ContractPayroll, l: (id: string, en: string) => string) {
+  if (!t.inPayroll) return l("Tidak ikut payroll", "Not included in payroll");
+  const bpjs = [
+    t.bpjsKes && "Kes",
+    t.bpjsJkk && "JKK",
+    t.bpjsJkm && "JKM",
+    t.bpjsJht && "JHT",
+    t.bpjsJp && "JP",
+  ].filter(Boolean);
+  return [
+    bpjs.length ? `BPJS ${bpjs.join(", ")}` : l("tanpa BPJS", "no BPJS"),
+    !t.thr && l("tanpa THR", "no THR"),
+    !t.overtime && l("tanpa lembur", "no overtime"),
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }

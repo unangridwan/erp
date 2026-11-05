@@ -308,8 +308,12 @@ dinonaktifkan agar mengikuti perubahan peraturan tanpa rilis baru. Aturannya dip
 kontrak, FPK, penawaran kerja & proses kontrak pelamar disimpan; jenis "waktu tertentu" ikut pengingat kontrak
 berakhir. Kode tersimpan di dokumen (tidak bisa diganti); PKWT/PKWTT tidak bisa dihapus/dinonaktifkan; jenis yang sudah
 dipakai tidak bisa dihapus. Jenis tanpa template sendiri memakai template **Perjanjian kerja umum** (`{jenis_kontrak}`,
-`{masa_kontrak}`) dengan judul dari master. Catatan: pengecualian BPJS/PPh untuk kemitraan belum otomatis — atur lewat
-komponen & pengaturan karyawan. SDM › Konfigurasi › **Template Kontrak**: isi kontrak dengan placeholder (`{nama}`, `{nik}`, `{jabatan}`,
+`{masa_kontrak}`) dengan judul dari master. Tiap jenis juga punya **aturan penggajian** (0054): ikut payroll atau tidak, program BPJS yang diikutkan (Kesehatan,
+JKK, JKM, JHT, JP — menjadi batas; centang di data karyawan tetap bisa mengecualikan), kategori PPh 21 (otomatis
+mengikuti jenis upah, pegawai tetap TER, tidak tetap tarif harian, bukan pegawai 50% bruto × Pasal 17, atau tidak
+dipotong; bukti potong A1/BPMP hanya pegawai tetap), hak THR, hak lembur (lembur ditolak & tidak dibuat dari absensi),
+dan hak saat berakhir (pesangon, uang kompensasi PKWT, atau tidak ada). Bawaan: magang hanya JKK+JKM tanpa THR/lembur,
+mitra tanpa BPJS dengan PPh 21 bukan pegawai. SDM › Konfigurasi › **Template Kontrak**: isi kontrak dengan placeholder (`{nama}`, `{nik}`, `{jabatan}`,
 `{gaji}`, `{gaji_terbilang}`, `{tunjangan}`, `{tunjangan_tidak_tetap}`, `{potongan}`, `{komponen_gaji}`,
 `{masa_kontrak}`, …; 31 kolom) yang diisi otomatis dari data karyawan,
 kontrak, perusahaan & tunjangan tetap; template bawaan PKWT & PKWTT dibuat otomatis; pratinjau PDF dengan data

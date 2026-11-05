@@ -13,7 +13,7 @@ import {
   Post,
   Put,
 } from "@nestjs/common";
-import { and, asc, eq, schema, sql, type Db } from "@erp/db";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, or, schema, sql, type Db } from "@erp/db";
 import {
   contractPeriodErrors,
   contractTypeSchema,
@@ -65,6 +65,33 @@ export async function assertContractType(
 /** Nama & judul dokumen jenis kontrak (untuk dokumen & label). */
 export async function contractTypeOf(tx: Db, code: string) {
   return (await contractTypes(tx)).find((t) => t.code === code) ?? null;
+}
+
+/** Jenis kontrak karyawan yang berlaku pada tanggal itu (kontrak berjalan/selesai yang mencakup tanggal). */
+export async function contractTypeOnDate(tx: Db, employeeId: string, date: string) {
+  const C = schema.contracts;
+  const [row] = await tx
+    .select({ type: T })
+    .from(C)
+    .innerJoin(T, and(eq(T.tenantId, C.tenantId), eq(T.code, C.contractType)))
+    .where(
+      and(
+        eq(C.employeeId, employeeId),
+        inArray(C.state, ["running", "closed"]),
+        lte(C.dateStart, date),
+        or(isNull(C.dateEnd), gte(C.dateEnd, date)),
+      ),
+    )
+    .orderBy(desc(C.dateStart))
+    .limit(1);
+  return row?.type ?? null;
+}
+
+/** Tolak lembur untuk karyawan yang jenis kontraknya tidak berhak lembur. */
+export async function assertOvertimeAllowed(tx: Db, employeeId: string, date: string) {
+  const type = await contractTypeOnDate(tx, employeeId, date);
+  if (type && !type.overtime)
+    throw fieldError("date", `Jenis kontrak ${type.name} tidak mendapat upah lembur`);
 }
 
 /** Kode jenis kontrak berjangka waktu (wajib tanggal berakhir). */

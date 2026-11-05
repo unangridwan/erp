@@ -15,6 +15,7 @@ import {
   workingDays,
   type PayslipInput,
 } from "./payroll.js";
+import { effectiveEnrollment, resolveTaxCategory } from "./contract-types.js";
 
 describe("PTKP & kategori TER", () => {
   it("PTKP per status", () => {
@@ -223,5 +224,48 @@ describe("slip gaji", () => {
     const combined = pph21Monthly(14_044_800, "TK/0", true);
     expect(r.pph21).toBe(String(Number(combined.tax) - 652_240));
     expect(r.net).toBe(String(1_000_000 - Number(r.pph21)));
+  });
+});
+
+describe("aturan payroll per jenis kontrak", () => {
+  const input: PayslipInput = {
+    wage: "5000000",
+    allowances: [],
+    deductions: [],
+    overtime: [],
+    unpaidDays: 0,
+    workingDays: 21,
+    status: "TK/0",
+    hasNpwp: true,
+    bpjs: { jkkRate: "0.24", kesWageCap: "12000000", jpWageCap: "10547400" },
+    isFinal: false,
+    ytd: { gross: "0", pph21: "0", employeePension: "0", months: 0 },
+  };
+  it("BPJS per program: magang hanya JKK & JKM", () => {
+    const r = computePayslip({
+      ...input,
+      enrollment: effectiveEnrollment(
+        { kes: true, tk: true, jp: true },
+        { bpjsKes: false, bpjsJkk: true, bpjsJkm: true, bpjsJht: false, bpjsJp: false },
+      ),
+    });
+    const codes = r.lines.filter((l) => l.amount !== "0").map((l) => l.code);
+    expect(codes).toContain("JKK");
+    expect(codes).toContain("JKM");
+    expect(codes).not.toContain("JHT_ER");
+    expect(codes).not.toContain("BPJS_KES_ER");
+    expect(r.employeeBpjs).toBe("0");
+  });
+  it("karyawan dikecualikan tetap tanpa iuran walau jenis kontrak mengikutkan", () => {
+    const e = effectiveEnrollment({ kes: false, tk: true, jp: false }, null);
+    expect(e).toMatchObject({ kes: false, jkk: true, jht: true, jp: false });
+  });
+  it("kategori PPh 21: bukan pegawai = Pasal 17 atas 50% bruto; tidak dipotong = 0", () => {
+    const enrollment = { kes: false, tk: false, jp: false };
+    const ne = computePayslip({ ...input, enrollment, taxCategory: "non_employee" });
+    expect(ne.pph21).toBe(progressiveTax(2_500_000));
+    expect(computePayslip({ ...input, enrollment, taxCategory: "none" }).pph21).toBe("0");
+    expect(resolveTaxCategory({ pph21Category: "auto" }, "daily")).toBe("non_permanent");
+    expect(resolveTaxCategory({ pph21Category: "auto" }, "monthly")).toBe("permanent");
   });
 });
