@@ -27,6 +27,8 @@ import {
   addDays,
   employeeSchema,
   gradePosition,
+  gradeWageStatus,
+  applyGradeBaseWageSchema,
   newEmployeeContractSchema,
   holidaySchema,
   jobPositionSchema,
@@ -61,7 +63,12 @@ import { ApprovalService, beginApproval, type ApprovalModel } from "./approval.s
 import { NotificationService } from "../notifications/notification.service.js";
 import { ChecklistService } from "./checklist.service.js";
 import { ContractDocumentService } from "./contract-document.service.js";
-import { assertDatesUnchanged, ContractService } from "./contract.service.js";
+import {
+  assertDatesUnchanged,
+  ContractService,
+  contractGradeWage,
+  effectiveGrade,
+} from "./contract.service.js";
 import { HistoryService } from "./history.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { LeaveService } from "./leave.service.js";
@@ -124,26 +131,134 @@ const SalaryGradesController = createCrudController({
   searchColumns: [schema.salaryGrades.code, schema.salaryGrades.name],
   orderBy: schema.salaryGrades.sequence,
   beforeSave: async (tx, values, id) => {
-    let { minWage, maxWage } = values as { minWage?: string; maxWage?: string };
-    if (id && (minWage === undefined || maxWage === undefined)) {
+    let { minWage, maxWage, baseWage } = values as {
+      minWage?: string;
+      maxWage?: string;
+      baseWage?: string | null;
+    };
+    if (id && (minWage === undefined || maxWage === undefined || baseWage === undefined)) {
       const [row] = await tx.select().from(schema.salaryGrades).where(eq(schema.salaryGrades.id, id));
       minWage ??= row?.minWage;
       maxWage ??= row?.maxWage;
+      if (baseWage === undefined) baseWage = row?.baseWage ?? null;
     }
     if (minWage !== undefined && maxWage !== undefined && new Decimal(maxWage).lt(minWage))
       throw fieldError("maxWage", "Upah maksimum di bawah upah minimum");
+    if (baseWage && minWage !== undefined && maxWage !== undefined)
+      if (new Decimal(baseWage).lt(minWage) || new Decimal(baseWage).gt(maxWage))
+        throw fieldError("baseWage", "Gaji pokok golongan harus di antara upah minimum dan maksimum");
   },
 });
 
-/** Golongan upah karyawan lewat jabatannya. */
+/** Golongan upah karyawan: golongan di data karyawan, atau golongan jabatannya. */
 async function gradeOf(tx: Db, employeeId: string) {
-  const [row] = await tx
-    .select({ grade: schema.salaryGrades })
+  const [employee] = await tx
+    .select({ gradeId: schema.employees.gradeId, jobId: schema.employees.jobId })
     .from(schema.employees)
-    .innerJoin(schema.jobPositions, eq(schema.jobPositions.id, schema.employees.jobId))
-    .innerJoin(schema.salaryGrades, eq(schema.salaryGrades.id, schema.jobPositions.gradeId))
     .where(eq(schema.employees.id, employeeId));
-  return row?.grade ?? null;
+  return employee ? effectiveGrade(tx, employee) : null;
+}
+
+type BaseWageStatus = "current" | "standard" | "adjusted";
+
+/**
+ * Gaji pokok golongan berubah → sesuaikan kontrak berjalan (upah bulanan) karyawan bergolongan itu: kontrak yang
+ * mengikuti standar lama diganti kontrak upah baru per tanggal berlaku; yang disesuaikan manual dilewati kecuali
+ * diminta. Selisih periode yang sudah dibayar lewat "Hitung rapel" payroll.
+ */
+@Controller("salary-grades")
+class SalaryGradeWageController {
+  constructor(
+    @Inject(TenantDb) private readonly tenantDb: TenantDb,
+    @Inject(ContractService) private readonly contracts: ContractService,
+  ) {}
+
+  private async impact(tx: Db, id: string) {
+    const [grade] = await tx.select().from(schema.salaryGrades).where(eq(schema.salaryGrades.id, id));
+    if (!grade) throw new NotFoundException("Golongan upah tidak ditemukan");
+    const rows = await tx
+      .select({
+        contractId: schema.contracts.id,
+        contractName: schema.contracts.name,
+        dateStart: schema.contracts.dateStart,
+        wage: schema.contracts.wage,
+        gradeBaseWage: schema.contracts.gradeBaseWage,
+        employeeId: schema.employees.id,
+        employeeNumber: schema.employees.employeeNumber,
+        employeeName: schema.employees.name,
+        companyId: schema.employees.companyId,
+      })
+      .from(schema.contracts)
+      .innerJoin(schema.employees, eq(schema.employees.id, schema.contracts.employeeId))
+      .leftJoin(schema.jobPositions, eq(schema.jobPositions.id, schema.employees.jobId))
+      .where(
+        and(
+          eq(schema.contracts.companyId, currentContext().companyId),
+          eq(schema.contracts.state, "running"),
+          eq(schema.contracts.wageType, "monthly"),
+          sql`coalesce(${schema.employees.gradeId}, ${schema.jobPositions.gradeId}) = ${id}`,
+        ),
+      )
+      .orderBy(asc(schema.employees.name));
+    const base = grade.baseWage;
+    const items = rows.map((r) => {
+      const status: BaseWageStatus =
+        base && new Decimal(r.wage).eq(base)
+          ? "current"
+          : r.gradeBaseWage && new Decimal(r.wage).eq(r.gradeBaseWage)
+            ? "standard"
+            : "adjusted";
+      return { ...r, status };
+    });
+    return { grade, items };
+  }
+
+  /** Kontrak berjalan yang terdampak perubahan gaji pokok golongan. */
+  @Get(":id/base-wage-impact")
+  @RequirePermission("payroll.manage")
+  preview(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run(async (tx) => {
+      const { grade, items } = await this.impact(tx, id);
+      return {
+        grade: { id: grade.id, code: grade.code, name: grade.name, baseWage: grade.baseWage },
+        items: items.map(({ companyId: _c, ...i }) => i),
+      };
+    });
+  }
+
+  @Post(":id/apply-base-wage")
+  @RequirePermission("payroll.manage")
+  apply(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(applyGradeBaseWageSchema, body);
+    return this.tenantDb.run(async (tx) => {
+      const { grade, items } = await this.impact(tx, id);
+      if (!grade.baseWage) throw fieldError("baseWage", "Golongan belum punya gaji pokok standar");
+      const updated: { employeeName: string; contractId: string; oldWage: string }[] = [];
+      const skipped: { employeeName: string; reason: string }[] = [];
+      for (const item of items) {
+        if (item.status === "current") continue;
+        if (item.status === "adjusted" && !input.includeAdjusted) {
+          skipped.push({ employeeName: item.employeeName, reason: "adjusted" });
+          continue;
+        }
+        if (input.effectiveDate <= item.dateStart) {
+          skipped.push({ employeeName: item.employeeName, reason: "date" });
+          continue;
+        }
+        const renewed = await this.contracts.renewWage(
+          tx,
+          { id: item.employeeId, companyId: item.companyId },
+          {
+            effectiveDate: input.effectiveDate,
+            newWage: grade.baseWage,
+            note: `penyesuaian gaji pokok golongan ${grade.code}`,
+          },
+        );
+        updated.push({ employeeName: item.employeeName, contractId: renewed.id, oldWage: renewed.oldWage });
+      }
+      return { updated, skipped };
+    });
+  }
 }
 
 /** Laporan struktur & skala upah: upah kontrak berjalan dibandingkan rentang golongan jabatan. */
@@ -168,7 +283,13 @@ class WageScaleController {
         .from(schema.contracts)
         .innerJoin(schema.employees, eq(schema.employees.id, schema.contracts.employeeId))
         .leftJoin(schema.jobPositions, eq(schema.jobPositions.id, schema.employees.jobId))
-        .leftJoin(schema.salaryGrades, eq(schema.salaryGrades.id, schema.jobPositions.gradeId))
+        .leftJoin(
+          schema.salaryGrades,
+          eq(
+            schema.salaryGrades.id,
+            sql`coalesce(${schema.employees.gradeId}, ${schema.jobPositions.gradeId})`,
+          ),
+        )
         .where(
           and(
             eq(schema.contracts.companyId, currentContext().companyId),
@@ -186,7 +307,9 @@ class WageScaleController {
         grade: r.grade ? { id: r.grade.id, code: r.grade.code, name: r.grade.name } : null,
         minWage: r.grade?.minWage ?? null,
         maxWage: r.grade?.maxWage ?? null,
+        baseWage: r.grade?.baseWage ?? null,
         position: r.grade ? gradePosition(r.wage, r.grade) : null,
+        adjusted: r.grade ? gradeWageStatus(r.wage, r.grade).adjusted : false,
       }));
       // Ringkasan per golongan: jumlah karyawan, upah terendah/tertinggi/rata-rata.
       const byGrade = new Map<string, typeof items>();
@@ -201,6 +324,7 @@ class WageScaleController {
           name: list[0]!.grade?.name ?? null,
           minWage: list[0]!.minWage,
           maxWage: list[0]!.maxWage,
+          baseWage: list[0]!.baseWage,
           employees: list.length,
           lowest: Decimal.min(...wages).toFixed(0),
           highest: Decimal.max(...wages).toFixed(0),
@@ -591,16 +715,20 @@ class EmployeesController {
       if (employee.joinDate >= addDays(new Date().toISOString().slice(0, 10), -30))
         await this.checklists.autoStart(tx, employee.id, "onboarding");
       if (!contract) return employee;
-      const contractId = await this.contracts.create(tx, {
-        employeeId: employee.id,
-        contractType: contract.contractType,
-        wageType: contract.wageType,
-        taxMethod: contract.taxMethod,
-        dateStart: contract.dateStart,
-        dateEnd: contract.dateEnd ?? null,
-        wage: contract.wage,
-        allowances: contract.allowances,
-      });
+      const contractId = await this.contracts.create(
+        tx,
+        {
+          employeeId: employee.id,
+          contractType: contract.contractType,
+          wageType: contract.wageType,
+          taxMethod: contract.taxMethod,
+          dateStart: contract.dateStart,
+          dateEnd: contract.dateEnd ?? null,
+          wage: contract.wage,
+          allowances: contract.allowances,
+        },
+        "contract.",
+      );
       if (contract.templateId)
         await tx
           .update(schema.contracts)
@@ -704,6 +832,7 @@ class ContractsController {
       this.contracts.assertWithinEmployment(owner, input);
       await assertBeforeRetirement(tx, owner, input);
       await assertContractType(tx, input.contractType, input, contract.contractType);
+      const pay = await contractGradeWage(tx, owner, input);
       await this.assertComponents(
         tx,
         input.allowances.map((a) => a.componentId),
@@ -716,7 +845,7 @@ class ContractsController {
           dateStart: input.dateStart,
           dateEnd: input.dateEnd ?? null,
           taxMethod: input.taxMethod,
-          wage: input.wage,
+          ...pay,
           note: input.note ?? null,
           updatedAt: sql`now()`,
         })
@@ -736,7 +865,7 @@ class ContractsController {
         resModel: "employee",
         resId: contract.employeeId,
         action: "comment",
-        message: `Kontrak ${contract.name} diubah (gaji pokok ${new Decimal(input.wage).toFixed(0)})`,
+        message: `Kontrak ${contract.name} diubah (gaji pokok ${new Decimal(pay.wage).toFixed(0)})`,
       });
       return this.load(tx, id);
     });
@@ -881,9 +1010,13 @@ class ContractsController {
         ? {
             code: grade.code,
             name: grade.name,
+            id: grade.id,
             minWage: grade.minWage,
             maxWage: grade.maxWage,
+            baseWage: grade.baseWage,
             position: contract.wageType === "monthly" ? gradePosition(contract.wage, grade) : null,
+            adjusted:
+              contract.wageType === "monthly" ? gradeWageStatus(contract.wage, grade).adjusted : false,
           }
         : null,
     };
@@ -1214,6 +1347,7 @@ class PortalController {
     DepartmentsController,
     JobPositionsController,
     SalaryGradesController,
+    SalaryGradeWageController,
     WageScaleController,
     WorkCalendarController,
     OvertimeAttendanceController,

@@ -14,6 +14,7 @@ interface Report {
     name: string | null;
     minWage: string | null;
     maxWage: string | null;
+    baseWage: string | null;
     employees: number;
     lowest: string;
     highest: string;
@@ -33,7 +34,7 @@ interface Report {
   }[];
 }
 
-/** Struktur & skala upah (PP 36/2021): upah pokok kontrak berjalan per golongan jabatan. */
+/** Struktur & skala upah (PP 36/2021): upah pokok kontrak berjalan per golongan (karyawan atau jabatan). */
 export default function WageScalePage() {
   const { l, locale } = useI18n();
   const [report, setReport] = useState<Report | null>(null);
@@ -99,6 +100,7 @@ export default function WageScalePage() {
                 <tr>
                   <th>{l("Golongan", "Grade")}</th>
                   <th className="num">{l("Rentang", "Range")}</th>
+                  <th className="num">{l("Gaji pokok standar", "Standard base wage")}</th>
                   <th className="num">{l("Karyawan", "Employees")}</th>
                   <th className="num">{l("Terendah", "Lowest")}</th>
                   <th className="num">{l("Rata-rata", "Average")}</th>
@@ -109,8 +111,9 @@ export default function WageScalePage() {
               <tbody>
                 {report.grades.map((g) => (
                   <tr key={g.code ?? ""}>
-                    <td>{g.code ? `${g.code} · ${g.name}` : l("(jabatan tanpa golongan)", "(no grade)")}</td>
+                    <td>{g.code ? `${g.code} · ${g.name}` : l("(tanpa golongan)", "(no grade)")}</td>
                     <td className="num">{g.code ? `${n(g.minWage)} – ${n(g.maxWage)}` : "—"}</td>
+                    <td className="num">{g.baseWage ? n(g.baseWage) : "—"}</td>
                     <td className="num">{g.employees}</td>
                     <td className="num">{n(g.lowest)}</td>
                     <td className="num">{n(g.average)}</td>

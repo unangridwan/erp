@@ -3288,3 +3288,24 @@ dialog.palette {
 .breadcrumb .star {
   margin-left: 4px;
 }
+
+/* Golongan upah: terapkan gaji pokok ke kontrak berjalan; penanda gaji pokok di form kontrak. */
+.grade-apply {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+  margin-top: 0.75rem;
+}
+.grade-apply label:not(.check) {
+  display: grid;
+  gap: 0.25rem;
+}
+.grade-wage-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+}

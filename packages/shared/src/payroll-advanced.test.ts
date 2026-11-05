@@ -5,6 +5,7 @@ import {
   bankTransferFile,
   fullMonths,
   gradePosition,
+  gradeWageStatus,
   retroPay,
   thrAmount,
   type TransferRow,
@@ -227,5 +228,39 @@ describe("klaim biaya", () => {
     ).toBe(false);
     expect(employeeChangeSchema.safeParse({ note: "x" }).success).toBe(false);
     expect(employeeChangeSchema.parse({ bankAccount: "123-456" }).bankAccount).toBe("123-456");
+  });
+});
+
+describe("gaji pokok standar golongan", () => {
+  const g = { minWage: "4500000", maxWage: "6000000", baseWage: "5000000" };
+  it("menandai gaji yang mengikuti standar & yang disesuaikan", () => {
+    expect(gradeWageStatus("5000000", g)).toEqual({
+      standard: "5000000.00",
+      adjusted: false,
+      difference: "0.00",
+      position: "within",
+    });
+    expect(gradeWageStatus("5200000", g)).toMatchObject({ adjusted: true, difference: "200000.00" });
+    expect(gradeWageStatus("6500000", g).position).toBe("above");
+  });
+  it("tanpa gaji pokok standar tidak dianggap disesuaikan", () => {
+    expect(gradeWageStatus("5200000", { ...g, baseWage: null })).toMatchObject({
+      standard: null,
+      adjusted: false,
+    });
+  });
+  it("skema golongan menerima gaji pokok opsional", () => {
+    expect(
+      salaryGradeSchema.parse({
+        code: "a1",
+        name: "A1",
+        minWage: 4500000,
+        maxWage: 6000000,
+        baseWage: 5000000,
+      }).baseWage,
+    ).toBe("5000000");
+    expect(
+      salaryGradeSchema.parse({ code: "a1", name: "A1", minWage: 1, maxWage: 2 }).baseWage,
+    ).toBeUndefined();
   });
 });

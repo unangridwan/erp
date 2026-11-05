@@ -748,7 +748,13 @@ export function EmployeeForm({ id }: { id: string }) {
               )}
 
               {tab === "contract" && isNew && manage && (
-                <NewEmployeeContract value={newContract} onChange={setNewContract} errors={fieldErrors} />
+                <NewEmployeeContract
+                  value={newContract}
+                  onChange={setNewContract}
+                  errors={fieldErrors}
+                  gradeId={values.gradeId as string | undefined}
+                  jobId={values.jobId as string | undefined}
+                />
               )}
 
               {(tab === "work" || tab === "personal" || tab === "settings") && (

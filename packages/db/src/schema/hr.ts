@@ -58,6 +58,8 @@ export const salaryGrades = pgTable("salary_grades", {
   name: text("name").notNull(),
   minWage: numeric("min_wage", { precision: 20, scale: 2 }).notNull(),
   maxWage: numeric("max_wage", { precision: 20, scale: 2 }).notNull(),
+  /** Gaji pokok standar golongan: terisi otomatis di kontrak (null = belum ditentukan). */
+  baseWage: numeric("base_wage", { precision: 20, scale: 2 }),
   sequence: integer("sequence").notNull().default(0),
   active: boolean("active").notNull().default(true),
   ...audit,
@@ -241,6 +243,9 @@ export const contracts = pgTable("contracts", {
   dateStart: date("date_start").notNull(),
   dateEnd: date("date_end"),
   wage: numeric("wage", { precision: 20, scale: 2 }).notNull(),
+  /** Golongan upah & gaji pokok standarnya saat kontrak dibuat (mengikuti standar bila wage = gradeBaseWage). */
+  gradeId: uuid("grade_id"),
+  gradeBaseWage: numeric("grade_base_wage", { precision: 20, scale: 2 }),
   /** monthly = gaji bulanan; daily = upah per hari kerja; piece = tarif per satuan hasil kerja (borongan). */
   wageType: text("wage_type", { enum: ["monthly", "daily", "piece"] })
     .notNull()

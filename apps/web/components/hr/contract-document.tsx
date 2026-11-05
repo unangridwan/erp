@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { GradeWageHint, useEffectiveGrade, useGradeAutofill } from "./grade-wage";
 import { download } from "../accounting/download";
 import { api, apiRaw, ApiError } from "../../lib/api";
 import { formatDate } from "../../lib/format";
@@ -917,12 +918,22 @@ export function NewEmployeeContract({
   value,
   onChange,
   errors,
+  gradeId,
+  jobId,
 }: {
   value: NewContractValues;
   onChange: (v: NewContractValues) => void;
   errors: Record<string, string>;
+  /** Golongan & jabatan yang dipilih di tab Kerja: gaji pokok terisi dari standar golongan. */
+  gradeId?: string | null;
+  jobId?: string | null;
 }) {
   const { l } = useI18n();
+  const grade = useEffectiveGrade(gradeId, jobId);
+  // `onChange` memakai nilai terbaru lewat ref agar isi otomatis tidak menimpa perubahan lain.
+  const latest = useRef(value);
+  latest.current = value;
+  useGradeAutofill(grade, value.wage, value.wageType, (wage) => onChange({ ...latest.current, wage }));
   const types = useContractTypes();
   const type = types.find(value.contractType);
   const fixedTerm = types.fixedTerm(value.contractType);
@@ -1040,6 +1051,12 @@ export function NewEmployeeContract({
             inputMode="decimal"
             value={value.wage}
             onChange={(e) => set("wage", e.target.value)}
+          />
+          <GradeWageHint
+            grade={grade}
+            wage={value.wage}
+            wageType={value.wageType}
+            onUseStandard={(wage) => set("wage", wage)}
           />
           {fe("wage")}
         </label>

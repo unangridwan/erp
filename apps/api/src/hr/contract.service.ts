@@ -32,6 +32,48 @@ export function assertDatesUnchanged(
     );
 }
 
+/** Golongan upah karyawan: golongan di data karyawan, atau golongan jabatannya. */
+export async function effectiveGrade(tx: Db, employee: { gradeId: string | null; jobId: string | null }) {
+  let gradeId = employee.gradeId;
+  if (!gradeId && employee.jobId) {
+    const [job] = await tx
+      .select({ gradeId: schema.jobPositions.gradeId })
+      .from(schema.jobPositions)
+      .where(eq(schema.jobPositions.id, employee.jobId));
+    gradeId = job?.gradeId ?? null;
+  }
+  if (!gradeId) return null;
+  const [grade] = await tx.select().from(schema.salaryGrades).where(eq(schema.salaryGrades.id, gradeId));
+  return grade ?? null;
+}
+
+/**
+ * Gaji pokok kontrak: upah bulanan tanpa nilai memakai gaji pokok standar golongan; golongan & standarnya disimpan
+ * di kontrak (penanda "disesuaikan" bila gaji pokok berbeda dari standar).
+ */
+export async function contractGradeWage(
+  tx: Db,
+  employee: { gradeId: string | null; jobId: string | null },
+  input: { wageType: string; wage?: string | null },
+  field = "wage",
+) {
+  if (input.wageType !== "monthly") {
+    if (!input.wage) throw fieldError(field, "Upah wajib diisi");
+    return { wage: input.wage, gradeId: null, gradeBaseWage: null };
+  }
+  const grade = await effectiveGrade(tx, employee);
+  const base = grade?.baseWage ?? null;
+  const wage = input.wage ?? base;
+  if (!wage)
+    throw fieldError(
+      field,
+      grade
+        ? "Gaji pokok wajib diisi: golongan karyawan belum punya gaji pokok standar"
+        : "Gaji pokok wajib diisi",
+    );
+  return { wage, gradeId: grade?.id ?? null, gradeBaseWage: base };
+}
+
 /** Pembuatan & mulai berlaku kontrak (dipakai controller kontrak dan impor data). */
 @Injectable()
 export class ContractService {
@@ -286,8 +328,9 @@ export class ContractService {
   }
 
   /** Kontrak draft baru; mengembalikan id. */
-  async create(tx: Db, input: z.infer<typeof contractSchema>) {
+  async create(tx: Db, input: z.infer<typeof contractSchema>, prefix = "") {
     const employee = await this.employees.find(tx, input.employeeId);
+    const pay = await contractGradeWage(tx, employee, input, `${prefix}wage`);
     this.assertWithinEmployment(employee, input);
     await assertBeforeRetirement(tx, employee, input);
     await assertContractType(tx, input.contractType, input);
@@ -313,7 +356,7 @@ export class ContractService {
         taxMethod: input.taxMethod,
         dateStart: input.dateStart,
         dateEnd: input.dateEnd ?? null,
-        wage: input.wage,
+        ...pay,
         note: input.note ?? null,
       })
       .returning();
@@ -404,6 +447,7 @@ export class ContractService {
     employee: { id: string; companyId: string },
     change: { effectiveDate: string; newWage: string; note?: string | null },
   ) {
+    const owner = await this.employees.find(tx, employee.id);
     const [running] = await tx
       .select()
       .from(C)
@@ -433,7 +477,7 @@ export class ContractService {
         taxMethod: running.taxMethod,
         dateStart: change.effectiveDate,
         dateEnd: running.dateEnd && running.dateEnd > change.effectiveDate ? running.dateEnd : null,
-        wage: change.newWage,
+        ...(await contractGradeWage(tx, owner, { wageType: running.wageType, wage: change.newWage })),
         state: "running",
         note: [change.note, `menggantikan ${running.name}`].filter(Boolean).join(", "),
       })

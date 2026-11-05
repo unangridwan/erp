@@ -780,7 +780,12 @@ class ManpowerPlanController implements OnModuleInit {
       const k = unused.findIndex((o) => o.jobId === l.jobId && o.kind === l.kind);
       const prev = k >= 0 ? unused.splice(k, 1)[0] : undefined;
       const grade = grades.find((g) => g.id === gradeId);
-      const mid = grade ? new Decimal(grade.minWage).plus(grade.maxWage).div(2).toFixed(2) : "0.00";
+      // Estimasi upah posisi baru: gaji pokok standar golongan, atau titik tengah skala upahnya.
+      const mid = grade
+        ? grade.baseWage
+          ? new Decimal(grade.baseWage).toFixed(2)
+          : new Decimal(grade.minWage).plus(grade.maxWage).div(2).toFixed(2)
+        : "0.00";
       return {
         planId,
         sequence: i,
