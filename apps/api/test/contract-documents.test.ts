@@ -93,7 +93,11 @@ describe.skipIf(!hasDb)("Template & tanda tangan kontrak", () => {
 
   it("template bawaan PKWT & PKWTT dibuat otomatis, beserta daftar placeholder", async () => {
     const t = (await a.get("/contract-templates").expect(200)).body.items;
-    expect(t.map((x: { name: string }) => x.name).sort()).toEqual(["PKWT standar", "PKWTT standar"]);
+    expect(t.map((x: { name: string }) => x.name).sort()).toEqual([
+      "PKWT standar",
+      "PKWTT standar",
+      "Perjanjian kerja umum",
+    ]);
     const keys = (await a.get("/contract-templates/placeholders").expect(200)).body.map(
       (p: { key: string }) => p.key,
     );

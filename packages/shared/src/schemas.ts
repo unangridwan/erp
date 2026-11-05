@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { contractTypeCode } from "./contract-types.js";
 import { isValidPlate, normalizePlate } from "./fleet.js";
 import { ALL_PERMISSION_CODES } from "./rbac.js";
 import { CONSOLIDATION_METHODS, ENTITY_TYPES } from "./group.js";
@@ -1001,7 +1002,7 @@ export const salaryComponentSchema = z.object({
 export const contractSchema = z
   .object({
     employeeId: z.string().uuid(),
-    contractType: z.enum(["pkwt", "pkwtt"]).default("pkwtt"),
+    contractType: contractTypeCode.default("pkwtt"),
     /** monthly = gaji bulanan; daily = upah per hari; piece = tarif per satuan (borongan). */
     wageType: z.enum(["monthly", "daily", "piece"]).default("monthly"),
     /** gross = PPh 21 dipotong dari gaji; gross_up = ditanggung perusahaan (tunjangan PPh 21). */
@@ -1011,10 +1012,6 @@ export const contractSchema = z
     wage: nonNegative(2),
     note: z.string().max(2000).nullish(),
     allowances: z.array(z.object({ componentId: z.string().uuid(), amount: nonNegative(2) })).default([]),
-  })
-  .refine((c) => c.contractType !== "pkwt" || c.dateEnd, {
-    message: "PKWT wajib punya tanggal berakhir",
-    path: ["dateEnd"],
   })
   .refine((c) => !c.dateEnd || c.dateEnd >= c.dateStart, {
     message: "Tanggal berakhir sebelum mulai",
@@ -1505,16 +1502,12 @@ export const jobOfferSchema = z
     templateId: optionalUuid,
     wage: nonNegative(2),
     benefits: z.string().trim().max(2000).nullish(),
-    contractType: z.enum(["pkwt", "pkwtt"]).default("pkwtt"),
+    contractType: contractTypeCode.default("pkwtt"),
     contractEnd: z.string().date().nullish(),
     startDate: z.string().date(),
     validUntil: z.string().date(),
     /** Isi surat; kosong = dari template. */
     body: z.string().trim().max(20000).nullish(),
-  })
-  .refine((o) => o.contractType !== "pkwt" || o.contractEnd, {
-    message: "PKWT wajib punya tanggal berakhir",
-    path: ["contractEnd"],
   })
   .refine((o) => !o.contractEnd || o.contractEnd > o.startDate, {
     message: "Tanggal berakhir kontrak sebelum tanggal mulai",
@@ -1581,7 +1574,7 @@ export const interviewSchema = z.object({
 export const hireSchema = z.object({
   joinDate: z.string().date().optional(),
   wage: nonNegative(2).optional(),
-  contractType: z.enum(["pkwt", "pkwtt"]).optional(),
+  contractType: contractTypeCode.optional(),
   dateEnd: z.string().date().nullish(),
   ptkpStatus: z.enum(PTKP_STATUS_VALUES).default("TK/0"),
 });

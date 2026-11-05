@@ -51,6 +51,7 @@ import { openingFromHiring } from "./hiring-request.module.js";
 import { ContractService } from "./contract.service.js";
 import { HrModule } from "./hr.module.js";
 import { renderOfferPdf, renderSettlementPdf } from "./letters-pdf.js";
+import { assertContractType } from "./contract-types.module.js";
 
 const RR = schema.refuseReasons;
 const OT = schema.offerTemplates;
@@ -257,6 +258,11 @@ export class JobOfferService {
       .from(JO)
       .where(and(eq(JO.applicantId, applicantId), inArray(JO.state, ["draft", "sent", "accepted"])));
     if (active) throw new BadRequestException("Pelamar masih punya penawaran aktif; batalkan dulu");
+    const contractType = await assertContractType(tx, input.contractType, {
+      dateStart: input.startDate,
+      dateEnd: input.contractEnd,
+      endField: "contractEnd",
+    });
     let body = input.body ?? null;
     if (!body) {
       if (!input.templateId) throw fieldError("templateId", "Pilih template atau isi surat penawaran");
@@ -279,10 +285,9 @@ export class JobOfferService {
         tunjangan: input.benefits || "—",
         tanggal_mulai: longDate(input.startDate),
         berlaku_sampai: longDate(input.validUntil),
-        jenis_kontrak:
-          input.contractType === "pkwt"
-            ? `PKWT (kontrak) s.d. ${longDate(input.contractEnd!)}`
-            : "PKWTT (karyawan tetap)",
+        jenis_kontrak: input.contractEnd
+          ? `${contractType.name} s.d. ${longDate(input.contractEnd)}`
+          : contractType.name,
         perusahaan: await companyName(tx, a.companyId),
         tanggal: longDate(today()),
       });

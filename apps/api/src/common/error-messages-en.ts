@@ -951,4 +951,21 @@ export const MESSAGES_EN: Record<string, string> = {
     "The first contract's start date (join date) is after the employee's leaving date",
   "Pilih alasan keluar": "Choose a leaving reason",
   "Nilai harus berupa angka": "The value must be a number",
+  "Jenis kontrak bawaan (PKWT/PKWTT) tidak bisa dihapus":
+    "Built-in contract types (PKWT/PKWTT) cannot be deleted",
+  "Jenis kontrak bawaan (PKWT/PKWTT) tidak bisa dinonaktifkan":
+    "Built-in contract types (PKWT/PKWTT) cannot be deactivated",
+  "Jenis kontrak {} sudah dipakai {} dokumen; nonaktifkan saja agar tidak dipilih lagi":
+    "Contract type {0} is used by {1} documents; deactivate it instead so it can no longer be chosen",
+  "Jenis kontrak tidak ditemukan": "Contract type not found",
+  'Jenis kontrak "{}" tidak dikenal': 'Unknown contract type "{0}"',
+  "Jenis kontrak {} sudah nonaktif": "Contract type {0} is inactive",
+  "Kode {} sudah dipakai": "Code {0} is already used",
+  "Kode jenis kontrak tidak bisa diubah": "A contract type's code cannot be changed",
+  "Kode jenis kontrak 2–20 karakter: huruf kecil, angka, - atau _":
+    "Contract type code: 2–20 characters of lowercase letters, digits, - or _",
+  "Isi nama": "Enter a name",
+  "Minimal 1 bulan": "At least 1 month",
+  "{} wajib punya tanggal berakhir": "{0} needs an end date",
+  "Masa {} paling lama {} bulan": "{0} may last at most {1} months",
 };

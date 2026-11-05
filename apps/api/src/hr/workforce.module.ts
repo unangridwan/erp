@@ -43,6 +43,7 @@ import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { HrModule } from "./hr.module.js";
+import { contractTypes } from "./contract-types.module.js";
 
 const MB = schema.manpowerBudgets;
 const E = schema.employees;
@@ -608,6 +609,7 @@ class WorkforceController {
       };
     }
 
+    const typeNames = new Map((await contractTypes(tx)).map((t) => [t.code, t.name]));
     return {
       year,
       asOf,
@@ -626,7 +628,7 @@ class WorkforceController {
         department: countBy(active, (e) => e.department),
         contractType: countBy(active, (e) => {
           const t = contractOf.get(e.id)?.contractType;
-          return t === "pkwt" ? "PKWT (kontrak)" : t === "pkwtt" ? "PKWTT (tetap)" : null;
+          return t ? (typeNames.get(t) ?? t.toUpperCase()) : null;
         }),
         tenure: countBy(active, (e) => tenureBand(e.joinDate, asOf), TENURE_BANDS),
       },

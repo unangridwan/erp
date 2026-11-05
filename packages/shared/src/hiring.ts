@@ -1,5 +1,6 @@
 /** Alur penambahan karyawan: MPP → FPK → persetujuan → lowongan → pelamar → penawaran → kontrak → aktif → onboarding. */
 import { z } from "zod";
+import { contractTypeCode } from "./contract-types.js";
 
 export const HIRING_REQUEST_STATES = ["draft", "in_approval", "approved", "refused", "cancel"] as const;
 export type HiringRequestState = (typeof HIRING_REQUEST_STATES)[number];
@@ -38,7 +39,7 @@ export const hiringRequestSchema = z
     gradeId: z.string().uuid().nullish(),
     kind: z.enum(["new", "replacement"]).default("new"),
     quantity: z.coerce.number().int().min(1, "Minimal 1 orang").max(1000),
-    contractType: z.enum(["pkwt", "pkwtt"]).default("pkwt"),
+    contractType: contractTypeCode.default("pkwt"),
     wageMin: amount.nullish(),
     wageMax: amount.nullish(),
     targetDate: z.string().date().nullish(),
@@ -61,7 +62,7 @@ export const hiringFromLineSchema = z.object({
   quantity: z.coerce.number().int().min(1).max(1000).nullish(),
   targetDate: z.string().date().nullish(),
   reason: z.string().trim().max(1000).nullish(),
-  contractType: z.enum(["pkwt", "pkwtt"]).nullish(),
+  contractType: contractTypeCode.nullish(),
 });
 
 export const HIRING_STEPS = [

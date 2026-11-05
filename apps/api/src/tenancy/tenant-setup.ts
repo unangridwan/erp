@@ -1,5 +1,5 @@
 import { schema, type Db } from "@erp/db";
-import { ALL_PERMISSIONS, PERMISSIONS } from "@erp/shared";
+import { ALL_PERMISSIONS, PERMISSIONS, DEFAULT_CONTRACT_TYPES } from "@erp/shared";
 import { installChart } from "../accounting/chart-template.js";
 import { installInventory } from "../inventory/setup.js";
 import { DEFAULT_LEAVE_TYPES, installPayroll } from "../payroll/setup.js";
@@ -115,6 +115,8 @@ export async function seedTenant(tx: Db, companyName: string): Promise<SeedResul
       ...rules,
     })),
   );
+
+  await tx.insert(schema.contractTypes).values(DEFAULT_CONTRACT_TYPES);
 
   await tx.insert(schema.crmStages).values(
     DEFAULT_STAGES.map(([name, probability, isWon], i) => ({

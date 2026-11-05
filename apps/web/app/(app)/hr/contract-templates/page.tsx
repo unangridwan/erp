@@ -4,15 +4,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { openPdf } from "../../../../components/hr/contract-document";
 import { errorText } from "../../../../components/hr/hr-panels";
 import { useMe } from "../../../../components/me-context";
+import { ContractTypeOptions } from "../../../../components/hr/contract-type-options";
 import { RefSelect } from "../../../../components/ref-select";
 import { api, ApiError } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { useContractTypes } from "../../../../lib/use-contract-types";
 
 interface Template {
   id: string;
   name: string;
-  contractType: "pkwt" | "pkwtt" | null;
+  contractType: string | null;
   title: string;
   body: string;
   signerName: string | null;
@@ -51,11 +53,6 @@ const toDraft = (t: Template): Draft => ({
   signerTitle: t.signerTitle ?? "",
   city: t.city ?? "",
 });
-const TYPE_LABEL: Record<string, [string, string]> = {
-  pkwt: ["PKWT", "Fixed-term (PKWT)"],
-  pkwtt: ["PKWTT", "Permanent (PKWTT)"],
-  "": ["Semua jenis", "All types"],
-};
 
 /**
  * Template kontrak kerja: isi dengan placeholder `{nama}`, `{gaji}`, … yang diisi otomatis dari data karyawan &
@@ -65,6 +62,7 @@ export default function ContractTemplatesPage() {
   const { l, locale } = useI18n();
   const me = useMe();
   const manage = can(me.permissions, "hr.manage");
+  const types = useContractTypes();
   const [items, setItems] = useState<Template[] | null>(null);
   const [placeholders, setPlaceholders] = useState<Placeholder[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -181,7 +179,7 @@ export default function ContractTemplatesPage() {
                 >
                   <strong>{t.name}</strong>
                   <small className="muted">
-                    {l(...TYPE_LABEL[t.contractType ?? ""]!)}
+                    {t.contractType ? types.label(t.contractType) : l("Semua jenis", "All types")}
                     {t.isDefault ? ` · ${l("bawaan", "default")}` : ""}
                     {!t.active ? ` · ${l("nonaktif", "inactive")}` : ""} · {t.contracts}{" "}
                     {l("kontrak", "contracts")}
@@ -202,12 +200,13 @@ export default function ContractTemplatesPage() {
                 <label className="field">
                   <span>{l("Untuk jenis kontrak", "Contract type")}</span>
                   <select value={draft.contractType} onChange={(e) => set("contractType", e.target.value)}>
-                    {Object.entries(TYPE_LABEL).map(([k, v]) => (
-                      <option key={k} value={k}>
-                        {l(...v)}
-                      </option>
-                    ))}
+                    <ContractTypeOptions
+                      types={types}
+                      current={draft.contractType || null}
+                      general={l("Semua jenis (template umum)", "All types (general template)")}
+                    />
                   </select>
+                  {fe("contractType")}
                 </label>
                 <label className="field wide">
                   <span>{l("Judul dokumen *", "Document title *")}</span>

@@ -34,6 +34,7 @@ import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { ApprovalEngineService } from "./approval-engine.service.js";
 import { HrModule } from "./hr.module.js";
+import { assertContractType } from "./contract-types.module.js";
 
 const H = schema.hiringRequests;
 const L = schema.manpowerPlanLines;
@@ -378,6 +379,7 @@ class HiringRequestController implements OnModuleInit {
           `Melebihi sisa kuota MPP (${remaining} orang); ajukan FPK di luar MPP untuk kelebihannya`,
         );
     }
+    await assertContractType(tx, input.contractType);
     return {
       departmentId: input.departmentId,
       jobId: input.jobId,

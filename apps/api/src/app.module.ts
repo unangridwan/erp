@@ -41,6 +41,7 @@ import { ReportsModule } from "./reports/reports.module.js";
 import { WorkforceModule } from "./hr/workforce.module.js";
 import { HiringRequestModule } from "./hr/hiring-request.module.js";
 import { ContractDocumentModule } from "./hr/contract-document.module.js";
+import { ContractTypesModule } from "./hr/contract-types.module.js";
 import { ManpowerPlanModule } from "./hr/manpower-plan.module.js";
 import { TaxModule } from "./tax/tax.module.js";
 import { BillingModule } from "./billing/billing.module.js";
@@ -98,6 +99,7 @@ import { WebhookService } from "./oauth/webhook.service.js";
     ManpowerPlanModule,
     HiringRequestModule,
     ContractDocumentModule,
+    ContractTypesModule,
     TaxModule,
     OnboardingModule,
     ConsolidationModule,

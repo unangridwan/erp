@@ -253,7 +253,7 @@ describe.skipIf(!hasDb)("HR & Payroll: impor & ekspor Excel/CSV", () => {
     expect(bad.errors[0]).toMatchObject({
       row: 3,
       path: "Berakhir",
-      message: "PKWT wajib punya tanggal berakhir",
+      message: "PKWT (kontrak) wajib punya tanggal berakhir",
     });
     const fixed = file.replace("2024-03-15,,", "2024-03-15,2027-03-14,");
     expect((await a.post("/data-transfer/contracts/import", { csv: fixed }).expect(200)).body.created).toBe(

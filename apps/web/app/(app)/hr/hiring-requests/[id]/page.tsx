@@ -9,6 +9,7 @@ import { api } from "../../../../../lib/api";
 import { formatDate, money } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { APPLICANT_STAGE_LABEL } from "../../../../../lib/resources";
+import { useContractTypes } from "../../../../../lib/use-contract-types";
 
 const STEPS = [
   ["plan", "Man Power Planning", "Manpower plan"],
@@ -76,6 +77,7 @@ export default function HiringRequestPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { l, tx, locale } = useI18n();
+  const types = useContractTypes();
   const [d, setD] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -198,7 +200,7 @@ export default function HiringRequestPage() {
           <div>
             <dt>{l("Jumlah", "Headcount")}</dt>
             <dd>
-              {d.quantity} {l("orang", "people")} · {d.contractType.toUpperCase()}
+              {d.quantity} {l("orang", "people")} · {types.label(d.contractType)}
             </dd>
           </div>
           <div>

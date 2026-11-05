@@ -3,6 +3,7 @@ import { and, asc, eq, isNull, or, schema, sql, type Db } from "@erp/db";
 import {
   contractVars,
   DEFAULT_CONTRACT_TEMPLATES,
+  GENERAL_CONTRACT_TEMPLATE,
   renderContractTemplate,
   tanggalPanjang,
   type ContractDocInput,
@@ -14,6 +15,7 @@ import { CONFIG, type AppConfig } from "../config.js";
 import { NotificationService } from "../notifications/notification.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { renderContractPdf, type ContractPdfSignature } from "./letters-pdf.js";
+import { contractTypeOf, contractTypes } from "./contract-types.module.js";
 
 const C = schema.contracts;
 const T = schema.contractTemplates;
@@ -54,16 +56,27 @@ export class ContractDocumentService {
 
   /** Template bawaan PKWT & PKWTT dibuat otomatis untuk perusahaan yang belum punya template. */
   async ensureTemplates(tx: Db, companyId: string) {
-    const [any] = await tx.select({ id: T.id }).from(T).where(eq(T.companyId, companyId)).limit(1);
-    if (any) return;
-    await tx.insert(T).values(
-      DEFAULT_CONTRACT_TEMPLATES.map((t) => ({
-        ...t,
-        companyId,
-        isDefault: true,
-        signerTitle: "Direktur",
-      })),
-    );
+    await contractTypes(tx);
+    const existing = await tx
+      .select({ name: T.name, contractType: T.contractType })
+      .from(T)
+      .where(eq(T.companyId, companyId));
+    if (!existing.length) {
+      await tx.insert(T).values(
+        DEFAULT_CONTRACT_TEMPLATES.map((t) => ({
+          ...t,
+          companyId,
+          isDefault: t.contractType !== null,
+          signerTitle: "Direktur",
+        })),
+      );
+      return;
+    }
+    // Perusahaan lama (sebelum master jenis kontrak): tambahkan template umum untuk harian/magang/mitra/jenis baru.
+    if (!existing.some((t) => t.contractType === null || t.name === GENERAL_CONTRACT_TEMPLATE.name))
+      await tx
+        .insert(T)
+        .values({ ...GENERAL_CONTRACT_TEMPLATE, companyId, isDefault: false, signerTitle: "Direktur" });
   }
 
   async templates(tx: Db) {
@@ -82,12 +95,7 @@ export class ContractDocumentService {
   }
 
   /** Satu template bawaan per jenis kontrak: menandai bawaan mencabut tanda bawaan template lain di jenis yang sama. */
-  async clearOtherDefaults(
-    tx: Db,
-    companyId: string,
-    contractType: "pkwt" | "pkwtt" | null,
-    exceptId: string,
-  ) {
+  async clearOtherDefaults(tx: Db, companyId: string, contractType: string | null, exceptId: string) {
     await tx
       .update(T)
       .set({ isDefault: false })
@@ -117,11 +125,24 @@ export class ContractDocumentService {
           or(eq(T.contractType, contract.contractType), isNull(T.contractType)),
         ),
       );
-    return (
+    const found =
       rows.find((t) => t.isDefault && t.contractType === contract.contractType) ??
       rows.find((t) => t.contractType === contract.contractType) ??
       rows.find((t) => t.isDefault) ??
-      rows[0] ??
+      rows[0];
+    if (found) return found;
+    // Jenis kontrak tanpa template sendiri (mis. harian, magang, jenis baru): pakai template PKWT untuk jenis berjangka
+    // waktu, PKWTT untuk lainnya; judul tetap dari master jenis kontrak.
+    const fixedTerm = (await contractTypeOf(tx, contract.contractType))?.fixedTerm ?? false;
+    const others = await tx
+      .select()
+      .from(T)
+      .where(and(eq(T.companyId, contract.companyId), eq(T.active, true)));
+    const fallback = fixedTerm ? "pkwt" : "pkwtt";
+    return (
+      others.find((t) => t.isDefault && t.contractType === fallback) ??
+      others.find((t) => t.contractType === fallback) ??
+      others[0] ??
       null
     );
   }
@@ -181,6 +202,7 @@ export class ContractDocumentService {
       contract: {
         name: contract.name,
         contractType: contract.contractType,
+        contractTypeName: (await contractTypeOf(tx, contract.contractType))?.name ?? null,
         dateStart: contract.dateStart,
         dateEnd: contract.dateEnd,
         wage: contract.wage,
@@ -262,6 +284,9 @@ export class ContractDocumentService {
     const vars = contractVars(input);
     const title =
       contract.documentTitle ??
+      // Template umum / jenis lain (dipakai sebagai cadangan) tidak menentukan judul; pakai judul master jenis kontrak.
+      (template?.contractType === contract.contractType ? template.title : null) ??
+      (await contractTypeOf(tx, contract.contractType))?.documentTitle ??
       template?.title ??
       (contract.contractType === "pkwt"
         ? "PERJANJIAN KERJA WAKTU TERTENTU"
@@ -477,7 +502,7 @@ export class ContractDocumentService {
     tpl: {
       title: string;
       body: string;
-      contractType?: "pkwt" | "pkwtt" | null;
+      contractType?: string | null;
       signerName?: string | null;
       signerTitle?: string | null;
       city?: string | null;
@@ -523,8 +548,9 @@ export class ContractDocumentService {
         contract: {
           name: number,
           contractType: tpl.contractType ?? "pkwt",
+          contractTypeName: (await contractTypeOf(tx, tpl.contractType ?? "pkwt"))?.name ?? null,
           dateStart: start,
-          dateEnd: tpl.contractType === "pkwtt" ? null : end,
+          dateEnd: (await contractTypeOf(tx, tpl.contractType ?? "pkwt"))?.fixedTerm === false ? null : end,
           wage: "6500000",
           wageType: "monthly",
         },

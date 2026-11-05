@@ -127,7 +127,7 @@ laporan kartu stok.
   opsional: proyek, departemen) agar laporan per segmen tidak perlu jurnal terpisah.
 
 ### 3.6 HR
-Karyawan (data pribadi, NIK, NPWP, PTKP, BPJS), struktur organisasi & jabatan, kontrak (PKWT/PKWTT),
+Karyawan (data pribadi, NIK, NPWP, PTKP, BPJS), struktur organisasi & jabatan, kontrak (jenis kontrak master: PKWT/PKWTT/harian/magang/mitra/…),
 absensi (clock-in web/mobile, geolokasi), shift, cuti & izin (saldo, approval), lembur.
 
 _Cakupan aktual (Okt 2026):_ form karyawan ala Odoo + profil lengkap, dokumen & pengingat kedaluwarsa, mutasi, SP,
@@ -473,6 +473,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   antar tahun (tanggal masuk karyawan, jurnal/kontrak mundur) tidak lagi mendapat nomor ganda; diisi dari nomor yang ada
 - [x] Perbaikan UI menyeluruh — audit otomatis 210 halaman × 4 lebar layar × tema terang/gelap: kontras warna WCAG AA,
   navbar beralih ke ☰ saat menu tidak muat, form tidak terpotong di ponsel, tabel bisa digulir, halaman 404 bertema
+- [x] Jenis kontrak sebagai master data (migrasi 0053) — PKWT, PKWTT, harian lepas, magang, mitra + jenis baru; aturan
+  wajib tanggal berakhir & batas masa kontrak dari master (kontrak, karyawan baru, FPK, penawaran, proses kontrak),
+  judul dokumen per jenis, template kontrak umum, SDM › Konfigurasi › Jenis Kontrak
 
 ## Rekomendasi berikutnya — SDM & Payroll
 
