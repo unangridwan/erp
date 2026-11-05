@@ -1883,6 +1883,7 @@ RESOURCES.push(
       { name: "name", label: L("Nama", "Name") },
       { name: "minWage", label: L("Upah minimum", "Minimum wage") },
       { name: "maxWage", label: L("Upah maksimum", "Maximum wage") },
+      { name: "baseWage", label: L("Gaji pokok", "Base wage") },
     ],
     fields: [
       code,
@@ -1898,6 +1899,15 @@ RESOURCES.push(
         label: L("Upah pokok maksimum", "Maximum base wage"),
         type: "number",
         required: true,
+      },
+      {
+        name: "baseWage",
+        label: L("Gaji pokok", "Base wage"),
+        type: "number",
+        help: L(
+          "Gaji pokok standar golongan (di antara minimum & maksimum): terisi otomatis saat membuat kontrak dan tetap bisa diubah.",
+          "Standard base wage of the grade (between minimum & maximum): filled in automatically when creating a contract and can still be changed.",
+        ),
       },
       { name: "sequence", label: L("Urutan", "Sequence"), type: "number" },
       { name: "active", label: L("Aktif", "Active"), type: "boolean" },

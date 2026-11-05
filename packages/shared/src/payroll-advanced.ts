@@ -125,6 +125,23 @@ export function gradePosition(
   return "within" as const;
 }
 
+/**
+ * Gaji pokok kontrak dibandingkan golongan: standar (= gaji pokok golongan), disesuaikan manual, dan posisinya
+ * terhadap rentang skala upah.
+ */
+export function gradeWageStatus(
+  wage: Decimal.Value,
+  grade: { minWage: Decimal.Value; maxWage: Decimal.Value; baseWage?: Decimal.Value | null },
+) {
+  const base = grade.baseWage === null || grade.baseWage === undefined ? null : d(grade.baseWage);
+  return {
+    standard: base ? base.toFixed(2) : null,
+    adjusted: base ? !d(wage).eq(base) : false,
+    difference: base ? d(wage).minus(base).toFixed(2) : null,
+    position: gradePosition(wage, grade),
+  };
+}
+
 // ---- Transfer gaji massal ----
 
 export const BANK_FORMATS = ["bca", "mandiri", "bri", "bni", "csv"] as const;

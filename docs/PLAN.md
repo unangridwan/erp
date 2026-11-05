@@ -483,6 +483,8 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] UI lebih interaktif — toast & dialog konfirmasi aplikasi, skeleton, palet perintah Ctrl+K (menu, buat baru, cari
   data), form (belum disimpan, Buang, Ctrl+S, penjaga navigasi, validasi & fokus error), daftar (klik baris, aksi massal,
   pilih kolom, empty state), beranda (perlu tindakan, favorit & terakhir dibuka, buat cepat), fokus keyboard
+- [x] Gaji pokok standar per golongan (migrasi 0057) — terisi otomatis di kontrak dari golongan karyawan/jabatan, tetap
+  bisa diubah (penanda "Disesuaikan" + Pakai standar), terapkan gaji pokok baru ke kontrak berjalan
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

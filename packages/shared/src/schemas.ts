@@ -863,8 +863,17 @@ export const salaryGradeSchema = z.object({
   name: z.string().trim().min(1).max(100),
   minWage: nonNegative(2),
   maxWage: nonNegative(2),
+  /** Gaji pokok standar golongan (di antara minimum & maksimum); terisi otomatis di kontrak. */
+  baseWage: nonNegative(2).nullish(),
   sequence: z.coerce.number().int().min(0).max(999).default(0),
   active: z.boolean().default(true),
+});
+
+/** Terapkan gaji pokok golongan yang baru ke kontrak berjalan (kontrak upah baru per tanggal berlaku). */
+export const applyGradeBaseWageSchema = z.object({
+  effectiveDate: z.string().date(),
+  /** Juga kontrak yang gaji pokoknya disesuaikan manual (berbeda dari standar lama). */
+  includeAdjusted: z.boolean().default(false),
 });
 
 export const PTKP_STATUS_VALUES = ["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"] as const;
@@ -1016,7 +1025,8 @@ export const contractSchema = z
     taxMethod: z.enum(["gross", "gross_up"]).default("gross"),
     dateStart: z.string().date(),
     dateEnd: z.string().date().nullish(),
-    wage: nonNegative(2),
+    /** Kosong = gaji pokok standar golongan karyawan (upah bulanan). */
+    wage: nonNegative(2).nullish(),
     note: z.string().max(2000).nullish(),
     allowances: z.array(z.object({ componentId: z.string().uuid(), amount: nonNegative(2) })).default([]),
   })

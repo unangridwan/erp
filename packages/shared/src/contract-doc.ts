@@ -398,10 +398,15 @@ export const newEmployeeContractSchema = z
     wageType: z.enum(["monthly", "daily", "piece"]).default("monthly"),
     taxMethod: z.enum(["gross", "gross_up"]).default("gross"),
     dateEnd: z.string().date().nullish(),
-    wage: z.coerce
-      .number({ invalid_type_error: "Upah harus berupa angka" })
-      .positive("Upah harus lebih dari 0")
-      .transform((v) => v.toFixed(2)),
+    /** Kosong = gaji pokok standar golongan karyawan (upah bulanan). */
+    wage: z.preprocess(
+      (v) => (v === "" ? null : v),
+      z.coerce
+        .number({ invalid_type_error: "Upah harus berupa angka" })
+        .positive("Upah harus lebih dari 0")
+        .transform((v) => v.toFixed(2))
+        .nullish(),
+    ),
     /** Komponen gaji lain (tunjangan tetap/tidak tetap, potongan) — nilai per bulan atau tarif per hari hadir/premi. */
     allowances: z
       .array(

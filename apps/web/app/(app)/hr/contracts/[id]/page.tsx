@@ -10,9 +10,10 @@ import { RESIGN_REASON_LABEL } from "../../../../../components/hr/offboarding-pa
 import { RefSelect } from "../../../../../components/ref-select";
 import { api, ApiError } from "../../../../../lib/api";
 import { addDays } from "@erp/shared";
-import { formatDate, money, today } from "../../../../../lib/format";
+import { formatDate, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { CONTRACT_STATE_LABEL } from "../../../../../lib/resources";
+import { GradeWageHint, useEffectiveGrade, useGradeAutofill } from "../../../../../components/hr/grade-wage";
 import { useContractTypes } from "../../../../../lib/use-contract-types";
 import { ask } from "../../../../../components/feedback";
 
@@ -37,17 +38,22 @@ interface Contract {
   note: string | null;
   allowances: { componentId: string; amount: string; name: string; kind: string; fixed: boolean }[];
   grade: {
+    id: string;
     code: string;
     name: string;
     minWage: string;
     maxWage: string;
+    baseWage: string | null;
     position: "below" | "within" | "above" | null;
+    adjusted: boolean;
   } | null;
 }
 
 interface EmployeeDates {
   joinDate: string;
   resignDate: string | null;
+  gradeId: string | null;
+  jobId: string | null;
 }
 
 /**
@@ -150,6 +156,15 @@ function Contract() {
       })
       .catch((e: Error) => setError(e.message));
   }, [id, isNew, version]);
+
+  // Gaji pokok standar golongan: kontrak baru terisi otomatis, kontrak lama menampilkan penanda & tombol Pakai standar.
+  const grade = useEffectiveGrade(
+    isNew ? employeeDates?.gradeId : contract?.grade?.id,
+    isNew ? employeeDates?.jobId : null,
+  );
+  useGradeAutofill(isNew ? grade : null, form.wage, form.wageType, (wage) =>
+    setForm((f) => ({ ...f, wage })),
+  );
 
   // Kontrak yang sudah ditandatangani terkunci; batalkan tanda tangan di panel dokumen untuk mengubahnya.
   const signed = contract?.signState === "partial" || contract?.signState === "signed";
@@ -456,14 +471,6 @@ function Contract() {
             <Link href="/hr/checklists">{l("Checklist onboarding", "Onboarding checklists")}</Link>
           </p>
         )}
-        {contract?.grade?.position && contract.grade.position !== "within" && (
-          <p className="error">
-            {l(
-              `Gaji pokok ${contract.grade.position === "below" ? "di bawah" : "di atas"} skala upah golongan ${contract.grade.code} (${money(contract.grade.minWage, locale)} – ${money(contract.grade.maxWage, locale)}).`,
-              `Base wage is ${contract.grade.position} the ${contract.grade.code} grade range (${money(contract.grade.minWage, locale)} – ${money(contract.grade.maxWage, locale)}).`,
-            )}
-          </p>
-        )}
         <fieldset className="fields" disabled={!editable}>
           <label className="field">
             <span>{l("Karyawan *", "Employee *")}</span>
@@ -571,6 +578,13 @@ function Contract() {
               required
               value={form.wage}
               onChange={(e) => setForm((f) => ({ ...f, wage: e.target.value }))}
+            />
+            <GradeWageHint
+              grade={grade}
+              wage={form.wage}
+              wageType={form.wageType}
+              editable={editable}
+              onUseStandard={(wage) => setForm((f) => ({ ...f, wage }))}
             />
             {err("wage")}
           </label>
