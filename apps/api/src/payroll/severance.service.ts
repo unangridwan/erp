@@ -9,6 +9,8 @@ import { currentContext } from "../common/request-context.js";
 import { EmployeeService } from "../hr/employee.service.js";
 import { LeaveService } from "../hr/leave.service.js";
 import { WorkCalendarService } from "../hr/work-calendar.service.js";
+import { fieldError } from "../accounting/context.js";
+import { contractTypeOnDate } from "../hr/contract-types.module.js";
 
 type Input = z.infer<typeof severanceInputSchema>;
 const d = (v: Decimal.Value | null | undefined) => new Decimal(v ?? 0);
@@ -31,6 +33,7 @@ export class SeveranceService {
     const employee = await this.employees.find(tx, employeeId);
     if (input.endDate < employee.joinDate)
       throw new BadRequestException("Tanggal berakhir sebelum tanggal masuk");
+    await this.assertSeveranceRule(tx, employee, input);
     const monthlyWage = await this.monthlyWage(tx, employee);
     const unusedLeaveDays =
       input.unusedLeaveDays ??
@@ -135,6 +138,21 @@ export class SeveranceService {
       .where(eq(schema.severances.employeeId, employeeId))
       .orderBy(desc(schema.severances.createdAt))
       .then((rows) => rows.map((r) => ({ ...r.severance, moveName: r.moveName })));
+  }
+
+  /**
+   * Hak akhir mengikuti jenis kontrak terakhir: "pesangon" (UP/UPMK/UPH; bukan uang kompensasi PKWT),
+   * "compensation" (hanya uang kompensasi PKWT), "none" (tidak ada pesangon/kompensasi).
+   */
+  private async assertSeveranceRule(tx: Db, employee: typeof schema.employees.$inferSelect, input: Input) {
+    const type = await contractTypeOnDate(tx, employee.id, input.endDate);
+    if (!type) return;
+    if (type.severance === "none")
+      throw fieldError("reason", `Jenis kontrak ${type.name} tidak mendapat pesangon atau uang kompensasi`);
+    if (type.severance === "compensation" && input.reason !== "pkwt_end")
+      throw fieldError("reason", `Jenis kontrak ${type.name} mendapat uang kompensasi PKWT, bukan pesangon`);
+    if (type.severance === "pesangon" && input.reason === "pkwt_end")
+      throw fieldError("reason", `Jenis kontrak ${type.name} mendapat pesangon, bukan uang kompensasi PKWT`);
   }
 
   /** Upah sebulan = gaji pokok + tunjangan tetap (harian: × 21 hari; borongan: rata-rata 3 slip terakhir). */

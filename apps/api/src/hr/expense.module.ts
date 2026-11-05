@@ -41,6 +41,7 @@ import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { ApprovalService } from "./approval.service.js";
+import { assertOvertimeAllowed } from "./contract-types.module.js";
 import { EmployeeService } from "./employee.service.js";
 import { ExpenseService } from "./expense.service.js";
 import { HrModule } from "./hr.module.js";
@@ -367,6 +368,7 @@ class PortalExtrasController {
     return this.tenantDb.run(async (tx) => {
       const employee = await this.employees.mine(tx);
       const input = parse(overtimeSchema, { ...(body as object), employeeId: employee.id });
+      await assertOvertimeAllowed(tx, employee.id, input.date);
       const [s] = await tx
         .select({ levels: schema.payrollSettings.overtimeApprovalLevels })
         .from(schema.payrollSettings)

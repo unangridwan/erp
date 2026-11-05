@@ -27,7 +27,7 @@ import {
   resizePhoto,
   WarningsPanel,
 } from "./profile-panels";
-import { useContractTypes } from "../../lib/use-contract-types";
+import { contractRuleText, useContractTypes } from "../../lib/use-contract-types";
 
 type Values = Record<string, unknown>;
 
@@ -652,6 +652,11 @@ export function EmployeeForm({ id }: { id: string }) {
                         <ReadRow label={l("Kontrak", "Contract")}>
                           {overview.contract.name} · {types.label(overview.contract.contractType)}
                         </ReadRow>
+                        {types.find(overview.contract.contractType) && (
+                          <ReadRow label={l("Aturan jenis kontrak", "Contract type rules")}>
+                            {contractRuleText(types.find(overview.contract.contractType)!, l)}
+                          </ReadRow>
+                        )}
                         <ReadRow label={l("Periode", "Period")}>
                           {formatDate(overview.contract.dateStart, locale)} –{" "}
                           {overview.contract.dateEnd

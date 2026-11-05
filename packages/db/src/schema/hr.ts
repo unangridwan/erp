@@ -181,6 +181,23 @@ export const contractTypes = pgTable("contract_types", {
   sequence: integer("sequence").notNull().default(10),
   isSystem: boolean("is_system").notNull().default(false),
   active: boolean("active").notNull().default(true),
+  /** Penggajian (0054): ikut payroll, BPJS per program, kategori PPh 21, THR, lembur, pesangon. */
+  inPayroll: boolean("in_payroll").notNull().default(true),
+  bpjsKes: boolean("bpjs_kes").notNull().default(true),
+  bpjsJkk: boolean("bpjs_jkk").notNull().default(true),
+  bpjsJkm: boolean("bpjs_jkm").notNull().default(true),
+  bpjsJht: boolean("bpjs_jht").notNull().default(true),
+  bpjsJp: boolean("bpjs_jp").notNull().default(true),
+  pph21Category: text("pph21_category", {
+    enum: ["auto", "permanent", "non_permanent", "non_employee", "none"],
+  })
+    .notNull()
+    .default("auto"),
+  thr: boolean("thr").notNull().default(true),
+  overtime: boolean("overtime").notNull().default(true),
+  severance: text("severance", { enum: ["pesangon", "compensation", "none"] })
+    .notNull()
+    .default("pesangon"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -611,6 +628,10 @@ export const payslips = pgTable("payslips", {
   terCategory: text("ter_category").notNull(),
   terRate: numeric("ter_rate", { precision: 5, scale: 2 }),
   isFinal: boolean("is_final").notNull().default(false),
+  /** Kategori PPh 21 (0054): bukti potong A1/BPMP hanya untuk pegawai tetap. */
+  taxCategory: text("tax_category", { enum: ["permanent", "non_permanent", "non_employee", "none"] })
+    .notNull()
+    .default("permanent"),
   workingDays: integer("working_days").notNull().default(0),
   unpaidDays: numeric("unpaid_days", { precision: 6, scale: 2 }).notNull().default("0"),
   earnings: numeric("earnings", { precision: 20, scale: 2 }).notNull().default("0"),

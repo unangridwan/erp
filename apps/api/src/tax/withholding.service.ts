@@ -78,6 +78,8 @@ export class WithholdingService {
         and(
           eq(schema.payslips.companyId, companyId),
           eq(schema.payslips.isFinal, true),
+          // Bukti potong A1 hanya untuk pegawai tetap (kategori PPh 21 dari jenis kontrak).
+          eq(schema.payslips.taxCategory, "permanent"),
           eq(schema.payrollRuns.kind, "regular"),
           eq(schema.payrollRuns.periodStart, from),
           inArray(schema.payrollRuns.state, ["done", "paid"]),
@@ -283,6 +285,17 @@ export class WithholdingService {
     const created: string[] = [];
     const skipped: { name: string; reason: string }[] = [];
     for (const { slip, run, employee, position } of slips) {
+      if (slip.taxCategory !== "permanent") {
+        // BPMP hanya untuk pegawai tetap; pegawai tidak tetap & bukan pegawai memakai bukti potong PPh 21 (BP21).
+        skipped.push({
+          name: employee.name,
+          reason:
+            slip.taxCategory === "none"
+              ? "Tidak dipotong PPh 21 (jenis kontrak)"
+              : "Bukan pegawai tetap — laporkan lewat bukti potong PPh 21 (BP21)",
+        });
+        continue;
+      }
       if (slip.isFinal) {
         // Masa pajak terakhir (Desember / bulan keluar) dilaporkan dengan bukti potong A1, bukan BPMP.
         skipped.push({ name: employee.name, reason: "Masa pajak terakhir — laporkan lewat bukti potong A1" });

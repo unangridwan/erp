@@ -7,7 +7,12 @@ import { useMe } from "../../../../components/me-context";
 import { api, ApiError } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
-import { invalidateContractTypes, type ContractType } from "../../../../lib/use-contract-types";
+import { PPH21_CATEGORY_LABEL, SEVERANCE_RULE_LABEL } from "@erp/shared";
+import {
+  invalidateContractTypes,
+  type ContractPayroll,
+  type ContractType,
+} from "../../../../lib/use-contract-types";
 
 type Row = ContractType & { usage: number };
 interface Draft {
@@ -22,7 +27,28 @@ interface Draft {
   documentTitle: string;
   sequence: string;
   active: boolean;
+  payroll: ContractPayroll;
 }
+
+const DEFAULT_PAYROLL: ContractPayroll = {
+  inPayroll: true,
+  bpjsKes: true,
+  bpjsJkk: true,
+  bpjsJkm: true,
+  bpjsJht: true,
+  bpjsJp: true,
+  pph21Category: "auto",
+  thr: true,
+  overtime: true,
+  severance: "pesangon",
+};
+const BPJS_PROGRAMS: [keyof ContractPayroll, string, string][] = [
+  ["bpjsKes", "BPJS Kesehatan", "BPJS Health"],
+  ["bpjsJkk", "JKK (kecelakaan kerja)", "JKK (work accident)"],
+  ["bpjsJkm", "JKM (kematian)", "JKM (death)"],
+  ["bpjsJht", "JHT (hari tua)", "JHT (old age)"],
+  ["bpjsJp", "JP (pensiun)", "JP (pension)"],
+];
 
 const blank: Draft = {
   id: null,
@@ -36,6 +62,7 @@ const blank: Draft = {
   documentTitle: "",
   sequence: "60",
   active: true,
+  payroll: DEFAULT_PAYROLL,
 };
 const toDraft = (t: Row): Draft => ({
   id: t.id,
@@ -49,6 +76,18 @@ const toDraft = (t: Row): Draft => ({
   documentTitle: t.documentTitle ?? "",
   sequence: String(t.sequence),
   active: t.active,
+  payroll: {
+    inPayroll: t.inPayroll,
+    bpjsKes: t.bpjsKes,
+    bpjsJkk: t.bpjsJkk,
+    bpjsJkm: t.bpjsJkm,
+    bpjsJht: t.bpjsJht,
+    bpjsJp: t.bpjsJp,
+    pph21Category: t.pph21Category,
+    thr: t.thr,
+    overtime: t.overtime,
+    severance: t.severance,
+  },
 });
 
 /**
@@ -97,6 +136,14 @@ export default function ContractTypesPage() {
     }
   };
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((d) => (d ? { ...d, [k]: v } : d));
+  const setPayroll = <K extends keyof ContractPayroll>(k: K, v: ContractPayroll[K]) =>
+    setDraft((d) => (d ? { ...d, payroll: { ...d.payroll, [k]: v } } : d));
+  const bpjsText = (t: ContractPayroll) => {
+    const on = BPJS_PROGRAMS.filter(([k]) => t[k]).map(([k, id]) =>
+      k === "bpjsKes" ? "Kes" : id.split(" ")[0],
+    );
+    return on.length ? `BPJS: ${on.join(", ")}` : l("Tanpa BPJS", "No BPJS");
+  };
   const save = () =>
     run(
       async () => {
@@ -113,6 +160,7 @@ export default function ContractTypesPage() {
             documentTitle: d.documentTitle || null,
             sequence: d.sequence ? Number(d.sequence) : 10,
             active: d.active,
+            ...d.payroll,
           },
         });
         setDraft(null);
@@ -183,6 +231,28 @@ export default function ContractTypesPage() {
         text: (t) => (t.maxMonths ? l(`${t.maxMonths} bulan`, `${t.maxMonths} months`) : "—"),
       },
       { key: "legalBasis", label: l("Dasar hukum", "Legal basis"), value: (t) => t.legalBasis },
+      {
+        key: "payroll",
+        label: l("Penggajian", "Payroll"),
+        type: "enum",
+        value: (t) => (t.inPayroll ? "in" : "out"),
+        optionLabel: (v) =>
+          v === "in" ? l("Ikut payroll", "In payroll") : l("Tidak ikut payroll", "Not in payroll"),
+        render: (t) =>
+          t.inPayroll ? (
+            <small>
+              {bpjsText(t)}
+              <br />
+              <span className="muted">
+                PPh 21: {l(...PPH21_CATEGORY_LABEL[t.pph21Category]).split(" (")[0]}
+                {t.thr ? "" : ` · ${l("tanpa THR", "no THR")}`}
+                {t.overtime ? "" : ` · ${l("tanpa lembur", "no overtime")}`}
+              </span>
+            </small>
+          ) : (
+            <span className="pill">{l("Tidak ikut payroll", "Not in payroll")}</span>
+          ),
+      },
       {
         key: "usage",
         label: l("Dipakai", "Used by"),
@@ -331,6 +401,92 @@ export default function ContractTypesPage() {
                 {draft.isSystem && ` — ${l("jenis bawaan selalu aktif", "built-in types are always active")}`}
               </span>
               {fe("active")}
+            </label>
+          </fieldset>
+          <h3>{l("Penggajian & BPJS", "Payroll & BPJS")}</h3>
+          <p className="muted small">
+            {l(
+              "Berlaku untuk semua karyawan dengan jenis kontrak ini. BPJS menjadi batas: iuran dipotong hanya bila program dicentang di sini DAN karyawan terdaftar di data karyawan.",
+              "Applies to every employee on this contract type. BPJS acts as a limit: contributions are deducted only when the programme is ticked here AND the employee is enrolled in their record.",
+            )}
+          </p>
+          <fieldset className="fields" disabled={busy}>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={draft.payroll.inPayroll}
+                onChange={(e) => setPayroll("inPayroll", e.target.checked)}
+              />
+              <span>{l("Ikut payroll (dibuatkan slip gaji)", "Included in payroll (gets a payslip)")}</span>
+            </label>
+            {draft.payroll.inPayroll && (
+              <>
+                <div className="field wide">
+                  <span>{l("Program BPJS yang diikutkan", "BPJS programmes")}</span>
+                  <span className="row-actions">
+                    {BPJS_PROGRAMS.map(([key, id, en]) => (
+                      <label key={key} className="check">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(draft.payroll[key])}
+                          onChange={(e) => setPayroll(key, e.target.checked)}
+                        />
+                        <span>{l(id, en)}</span>
+                      </label>
+                    ))}
+                  </span>
+                </div>
+                <label className="field">
+                  <span>{l("Kategori PPh 21", "PPh 21 category")}</span>
+                  <select
+                    value={draft.payroll.pph21Category}
+                    onChange={(e) =>
+                      setPayroll("pph21Category", e.target.value as ContractPayroll["pph21Category"])
+                    }
+                  >
+                    {Object.entries(PPH21_CATEGORY_LABEL).map(([k, v]) => (
+                      <option key={k} value={k}>
+                        {l(...v)}
+                      </option>
+                    ))}
+                  </select>
+                  <small className="muted">
+                    {l(
+                      "Bukti potong A1/BPMP hanya untuk pegawai tetap.",
+                      "A1/BPMP withholding slips are only for permanent employees.",
+                    )}
+                  </small>
+                </label>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={draft.payroll.thr}
+                    onChange={(e) => setPayroll("thr", e.target.checked)}
+                  />
+                  <span>{l("Berhak THR", "Entitled to THR")}</span>
+                </label>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={draft.payroll.overtime}
+                    onChange={(e) => setPayroll("overtime", e.target.checked)}
+                  />
+                  <span>{l("Berhak upah lembur", "Entitled to overtime pay")}</span>
+                </label>
+              </>
+            )}
+            <label className="field">
+              <span>{l("Hak saat berakhir", "Entitlement at end")}</span>
+              <select
+                value={draft.payroll.severance}
+                onChange={(e) => setPayroll("severance", e.target.value as ContractPayroll["severance"])}
+              >
+                {Object.entries(SEVERANCE_RULE_LABEL).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {l(...v)}
+                  </option>
+                ))}
+              </select>
             </label>
           </fieldset>
           <div className="row-actions">

@@ -69,7 +69,7 @@ import { OvertimeService } from "./overtime.service.js";
 import { WorkCalendarController } from "./work-calendar.controller.js";
 import { WorkCalendarService } from "./work-calendar.service.js";
 import { localDate, ScheduleService } from "./schedule.service.js";
-import { assertContractType } from "./contract-types.module.js";
+import { assertContractType, assertOvertimeAllowed } from "./contract-types.module.js";
 
 /** Karyawan yang dirujuk harus milik perusahaan yang sama. */
 const sameCompanyEmployee = async (tx: Db, values: Record<string, unknown>) => {
@@ -294,6 +294,8 @@ const OvertimesController = createCrudController({
       const [row] = await tx.select().from(schema.overtimes).where(eq(schema.overtimes.id, id));
       if (row?.payslipId) throw new BadRequestException("Lembur sudah dibayar lewat slip gaji");
     }
+    if (values.employeeId && values.date)
+      await assertOvertimeAllowed(tx, String(values.employeeId), String(values.date));
   },
   beforeDelete: async (_tx, row) => {
     if (row.payslipId) throw new BadRequestException("Lembur sudah dibayar lewat slip gaji");

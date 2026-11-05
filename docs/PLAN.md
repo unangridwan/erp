@@ -476,6 +476,8 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] Jenis kontrak sebagai master data (migrasi 0053) — PKWT, PKWTT, harian lepas, magang, mitra + jenis baru; aturan
   wajib tanggal berakhir & batas masa kontrak dari master (kontrak, karyawan baru, FPK, penawaran, proses kontrak),
   judul dokumen per jenis, template kontrak umum, SDM › Konfigurasi › Jenis Kontrak
+- [x] Aturan penggajian per jenis kontrak (migrasi 0054) — ikut payroll, BPJS per program (Kes/JKK/JKM/JHT/JP) sebagai
+  batas kepesertaan, kategori PPh 21 (tetap/tidak tetap/bukan pegawai/tidak dipotong), THR, lembur, pesangon/kompensasi
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

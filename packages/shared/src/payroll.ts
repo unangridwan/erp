@@ -266,25 +266,31 @@ export function bpjsContributions(
   const pct = (base: Decimal, rate: Decimal.Value) => rupiah(base.times(rate).div(100)).toFixed(0);
   const full = (v: string) => (onlyJkkJkm ? "0" : v);
   // Tidak terdaftar pada program → iuran program itu nol.
+  const on = {
+    jkk: enrollment.tk && (enrollment.jkk ?? true),
+    jkm: enrollment.tk && (enrollment.jkm ?? true),
+    jht: enrollment.tk && (enrollment.jht ?? true),
+  };
   const kes = (v: string) => (enrollment.kes ? full(v) : "0");
-  const tk = (v: string) => (enrollment.tk ? v : "0");
+  const prog = (flag: boolean, v: string) => (flag ? v : "0");
   const jp = (v: string) => (enrollment.tk && enrollment.jp ? full(v) : "0");
+  const anyTk = on.jkk || on.jkm || on.jht || (enrollment.tk && enrollment.jp);
   return {
     employer: {
       kes: kes(pct(kesBase, 4)),
-      jht: tk(full(pct(w, 3.7))),
-      jkk: tk(pct(w, s.jkkRate)),
-      jkm: tk(pct(w, 0.3)),
+      jht: prog(on.jht, full(pct(w, 3.7))),
+      jkk: prog(on.jkk, pct(w, s.jkkRate)),
+      jkm: prog(on.jkm, pct(w, 0.3)),
       jp: jp(pct(jpBase, 2)),
     },
     employee: {
       kes: kes(pct(kesBase, 1)),
-      jht: tk(full(pct(w, 2))),
+      jht: prog(on.jht, full(pct(w, 2))),
       jp: jp(pct(jpBase, 1)),
     },
     /** Dasar upah iuran: Kesehatan dibatasi batas upah Kes; Ketenagakerjaan = upah (JP dibatasi tersendiri). */
     kesWage: enrollment.kes && !onlyJkkJkm ? kesBase.toFixed(0) : "0",
-    tkWage: enrollment.tk ? w.toFixed(0) : "0",
+    tkWage: anyTk ? w.toFixed(0) : "0",
   };
 }
 
@@ -294,6 +300,10 @@ export interface BpjsEnrollment {
   tk: boolean;
   /** Jaminan Pensiun (bagian BPJS Ketenagakerjaan). */
   jp: boolean;
+  /** Program BPJS Ketenagakerjaan satu per satu (bawaan: ikut `tk`). */
+  jkk?: boolean;
+  jkm?: boolean;
+  jht?: boolean;
 }
 
 export const FULL_ENROLLMENT: BpjsEnrollment = { kes: true, tk: true, jp: true };
@@ -382,6 +392,11 @@ export interface PayslipInput {
   enrollment?: BpjsEnrollment;
   /** Gross-up: perusahaan menanggung PPh 21 lewat tunjangan PPh 21 yang besarnya sama dengan pajaknya. */
   grossUp?: boolean;
+  /**
+   * Kategori PPh 21 dari jenis kontrak: pegawai tetap (TER/tahunan), tidak tetap (tarif harian), bukan pegawai
+   * (Pasal 17 atas 50% bruto), atau tidak dipotong. Bawaan: tidak tetap bila `casual`, selain itu pegawai tetap.
+   */
+  taxCategory?: "permanent" | "non_permanent" | "non_employee" | "none";
   /**
    * Slip koreksi: hanya selisih (tanpa gaji pokok & BPJS); PPh 21 dihitung atas bruto gabungan masa yang sama
    * dikurangi PPh 21 yang sudah dipotong di slip sebelumnya (`sameMonth`).
@@ -510,9 +525,16 @@ export function computePayslip(input: PayslipInput) {
     const monthly = pph21Monthly(masaGross, input.status, input.hasNpwp);
     let pph21 = d(monthly.tax);
     let annual: ReturnType<typeof pph21Annual> | null = null;
-    if (input.casual) {
+    const category = input.taxCategory ?? (input.casual ? "non_permanent" : "permanent");
+    if (category === "none") {
+      pph21 = d(0);
+    } else if (category === "non_employee") {
+      // Bukan pegawai (PMK 168/2023): tarif Pasal 17 atas 50% penghasilan bruto, tanpa PTKP; tanpa NPWP +20%.
+      const tax = d(progressiveTax(masaGross.times(0.5)));
+      pph21 = taxFloor(input.hasNpwp ? tax : tax.times(1.2));
+    } else if (category === "non_permanent") {
       // Pegawai tidak tetap: tarif harian atas rata-rata bruto per hari kerja.
-      const days = Math.max(input.casual.days, 1);
+      const days = Math.max(input.casual?.days ?? input.workingDays, 1);
       pph21 = d(pph21Daily(masaGross.div(days), input.hasNpwp)).times(days);
     } else if (input.isFinal) {
       annual = pph21Annual({

@@ -12,6 +12,8 @@ import {
   bankTransferFile,
   bpjsProgram,
   computePayslip,
+  effectiveEnrollment,
+  resolveTaxCategory,
   retroPay,
   thrAmount,
   type BankFormat,
@@ -28,6 +30,7 @@ import { ActivityService } from "../activity/activity.service.js";
 import { assertCompanyAccounts, assertCompanyJournal, fieldError } from "../accounting/context.js";
 import { MoveService } from "../accounting/move.service.js";
 import { currentContext } from "../common/request-context.js";
+import { contractTypes } from "../hr/contract-types.module.js";
 import { EmployeeService } from "../hr/employee.service.js";
 import { ExpenseService } from "../hr/expense.service.js";
 import { LeaveService } from "../hr/leave.service.js";
@@ -299,9 +302,13 @@ export class PayrollService {
         ),
       )
       .orderBy(desc(schema.contracts.dateStart));
+    // Jenis kontrak yang tidak ikut payroll (mis. kemitraan dibayar lewat tagihan) tidak mendapat slip.
+    const types = new Map((await contractTypes(tx)).map((t) => [t.code, t]));
     // Satu kontrak per karyawan: yang terbaru dalam periode.
     const byEmployee = new Map<string, (typeof eligible)[number]>();
-    for (const row of eligible) if (!byEmployee.has(row.employee.id)) byEmployee.set(row.employee.id, row);
+    for (const row of eligible)
+      if (types.get(row.contract.contractType)?.inPayroll !== false && !byEmployee.has(row.employee.id))
+        byEmployee.set(row.employee.id, row);
 
     const existing = await tx.select().from(SLIP).where(eq(SLIP.runId, id));
     for (const slip of existing.filter((s) => !byEmployee.has(s.employeeId))) {
@@ -346,6 +353,11 @@ export class PayrollService {
     calendar: WorkCalendar,
   ) {
     const monthDays = calendar.workingDays(employee, run.periodStart, run.periodEnd);
+    const [type] = await tx
+      .select()
+      .from(schema.contractTypes)
+      .where(eq(schema.contractTypes.code, contract.contractType));
+    const taxCategory = resolveTaxCategory(type, contract.wageType);
     const components = await tx
       .select()
       .from(schema.salaryComponents)
@@ -467,22 +479,24 @@ export class PayrollService {
     const unpaidLeave = correction ? 0 : await this.leaves.unpaidDays(tx, employee, from, to, calendar);
     const unpaidDays = correction ? 0 : monthDays - employedDays + unpaidLeave;
 
-    const overtime = correction
-      ? []
-      : await tx
-          .select()
-          .from(schema.overtimes)
-          .where(
-            and(
-              eq(schema.overtimes.employeeId, employee.id),
-              gte(schema.overtimes.date, run.periodStart),
-              lte(schema.overtimes.date, run.periodEnd),
-              eq(schema.overtimes.state, "approved"),
-              // Lembur yang dijadikan cuti pengganti tidak dibayar.
-              eq(schema.overtimes.compensated, false),
-              or(isNull(schema.overtimes.payslipId), eq(schema.overtimes.payslipId, slipId)),
-            ),
-          );
+    // Jenis kontrak tanpa hak lembur: lembur tetap tercatat tetapi tidak dibayar lewat slip.
+    const overtime =
+      correction || type?.overtime === false
+        ? []
+        : await tx
+            .select()
+            .from(schema.overtimes)
+            .where(
+              and(
+                eq(schema.overtimes.employeeId, employee.id),
+                gte(schema.overtimes.date, run.periodStart),
+                lte(schema.overtimes.date, run.periodEnd),
+                eq(schema.overtimes.state, "approved"),
+                // Lembur yang dijadikan cuti pengganti tidak dibayar.
+                eq(schema.overtimes.compensated, false),
+                or(isNull(schema.overtimes.payslipId), eq(schema.overtimes.payslipId, slipId)),
+              ),
+            );
     const late =
       !correction && from <= to
         ? await this.schedules.lateness(tx, {
@@ -716,9 +730,14 @@ export class PayrollService {
       },
       latePenalty: late[0]?.penalty ?? 0,
       casual,
+      // Jenis kontrak = batas kepesertaan per program; centang di data karyawan dapat mengecualikan.
       enrollment: correction
         ? { kes: false, tk: false, jp: false }
-        : { kes: employee.bpjsKesEnrolled, tk: employee.bpjsTkEnrolled, jp: employee.bpjsJpEnrolled },
+        : effectiveEnrollment(
+            { kes: employee.bpjsKesEnrolled, tk: employee.bpjsTkEnrolled, jp: employee.bpjsJpEnrolled },
+            type,
+          ),
+      taxCategory,
       grossUp: contract.taxMethod === "gross_up",
       correction,
       sameMonth: sameMonth && {
@@ -767,6 +786,7 @@ export class PayrollService {
         terCategory: result.terCategory,
         terRate: result.terRate,
         isFinal,
+        taxCategory,
         workingDays: monthDays,
         unpaidDays: String(unpaidDays),
         earnings: result.earnings,
@@ -1066,6 +1086,10 @@ export class PayrollService {
             schema.overtimes.employeeId,
             slips.map((x) => x.employeeId),
           ),
+          // Lembur jenis kontrak tanpa hak lembur tidak dibayar, jadi tidak ditandai.
+          sql`not exists (select 1 from ${SLIP} s join contracts c on c.id = s.contract_id
+            join contract_types t on t.tenant_id = c.tenant_id and t.code = c.contract_type
+            where s.run_id = ${id} and s.employee_id = overtimes.employee_id and t.overtime = false)`,
         ),
       );
     // Hasil kerja borongan yang dibayar ditandai dengan slipnya.
@@ -1198,8 +1222,10 @@ export class PayrollService {
         bpjsWage: d(r.slip.bpjsWage).toFixed(0),
         bpjsKesWage: d(r.slip.bpjsKesWage).toFixed(0),
         bpjsTkWage: d(r.slip.bpjsTkWage).toFixed(0),
-        bpjsKesEnrolled: r.employee.bpjsKesEnrolled,
-        bpjsTkEnrolled: r.employee.bpjsTkEnrolled,
+        // Peserta = yang benar-benar dipotong iuran (jenis kontrak ∧ data karyawan).
+        bpjsKesEnrolled: d(r.slip.bpjsKesWage).gt(0),
+        bpjsTkEnrolled: d(r.slip.bpjsTkWage).gt(0),
+        taxCategory: r.slip.taxCategory,
         birthDate: r.employee.birthDate,
         joinDate: r.employee.joinDate,
         bpjsKesNo: r.employee.bpjsKesNo,
@@ -1237,8 +1263,25 @@ export class PayrollService {
       .innerJoin(schema.employees, eq(schema.employees.id, SLIP.employeeId))
       .innerJoin(schema.contracts, eq(schema.contracts.id, SLIP.contractId))
       .where(eq(SLIP.runId, id));
+    const types = new Map((await contractTypes(tx)).map((t) => [t.code, t]));
     const results = [];
     for (const { slip, employee, contract } of slips) {
+      // Jenis kontrak tanpa hak THR (mis. magang, kemitraan): THR otomatis dihapus dari slip.
+      const type = types.get(contract.contractType);
+      if (type?.thr === false) {
+        await this.replaceAutoInput(tx, run, slip, "thr", s.thrComponentId, "0", {
+          description: null,
+          detail: null,
+        });
+        results.push({
+          employeeId: employee.id,
+          name: employee.name,
+          eligible: false,
+          amount: "0",
+          note: `Jenis kontrak ${type.name} tidak mendapat THR`,
+        });
+        continue;
+      }
       const fixed = await this.fixedAllowances(tx, contract.id);
       let history: string[] = [];
       if (contract.wageType !== "monthly")
@@ -1777,7 +1820,12 @@ export class PayrollService {
         )
         .orderBy(SLIP.employeeId, desc(RUN.periodStart)))
         previous.set(r.employeeId, d(r.net));
+    const types = new Map((await contractTypes(tx)).map((t) => [t.code, t]));
     for (const { slip, employee, contract } of rows) {
+      const enrolled = effectiveEnrollment(
+        { kes: employee.bpjsKesEnrolled, tk: employee.bpjsTkEnrolled, jp: employee.bpjsJpEnrolled },
+        types.get(contract.contractType),
+      );
       const add = (
         code: PayrollWarning["code"],
         severity: PayrollWarning["severity"],
@@ -1796,8 +1844,8 @@ export class PayrollService {
       else if (net.isZero() && run.kind === "regular") add("net_zero", "warning");
       if (net.gt(0) && !slip.holdReason && !employee.bankAccountEnc) add("no_bank_account", "error");
       if (!this.employees.hasTaxId(employee)) add("no_tax_id", "warning");
-      if (employee.bpjsKesEnrolled && !employee.bpjsKesNo) add("no_bpjs_kes_no", "warning");
-      if (employee.bpjsTkEnrolled && !employee.bpjsTkNo) add("no_bpjs_tk_no", "warning");
+      if (enrolled.kes && !employee.bpjsKesNo) add("no_bpjs_kes_no", "warning");
+      if (enrolled.tk && !employee.bpjsTkNo) add("no_bpjs_tk_no", "warning");
       const prev = previous.get(employee.id);
       if (prev?.gt(0) && net.minus(prev).abs().div(prev).gt(0.3))
         add("net_change", "warning", net.minus(prev).div(prev).times(100).toFixed(0));
