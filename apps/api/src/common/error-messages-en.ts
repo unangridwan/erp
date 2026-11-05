@@ -968,7 +968,7 @@ export const MESSAGES_EN: Record<string, string> = {
   "Minimal 1 bulan": "At least 1 month",
   "{} wajib punya tanggal berakhir": "{0} needs an end date",
   "Masa {} paling lama {} bulan": "{0} may last at most {1} months",
-  "Jenis kontrak {} tidak mendapat upah lembur": "Contract type {0} is not entitled to overtime pay",
+  "{} tidak berhak upah lembur": "{0} is not entitled to overtime pay",
   "Jenis kontrak {} tidak mendapat pesangon atau uang kompensasi":
     "Contract type {0} is not entitled to severance or compensation",
   "Jenis kontrak {} mendapat uang kompensasi PKWT, bukan pesangon":

@@ -3,7 +3,6 @@ import { and, eq, gte, inArray, isNotNull, isNull, lte, ne, schema, sql, type Db
 import { addDays, localTime, overtimeFromAttendance, type OvertimeRules } from "@erp/shared";
 import { ActivityService } from "../activity/activity.service.js";
 import { beginApproval } from "./approval.service.js";
-import { contractTypeOnDate } from "./contract-types.module.js";
 import { localDate } from "./schedule.service.js";
 import { WorkCalendarService } from "./work-calendar.service.js";
 
@@ -139,9 +138,8 @@ export class OvertimeService {
     }
 
     for (const { attendance, employee, date } of items) {
-      // Jenis kontrak tanpa hak lembur (mis. magang, kemitraan): absensinya tidak menghasilkan lembur.
-      const type = await contractTypeOnDate(tx, employee.id, date);
-      if (type && !type.overtime) continue;
+      // Karyawan tanpa hak lembur: absensinya tidak menghasilkan lembur.
+      if (!employee.overtimeEligible) continue;
       const schedule = resolve(employee, date);
       const calc = overtimeFromAttendance({
         checkIn: attendance.checkIn,

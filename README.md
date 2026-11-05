@@ -311,8 +311,8 @@ dipakai tidak bisa dihapus. Jenis tanpa template sendiri memakai template **Perj
 `{masa_kontrak}`) dengan judul dari master. Tiap jenis juga punya **aturan penggajian** (0054): ikut payroll atau tidak, program BPJS yang diikutkan (Kesehatan,
 JKK, JKM, JHT, JP — menjadi batas; centang di data karyawan tetap bisa mengecualikan), kategori PPh 21 (otomatis
 mengikuti jenis upah, pegawai tetap TER, tidak tetap tarif harian, bukan pegawai 50% bruto × Pasal 17, atau tidak
-dipotong; bukti potong A1/BPMP hanya pegawai tetap), hak THR, hak lembur (lembur ditolak & tidak dibuat dari absensi),
-dan hak saat berakhir (pesangon, uang kompensasi PKWT, atau tidak ada). Bawaan: magang hanya JKK+JKM tanpa THR/lembur,
+dipotong; bukti potong A1/BPMP hanya pegawai tetap), hak THR, dan hak saat berakhir (pesangon, uang kompensasi PKWT, atau tidak ada). Hak upah lembur diatur **per karyawan** (centang "Berhak upah lembur" di tab Penggajian karyawan; bila tidak, lembur
+ditolak, tidak dibuat dari absensi, dan tidak dibayar). Bawaan: magang hanya JKK+JKM tanpa THR,
 mitra tanpa BPJS dengan PPh 21 bukan pegawai. SDM › Konfigurasi › **Template Kontrak**: isi kontrak dengan placeholder (`{nama}`, `{nik}`, `{jabatan}`,
 `{gaji}`, `{gaji_terbilang}`, `{tunjangan}`, `{tunjangan_tidak_tetap}`, `{potongan}`, `{komponen_gaji}`,
 `{masa_kontrak}`, …; 31 kolom) yang diisi otomatis dari data karyawan,

@@ -10,7 +10,7 @@ interface Line {
 
 /**
  * Aturan penggajian per jenis kontrak (SDM › Konfigurasi › Jenis Kontrak): ikut payroll, BPJS per program, kategori
- * PPh 21, THR, lembur, pesangon/kompensasi. Kepesertaan BPJS = jenis kontrak ∧ centang di data karyawan.
+ * PPh 21, THR, pesangon/kompensasi (lembur diatur per karyawan). Kepesertaan BPJS = jenis kontrak ∧ centang di data karyawan.
  */
 describe.skipIf(!hasDb)("Jenis kontrak: aturan payroll", () => {
   let app: INestApplication;
@@ -59,7 +59,11 @@ describe.skipIf(!hasDb)("Jenis kontrak: aturan payroll", () => {
     expect(types.map((t) => t.code)).toContain("magang");
     await employee("Tetap", { contractType: "pkwtt" });
     await employee("Tetap Tanpa Kes", { contractType: "pkwtt" }, { bpjsKesEnrolled: false });
-    await employee("Magang", { contractType: "magang", dateEnd: "2026-12-31", wage: 3000000 });
+    await employee(
+      "Magang",
+      { contractType: "magang", dateEnd: "2026-12-31", wage: 3000000 },
+      { overtimeEligible: false },
+    );
     await employee("Mitra", { contractType: "mitra", wage: 10000000 }, { nik: "3201010101010009" });
     await employee("Outsourcing", { contractType: "outsourcing" });
     runId = (await a.post("/payroll-runs", { period: "2026-03", paymentDate: "2026-03-28" }).expect(201)).body
@@ -102,11 +106,11 @@ describe.skipIf(!hasDb)("Jenis kontrak: aturan payroll", () => {
     expect(amount((await slipOf(ids.Magang!))!, "BPJS_KES_ER")).toBeGreaterThan(0);
   });
 
-  it("lembur: jenis tanpa hak lembur ditolak", async () => {
+  it("lembur: karyawan tanpa hak lembur ditolak (diatur per karyawan)", async () => {
     const res = await a
       .post("/overtimes", { employeeId: ids.Magang, date: "2026-03-10", hours: "2" })
       .expect(400);
-    expect(res.body.errors?.[0]?.message).toMatch(/tidak mendapat upah lembur/);
+    expect(res.body.errors?.[0]?.message).toMatch(/tidak berhak upah lembur/);
     await a.post("/overtimes", { employeeId: ids.Tetap, date: "2026-03-10", hours: "2" }).expect(201);
   });
 

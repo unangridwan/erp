@@ -119,6 +119,13 @@ const EMPLOYEE_COLUMNS: Column[] = [
     example: "ya",
     note: "ya/tidak",
   },
+  {
+    key: "overtimeEligible",
+    header: "Berhak Upah Lembur",
+    group: "Penggajian",
+    example: "ya",
+    note: "ya/tidak",
+  },
   { key: "birthPlace", header: "Tempat Lahir", group: "Biodata", example: "Bandung" },
   { key: "birthDate", header: "Tanggal Lahir", group: "Biodata", example: "1993-05-12" },
   { key: "gender", header: "Jenis Kelamin", group: "Biodata", example: "Perempuan" },
@@ -178,7 +185,7 @@ async function employeeInput(row: Row, ctx: Ctx, lookups: Lookups) {
   for (const f of ENUM_FIELDS) if (get(row, f)) input[f] = code(f, f, get(row, f));
   for (const f of ["joinDate", "resignDate", "birthDate", "bpjsKesDate", "bpjsTkDate"])
     if (get(row, f)) input[f] = date(f, get(row, f));
-  for (const f of ["bpjsKesEnrolled", "bpjsTkEnrolled", "bpjsJpEnrolled"])
+  for (const f of ["bpjsKesEnrolled", "bpjsTkEnrolled", "bpjsJpEnrolled", "overtimeEligible"])
     if (get(row, f)) input[f] = bool(f, get(row, f));
   if (get(row, "bpjsKesClass")) input.bpjsKesClass = Number(num("bpjsKesClass", get(row, "bpjsKesClass")));
   for (const f of ["heightCm", "weightKg"]) if (get(row, f)) input[f] = Number(num(f, get(row, f)));
@@ -262,6 +269,7 @@ function employeesDataset(svc: HrServices): Dataset {
           bpjsKesEnrolled: r.bpjsKesEnrolled ? "ya" : "tidak",
           bpjsTkEnrolled: r.bpjsTkEnrolled ? "ya" : "tidak",
           bpjsJpEnrolled: r.bpjsJpEnrolled ? "ya" : "tidak",
+          overtimeEligible: r.overtimeEligible ? "ya" : "tidak",
           ...Object.fromEntries(ENUM_FIELDS.map((f) => [f, label(f, r[f])])),
         };
       });

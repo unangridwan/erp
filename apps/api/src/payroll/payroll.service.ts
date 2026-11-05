@@ -479,9 +479,9 @@ export class PayrollService {
     const unpaidLeave = correction ? 0 : await this.leaves.unpaidDays(tx, employee, from, to, calendar);
     const unpaidDays = correction ? 0 : monthDays - employedDays + unpaidLeave;
 
-    // Jenis kontrak tanpa hak lembur: lembur tetap tercatat tetapi tidak dibayar lewat slip.
+    // Karyawan tanpa hak lembur: lembur tetap tercatat tetapi tidak dibayar lewat slip.
     const overtime =
-      correction || type?.overtime === false
+      correction || !employee.overtimeEligible
         ? []
         : await tx
             .select()
@@ -1086,10 +1086,8 @@ export class PayrollService {
             schema.overtimes.employeeId,
             slips.map((x) => x.employeeId),
           ),
-          // Lembur jenis kontrak tanpa hak lembur tidak dibayar, jadi tidak ditandai.
-          sql`not exists (select 1 from ${SLIP} s join contracts c on c.id = s.contract_id
-            join contract_types t on t.tenant_id = c.tenant_id and t.code = c.contract_type
-            where s.run_id = ${id} and s.employee_id = overtimes.employee_id and t.overtime = false)`,
+          // Lembur karyawan tanpa hak lembur tidak dibayar, jadi tidak ditandai.
+          sql`not exists (select 1 from employees e where e.id = overtimes.employee_id and not e.overtime_eligible)`,
         ),
       );
     // Hasil kerja borongan yang dibayar ditandai dengan slipnya.

@@ -125,6 +125,7 @@ const GROUPS: Record<Tab, { title?: [string, string]; fields: string[] }[]> = {
       title: ["BPJS Ketenagakerjaan", "BPJS Employment"],
       fields: ["bpjsTkEnrolled", "bpjsTkNo", "bpjsTkDate", "bpjsJpEnrolled"],
     },
+    { title: ["Lembur", "Overtime"], fields: ["overtimeEligible"] },
   ],
   contract: [],
   history: [],
