@@ -99,6 +99,7 @@ payroll 3 bulan (hitung, posting, bayar), CRM, rekrutmen, armada, dan konsolidas
 - **Muat otomatis** ke database (API harus berjalan, mis. `pnpm dev`):
 
   ```bash
+  pnpm install                       # wajib sekali setelah git pull (paket packages/demo-data)
   pnpm demo:load                     # tenant "didin-putra-agro", ±5 menit
   pnpm demo:load --api http://localhost:3001 --slug didin-putra-agro --only transaksi,payroll
   ```
