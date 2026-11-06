@@ -453,8 +453,10 @@ export const MESSAGES_EN: Record<string, string> = {
     "Journal entry {0} is posted and cannot be changed",
   // Payroll lanjutan
   "Upah maksimum di bawah upah minimum": "The maximum wage is below the minimum wage",
-  "Gaji pokok golongan harus di antara upah minimum dan maksimum":
-    "The grade base wage must be between the minimum and maximum wage",
+  "Gaji pokok golongan tidak boleh di bawah upah minimum":
+    "The grade base wage cannot be below the minimum wage",
+  "Gaji pokok golongan tidak boleh di atas upah maksimum":
+    "The grade base wage cannot be above the maximum wage",
   "Gaji pokok wajib diisi: golongan karyawan belum punya gaji pokok standar":
     "Base wage is required: the employee's grade has no standard base wage",
   "Gaji pokok wajib diisi": "Base wage is required",

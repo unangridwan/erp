@@ -173,7 +173,10 @@ class HiringRequestController implements OnModuleInit {
       const remaining = lineRemaining(line.quantity, await this.lineRequests(tx, line.id));
       if (remaining <= 0) throw new BadRequestException("Seluruh kuota posisi ini sudah diajukan lewat FPK");
       const [grade] = line.gradeId
-        ? await tx.select({ min: G.minWage, max: G.maxWage }).from(G).where(eq(G.id, line.gradeId))
+        ? await tx
+            .select({ min: G.minWage, max: G.maxWage, base: G.baseWage })
+            .from(G)
+            .where(eq(G.id, line.gradeId))
         : [];
       const wage = Number(line.monthlyWage) ? line.monthlyWage : null;
       const values = await this.validate(tx, {
@@ -183,8 +186,9 @@ class HiringRequestController implements OnModuleInit {
         kind: line.kind === "replacement" ? "replacement" : "new",
         quantity: input.quantity ?? remaining,
         contractType: input.contractType ?? "pkwt",
-        wageMin: grade && Number(grade.max) ? grade.min : wage,
-        wageMax: grade && Number(grade.max) ? grade.max : wage,
+        // Rentang gaji FPK: skala upah golongan; tanpa skala → gaji pokok standar golongan.
+        wageMin: grade ? (grade.min ?? grade.base) : wage,
+        wageMax: grade ? (grade.max ?? grade.base) : wage,
         targetDate: input.targetDate ?? `${plan.year}-${String(line.startMonth).padStart(2, "0")}-01`,
         reason: input.reason || line.reason || `Sesuai ${plan.name}`,
         replacesEmployeeId: line.replacesEmployeeId,

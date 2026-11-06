@@ -90,11 +90,11 @@ export function cycleBudget(
 /** Posisi upah baru terhadap skala golongan: di bawah minimum, di atas maksimum, atau sesuai (null). */
 export function gradeFlag(
   wage: Decimal.Value,
-  grade: { minWage: Decimal.Value; maxWage: Decimal.Value } | null | undefined,
+  grade: { minWage?: Decimal.Value | null; maxWage?: Decimal.Value | null } | null | undefined,
 ): "below" | "above" | null {
   if (!grade) return null;
-  if (d(wage).lt(d(grade.minWage))) return "below";
-  if (d(grade.maxWage).gt(0) && d(wage).gt(d(grade.maxWage))) return "above";
+  if (grade.minWage != null && d(wage).lt(d(grade.minWage))) return "below";
+  if (grade.maxWage != null && d(grade.maxWage).gt(0) && d(wage).gt(d(grade.maxWage))) return "above";
   return null;
 }
 

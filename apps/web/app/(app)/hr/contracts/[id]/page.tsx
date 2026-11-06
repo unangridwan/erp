@@ -47,8 +47,8 @@ interface Contract {
     id: string;
     code: string;
     name: string;
-    minWage: string;
-    maxWage: string;
+    minWage: string | null;
+    maxWage: string | null;
     baseWage: string | null;
     position: "below" | "within" | "above" | null;
     adjusted: boolean;

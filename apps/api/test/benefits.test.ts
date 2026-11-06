@@ -270,7 +270,13 @@ describe.skipIf(!hasDb)("Kompensasi & benefit", () => {
   it("plafon klaim per golongan menimpa plafon kategori", async () => {
     const grade = (
       await a
-        .post("/salary-grades", { code: "G1", name: "Staf", minWage: "1", maxWage: "100000000" })
+        .post("/salary-grades", {
+          code: "G1",
+          name: "Staf",
+          baseWage: "5000000",
+          minWage: "1",
+          maxWage: "100000000",
+        })
         .expect(201)
     ).body.id;
     const staff = await employee("Golongan Staf", "8000000", { gradeId: grade });

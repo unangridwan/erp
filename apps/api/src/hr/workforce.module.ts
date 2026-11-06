@@ -445,6 +445,7 @@ class WorkforceController {
         grade: schema.salaryGrades.name,
         gradeMin: schema.salaryGrades.minWage,
         gradeMax: schema.salaryGrades.maxWage,
+        gradeBase: schema.salaryGrades.baseWage,
       })
       .from(E)
       .leftJoin(schema.departments, eq(schema.departments.id, E.departmentId))
@@ -588,7 +589,13 @@ class WorkforceController {
             .map((r) =>
               compaRatio(
                 r.wage,
-                r.gradeId ? { minWage: Number(r.gradeMin), maxWage: Number(r.gradeMax) } : null,
+                r.gradeId
+                  ? {
+                      minWage: r.gradeMin === null ? null : Number(r.gradeMin),
+                      maxWage: r.gradeMax === null ? null : Number(r.gradeMax),
+                      baseWage: r.gradeBase === null ? null : Number(r.gradeBase),
+                    }
+                  : null,
               ),
             )
             .filter((r): r is number => r !== null);

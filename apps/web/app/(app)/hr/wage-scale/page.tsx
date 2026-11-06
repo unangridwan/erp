@@ -7,6 +7,7 @@ import { money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
 import { useTableView } from "../../../../lib/use-table-view";
+import { wageRange } from "../../../../components/hr/grade-wage";
 
 interface Report {
   grades: {
@@ -112,7 +113,9 @@ export default function WageScalePage() {
                 {report.grades.map((g) => (
                   <tr key={g.code ?? ""}>
                     <td>{g.code ? `${g.code} · ${g.name}` : l("(tanpa golongan)", "(no grade)")}</td>
-                    <td className="num">{g.code ? `${n(g.minWage)} – ${n(g.maxWage)}` : "—"}</td>
+                    <td className="num">
+                      {g.code ? wageRange(g.minWage, g.maxWage, (v) => money(v, locale)) : "—"}
+                    </td>
                     <td className="num">{g.baseWage ? n(g.baseWage) : "—"}</td>
                     <td className="num">{g.employees}</td>
                     <td className="num">{n(g.lowest)}</td>

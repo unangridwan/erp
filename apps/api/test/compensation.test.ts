@@ -81,7 +81,13 @@ describe.skipIf(!hasDb)("Kompensasi: siklus kenaikan gaji & total rewards", () =
 
     const grade = (
       await a
-        .post("/salary-grades", { code: "G1", name: "Staf", minWage: "5000000", maxWage: "11000000" })
+        .post("/salary-grades", {
+          code: "G1",
+          name: "Staf",
+          baseWage: "8000000",
+          minWage: "5000000",
+          maxWage: "11000000",
+        })
         .expect(201)
     ).body.id;
     emp.budi = await employee("Budi Manajer", "15000000", { userId: budiUser });

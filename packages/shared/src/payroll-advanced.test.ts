@@ -110,7 +110,7 @@ describe("struktur & skala upah", () => {
   });
 
   it("validasi golongan & query laporan biaya", () => {
-    expect(salaryGradeSchema.parse({ code: "g1", name: "I", minWage: "5", maxWage: "5" }).code).toBe("G1");
+    expect(salaryGradeSchema.parse({ code: "g1", name: "I", baseWage: "5" }).code).toBe("G1");
     expect(payrollCostQuerySchema.safeParse({ from: "2026-03", to: "2026-01" }).success).toBe(false);
   });
 });
@@ -249,7 +249,7 @@ describe("gaji pokok standar golongan", () => {
       adjusted: false,
     });
   });
-  it("skema golongan menerima gaji pokok opsional", () => {
+  it("skema golongan: gaji pokok wajib, skala minimum & maksimum opsional", () => {
     expect(
       salaryGradeSchema.parse({
         code: "a1",
@@ -259,8 +259,11 @@ describe("gaji pokok standar golongan", () => {
         baseWage: 5000000,
       }).baseWage,
     ).toBe("5000000");
-    expect(
-      salaryGradeSchema.parse({ code: "a1", name: "A1", minWage: 1, maxWage: 2 }).baseWage,
-    ).toBeUndefined();
+    expect(salaryGradeSchema.safeParse({ code: "a1", name: "A1", minWage: 1, maxWage: 2 }).success).toBe(
+      false,
+    );
+    expect(salaryGradeSchema.parse({ code: "a1", name: "A1", baseWage: 5000000 })).toMatchObject({
+      baseWage: "5000000",
+    });
   });
 });

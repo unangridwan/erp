@@ -83,10 +83,19 @@ export function median(values: number[]) {
   return s.length % 2 ? s[mid]! : round((s[mid - 1]! + s[mid]!) / 2);
 }
 
-/** Compa-ratio = upah ÷ titik tengah skala golongan (null bila skala tidak lengkap). */
-export function compaRatio(wage: number, grade: { minWage: number; maxWage: number } | null | undefined) {
-  if (!grade || grade.maxWage <= 0) return null;
-  const mid = (grade.minWage + grade.maxWage) / 2;
+/**
+ * Compa-ratio = upah ÷ titik tengah skala golongan; tanpa skala lengkap dibandingkan gaji pokok standar
+ * (null bila keduanya tidak ada).
+ */
+export function compaRatio(
+  wage: number,
+  grade: { minWage?: number | null; maxWage?: number | null; baseWage?: number | null } | null | undefined,
+) {
+  if (!grade) return null;
+  const mid =
+    grade.minWage != null && grade.maxWage != null && grade.maxWage > 0
+      ? (grade.minWage + grade.maxWage) / 2
+      : (grade.baseWage ?? 0);
   return mid > 0 ? round(wage / mid) : null;
 }
 
