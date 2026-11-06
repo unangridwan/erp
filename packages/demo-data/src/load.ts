@@ -6,7 +6,7 @@
  *
  *   pnpm demo:load [-- --api http://localhost:3001 --slug didin-putra-agro --email admin@… --password … --file … --only tahap,tahap]
  */
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Api, ApiError } from "./api.js";
@@ -20,7 +20,23 @@ for (let i = 2; i < process.argv.length; i++) {
     args.set(a.slice(2), process.argv[i + 1]?.startsWith("--") ? "true" : (process.argv[++i] ?? "true"));
 }
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const API = args.get("api") ?? process.env.API_URL ?? "http://localhost:3001";
+/** Alamat API: --api, env, lalu NEXT_PUBLIC_API_URL/API_ORIGIN di .env root (sama dengan web), bawaan :3001. */
+function envFileApi() {
+  try {
+    const text = readFileSync(join(root, ".env"), "utf8");
+    for (const key of ["NEXT_PUBLIC_API_URL", "API_ORIGIN"]) {
+      const m = text.match(new RegExp(`^${key}=(.+)$`, "m"));
+      if (m?.[1]?.trim()) return m[1].trim().replace(/^["']|["']$/g, "");
+    }
+  } catch {
+    /* tanpa .env */
+  }
+  return undefined;
+}
+const API = (args.get("api") ?? process.env.API_URL ?? envFileApi() ?? "http://localhost:3001").replace(
+  /\/+$/,
+  "",
+);
 const SLUG = args.get("slug") ?? "didin-putra-agro";
 const EMAIL = args.get("email") ?? `admin@${EMAIL_DOMAIN}`;
 const PASSWORD = args.get("password") ?? DEMO_PASSWORD;
@@ -88,6 +104,26 @@ async function main() {
     await fn();
     log(`✓ ${name}${failures.length > before ? ` (${failures.length - before} gagal)` : ""}`);
   };
+
+  // ---- 0. Tunggu API hidup (mis. `pnpm dev` baru dijalankan) ----
+  log(`Menghubungi API ${API} …`);
+  let up = false;
+  for (let i = 0; i < 30 && !up; i++) {
+    up = await fetch(`${API}/health`).then(
+      (r) => r.ok,
+      () => false,
+    );
+    if (!up) await new Promise((r) => setTimeout(r, 2000));
+  }
+  if (!up) {
+    console.error(
+      `\nAPI tidak bisa dihubungi di ${API}.\n` +
+        "Jalankan API dulu di terminal lain dan biarkan tetap berjalan:  pnpm dev\n" +
+        "Tunggu sampai muncul tulisan API siap (port 3001), lalu ulangi:  pnpm demo:load\n" +
+        "Bila API memakai alamat lain:  pnpm demo:load --api http://localhost:PORT\n",
+    );
+    process.exit(1);
+  }
 
   // ---- 1. Login / daftar ----
   try {
