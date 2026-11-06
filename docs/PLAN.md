@@ -487,6 +487,8 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   bisa diubah (penanda "Disesuaikan" + Pakai standar), terapkan gaji pokok baru ke kontrak berjalan
 - [x] Parameter payroll per tanggal & BP21 (migrasi 0058) — batas upah BPJS Kes/JP & tarif JKK berlaku mulai tanggal
   tertentu (hitung ulang periode lama tetap), bukti potong BP21 pegawai tidak tetap & bukan pegawai + XML Coretax
+- [x] Email notifikasi & persetujuan dokumen (migrasi 0059) — notifikasi juga dikirim lewat email (outbox, preferensi
+  per pengguna), persetujuan opsional payroll run / mutasi / penawaran kerja lewat mesin persetujuan generik
 
 ## Rekomendasi berikutnya — SDM & Payroll
 
@@ -501,8 +503,8 @@ Dari audit ketiga PRD SDM (Okt 2026), diurutkan menurut dampak bisnis:
    Payroll; selalu menunggu atasan, yang boleh mengurangi jam lalu menyetujui/menolak. ❌ Belum: master jenis/aturan
    lembur dengan tarif yang bisa diatur (tarif masih PP 35/2021).
 3. **Kasbon / uang muka karyawan**: pencairan, penyelesaian dengan klaim, sisa dipotong gaji; bukti wajib per kategori.
-4. **Notifikasi email (dan push)** untuk pengajuan & keputusan persetujuan.
-5. **Persetujuan berjenjang** untuk payroll run, mutasi/promosi, penawaran kerja, offboarding/F&F.
+4. 🟡 **Notifikasi email (dan push)** untuk pengajuan & keputusan persetujuan — ✅ email (0059); push belum.
+5. 🟡 **Persetujuan berjenjang** untuk payroll run, mutasi/promosi, penawaran kerja (✅ 0059), offboarding/F&F (belum).
 6. ✅ **Parameter payroll berlaku per tanggal** (batas BPJS, JKK) agar perhitungan periode lama tetap (0058).
 7. **Keamanan slip gaji**: password/PIN slip ditentukan karyawan + OTP sebelum melihat slip.
 8. **UU PDP**: persetujuan pelamar, retensi & anonimisasi, log akses data pribadi.

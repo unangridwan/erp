@@ -23,7 +23,13 @@ import { fieldError } from "../accounting/context.js";
 import { ActivityService } from "../activity/activity.service.js";
 import { currentContext } from "../common/request-context.js";
 import { NotificationService } from "../notifications/notification.service.js";
-import { assertWithinLimit, roleHolders, stepUsers, userRoleIds } from "../approval-rules/resolver.js";
+import {
+  assertWithinLimit,
+  permissionHolders,
+  roleHolders,
+  stepUsers,
+  userRoleIds,
+} from "../approval-rules/resolver.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 
 const CAT = schema.approvalCategories;
@@ -77,8 +83,14 @@ export class ApprovalEngineService {
     const first = Math.min(...pending.map((s) => s.sequence));
     const current = mode === "parallel" ? pending : pending.filter((s) => s.sequence === first);
     const users = new Set<string>();
-    for (const s of current)
-      for (const u of await stepUsers(tx, s, request.companyId)) if (u !== request.requestedBy) users.add(u);
+    for (const s of current) {
+      // Tahap tanpa penyetuju khusus diputuskan HR: beri tahu pemegang hr.manage.
+      const holders =
+        s.approverUserId || s.approverRoleId
+          ? await stepUsers(tx, s, request.companyId)
+          : await permissionHolders(tx, ["hr.manage"], request.companyId);
+      for (const u of holders) if (u !== request.requestedBy) users.add(u);
+    }
     await this.notifications.notify(tx, [...users], {
       kind: "approval.pending",
       title: `Permintaan ${request.number ?? ""} menunggu persetujuan Anda`.replace("  ", " "),

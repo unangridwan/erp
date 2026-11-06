@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { ApprovalStatus, approvalCleared, type ApprovalInfo } from "../approval-status";
 import { download } from "../accounting/download";
 import { api } from "../../lib/api";
 import { formatDate, money, today } from "../../lib/format";
@@ -76,6 +77,7 @@ export function RefuseForm({
 }
 
 interface Offer {
+  approval?: ApprovalInfo;
   id: string;
   number: string | null;
   wage: string;
@@ -200,13 +202,30 @@ export function OffersPanel({
                       PDF
                     </button>
                     {o.state === "draft" && (
-                      <button
-                        type="button"
-                        className="link"
-                        onClick={() => run(() => api(`/job-offers/${o.id}/send`, { method: "POST" }))}
-                      >
-                        {l("Tandai terkirim", "Mark sent")}
-                      </button>
+                      <>
+                        <ApprovalStatus
+                          approval={o.approval}
+                          onSubmit={() =>
+                            run(() => api(`/job-offers/${o.id}/submit-approval`, { method: "POST" }))
+                          }
+                        />
+                        <button
+                          type="button"
+                          className="link"
+                          disabled={!approvalCleared(o.approval)}
+                          title={
+                            approvalCleared(o.approval)
+                              ? undefined
+                              : l(
+                                  "Penawaran harus disetujui sebelum dikirim",
+                                  "The offer must be approved first",
+                                )
+                          }
+                          onClick={() => run(() => api(`/job-offers/${o.id}/send`, { method: "POST" }))}
+                        >
+                          {l("Tandai terkirim", "Mark sent")}
+                        </button>
+                      </>
                     )}
                     {o.state === "sent" && (
                       <>

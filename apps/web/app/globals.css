@@ -3316,3 +3316,19 @@ dialog.palette {
   margin-top: 0.25rem;
   font-size: 0.85rem;
 }
+
+/* Status persetujuan dokumen (payroll run, mutasi, penawaran). */
+.approval-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.notifications-email {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+}

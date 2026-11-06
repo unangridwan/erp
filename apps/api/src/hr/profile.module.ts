@@ -41,6 +41,7 @@ import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { ContractService } from "./contract.service.js";
+import { ApprovalGateService } from "./approval-gate.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { HistoryService } from "./history.service.js";
 import { HrModule } from "./hr.module.js";
@@ -489,6 +490,7 @@ class MovementsController {
     @Inject(HistoryService) private readonly history: HistoryService,
     @Inject(SequenceService) private readonly sequences: SequenceService,
     @Inject(ActivityService) private readonly activity: ActivityService,
+    @Inject(ApprovalGateService) private readonly gate: ApprovalGateService,
   ) {}
 
   @Get()
@@ -507,9 +509,16 @@ class MovementsController {
           ),
         )
         .orderBy(desc(MV.effectiveDate), desc(MV.createdAt));
-      return this.withNames(
+      const required = await this.gate.enabled(tx, companyId(), "movement");
+      const named = await this.withNames(
         tx,
         rows.map((r) => ({ ...r.movement, employeeName: r.employeeName, employeeNumber: r.employeeNumber })),
+      );
+      return Promise.all(
+        named.map(async (m) => ({
+          ...m,
+          approval: { required, request: await this.gate.summary(tx, m.approvalRequestId) },
+        })),
       );
     });
   }
@@ -517,7 +526,16 @@ class MovementsController {
   @Get(":id")
   @RequirePermission("hr.read")
   get(@Param("id", ParseUUIDPipe) id: string) {
-    return this.tenantDb.run(async (tx) => (await this.withNames(tx, [await this.find(tx, id)]))[0]);
+    return this.tenantDb.run(async (tx) => {
+      const m = await this.find(tx, id);
+      return {
+        ...(await this.withNames(tx, [m]))[0],
+        approval: {
+          required: await this.gate.enabled(tx, m.companyId, "movement"),
+          request: await this.gate.summary(tx, m.approvalRequestId),
+        },
+      };
+    });
   }
 
   @Post()
@@ -545,9 +563,11 @@ class MovementsController {
       if (input.employeeId !== current.employeeId)
         throw fieldError("employeeId", "Karyawan mutasi tidak bisa diganti");
       await this.validate(tx, current.employeeId, input);
+      // SK berubah setelah diajukan: persetujuan lama tidak berlaku (wajib ajukan ulang).
+      await this.gate.withdraw(tx, current.approvalRequestId);
       const [row] = await tx
         .update(MV)
-        .set({ ...this.values(input), updatedAt: sql`now()` })
+        .set({ ...this.values(input), approvalRequestId: null, updatedAt: sql`now()` })
         .where(eq(MV.id, id))
         .returning();
       return row!;
@@ -586,6 +606,43 @@ class MovementsController {
    * mutasi), dan bila ada upah baru: akhiri kontrak berjalan sehari sebelum tanggal efektif lalu mulai kontrak baru
    * (tunjangan disalin) sehingga payroll memakai upah baru sejak tanggal efektif.
    */
+  /** Ajukan SK mutasi/promosi ke persetujuan (bila diwajibkan di Pengaturan Payroll). */
+  @Post(":id/submit-approval")
+  @HttpCode(200)
+  @RequirePermission("hr.manage")
+  submitApproval(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run(async (tx) => {
+      const m = await this.find(tx, id);
+      if (m.state !== "draft") throw new BadRequestException("Mutasi sudah diterapkan atau dibatalkan");
+      const state = await this.gate.state(tx, m.approvalRequestId);
+      if (state === "pending" || state === "approved")
+        throw new BadRequestException("Mutasi sudah diajukan untuk persetujuan");
+      const [named] = await this.withNames(tx, [m]);
+      const employee = await this.employees.find(tx, m.employeeId);
+      const n = named!.names;
+      const lines = [
+        `${employee.name} (${employee.employeeNumber}) — ${m.kind}, efektif ${m.effectiveDate}.`,
+        n.toJobId ? `Jabatan: ${n.fromJobId ?? "—"} → ${n.toJobId}` : null,
+        n.toDepartmentId ? `Departemen: ${n.fromDepartmentId ?? "—"} → ${n.toDepartmentId}` : null,
+        n.toGradeId ? `Golongan: ${n.fromGradeId ?? "—"} → ${n.toGradeId}` : null,
+        m.newWage ? `Upah: ${m.oldWage ?? "—"} → ${m.newWage}` : null,
+        m.reason ? `Alasan: ${m.reason}` : null,
+      ].filter((l): l is string => !!l);
+      const requestId = await this.gate.submit(tx, m.companyId, "movement", {
+        subject: `${m.kind === "promotion" ? "Promosi" : m.kind === "demotion" ? "Demosi" : "Mutasi"} ${employee.name}`,
+        reference: m.decreeNo ?? employee.employeeNumber,
+        date: m.effectiveDate,
+        amount: m.newWage ?? "0",
+        description: lines.join("\n"),
+      });
+      await tx
+        .update(MV)
+        .set({ approvalRequestId: requestId, updatedAt: sql`now()` })
+        .where(eq(MV.id, id));
+      return this.find(tx, id);
+    });
+  }
+
   @Post(":id/apply")
   @HttpCode(200)
   @RequirePermission("hr.manage")
@@ -593,6 +650,12 @@ class MovementsController {
     return this.tenantDb.run(async (tx) => {
       const m = await this.find(tx, id);
       if (m.state !== "draft") throw new BadRequestException("Mutasi sudah diterapkan atau dibatalkan");
+      await this.gate.assertApproved(
+        tx,
+        await this.gate.enabled(tx, m.companyId, "movement"),
+        m.approvalRequestId,
+        "mutasi diterapkan",
+      );
       const employee = await this.employees.find(tx, m.employeeId);
       if (employee.resignDate && employee.resignDate < m.effectiveDate)
         throw new BadRequestException("Karyawan sudah keluar sebelum tanggal efektif");

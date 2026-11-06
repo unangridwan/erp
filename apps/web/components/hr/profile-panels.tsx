@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { ApprovalStatus, approvalCleared, type ApprovalInfo } from "../approval-status";
 import { api } from "../../lib/api";
 import { formatDate, money } from "../../lib/format";
 import { useI18n, type Text, L } from "../../lib/i18n";
@@ -746,6 +747,7 @@ export const MOVEMENT_KIND_LABEL: Record<string, Text> = {
 };
 
 interface Movement {
+  approval?: ApprovalInfo;
   id: string;
   employeeId: string;
   employeeName: string;
@@ -982,7 +984,29 @@ export function MovementsPanel({ employeeId }: { employeeId?: string }) {
                     <td>
                       {m.state === "draft" && (
                         <>
-                          <button type="button" className="primary" onClick={() => act(m.id, "apply")}>
+                          <ApprovalStatus
+                            approval={m.approval}
+                            onSubmit={() =>
+                              api(`/employee-movements/${m.id}/submit-approval`, { method: "POST" }).then(
+                                load,
+                                (e) => setError(errorText(e)),
+                              )
+                            }
+                          />{" "}
+                          <button
+                            type="button"
+                            className="primary"
+                            disabled={!approvalCleared(m.approval)}
+                            title={
+                              approvalCleared(m.approval)
+                                ? undefined
+                                : l(
+                                    "SK harus disetujui sebelum diterapkan",
+                                    "The decree must be approved first",
+                                  )
+                            }
+                            onClick={() => act(m.id, "apply")}
+                          >
                             {l("Terapkan", "Apply")}
                           </button>{" "}
                           <button type="button" className="link" onClick={() => act(m.id, "cancel")}>

@@ -58,6 +58,7 @@ import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { ApprovalEngineService } from "./approval-engine.service.js";
+import { ApprovalGateService } from "./approval-gate.service.js";
 import { ATTENDANCE_COLUMNS, AttendanceService } from "./attendance.service.js";
 import { ApprovalService, beginApproval, type ApprovalModel } from "./approval.service.js";
 import { NotificationService } from "../notifications/notification.service.js";
@@ -1372,6 +1373,7 @@ class PortalController {
     LeaveService,
     ApprovalService,
     ApprovalEngineService,
+    ApprovalGateService,
     AttendanceService,
     ScheduleService,
     ChecklistService,
@@ -1392,6 +1394,7 @@ class PortalController {
     ScheduleService,
     ApprovalService,
     ApprovalEngineService,
+    ApprovalGateService,
     AttendanceService,
     ChecklistService,
     HistoryService,

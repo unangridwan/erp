@@ -129,6 +129,34 @@ export async function roleHolders(tx: Db, roleId: string, companyId: string) {
   return rows.map((r) => r.userId);
 }
 
+/**
+ * Pengguna aktif yang memegang salah satu permission (lewat peran) di perusahaan — penerima notifikasi tahap
+ * persetujuan yang diputuskan HR. Hak khusus per akun tidak diperhitungkan (cukup untuk pemberitahuan).
+ */
+export async function permissionHolders(tx: Db, permissions: string[], companyId: string) {
+  const UR = schema.userRoles;
+  const wanted = [...permissions, "*"];
+  const rows = await tx
+    .selectDistinct({ userId: UR.userId })
+    .from(UR)
+    .innerJoin(schema.users, eq(schema.users.id, UR.userId))
+    .where(
+      and(
+        eq(schema.users.active, true),
+        eq(schema.users.kind, "human"),
+        sql`exists (select 1 from role_permissions rp where rp.role_id = ${UR.roleId}
+          and rp.permission in (${sql.join(
+            wanted.map((p) => sql`${p}`),
+            sql`, `,
+          )}))`,
+        sql`(${UR.companyId} = ${companyId} or (${UR.companyId} is null and (
+          exists (select 1 from user_companies uc where uc.user_id = ${UR.userId} and uc.company_id = ${companyId})
+          or exists (select 1 from role_permissions rp where rp.role_id = ${UR.roleId} and rp.permission = '*'))))`,
+      ),
+    );
+  return rows.map((r) => r.userId);
+}
+
 /** Peran pengguna yang berlaku di perusahaan. */
 export async function userRoleIds(tx: Db, userId: string, companyId: string) {
   const UR = schema.userRoles;

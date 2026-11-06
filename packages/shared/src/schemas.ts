@@ -886,6 +886,9 @@ export const payrollParameterSchema = z.object({
   note: z.string().trim().max(300).nullish(),
 });
 
+/** Preferensi notifikasi pengguna (portal). */
+export const notificationSettingsSchema = z.object({ email: z.boolean() });
+
 export const PTKP_STATUS_VALUES = ["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"] as const;
 
 export const RELIGION_VALUES = [
@@ -1290,6 +1293,10 @@ export const payrollSettingsSchema = z.object({
   /** Kode objek pajak bawaan BP21 (pegawai tidak tetap, bukan pegawai). */
   bp21NonPermanentCode: taxObjectCode,
   bp21NonEmployeeCode: taxObjectCode,
+  /** Persetujuan sebelum payroll run diposting / mutasi diterapkan / penawaran kerja dikirim. */
+  payrollRunApproval: z.boolean().default(false),
+  movementApproval: z.boolean().default(false),
+  jobOfferApproval: z.boolean().default(false),
   jkkRate: z.enum(["0.24", "0.54", "0.89", "1.27", "1.74"]),
   kesWageCap: nonNegative(2),
   jpWageCap: nonNegative(2),

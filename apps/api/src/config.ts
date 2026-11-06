@@ -32,6 +32,8 @@ export interface AppConfig {
   /** Pengirim webhook aplikasi terhubung (tiap 30 detik). */
   webhook: { scheduler: boolean };
   reports: { scheduler: boolean };
+  /** Pengirim email notifikasi (outbox, tiap menit). */
+  notifyEmail: { scheduler: boolean };
   /** Token untuk GET /metrics (Prometheus); kosong = endpoint dimatikan. */
   metricsToken: string | null;
   logFormat: "json" | "pretty" | "off";
@@ -80,6 +82,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     reports: {
       scheduler: env.REPORT_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
+    },
+    notifyEmail: {
+      scheduler: env.NOTIFY_EMAIL_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
     },
     metricsToken: env.METRICS_TOKEN || null,
     logFormat: (env.LOG_FORMAT as "json" | "pretty" | "off" | undefined) ?? (env.VITEST ? "off" : "pretty"),
