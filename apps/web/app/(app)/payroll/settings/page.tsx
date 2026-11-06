@@ -38,7 +38,10 @@ type Settings = Record<
   | "overtimeMaxHours"
   | "overtimeCountEarly"
   | "bp21NonPermanentCode"
-  | "bp21NonEmployeeCode",
+  | "bp21NonEmployeeCode"
+  | "payrollRunApproval"
+  | "movementApproval"
+  | "jobOfferApproval",
   string
 >;
 
@@ -82,6 +85,9 @@ export default function PayrollSettingsPage() {
           overtimeCountEarly: s.overtimeCountEarly ? "1" : "",
           bp21NonPermanentCode: s.bp21NonPermanentCode ?? "",
           bp21NonEmployeeCode: s.bp21NonEmployeeCode ?? "",
+          payrollRunApproval: s.payrollRunApproval ? "1" : "",
+          movementApproval: s.movementApproval ? "1" : "",
+          jobOfferApproval: s.jobOfferApproval ? "1" : "",
         }),
       )
       .catch((e: Error) => setError(e.message));
@@ -127,6 +133,9 @@ export default function PayrollSettingsPage() {
         overtimeCountEarly,
         bp21NonPermanentCode,
         bp21NonEmployeeCode,
+        payrollRunApproval,
+        movementApproval,
+        jobOfferApproval,
       } = form;
       await api("/payroll/settings", {
         method: "PUT",
@@ -163,6 +172,9 @@ export default function PayrollSettingsPage() {
           overtimeCountEarly: overtimeCountEarly === "1",
           bp21NonPermanentCode: bp21NonPermanentCode || null,
           bp21NonEmployeeCode: bp21NonEmployeeCode || null,
+          payrollRunApproval: payrollRunApproval === "1",
+          movementApproval: movementApproval === "1",
+          jobOfferApproval: jobOfferApproval === "1",
         },
       });
       setNotice(l("Pengaturan disimpan.", "Settings saved."));
@@ -481,6 +493,38 @@ export default function PayrollSettingsPage() {
             onChange={set("casualFullBpjsMonths")}
           />
         </label>
+        <h3 className="o-group-title">{l("Persetujuan dokumen", "Document approvals")}</h3>
+        <p className="muted small">
+          {l(
+            "Bila diaktifkan, dokumen harus diajukan dan disetujui (mengikuti Aturan Persetujuan & batas wewenang) sebelum diproses.",
+            "When enabled, documents must be submitted and approved (following Approval Rules & limits) before processing.",
+          )}
+        </p>
+        {(
+          [
+            [
+              "payrollRunApproval",
+              l("Payroll run disetujui sebelum diposting", "Payroll runs approved before posting"),
+            ],
+            [
+              "movementApproval",
+              l("Mutasi/promosi disetujui sebelum diterapkan", "Movements approved before applying"),
+            ],
+            [
+              "jobOfferApproval",
+              l("Penawaran kerja disetujui sebelum dikirim", "Job offers approved before sending"),
+            ],
+          ] as const
+        ).map(([k, label]) => (
+          <label key={k} className="field check">
+            <input
+              type="checkbox"
+              checked={form[k] === "1"}
+              onChange={(e) => setForm((f) => ({ ...f!, [k]: e.target.checked ? "1" : "" }))}
+            />
+            <span>{label}</span>
+          </label>
+        ))}
         <button className="primary">{l("Simpan", "Save")}</button>
       </form>
       <PayrollParametersPanel onChange={load} />

@@ -610,6 +610,10 @@ export const payrollSettings = pgTable("payroll_settings", {
   /** Kode objek pajak bawaan BP21: pegawai tidak tetap & bukan pegawai (kosong = diisi per bukti potong). */
   bp21NonPermanentCode: text("bp21_non_permanent_code"),
   bp21NonEmployeeCode: text("bp21_non_employee_code"),
+  /** Persetujuan sebelum payroll run diposting, mutasi diterapkan, penawaran kerja dikirim. */
+  payrollRunApproval: boolean("payroll_run_approval").notNull().default(false),
+  movementApproval: boolean("movement_approval").notNull().default(false),
+  jobOfferApproval: boolean("job_offer_approval").notNull().default(false),
   salaryExpenseAccountId: uuid("salary_expense_account_id").notNull(),
   bpjsKesExpenseAccountId: uuid("bpjs_kes_expense_account_id").notNull(),
   bpjsTkExpenseAccountId: uuid("bpjs_tk_expense_account_id").notNull(),
@@ -664,6 +668,7 @@ export const payrollRuns = pgTable("payroll_runs", {
     .default("regular"),
   correctsRunId: uuid("corrects_run_id"),
   ...audit,
+  approvalRequestId: uuid("approval_request_id"),
 });
 
 export const payslips = pgTable("payslips", {
@@ -1034,6 +1039,7 @@ export const jobOffers = pgTable("job_offers", {
   responseNote: text("response_note"),
   createdBy: uuid("created_by"),
   ...audit,
+  approvalRequestId: uuid("approval_request_id"),
 });
 
 export const EXIT_REASONS = [
@@ -1351,6 +1357,10 @@ export const notifications = pgTable("notifications", {
   body: text("body"),
   link: text("link"),
   readAt: timestamp("read_at", { withTimezone: true }),
+  /** Outbox email: pending → sent/failed (null = tidak dikirim lewat email). */
+  emailState: text("email_state", { enum: ["pending", "sent", "failed", "skipped"] }),
+  emailAttempts: smallint("email_attempts").notNull().default(0),
+  emailedAt: timestamp("emailed_at", { withTimezone: true }),
   createdAt: audit.createdAt,
 });
 
@@ -1516,6 +1526,7 @@ export const employeeMovements = pgTable("employee_movements", {
   appliedAt: timestamp("applied_at", { withTimezone: true }),
   appliedBy: uuid("applied_by"),
   ...audit,
+  approvalRequestId: uuid("approval_request_id"),
 });
 
 export const employeeWarnings = pgTable("employee_warnings", {

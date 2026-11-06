@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import {
+  ApprovalStatus,
+  approvalCleared,
+  type ApprovalInfo,
+} from "../../../../../components/approval-status";
 import { download } from "../../../../../components/accounting/download";
 import { useOptions } from "../../../../../components/accounting/use-options";
 import { useMe } from "../../../../../components/me-context";
@@ -60,6 +65,7 @@ interface Run {
   }[];
   accountMove: { id: string; name: string | null } | null;
   paymentMove: { id: string; name: string | null } | null;
+  approval?: ApprovalInfo;
 }
 
 /** Detail payroll: slip per karyawan, hitung ulang, posting, bayar, file transfer bank & rekap PPh 21/BPJS. */
@@ -254,10 +260,21 @@ export default function PayrollRunPage() {
           </button>
         )}
         {run.state === "draft" && manage && (
+          <ApprovalStatus approval={run.approval} busy={busy} onSubmit={() => act("submit-approval")} />
+        )}
+        {run.state === "draft" && manage && (
           <button
             type="button"
             className="primary"
-            disabled={busy}
+            disabled={busy || !approvalCleared(run.approval)}
+            title={
+              approvalCleared(run.approval)
+                ? undefined
+                : l(
+                    "Payroll harus disetujui sebelum diposting",
+                    "The payroll must be approved before posting",
+                  )
+            }
             onClick={async () =>
               (await ask(
                 l(

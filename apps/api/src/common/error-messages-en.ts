@@ -461,6 +461,12 @@ export const MESSAGES_EN: Record<string, string> = {
   "Upah wajib diisi": "Wage is required",
   "Golongan belum punya gaji pokok standar": "The grade has no standard base wage",
   "Golongan upah tidak ditemukan": "Salary grade not found",
+  "Payroll sudah diajukan untuk persetujuan": "The payroll has already been submitted for approval",
+  "Mutasi sudah diajukan untuk persetujuan": "The movement has already been submitted for approval",
+  "Penawaran sudah diajukan untuk persetujuan": "The offer has already been submitted for approval",
+  "Hanya penawaran draft yang bisa diajukan": "Only draft offers can be submitted",
+  "Menunggu persetujuan; belum bisa diproses": "Waiting for approval; cannot be processed yet",
+  "Ajukan persetujuan terlebih dulu": "Submit for approval first",
   "Komponen THR belum diatur di pengaturan payroll": "The THR component is not set in the payroll settings",
   "Komponen rapel belum diatur di pengaturan payroll":
     "The back-pay component is not set in the payroll settings",

@@ -21,6 +21,7 @@ export function NotificationBell() {
   const [count, setCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<Notification[]>([]);
+  const [email, setEmail] = useState<{ email: boolean; address: string | null } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -36,6 +37,9 @@ export function NotificationBell() {
   useEffect(() => {
     if (!open) return;
     api<Notification[]>("/me/notifications").then(setRows, () => setRows([]));
+    api<{ email: boolean; address: string | null }>("/me/notification-settings").then(setEmail, () =>
+      setEmail(null),
+    );
     const close = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
@@ -101,6 +105,25 @@ export function NotificationBell() {
             </button>
           ))}
           {!rows.length && <p className="muted">{l("Belum ada notifikasi.", "No notifications yet.")}</p>}
+          {email && (
+            <label className="notifications-email check">
+              <input
+                type="checkbox"
+                checked={email.email}
+                onChange={async (e) => {
+                  const next = e.target.checked;
+                  setEmail({ ...email, email: next });
+                  await api("/me/notification-settings", { method: "PUT", body: { email: next } }).catch(() =>
+                    setEmail({ ...email }),
+                  );
+                }}
+              />
+              <span>
+                {l("Kirim juga lewat email", "Also send by email")}
+                {email.address && <small className="muted"> ({email.address})</small>}
+              </span>
+            </label>
+          )}
         </div>
       )}
     </div>

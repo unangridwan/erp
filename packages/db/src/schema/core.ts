@@ -145,6 +145,8 @@ export const users = pgTable(
       .default("human"),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     active: boolean("active").notNull().default(true),
+    /** Kirim notifikasi juga lewat email. */
+    notifyEmail: boolean("notify_email").notNull().default(true),
     ...audit,
   },
   (t) => [uniqueIndex("users_tenant_email_uq").on(t.tenantId, t.email)],

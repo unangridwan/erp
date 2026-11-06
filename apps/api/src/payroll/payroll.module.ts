@@ -166,6 +166,13 @@ class PayrollController {
     return this.tenantDb.run((tx) => this.payroll.compute(tx, id));
   }
 
+  @Post("payroll-runs/:id/submit-approval")
+  @HttpCode(200)
+  @RequirePermission("payroll.manage")
+  submitApproval(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.payroll.submitApproval(tx, id));
+  }
+
   @Post("payroll-runs/:id/post")
   @HttpCode(200)
   @RequirePermission("payroll.manage")

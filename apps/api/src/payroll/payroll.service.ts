@@ -37,6 +37,7 @@ import { EmployeeService } from "../hr/employee.service.js";
 import { ExpenseService } from "../hr/expense.service.js";
 import { LeaveService } from "../hr/leave.service.js";
 import { WorkCalendarService, type WorkCalendar } from "../hr/work-calendar.service.js";
+import { ApprovalGateService } from "../hr/approval-gate.service.js";
 import { localDate, ScheduleService } from "../hr/schedule.service.js";
 import { LoanService } from "./loan.service.js";
 
@@ -106,6 +107,7 @@ export class PayrollService {
     @Inject(LoanService) private readonly loans: LoanService,
     @Inject(ExpenseService) private readonly expenses: ExpenseService,
     @Inject(WorkCalendarService) private readonly calendar: WorkCalendarService,
+    @Inject(ApprovalGateService) private readonly gate: ApprovalGateService,
   ) {}
 
   // ---- Pengaturan ----
@@ -333,6 +335,10 @@ export class PayrollService {
       },
       accountMove: moves.find((m) => m.id === run.accountMoveId) ?? null,
       paymentMove: moves.find((m) => m.id === run.paymentMoveId) ?? null,
+      approval: {
+        required: await this.gate.enabled(tx, run.companyId, "payroll"),
+        request: await this.gate.summary(tx, run.approvalRequestId),
+      },
     };
   }
 
@@ -379,6 +385,7 @@ export class PayrollService {
     const run = await this.find(tx, id, true);
     if (run.state !== "draft")
       throw new BadRequestException("Payroll yang sudah diposting tidak bisa dihitung ulang");
+    await this.resetApproval(tx, run);
     if (run.kind === "correction") {
       for (const slip of await tx.select().from(SLIP).where(eq(SLIP.runId, id)))
         await this.recomputeSlip(tx, run, slip);
@@ -933,7 +940,16 @@ export class PayrollService {
   }
 
   /** Hitung ulang satu slip draft (setelah input slip berubah). */
+  /** Angka berubah: persetujuan yang sudah diajukan/diberikan tidak berlaku lagi (wajib ajukan ulang). */
+  private async resetApproval(tx: Db, run: typeof RUN.$inferSelect) {
+    if (!run.approvalRequestId) return;
+    await this.gate.withdraw(tx, run.approvalRequestId);
+    await tx.update(RUN).set({ approvalRequestId: null }).where(eq(RUN.id, run.id));
+    run.approvalRequestId = null;
+  }
+
   private async recomputeSlip(tx: Db, run: typeof RUN.$inferSelect, slip: typeof SLIP.$inferSelect) {
+    await this.resetApproval(tx, run);
     const [employee] = await tx
       .select()
       .from(schema.employees)
@@ -990,9 +1006,51 @@ export class PayrollService {
    * Posting payroll: jurnal beban gaji & BPJS (per cabang/unit bisnis) vs utang BPJS, utang PPh 21,
    * potongan, dan utang gaji (gaji bersih).
    */
+  /** Ajukan payroll run (sudah dihitung) ke persetujuan sebelum diposting. */
+  async submitApproval(tx: Db, id: string) {
+    const run = await this.find(tx, id, true);
+    if (run.state !== "draft") throw new BadRequestException("Payroll sudah diposting");
+    const state = await this.gate.state(tx, run.approvalRequestId);
+    if (state === "pending" || state === "approved")
+      throw new BadRequestException("Payroll sudah diajukan untuk persetujuan");
+    const detail = await this.get(tx, id);
+    if (!detail.payslips.length) throw new BadRequestException("Tidak ada slip gaji");
+    const t = detail.totals;
+    const fmt = (v: string) => new Decimal(v).toFixed(0);
+    const requestId = await this.gate.submit(tx, run.companyId, "payroll", {
+      subject: `Payroll ${run.name}`,
+      reference: run.name,
+      date: run.paymentDate,
+      amount: t.gross,
+      quantity: String(detail.payslips.length),
+      description: [
+        `Periode ${run.periodStart} s.d. ${run.periodEnd}, dibayar ${run.paymentDate}; ${detail.payslips.length} slip.`,
+        `Bruto Rp ${fmt(t.gross)}, neto dibayar Rp ${fmt(t.net)}, PPh 21 Rp ${fmt(t.pph21)}.`,
+        `BPJS perusahaan Rp ${fmt(new Decimal(t.kesEmployer).plus(t.tkEmployer).toFixed(2))}, karyawan Rp ${fmt(new Decimal(t.kesEmployee).plus(t.tkEmployee).toFixed(2))}.`,
+      ].join("\n"),
+    });
+    await tx
+      .update(RUN)
+      .set({ approvalRequestId: requestId, updatedAt: sql`now()` })
+      .where(eq(RUN.id, id));
+    await this.activity.log(tx, {
+      resModel: "payroll_run",
+      resId: id,
+      action: "comment",
+      message: "Payroll diajukan untuk persetujuan",
+    });
+    return this.get(tx, id);
+  }
+
   async post(tx: Db, id: string) {
     const run = await this.find(tx, id, true);
     if (run.state !== "draft") throw new BadRequestException("Payroll sudah diposting");
+    await this.gate.assertApproved(
+      tx,
+      await this.gate.enabled(tx, run.companyId, "payroll"),
+      run.approvalRequestId,
+      "payroll diposting",
+    );
     const s = await this.settings(tx, run.companyId);
     const slips = await tx.select().from(SLIP).where(eq(SLIP.runId, id));
     if (!slips.length) throw new BadRequestException("Tidak ada slip gaji");

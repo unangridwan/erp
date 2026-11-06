@@ -50,6 +50,7 @@ import { HistoryService } from "./history.service.js";
 import { openingFromHiring } from "./hiring-request.module.js";
 import { ContractService } from "./contract.service.js";
 import { HrModule } from "./hr.module.js";
+import { ApprovalGateService } from "./approval-gate.service.js";
 import { renderOfferPdf, renderSettlementPdf } from "./letters-pdf.js";
 import { assertContractType } from "./contract-types.module.js";
 
@@ -224,6 +225,7 @@ export class JobOfferService {
   constructor(
     @Inject(SequenceService) private readonly sequences: SequenceService,
     @Inject(ActivityService) private readonly activity: ActivityService,
+    @Inject(ApprovalGateService) private readonly gate: ApprovalGateService,
   ) {}
 
   /** Penawaran terkirim yang lewat masa berlaku menjadi kedaluwarsa. */
@@ -244,7 +246,46 @@ export class JobOfferService {
   async list(tx: Db, applicantId: string) {
     await this.applicant(tx, applicantId);
     await this.expire(tx, applicantId);
-    return tx.select().from(JO).where(eq(JO.applicantId, applicantId)).orderBy(desc(JO.createdAt));
+    const rows = await tx
+      .select()
+      .from(JO)
+      .where(eq(JO.applicantId, applicantId))
+      .orderBy(desc(JO.createdAt));
+    const required = rows.length ? await this.gate.enabled(tx, rows[0]!.companyId, "offer") : false;
+    return Promise.all(
+      rows.map(async (r) => ({
+        ...r,
+        approval: { required, request: await this.gate.summary(tx, r.approvalRequestId) },
+      })),
+    );
+  }
+
+  /** Ajukan penawaran draft ke persetujuan sebelum dikirim ke pelamar (bila diwajibkan). */
+  async submitApproval(tx: Db, id: string) {
+    const offer = await this.find(tx, id);
+    if (offer.state !== "draft") throw new BadRequestException("Hanya penawaran draft yang bisa diajukan");
+    const state = await this.gate.state(tx, offer.approvalRequestId);
+    if (state === "pending" || state === "approved")
+      throw new BadRequestException("Penawaran sudah diajukan untuk persetujuan");
+    const a = await this.applicant(tx, offer.applicantId);
+    const requestId = await this.gate.submit(tx, offer.companyId, "offer", {
+      subject: `Penawaran kerja ${a.name}`,
+      reference: offer.number ?? a.name,
+      date: offer.startDate,
+      amount: offer.wage,
+      description: [
+        `${a.name} — ${offer.contractType.toUpperCase()}, mulai ${offer.startDate}${offer.contractEnd ? ` s.d. ${offer.contractEnd}` : ""}.`,
+        `Gaji ditawarkan Rp ${new Decimal(offer.wage).toFixed(0)}; berlaku s.d. ${offer.validUntil}.`,
+        offer.benefits ? `Benefit: ${offer.benefits}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    });
+    await tx
+      .update(JO)
+      .set({ approvalRequestId: requestId, updatedAt: sql`now()` })
+      .where(eq(JO.id, id));
+    return this.find(tx, id);
   }
 
   async create(tx: Db, applicantId: string, input: z.infer<typeof jobOfferSchema>) {
@@ -336,6 +377,13 @@ export class JobOfferService {
       throw new BadRequestException(
         offer.state === "expired" ? "Penawaran sudah kedaluwarsa" : "Status penawaran tidak sesuai",
       );
+    if (action === "send")
+      await this.gate.assertApproved(
+        tx,
+        await this.gate.enabled(tx, offer.companyId, "offer"),
+        offer.approvalRequestId,
+        "penawaran dikirim",
+      );
     const state = { send: "sent", accept: "accepted", decline: "declined", cancel: "cancel" }[action] as
       "sent" | "accepted" | "declined" | "cancel";
     const [row] = await tx
@@ -426,6 +474,13 @@ class JobOffersController {
   create(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
     const input = parse(jobOfferSchema, body);
     return this.tenantDb.run((tx) => this.offers.create(tx, id, input));
+  }
+
+  @Post("job-offers/:id/submit-approval")
+  @HttpCode(200)
+  @RequirePermission("hr.manage")
+  submitApproval(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.offers.submitApproval(tx, id));
   }
 
   @Post("job-offers/:id/:action(send|accept|decline|cancel)")
