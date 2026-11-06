@@ -5,13 +5,15 @@ Rencana lengkap: [docs/PLAN.md](docs/PLAN.md) · Keputusan arsitektur: [docs/adr
 
 ## Struktur
 
-| Path              | Isi                                                             |
-| ----------------- | --------------------------------------------------------------- |
-| `apps/api`        | Backend NestJS                                                  |
-| `apps/web`        | Frontend Next.js                                                |
-| `packages/db`     | Skema Drizzle, migrasi SQL, Row-Level Security                  |
-| `packages/shared` | Tipe & util bersama (mis. perhitungan kepemilikan efektif grup) |
-| `infra`           | docker-compose (Postgres, Redis, Mailpit), skrip backup & PITR  |
+| Path                 | Isi                                                                             |
+| -------------------- | ------------------------------------------------------------------------------- |
+| `apps/api`           | Backend NestJS                                                                  |
+| `apps/web`           | Frontend Next.js                                                                |
+| `packages/db`        | Skema Drizzle, migrasi SQL, Row-Level Security                                  |
+| `packages/shared`    | Tipe & util bersama (mis. perhitungan kepemilikan efektif grup)                 |
+| `packages/demo-data` | Data simulasi grup PT Didin Putra Agro: pembangkit Excel & skrip muat lewat API |
+| `demo/`              | Hasil: workbook data simulasi & file siap impor per perusahaan                  |
+| `infra`              | docker-compose (Postgres, Redis, Mailpit), skrip backup & PITR                  |
 
 ## Menjalankan lokal
 
@@ -80,6 +82,31 @@ Setelah mengubah kode atau `git pull`, cukup jalankan `pnpm start` lagi. Tips la
 - **Mulai dari awal**: `docker compose -f infra/docker-compose.yml down -v`, lalu ulangi `up -d` dan `pnpm db:setup`.
 - **`pnpm format:check` gagal di Windows karena akhir baris CRLF** (clone dibuat sebelum `.gitattributes` ada): hapus
   folder lalu clone ulang.
+
+### Data simulasi (grup fiktif PT Didin Putra Agro)
+
+Holding **PT Didin Putra Agro** (DPA) dengan 4 anak usaha 100%: PT Benih Unggul Indonesia (BUI, benih padi/jagung/
+sayur/cabai), PT Agroteknologi Indonesia (AGT, smart farming & AI, alsintan), PT Perdagangan Tani (PTN, perdagangan
+lokal & ekspor-impor, penjualan USD), PT Yuyun Herbal Nusantara (YHN, budidaya & produk herbal). Isinya: 395 karyawan
+lengkap (kontrak, keluarga, pendidikan, BPJS, rekening), 147 produk, 113 partner, saldo awal & stok awal 1 Jan 2026,
+aset tetap & penyusutan Jan–Okt, anggaran 2026, lalu transaksi **Agustus–Oktober 2026**: ±770 pesanan penjualan
+(kirim, faktur, bayar), pembelian, transaksi antar-perusahaan, ±24 rb baris absensi, cuti, lembur, klaim, pinjaman,
+payroll 3 bulan (hitung, posting, bayar), CRM, rekrutmen, armada, dan konsolidasi Jan–Okt.
+
+- **Excel**: `demo/didin-putra-agro/Data-Simulasi-PT-Didin-Putra-Agro.xlsx` (lembar _Panduan_ menjelaskan menu ERP
+  tiap lembar) dan `demo/didin-putra-agro/impor/<KODE>/` berisi file siap unggah lewat menu impor (lihat
+  `impor/DAFTAR.md`). Bangkitkan ulang dengan `pnpm demo:excel` (hasilnya selalu sama).
+- **Muat otomatis** ke database (API harus berjalan, mis. `pnpm dev`):
+
+  ```bash
+  pnpm demo:load                     # tenant "didin-putra-agro", ±5 menit
+  pnpm demo:load --api http://localhost:3001 --slug didin-putra-agro --only transaksi,payroll
+  ```
+
+  Login: tenant `didin-putra-agro`, `admin@didinputraagro.co.id` / `DemoAgro2026!` (pengguna demo lain per
+  perusahaan ada di lembar _Pengguna_). Skrip membaca workbook, jadi data yang Anda ubah di Excel ikut dimuat; tiap
+  tahap aman dijalankan ulang (data yang sudah ada dilewati). Tahap: `perusahaan, master, sdm, pengguna, saldo-awal,
+transaksi, kehadiran, payroll, crm-rekrutmen-armada, konsolidasi`. Semua data fiktif.
 
 ### Menjalankan test
 

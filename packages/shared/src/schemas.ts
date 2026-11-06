@@ -744,6 +744,8 @@ export const validatePickingSchema = z.object({
     .optional(),
   /** Sisa kuantitas yang belum dipindahkan dibuat sebagai transfer lanjutan (backorder). */
   createBackorder: z.boolean().default(true),
+  /** Tanggal transfer selesai (kosong = sekarang); untuk mencatat transfer yang terlambat diinput. */
+  date: z.string().date().optional(),
 });
 
 export const returnPickingSchema = z.object({

@@ -412,7 +412,9 @@ export class StockService {
     if (!done.length) throw new BadRequestException("Isi kuantitas yang dipindahkan minimal satu baris");
     await this.assertNotReservedElsewhere(tx, picking, moves, done);
 
-    const date = new Date();
+    const date = input.date ? new Date(`${input.date}T12:00:00Z`) : new Date();
+    if (date.getTime() > Date.now() + 86_400_000)
+      throw fieldError("date", "Tanggal transfer tidak boleh di masa depan");
     for (const r of remaining) {
       const qtyDone = d(r.move.quantity).minus(r.quantity);
       await tx

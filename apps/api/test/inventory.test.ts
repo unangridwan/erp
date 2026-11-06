@@ -194,6 +194,8 @@ describe.skipIf(!hasDb)("Fase 3: pembelian & persediaan", () => {
 
       const backorder = (await a.get(`/pickings?purchaseOrderId=${po1}&state=ready`).expect(200)).body
         .items[0];
+      // Tanggal transfer boleh mundur (input terlambat), tidak boleh di masa depan.
+      await a.post(`/pickings/${backorder.id}/validate`, { date: "2999-01-01" }).expect(400);
       await a.post(`/pickings/${backorder.id}/validate`, {}).expect(200);
       const matching = (await a.get("/purchase-orders/matching").expect(200)).body;
       expect(matching).toEqual([
