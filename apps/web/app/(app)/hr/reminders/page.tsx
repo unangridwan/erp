@@ -20,6 +20,7 @@ interface Reminders {
   }[];
   contracts: { id: string; name: string; dateEnd: string; employeeName: string; expiry: Expiry }[];
   retirements?: { employeeId: string; name: string; age: number; date: string; expiry: Expiry }[];
+  probations?: { id: string; name: string; probationEnd: string; employeeName: string; expiry: Expiry }[];
   overdueTasks: { id: string; name: string; dueDate: string; checklistId: string; employeeName: string }[];
 }
 
@@ -76,6 +77,29 @@ export default function RemindersPage() {
                       <td>{formatDate(c.dateEnd, locale)}</td>
                       <td className={c.expiry?.status === "expired" ? "error" : undefined}>
                         {left(c.expiry)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <h2>{l("Masa percobaan berakhir", "Probations ending")}</h2>
+          {!r.probations?.length ? (
+            <p className="muted">—</p>
+          ) : (
+            <div className="table-scroll">
+              <table>
+                <tbody>
+                  {r.probations.map((p) => (
+                    <tr key={p.id}>
+                      <td>
+                        <Link href={`/hr/contracts/${p.id}`}>{p.employeeName}</Link>
+                      </td>
+                      <td>{p.name}</td>
+                      <td>{formatDate(p.probationEnd, locale)}</td>
+                      <td className={p.expiry?.status === "expired" ? "error" : undefined}>
+                        {left(p.expiry)}
                       </td>
                     </tr>
                   ))}

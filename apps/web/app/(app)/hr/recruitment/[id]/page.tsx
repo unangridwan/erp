@@ -16,6 +16,8 @@ import { useContractTypes } from "../../../../../lib/use-contract-types";
 import { ask } from "../../../../../components/feedback";
 
 interface Applicant {
+  consentAt: string | null;
+  anonymizedAt: string | null;
   id: string;
   name: string;
   email: string | null;
@@ -142,8 +144,39 @@ function Applicant() {
                 </button>
               ))}
           {!closed && <RefuseForm open={refuseFirst} onRefuse={(body) => call("stage", body)} />}
+          {!a.employeeId && !a.anonymizedAt && can(me.permissions, "hr.manage") && (
+            <button
+              type="button"
+              className="danger"
+              onClick={async () => {
+                const ok = await ask({
+                  title: l("Anonimkan data pelamar", "Anonymize applicant"),
+                  message: l(
+                    "Nama, kontak, catatan, CV & dokumen pelamar dihapus permanen (UU PDP: permintaan hapus data). Statistik rekrutmen tetap.",
+                    "Name, contact, notes, CV & documents are permanently removed. Recruitment statistics remain.",
+                  ),
+                  danger: true,
+                  confirmLabel: l("Anonimkan", "Anonymize"),
+                });
+                if (ok) await call("anonymize", {});
+              }}
+            >
+              {l("Anonimkan", "Anonymize")}
+            </button>
+          )}
           <Link href="/hr/recruitment">{l("Kembali ke kanban", "Back to kanban")}</Link>
         </header>
+        <p className="small">
+          {a.anonymizedAt ? (
+            <span className="pill">{l("Data dianonimkan", "Data anonymized")}</span>
+          ) : a.consentAt ? (
+            <span className="pill ok">{l("Persetujuan data tercatat", "Data consent recorded")}</span>
+          ) : (
+            <span className="pill warn">
+              {l("Belum ada persetujuan data (UU PDP)", "No data consent recorded")}
+            </span>
+          )}
+        </p>
         {error && <p className="error">{error}</p>}
         <p className="muted">
           {[a.email, a.phone].filter(Boolean).join(" · ")}

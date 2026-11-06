@@ -889,6 +889,17 @@ export const payrollParameterSchema = z.object({
 /** Preferensi notifikasi pengguna (portal). */
 export const notificationSettingsSchema = z.object({ email: z.boolean() });
 
+/** Hasil evaluasi masa percobaan. */
+export const probationDecisionSchema = z.object({
+  result: z.enum(["passed", "failed"]),
+  note: z.string().trim().max(1000).nullish(),
+});
+
+const pin = z.string().regex(/^\d{6}$/, "PIN slip harus 6 digit angka");
+/** Atur/ubah PIN slip gaji (PIN lama wajib bila sudah ada). */
+export const payslipPinSchema = z.object({ pin, currentPin: pin.nullish() });
+export const payslipPinVerifySchema = z.object({ pin });
+
 export const PTKP_STATUS_VALUES = ["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"] as const;
 
 export const RELIGION_VALUES = [
@@ -1041,6 +1052,8 @@ export const contractSchema = z
     /** Kosong = gaji pokok standar golongan karyawan (upah bulanan). */
     wage: nonNegative(2).nullish(),
     note: z.string().max(2000).nullish(),
+    /** Masa percobaan (bulan, maks. 3) — hanya PKWTT. */
+    probationMonths: z.coerce.number().int().min(1).max(3, "Masa percobaan maksimal 3 bulan").nullish(),
     allowances: z.array(z.object({ componentId: z.string().uuid(), amount: nonNegative(2) })).default([]),
   })
   .refine((c) => !c.dateEnd || c.dateEnd >= c.dateStart, {
@@ -1297,6 +1310,10 @@ export const payrollSettingsSchema = z.object({
   payrollRunApproval: z.boolean().default(false),
   movementApproval: z.boolean().default(false),
   jobOfferApproval: z.boolean().default(false),
+  /** UU PDP: bulan sejak pelamar ditolak / lowongan ditutup sebelum dianonimkan (kosong = tidak otomatis). */
+  applicantRetentionMonths: z.coerce.number().int().min(1).max(120).nullish(),
+  /** Karyawan wajib memasukkan PIN slip sebelum membuka slip gaji di portal. */
+  payslipPinRequired: z.boolean().default(false),
   jkkRate: z.enum(["0.24", "0.54", "0.89", "1.27", "1.74"]),
   kesWageCap: nonNegative(2),
   jpWageCap: nonNegative(2),
@@ -1515,6 +1532,9 @@ export const applicantSchema = z.object({
   source: z.enum(["referral", "jobportal", "website", "walkin", "other"]).default("other"),
   expectedWage: nonNegative(2).nullish(),
   notes: z.string().trim().max(5000).nullish(),
+  /** UU PDP: pelamar menyetujui pemrosesan datanya untuk rekrutmen. */
+  consent: z.boolean().optional(),
+  consentSource: z.enum(["form", "email", "paper", "portal", "other"]).nullish(),
 });
 
 export const applicantStageSchema = z

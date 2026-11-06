@@ -1,6 +1,12 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { and, desc, eq, ilike, isNull, ne, schema, sql, type Db } from "@erp/db";
-import { addDays, RESIGN_REASON_LABEL, type contractEndSchema, type contractSchema } from "@erp/shared";
+import {
+  addDays,
+  addMonths,
+  RESIGN_REASON_LABEL,
+  type contractEndSchema,
+  type contractSchema,
+} from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
 import { fieldError } from "../accounting/context.js";
@@ -72,6 +78,25 @@ export async function contractGradeWage(
         : "Gaji pokok wajib diisi",
     );
   return { wage, gradeId: grade?.id ?? null, gradeBaseWage: base };
+}
+
+/**
+ * Masa percobaan hanya untuk perjanjian kerja waktu tidak tertentu (UU 13/2003 ps. 58 & 60: PKWT tidak boleh
+ * mensyaratkan masa percobaan; paling lama 3 bulan). Berakhir sehari sebelum genap N bulan sejak mulai kontrak.
+ */
+export async function contractProbation(
+  tx: Db,
+  input: { contractType: string; dateStart: string; probationMonths?: number | null },
+  field = "probationMonths",
+) {
+  if (!input.probationMonths) return { probationMonths: null, probationEnd: null };
+  const type = await contractTypeOf(tx, input.contractType);
+  if (!type || type.fixedTerm)
+    throw fieldError(field, "Masa percobaan hanya untuk perjanjian kerja waktu tidak tertentu (PKWTT)");
+  return {
+    probationMonths: input.probationMonths,
+    probationEnd: addDays(addMonths(input.dateStart, input.probationMonths), -1),
+  };
 }
 
 /** Pembuatan & mulai berlaku kontrak (dipakai controller kontrak dan impor data). */
@@ -331,6 +356,7 @@ export class ContractService {
   async create(tx: Db, input: z.infer<typeof contractSchema>, prefix = "") {
     const employee = await this.employees.find(tx, input.employeeId);
     const pay = await contractGradeWage(tx, employee, input, `${prefix}wage`);
+    const probation = await contractProbation(tx, input, `${prefix}probationMonths`);
     this.assertWithinEmployment(employee, input);
     await assertBeforeRetirement(tx, employee, input);
     await assertContractType(tx, input.contractType, input);
@@ -357,6 +383,7 @@ export class ContractService {
         dateStart: input.dateStart,
         dateEnd: input.dateEnd ?? null,
         ...pay,
+        ...probation,
         note: input.note ?? null,
       })
       .returning();

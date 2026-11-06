@@ -250,6 +250,7 @@ export function EmployeeForm({ id }: { id: string }) {
           wage: newContract.wage.trim(),
           wageType: newContract.wageType,
           taxMethod: newContract.taxMethod,
+          probationMonths: newContract.probationMonths ? Number(newContract.probationMonths) : null,
           allowances: newContract.allowances
             .filter((a) => a.componentId)
             .map((a) => ({ componentId: a.componentId, amount: a.amount.trim() || "0" })),
@@ -793,7 +794,10 @@ export function EmployeeForm({ id }: { id: string }) {
             </fieldset>
 
             {tab === "settings" && !isNew && editable && (
-              <AttendancePin id={id} hasPin={Boolean(values.hasAttendancePin)} />
+              <>
+                <AttendancePin id={id} hasPin={Boolean(values.hasAttendancePin)} />
+                <PayslipPinReset id={id} hasPin={Boolean(values.hasPayslipPin)} />
+              </>
             )}
           </div>
 
@@ -1038,6 +1042,44 @@ function AttendancePin({ id, hasPin }: { id: string; hasPin: boolean }) {
           <button type="button" disabled={pin.length < 4} onClick={save}>
             {l("Simpan PIN", "Save PIN")}
           </button>
+        </span>
+      </div>
+      {msg && <small className="muted">{msg}</small>}
+    </section>
+  );
+}
+
+function PayslipPinReset({ id, hasPin }: { id: string; hasPin: boolean }) {
+  const { l } = useI18n();
+  const [has, setHas] = useState(hasPin);
+  const [msg, setMsg] = useState<string | null>(null);
+  const reset = async () => {
+    setMsg(null);
+    try {
+      await api(`/employees/${id}/payslip-pin/reset`, { method: "POST" });
+      setHas(false);
+      setMsg(
+        l(
+          "PIN slip direset; karyawan akan membuat PIN baru di portal.",
+          "Payslip PIN reset; the employee will set a new PIN in the portal.",
+        ),
+      );
+    } catch (e) {
+      setMsg(errorText(e));
+    }
+  };
+  return (
+    <section className="o-group">
+      <h3 className="o-group-title">{l("PIN slip gaji", "Payslip PIN")}</h3>
+      <div className="o-row">
+        <span className="o-label">{l("Status", "Status")}</span>
+        <span className="o-value inline">
+          {has ? l("Sudah diatur", "Set") : l("Belum diatur", "Not set")}
+          {has && (
+            <button type="button" onClick={reset}>
+              {l("Reset PIN", "Reset PIN")}
+            </button>
+          )}
         </span>
       </div>
       {msg && <small className="muted">{msg}</small>}

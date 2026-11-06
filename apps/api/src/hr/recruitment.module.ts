@@ -46,6 +46,7 @@ import { parse } from "../common/zod.js";
 import { CONFIG, type AppConfig } from "../config.js";
 import { reportError } from "../common/error-reporting.js";
 import { SequenceService } from "../sequences/sequence.service.js";
+import { anonymizeApplicants, runApplicantRetention } from "./privacy.js";
 import { ChecklistService } from "./checklist.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { HrModule } from "./hr.module.js";
@@ -262,6 +263,26 @@ async function reminders(tx: Db, companyId: string, days: number) {
       ),
     )
     .orderBy(asc(schema.employeeWarnings.validUntil));
+  // Masa percobaan yang berakhir dalam `days` hari (atau sudah lewat) dan belum dievaluasi.
+  const probations = await tx
+    .select({
+      id: schema.contracts.id,
+      name: schema.contracts.name,
+      probationEnd: schema.contracts.probationEnd,
+      employeeId: schema.contracts.employeeId,
+      employeeName: schema.employees.name,
+    })
+    .from(schema.contracts)
+    .innerJoin(schema.employees, eq(schema.employees.id, schema.contracts.employeeId))
+    .where(
+      and(
+        eq(schema.contracts.companyId, companyId),
+        eq(schema.contracts.state, "running"),
+        isNull(schema.contracts.probationResult),
+        lte(schema.contracts.probationEnd, addDays(today(), days)),
+      ),
+    )
+    .orderBy(asc(schema.contracts.probationEnd));
   // Karyawan yang pensiun dalam masa pengingat kebijakan (atau `days`, mana yang lebih panjang).
   const policy = await retirementPolicy(tx, companyId);
   const retirementDays = Math.max(days, Math.round(policy.reminderMonths * 30.44));
@@ -272,6 +293,7 @@ async function reminders(tx: Db, companyId: string, days: number) {
     contracts: contracts.map((c) => ({ ...c, expiry: expiryStatus(c.dateEnd, today(), days) })),
     overdueTasks: tasks,
     warnings: warnings.map((w) => ({ ...w, expiry: expiryStatus(w.validUntil, today(), days) })),
+    probations: probations.map((p) => ({ ...p, expiry: expiryStatus(p.probationEnd!, today(), days) })),
   };
 }
 
@@ -330,13 +352,21 @@ export class HrReminderService implements OnApplicationBootstrap, OnApplicationS
             .select({ id: schema.companies.id, name: schema.companies.name })
             .from(schema.companies);
           for (const company of companies) {
+            // UU PDP: anonimkan data pelamar yang melewati masa retensi perusahaan.
+            const [ps] = await tx
+              .select({ months: schema.payrollSettings.applicantRetentionMonths })
+              .from(schema.payrollSettings)
+              .where(eq(schema.payrollSettings.companyId, company.id));
+            const anonymized = await runApplicantRetention(tx, company.id, ps?.months ?? null);
+            if (anonymized) this.logger.log(`${company.name}: ${anonymized} pelamar dianonimkan (retensi)`);
             const r = await reminders(tx, company.id, 30);
             if (
               !r.documents.length &&
               !r.contracts.length &&
               !r.overdueTasks.length &&
               !r.warnings.length &&
-              !r.retirements.length
+              !r.retirements.length &&
+              !r.probations.length
             )
               continue;
             const [logged] = await tx
@@ -371,6 +401,10 @@ export class HrReminderService implements OnApplicationBootstrap, OnApplicationS
                 (w) => `- ${w.level.toUpperCase()} ${w.employeeName} berakhir ${w.validUntil}`,
               ),
               ...r.retirements.map((x) => `- ${x.name} memasuki usia pensiun ${x.age} tahun pada ${x.date}`),
+              ...r.probations.map(
+                (p) =>
+                  `- Masa percobaan ${p.employeeName} (${p.name}) berakhir ${p.probationEnd}: evaluasi lulus/tidak`,
+              ),
             ];
             for (const { email } of recipients)
               out.push({
@@ -461,14 +495,17 @@ class ApplicantsController {
     return this.tenantDb.run(async (tx) => {
       const opening = await this.opening(tx, input.openingId);
       if (opening.state !== "open") throw fieldError("openingId", "Lowongan sudah ditutup");
+      const { consent, consentSource, ...values } = input;
       const [row] = await tx
         .insert(AP)
         .values({
-          ...input,
+          ...values,
           email: input.email ?? null,
           expectedWage: input.expectedWage ?? null,
           notes: input.notes ?? null,
           companyId: opening.companyId,
+          // UU PDP: catat persetujuan pemrosesan data pelamar (kapan & lewat apa).
+          ...(consent ? { consentAt: sql`now()`, consentSource: consentSource ?? "form" } : {}),
         })
         .returning();
       return this.load(tx, row!.id);
@@ -480,18 +517,39 @@ class ApplicantsController {
   update(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
     const input = parse(applicantSchema, body);
     return this.tenantDb.run(async (tx) => {
-      await this.find(tx, id);
+      const current = await this.find(tx, id);
+      if (current.anonymizedAt) throw new BadRequestException("Data pelamar sudah dianonimkan");
       await this.opening(tx, input.openingId);
+      const { consent, consentSource, ...values } = input;
       await tx
         .update(AP)
         .set({
-          ...input,
+          ...values,
+          ...(consent && !current.consentAt
+            ? { consentAt: sql`now()`, consentSource: consentSource ?? "form" }
+            : consent === false
+              ? { consentAt: null, consentSource: null }
+              : {}),
           email: input.email ?? null,
           expectedWage: input.expectedWage ?? null,
           notes: input.notes ?? null,
           updatedAt: sql`now()`,
         })
         .where(eq(AP.id, id));
+      return this.load(tx, id);
+    });
+  }
+
+  /** Hapus identitas pelamar atas permintaannya (UU PDP) — statistik rekrutmen tetap. */
+  @Post(":id/anonymize")
+  @HttpCode(200)
+  @RequirePermission("hr.manage")
+  anonymize(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run(async (tx) => {
+      const a = await this.find(tx, id);
+      if (a.employeeId)
+        throw new BadRequestException("Pelamar sudah menjadi karyawan; data dikelola di data karyawan");
+      await anonymizeApplicants(tx, [id]);
       return this.load(tx, id);
     });
   }

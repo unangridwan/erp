@@ -138,6 +138,11 @@ export const employees = pgTable("employees", {
   /** Kode kartu/badge untuk kiosk & mesin absensi. */
   badgeCode: text("badge_code"),
   attendancePinHash: text("attendance_pin_hash"),
+  /** PIN slip gaji (hash), percobaan gagal, kunci sementara, dan sesi buka slip. */
+  payslipPinHash: text("payslip_pin_hash"),
+  payslipPinFailed: smallint("payslip_pin_failed").notNull().default(0),
+  payslipPinLockedUntil: timestamp("payslip_pin_locked_until", { withTimezone: true }),
+  payslipUnlockedUntil: timestamp("payslip_unlocked_until", { withTimezone: true }),
   /** Tag bebas (mis. "Remote", "Gedung B"). */
   tags: text("tags").array().notNull().default([]),
   active: boolean("active").notNull().default(true),
@@ -246,6 +251,13 @@ export const contracts = pgTable("contracts", {
   /** Golongan upah & gaji pokok standarnya saat kontrak dibuat (mengikuti standar bila wage = gradeBaseWage). */
   gradeId: uuid("grade_id"),
   gradeBaseWage: numeric("grade_base_wage", { precision: 20, scale: 2 }),
+  /** Masa percobaan PKWTT (bulan) & hasil evaluasinya. */
+  probationMonths: smallint("probation_months"),
+  probationEnd: date("probation_end"),
+  probationResult: text("probation_result", { enum: ["passed", "failed"] }),
+  probationNote: text("probation_note"),
+  probationDecidedAt: timestamp("probation_decided_at", { withTimezone: true }),
+  probationDecidedBy: uuid("probation_decided_by"),
   /** monthly = gaji bulanan; daily = upah per hari kerja; piece = tarif per satuan hasil kerja (borongan). */
   wageType: text("wage_type", { enum: ["monthly", "daily", "piece"] })
     .notNull()
@@ -614,6 +626,8 @@ export const payrollSettings = pgTable("payroll_settings", {
   payrollRunApproval: boolean("payroll_run_approval").notNull().default(false),
   movementApproval: boolean("movement_approval").notNull().default(false),
   jobOfferApproval: boolean("job_offer_approval").notNull().default(false),
+  applicantRetentionMonths: smallint("applicant_retention_months"),
+  payslipPinRequired: boolean("payslip_pin_required").notNull().default(false),
   salaryExpenseAccountId: uuid("salary_expense_account_id").notNull(),
   bpjsKesExpenseAccountId: uuid("bpjs_kes_expense_account_id").notNull(),
   bpjsTkExpenseAccountId: uuid("bpjs_tk_expense_account_id").notNull(),
@@ -1004,6 +1018,10 @@ export const applicants = pgTable("applicants", {
   stageChangedAt: timestamp("stage_changed_at", { withTimezone: true }).notNull().defaultNow(),
   hiredAt: timestamp("hired_at", { withTimezone: true }),
   refusedStage: text("refused_stage", { enum: ["new", "screening", "interview", "offer"] }),
+  /** UU PDP: persetujuan pemrosesan data & anonimisasi setelah masa retensi. */
+  consentAt: timestamp("consent_at", { withTimezone: true }),
+  consentSource: text("consent_source", { enum: ["form", "email", "paper", "portal", "other"] }),
+  anonymizedAt: timestamp("anonymized_at", { withTimezone: true }),
   ...audit,
 });
 
@@ -1867,4 +1885,17 @@ export const manpowerPlanLines = pgTable("manpower_plan_lines", {
   reason: text("reason"),
   replacesEmployeeId: uuid("replaces_employee_id"),
   jobOpeningId: uuid("job_opening_id"),
+});
+
+/** Log akses data pribadi karyawan (NIK, NPWP, rekening, gaji) — hanya tambah. */
+export const personalDataAccessLogs = pgTable("personal_data_access_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  userId: uuid("user_id"),
+  employeeId: uuid("employee_id"),
+  fields: text("fields").array().notNull().default([]),
+  purpose: text("purpose").notNull(),
+  recordCount: integer("record_count").notNull().default(1),
+  createdAt: audit.createdAt,
 });

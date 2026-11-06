@@ -39,7 +39,18 @@ export class EmployeeService {
 
   /** Buka data sensitif hanya untuk pemegang hr.manage (atau karyawan itu sendiri); lainnya tersamar. */
   reveal(employee: Employee, full = hasPermission(currentContext().permissions, "hr.manage")) {
-    const { nikEnc, npwpEnc, bankAccountEnc, kkNoEnc, attendancePinHash, ...rest } = employee;
+    const {
+      nikEnc,
+      npwpEnc,
+      bankAccountEnc,
+      kkNoEnc,
+      attendancePinHash,
+      payslipPinHash,
+      payslipPinFailed: _f,
+      payslipPinLockedUntil: _l,
+      payslipUnlockedUntil: _u,
+      ...rest
+    } = employee;
     const open = (v: string | null) => {
       if (!v) return null;
       const plain = decrypt(v, this.config.encryptionKey);
@@ -52,6 +63,7 @@ export class EmployeeService {
       bankAccount: open(bankAccountEnc),
       kkNo: open(kkNoEnc),
       hasAttendancePin: attendancePinHash !== null,
+      hasPayslipPin: payslipPinHash !== null,
     };
   }
 
@@ -135,6 +147,10 @@ export class EmployeeService {
           bankAccountEnc: _b,
           kkNoEnc: _k,
           attendancePinHash: _pin,
+          payslipPinHash: _spin,
+          payslipPinFailed: _sf,
+          payslipPinLockedUntil: _sl,
+          payslipUnlockedUntil: _su,
           ...rest
         } = r.employee;
         return { ...rest, departmentName: r.departmentName, jobName: r.jobName, hasPhoto: r.hasPhoto };

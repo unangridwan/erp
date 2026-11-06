@@ -407,6 +407,8 @@ export const newEmployeeContractSchema = z
         .transform((v) => v.toFixed(2))
         .nullish(),
     ),
+    /** Masa percobaan (bulan, maks. 3) — hanya PKWTT. */
+    probationMonths: z.coerce.number().int().min(1).max(3, "Masa percobaan maksimal 3 bulan").nullish(),
     /** Komponen gaji lain (tunjangan tetap/tidak tetap, potongan) — nilai per bulan atau tarif per hari hadir/premi. */
     allowances: z
       .array(

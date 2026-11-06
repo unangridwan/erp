@@ -26,6 +26,7 @@ import { currentContext } from "../../common/request-context.js";
 import { parse } from "../../common/zod.js";
 import { PayrollModule } from "../../payroll/payroll.module.js";
 import { HrModule } from "../hr.module.js";
+import { logPersonalDataAccess, type PersonalField } from "../privacy.js";
 import { Lookups, RowError, type Column, type Ctx, type Dataset, type Outcome, type Row } from "./core.js";
 import { DatasetRegistry } from "./registry.js";
 
@@ -204,7 +205,28 @@ class DataTransferController {
         );
       }
       try {
-        return { columns, rows: await d.rows(tx, ctx, query) };
+        const rows = await d.rows(tx, ctx, query);
+        // UU PDP: ekspor kolom data pribadi dicatat (satu baris log per ekspor).
+        const sensitive = columns.filter((c) => c.sensitive).map((c) => c.key);
+        if (sensitive.length && rows.length)
+          await logPersonalDataAccess(tx, {
+            fields: sensitive
+              .map((k) =>
+                /nik/i.test(k)
+                  ? "nik"
+                  : /npwp/i.test(k)
+                    ? "npwp"
+                    : /bank|rekening/i.test(k)
+                      ? "bankAccount"
+                      : /kk/i.test(k)
+                        ? "kkNo"
+                        : "salary",
+              )
+              .filter((f, i, all) => all.indexOf(f) === i) as PersonalField[],
+            purpose: `Ekspor data ${d.key}`.slice(0, 200),
+            count: rows.length,
+          });
+        return { columns, rows };
       } catch (e) {
         if (e instanceof RowError) throw new BadRequestException(e.message);
         throw e;

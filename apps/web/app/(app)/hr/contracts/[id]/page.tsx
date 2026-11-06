@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { ContractComponentsEditor } from "../../../../../components/hr/contract-components";
 import { ContractDocumentPanel } from "../../../../../components/hr/contract-document";
+import { ProbationPanel } from "../../../../../components/hr/probation-panel";
 import { ContractTypeOptions } from "../../../../../components/hr/contract-type-options";
 import { RESIGN_REASON_LABEL } from "../../../../../components/hr/offboarding-panel";
 import { RefSelect } from "../../../../../components/ref-select";
@@ -12,7 +13,8 @@ import { api, ApiError } from "../../../../../lib/api";
 import { addDays } from "@erp/shared";
 import { formatDate, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
-import { CONTRACT_STATE_LABEL } from "../../../../../lib/resources";
+import { CONTRACT_STATE_LABEL, can } from "../../../../../lib/resources";
+import { useMe } from "../../../../../components/me-context";
 import { GradeWageHint, useEffectiveGrade, useGradeAutofill } from "../../../../../components/hr/grade-wage";
 import { useContractTypes } from "../../../../../lib/use-contract-types";
 import { ask } from "../../../../../components/feedback";
@@ -37,6 +39,10 @@ interface Contract {
   employee: { joinDate: string; resignDate: string | null; resignReason: string | null } | null;
   note: string | null;
   allowances: { componentId: string; amount: string; name: string; kind: string; fixed: boolean }[];
+  probationMonths: number | null;
+  probationEnd: string | null;
+  probationResult: "passed" | "failed" | null;
+  probationNote: string | null;
   grade: {
     id: string;
     code: string;
@@ -88,6 +94,7 @@ function Contract() {
   const justCreated = params.get("created") === "1";
   const router = useRouter();
   const { l, tx, locale } = useI18n();
+  const me = useMe();
   const types = useContractTypes();
   const isNew = id === "new";
   const [contract, setContract] = useState<Contract | null>(null);
@@ -621,6 +628,13 @@ function Contract() {
           </p>
         )}
       </form>
+      {contract && (
+        <ProbationPanel
+          contract={contract}
+          manage={can(me.permissions, "hr.manage")}
+          onChange={() => setVersion((v) => v + 1)}
+        />
+      )}
       {contract && contract.state !== "cancel" && (
         <ContractDocumentPanel
           contractId={contract.id}
