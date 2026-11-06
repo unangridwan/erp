@@ -452,6 +452,7 @@ export const MESSAGES_EN: Record<string, string> = {
   "Entri jurnal {} sudah diposting dan tidak bisa diubah":
     "Journal entry {0} is posted and cannot be changed",
   // Payroll lanjutan
+  "Tanggal transfer tidak boleh di masa depan": "The transfer date cannot be in the future",
   "Upah maksimum di bawah upah minimum": "The maximum wage is below the minimum wage",
   "Gaji pokok golongan tidak boleh di bawah upah minimum":
     "The grade base wage cannot be below the minimum wage",

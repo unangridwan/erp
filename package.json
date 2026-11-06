@@ -16,7 +16,9 @@
     "test": "turbo run test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "platform:admin": "pnpm --filter @erp/db platform:admin"
+    "platform:admin": "pnpm --filter @erp/db platform:admin",
+    "demo:excel": "turbo run build --filter=@erp/demo-data && pnpm --filter @erp/demo-data excel",
+    "demo:load": "turbo run build --filter=@erp/demo-data && pnpm --filter @erp/demo-data load --"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

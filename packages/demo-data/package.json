@@ -1,0 +1,20 @@
+{
+  "name": "@erp/demo-data",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "excel": "node dist/generate.js",
+    "load": "node dist/load.js"
+  },
+  "dependencies": {
+    "@erp/shared": "workspace:*",
+    "exceljs": "^4.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2"
+  }
+}

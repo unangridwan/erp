@@ -489,6 +489,8 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   tertentu (hitung ulang periode lama tetap), bukti potong BP21 pegawai tidak tetap & bukan pegawai + XML Coretax
 - [x] Email notifikasi & persetujuan dokumen (migrasi 0059) — notifikasi juga dikirim lewat email (outbox, preferensi
   per pengguna), persetujuan opsional payroll run / mutasi / penawaran kerja lewat mesin persetujuan generik
+- [x] Data simulasi grup PT Didin Putra Agro (`packages/demo-data`): workbook Excel + file siap impor + `pnpm demo:load`
+  (395 karyawan, transaksi Agt–Okt 2026, payroll, konsolidasi); validasi transfer stok kini bisa diberi tanggal
 - [x] Masa percobaan, UU PDP & PIN slip (migrasi 0060) — masa percobaan ≤ 3 bulan khusus PKWTT (pengingat, evaluasi
   lulus/tidak lulus, surat pengangkatan), persetujuan data pelamar + retensi & anonimisasi otomatis, log akses data
   pribadi (NIK/NPWP/rekening/gaji), PIN 6 digit wajib sebelum membuka slip di portal (kunci 15 menit setelah 5 kali salah)
