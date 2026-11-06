@@ -138,21 +138,23 @@ const SalaryGradesController = createCrudController({
   orderBy: schema.salaryGrades.sequence,
   beforeSave: async (tx, values, id) => {
     let { minWage, maxWage, baseWage } = values as {
-      minWage?: string;
-      maxWage?: string;
-      baseWage?: string | null;
+      minWage?: string | null;
+      maxWage?: string | null;
+      baseWage?: string;
     };
     if (id && (minWage === undefined || maxWage === undefined || baseWage === undefined)) {
       const [row] = await tx.select().from(schema.salaryGrades).where(eq(schema.salaryGrades.id, id));
-      minWage ??= row?.minWage;
-      maxWage ??= row?.maxWage;
-      if (baseWage === undefined) baseWage = row?.baseWage ?? null;
+      if (minWage === undefined) minWage = row?.minWage ?? null;
+      if (maxWage === undefined) maxWage = row?.maxWage ?? null;
+      baseWage ??= row?.baseWage;
     }
-    if (minWage !== undefined && maxWage !== undefined && new Decimal(maxWage).lt(minWage))
+    // Skala upah opsional: hanya diperiksa bila diisi.
+    if (minWage != null && maxWage != null && new Decimal(maxWage).lt(minWage))
       throw fieldError("maxWage", "Upah maksimum di bawah upah minimum");
-    if (baseWage && minWage !== undefined && maxWage !== undefined)
-      if (new Decimal(baseWage).lt(minWage) || new Decimal(baseWage).gt(maxWage))
-        throw fieldError("baseWage", "Gaji pokok golongan harus di antara upah minimum dan maksimum");
+    if (baseWage != null && minWage != null && new Decimal(baseWage).lt(minWage))
+      throw fieldError("baseWage", "Gaji pokok golongan tidak boleh di bawah upah minimum");
+    if (baseWage != null && maxWage != null && new Decimal(baseWage).gt(maxWage))
+      throw fieldError("baseWage", "Gaji pokok golongan tidak boleh di atas upah maksimum");
   },
 });
 

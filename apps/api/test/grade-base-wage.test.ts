@@ -47,6 +47,18 @@ describe.skipIf(!hasDb)("Gaji pokok standar golongan", () => {
       contract: { dateStart: "2026-01-05", contractType: "pkwtt", ...(wage ? { wage } : {}) },
     });
 
+  it("gaji pokok wajib; skala upah minimum & maksimum opsional", async () => {
+    const missing = await a.post("/salary-grades", { code: "C1", name: "C1" }).expect(400);
+    expect(missing.body.errors?.[0]?.path).toBe("baseWage");
+    const only = (
+      await a.post("/salary-grades", { code: "C2", name: "C2", baseWage: 4000000, maxWage: null }).expect(201)
+    ).body;
+    expect(only).toMatchObject({ baseWage: "4000000.00", minWage: null, maxWage: null });
+    // Hanya batas bawah: gaji pokok di bawahnya ditolak, di atasnya bebas.
+    await a.patch(`/salary-grades/${only.id}`, { minWage: 4500000 }).expect(400);
+    await a.patch(`/salary-grades/${only.id}`, { minWage: 3000000 }).expect(200);
+  });
+
   it("gaji pokok golongan harus di dalam rentang skala upah", async () => {
     const res = await a
       .post("/salary-grades", { code: "B1", name: "B1", minWage: 1, maxWage: 2, baseWage: 3 })

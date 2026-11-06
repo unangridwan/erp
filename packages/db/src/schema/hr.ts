@@ -56,10 +56,11 @@ export const salaryGrades = pgTable("salary_grades", {
   tenantId: tenantId(),
   code: text("code").notNull(),
   name: text("name").notNull(),
-  minWage: numeric("min_wage", { precision: 20, scale: 2 }).notNull(),
-  maxWage: numeric("max_wage", { precision: 20, scale: 2 }).notNull(),
-  /** Gaji pokok standar golongan: terisi otomatis di kontrak (null = belum ditentukan). */
-  baseWage: numeric("base_wage", { precision: 20, scale: 2 }),
+  /** Skala upah (opsional): batas bawah & atas gaji pokok golongan. */
+  minWage: numeric("min_wage", { precision: 20, scale: 2 }),
+  maxWage: numeric("max_wage", { precision: 20, scale: 2 }),
+  /** Gaji pokok standar golongan (wajib): terisi otomatis di kontrak. */
+  baseWage: numeric("base_wage", { precision: 20, scale: 2 }).notNull(),
   sequence: integer("sequence").notNull().default(0),
   active: boolean("active").notNull().default(true),
   ...audit,

@@ -11,6 +11,7 @@ import { formatDate, money } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
 import { ask } from "../../../../../components/feedback";
+import { wageRange } from "../../../../../components/hr/grade-wage";
 
 interface Proposal {
   id: string;
@@ -24,7 +25,7 @@ interface Proposal {
   proposedPercent: string;
   newWage: string;
   reason: string | null;
-  grade: { name: string; minWage: string; maxWage: string } | null;
+  grade: { name: string; minWage: string | null; maxWage: string | null } | null;
   gradeFlag: "below" | "above" | null;
   annualCost: string;
   newContractId: string | null;
@@ -296,7 +297,7 @@ export default function CompensationCyclePage() {
                           )}
                           <br />
                           <small className="muted">
-                            {money(p.grade.minWage, locale)} – {money(p.grade.maxWage, locale)}
+                            {wageRange(p.grade.minWage, p.grade.maxWage, (v) => money(v, locale))}
                           </small>
                         </>
                       ) : (

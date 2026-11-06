@@ -1881,32 +1881,39 @@ RESOURCES.push(
     columns: [
       { name: "code", label: L("Kode", "Code") },
       { name: "name", label: L("Nama", "Name") },
-      { name: "minWage", label: L("Upah minimum", "Minimum wage") },
-      { name: "maxWage", label: L("Upah maksimum", "Maximum wage") },
       { name: "baseWage", label: L("Gaji pokok", "Base wage") },
+      { name: "minWage", label: L("Gaji pokok minimum", "Minimum base wage") },
+      { name: "maxWage", label: L("Gaji pokok maksimum", "Maximum base wage") },
     ],
     fields: [
       code,
       name(),
       {
-        name: "minWage",
-        label: L("Upah pokok minimum", "Minimum base wage"),
-        type: "number",
-        required: true,
-      },
-      {
-        name: "maxWage",
-        label: L("Upah pokok maksimum", "Maximum base wage"),
-        type: "number",
-        required: true,
-      },
-      {
         name: "baseWage",
         label: L("Gaji pokok", "Base wage"),
         type: "number",
+        required: true,
         help: L(
-          "Gaji pokok standar golongan (di antara minimum & maksimum): terisi otomatis saat membuat kontrak dan tetap bisa diubah.",
-          "Standard base wage of the grade (between minimum & maximum): filled in automatically when creating a contract and can still be changed.",
+          "Gaji pokok standar golongan: terisi otomatis saat membuat kontrak dan tetap bisa diubah.",
+          "Standard base wage of the grade: filled in automatically when creating a contract and can still be changed.",
+        ),
+      },
+      {
+        name: "minWage",
+        label: L("Gaji pokok minimum", "Minimum base wage"),
+        type: "number",
+        help: L(
+          "Opsional: batas bawah skala upah; kontrak di bawahnya diberi peringatan.",
+          "Optional: lower bound of the wage scale; contracts below it get a warning.",
+        ),
+      },
+      {
+        name: "maxWage",
+        label: L("Gaji pokok maksimum", "Maximum base wage"),
+        type: "number",
+        help: L(
+          "Opsional: batas atas skala upah; kontrak di atasnya diberi peringatan.",
+          "Optional: upper bound of the wage scale; contracts above it get a warning.",
         ),
       },
       { name: "sequence", label: L("Urutan", "Sequence"), type: "number" },

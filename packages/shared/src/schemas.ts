@@ -857,14 +857,15 @@ export const jobPositionSchema = z.object({
   active: z.boolean().default(true),
 });
 
-/** Golongan upah; upah maksimum ≥ minimum diperiksa API (juga saat PATCH sebagian). */
+/** Golongan upah; rentang min ≤ gaji pokok ≤ maks diperiksa API (juga saat PATCH sebagian). */
 export const salaryGradeSchema = z.object({
   code: z.string().trim().toUpperCase().min(1).max(20),
   name: z.string().trim().min(1).max(100),
-  minWage: nonNegative(2),
-  maxWage: nonNegative(2),
-  /** Gaji pokok standar golongan (di antara minimum & maksimum); terisi otomatis di kontrak. */
-  baseWage: nonNegative(2).nullish(),
+  /** Gaji pokok standar golongan (wajib); terisi otomatis di kontrak. */
+  baseWage: nonNegative(2),
+  /** Skala upah opsional (kosong = tanpa batas bawah/atas). */
+  minWage: nonNegative(2).nullish(),
+  maxWage: nonNegative(2).nullish(),
   sequence: z.coerce.number().int().min(0).max(999).default(0),
   active: z.boolean().default(true),
 });

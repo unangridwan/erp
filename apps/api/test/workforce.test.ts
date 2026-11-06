@@ -56,7 +56,13 @@ describe.skipIf(!hasDb)("Anggaran tenaga kerja & analitik SDM", () => {
     fin = (await a.post("/departments", { name: "Keuangan" }).expect(201)).body.id;
     const grade = (
       await a
-        .post("/salary-grades", { code: "G1", name: "Staf", minWage: "6000000", maxWage: "14000000" })
+        .post("/salary-grades", {
+          code: "G1",
+          name: "Staf",
+          baseWage: "10000000",
+          minWage: "6000000",
+          maxWage: "14000000",
+        })
         .expect(201)
     ).body.id;
     const people: [string, string, "male" | "female", string, string, string | null, string | null][] = [

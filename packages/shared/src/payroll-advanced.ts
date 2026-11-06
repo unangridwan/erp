@@ -117,11 +117,11 @@ export function retroPay(input: { effectiveDate: string; monthlyDue: Decimal.Val
 /** Posisi upah terhadap golongan (struktur & skala upah): di bawah, dalam, atau di atas rentang. */
 export function gradePosition(
   wage: Decimal.Value,
-  grade: { minWage: Decimal.Value; maxWage: Decimal.Value },
+  grade: { minWage?: Decimal.Value | null; maxWage?: Decimal.Value | null },
 ) {
   const w = d(wage);
-  if (w.lt(grade.minWage)) return "below" as const;
-  if (w.gt(grade.maxWage)) return "above" as const;
+  if (grade.minWage !== null && grade.minWage !== undefined && w.lt(grade.minWage)) return "below" as const;
+  if (grade.maxWage !== null && grade.maxWage !== undefined && w.gt(grade.maxWage)) return "above" as const;
   return "within" as const;
 }
 
@@ -131,7 +131,7 @@ export function gradePosition(
  */
 export function gradeWageStatus(
   wage: Decimal.Value,
-  grade: { minWage: Decimal.Value; maxWage: Decimal.Value; baseWage?: Decimal.Value | null },
+  grade: { minWage?: Decimal.Value | null; maxWage?: Decimal.Value | null; baseWage?: Decimal.Value | null },
 ) {
   const base = grade.baseWage === null || grade.baseWage === undefined ? null : d(grade.baseWage);
   return {

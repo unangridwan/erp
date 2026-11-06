@@ -10,9 +10,23 @@ export interface GradeWage {
   id: string;
   code: string;
   name: string;
-  minWage: string;
-  maxWage: string;
+  minWage: string | null;
+  maxWage: string | null;
   baseWage: string | null;
+}
+
+/** Teks skala upah golongan: "a – b", "≥ a", "≤ b", atau "—" bila tidak diisi. */
+export function wageRange(
+  min: string | number | null | undefined,
+  max: string | number | null | undefined,
+  fmt: (v: string | number) => string,
+) {
+  const hasMin = min !== null && min !== undefined && min !== "";
+  const hasMax = max !== null && max !== undefined && max !== "";
+  if (hasMin && hasMax) return `${fmt(min)} – ${fmt(max)}`;
+  if (hasMin) return `≥ ${fmt(min)}`;
+  if (hasMax) return `≤ ${fmt(max)}`;
+  return "—";
 }
 
 /** Golongan upah karyawan: golongan di data karyawan, atau golongan jabatannya (sama seperti API). */
@@ -77,7 +91,11 @@ export function GradeWageHint({
   const value = wage === "" ? null : Number(wage);
   const base = grade.baseWage === null ? null : Number(grade.baseWage);
   const adjusted = base !== null && value !== null && value !== base;
-  const outside = value !== null && (value < Number(grade.minWage) || value > Number(grade.maxWage));
+  const outside =
+    value !== null &&
+    ((grade.minWage !== null && value < Number(grade.minWage)) ||
+      (grade.maxWage !== null && value > Number(grade.maxWage)));
+  const range = wageRange(grade.minWage, grade.maxWage, (v) => money(v, locale));
   return (
     <span className="grade-wage-hint">
       {base !== null ? (
@@ -109,10 +127,7 @@ export function GradeWageHint({
       )}
       {outside && (
         <small className="error">
-          {l(
-            `Di luar skala upah golongan (${money(grade.minWage, locale)} – ${money(grade.maxWage, locale)}).`,
-            `Outside the grade wage range (${money(grade.minWage, locale)} – ${money(grade.maxWage, locale)}).`,
-          )}
+          {l(`Di luar skala upah golongan (${range}).`, `Outside the grade wage range (${range}).`)}
         </small>
       )}
     </span>

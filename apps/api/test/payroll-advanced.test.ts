@@ -57,13 +57,20 @@ describe.skipIf(!hasDb)("Payroll lanjutan: skala upah, THR, rapel, transfer bank
 
   it("struktur & skala upah: golongan di jabatan, peringatan kontrak, laporan", async () => {
     await a
-      .post("/salary-grades", { code: "g2", name: "Golongan II", minWage: "6000000", maxWage: "5000000" })
+      .post("/salary-grades", {
+        code: "g2",
+        name: "Golongan II",
+        baseWage: "5500000",
+        minWage: "6000000",
+        maxWage: "5000000",
+      })
       .expect(400);
     const grade = (
       await a
         .post("/salary-grades", {
           code: "g2",
           name: "Golongan II",
+          baseWage: "6000000",
           minWage: "5000000",
           maxWage: "8000000",
           sequence: 2,
