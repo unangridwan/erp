@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { PayslipPinGate } from "../../../components/hr/payslip-pin";
 import { download } from "../../../components/accounting/download";
 import {
   MyApprovalRequests,
@@ -91,6 +92,7 @@ export default function MyPortalPage() {
     defaultSort: { key: "paymentDate", dir: "desc" },
   });
   const [notLinked, setNotLinked] = useState(false);
+  const [slipsLocked, setSlipsLocked] = useState(false);
 
   useEffect(() => {
     api<Employee>("/me/employee")
@@ -98,7 +100,17 @@ export default function MyPortalPage() {
         setEmployee(e);
         return Promise.all([
           api<Leaves>("/me/leaves").then(setLeaves),
-          api<Slip[]>("/me/payslips").then(setSlips),
+          // Slip gaji bisa dikunci PIN: kegagalannya tidak menghalangi bagian portal lain.
+          api<Slip[]>("/me/payslips").then(
+            (r) => {
+              setSlips(r);
+              setSlipsLocked(false);
+            },
+            (err) => {
+              if (err instanceof ApiError && err.status === 403) setSlipsLocked(true);
+              else throw err;
+            },
+          ),
           api<LeaveTypeOption[]>("/me/leave-types").then(setTypes),
           api<{ id: string; name: string }[]>("/me/colleagues").then(setColleagues),
         ]);
@@ -274,7 +286,9 @@ export default function MyPortalPage() {
 
       <section className="panel">
         <h2>{l("Slip gaji", "Payslips")}</h2>
-        {slips.length === 0 ? (
+        {slipsLocked ? (
+          <PayslipPinGate onUnlocked={() => setVersion((v) => v + 1)} />
+        ) : slips.length === 0 ? (
           <p className="muted">{l("Belum ada slip gaji.", "No payslips yet.")}</p>
         ) : (
           <div className="table-scroll">

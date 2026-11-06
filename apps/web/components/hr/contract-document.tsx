@@ -888,6 +888,8 @@ export interface NewContractValues {
   wage: string;
   wageType: "monthly" | "daily" | "piece";
   taxMethod: "gross" | "gross_up";
+  /** Masa percobaan (bulan) — hanya PKWTT; "" = tanpa masa percobaan. */
+  probationMonths: string;
   /** Komponen gaji lain: tunjangan tetap/tidak tetap & potongan. */
   allowances: ComponentLine[];
 }
@@ -899,6 +901,7 @@ export const NEW_CONTRACT: NewContractValues = {
   wage: "",
   wageType: "monthly",
   taxMethod: "gross",
+  probationMonths: "",
   allowances: [],
 };
 /** Tanggal berakhir kontrak `months` bulan sejak `start` (inklusif: 16 Nov + 12 bln → 15 Nov tahun depan). */
@@ -980,6 +983,7 @@ export function NewEmployeeContract({
                 contractType: e.target.value,
                 templateId: "",
                 dateEnd: types.fixedTerm(e.target.value) ? value.dateEnd : "",
+                probationMonths: types.fixedTerm(e.target.value) ? "" : value.probationMonths,
               })
             }
           >
@@ -1014,6 +1018,26 @@ export function NewEmployeeContract({
           )}
           {fe("dateEnd")}
         </label>
+        {!fixedTerm && (
+          <label className="field">
+            <span>{l("Masa percobaan", "Probation")}</span>
+            <select value={value.probationMonths} onChange={(e) => set("probationMonths", e.target.value)}>
+              <option value="">{l("Tanpa masa percobaan", "No probation")}</option>
+              {[1, 2, 3].map((m) => (
+                <option key={m} value={String(m)}>
+                  {m} {l("bulan", m === 1 ? "month" : "months")}
+                </option>
+              ))}
+            </select>
+            <small className="muted">
+              {l(
+                "Hanya PKWTT, paling lama 3 bulan (UU 13/2003 ps. 60). Pengingat evaluasi dikirim sebelum berakhir.",
+                "Permanent contracts only, at most 3 months. An evaluation reminder is sent before it ends.",
+              )}
+            </small>
+            {fe("probationMonths")}
+          </label>
+        )}
         <label className="field">
           <span>{l("Template dokumen", "Document template")}</span>
           <select value={value.templateId} onChange={(e) => set("templateId", e.target.value)}>

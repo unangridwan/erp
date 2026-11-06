@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -14,7 +15,7 @@ import {
   Query,
   Res,
 } from "@nestjs/common";
-import { eq, schema, type Db } from "@erp/db";
+import { eq, schema, sql, type Db } from "@erp/db";
 import {
   BANK_FORMATS,
   BANK_LABELS,
@@ -29,6 +30,8 @@ import {
   payrollRunSchema,
   payslipHoldSchema,
   payrollSettingsSchema,
+  payslipPinSchema,
+  payslipPinVerifySchema,
   payrollParameterSchema,
   payslipInputsSchema,
   salaryComponentSchema,
@@ -46,6 +49,9 @@ import { TenantDb } from "../common/database.js";
 import { Mailer } from "../common/mailer.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
+import { fieldError } from "../accounting/context.js";
+import { logPersonalDataAccess } from "../hr/privacy.js";
+import { hashPassword, verifyPassword } from "../auth/password.js";
 import { ExpenseModule } from "../hr/expense.module.js";
 import { HrModule } from "../hr/hr.module.js";
 import { EmployeeService } from "../hr/employee.service.js";
@@ -447,7 +453,7 @@ class PayrollController {
   slip(@Param("id", ParseUUIDPipe) id: string) {
     return this.tenantDb.run(async (tx) => {
       const slip = await this.payroll.payslip(tx, id);
-      this.assertCanSee(slip);
+      await this.assertCanSee(tx, slip);
       return slip;
     });
   }
@@ -487,7 +493,7 @@ class PayrollController {
   async pdf(@Param("id", ParseUUIDPipe) id: string, @Res() res: Response) {
     const file = await this.tenantDb.run(async (tx) => {
       const slip = await this.payroll.payslip(tx, id);
-      this.assertCanSee(slip);
+      await this.assertCanSee(tx, slip);
       return {
         filename: payslipFilename(slip),
         content: await renderPayslipPdf(payslipPdfData(slip, await this.companyName(tx, slip.companyId))),
@@ -507,7 +513,11 @@ class PayrollController {
 
   @Get("me/payslips")
   mine() {
-    return this.tenantDb.run((tx) => this.payroll.mySlips(tx));
+    return this.tenantDb.run(async (tx) => {
+      const e = await this.employees.mine(tx);
+      await this.assertPayslipUnlocked(tx, e.id, e.companyId);
+      return this.payroll.mySlips(tx);
+    });
   }
 
   private async companyName(tx: Db, companyId: string) {
@@ -518,13 +528,123 @@ class PayrollController {
     return company?.name ?? "";
   }
 
-  /** Slip sendiri (payroll yang sudah diposting) atau butuh payroll.read. */
-  private assertCanSee(slip: { employee: { userId: string | null }; run: { state: string } }) {
+  /**
+   * Slip sendiri (payroll yang sudah diposting; PIN slip bila diwajibkan) atau butuh payroll.read — akses slip orang
+   * lain dicatat di log akses data pribadi.
+   */
+  private async assertCanSee(
+    tx: Db,
+    slip: { companyId: string; employee: { id: string; userId: string | null }; run: { state: string } },
+  ) {
     const ctx = currentContext();
-    if (hasPermission(ctx.permissions, "payroll.read")) return;
-    if (slip.employee.userId === ctx.userId && (slip.run.state === "done" || slip.run.state === "paid"))
+    const own = slip.employee.userId === ctx.userId;
+    if (own && (slip.run.state === "done" || slip.run.state === "paid")) {
+      await this.assertPayslipUnlocked(tx, slip.employee.id, slip.companyId);
       return;
-    throw new ForbiddenException("Butuh permission payroll.read");
+    }
+    if (!hasPermission(ctx.permissions, "payroll.read"))
+      throw new ForbiddenException("Butuh permission payroll.read");
+    await logPersonalDataAccess(tx, {
+      employeeId: slip.employee.id,
+      employeeUserId: slip.employee.userId,
+      fields: ["salary"],
+      purpose: "Melihat slip gaji",
+    });
+  }
+
+  /** PIN slip: bila diwajibkan perusahaan, slip di portal hanya terbuka beberapa menit setelah PIN benar. */
+  private async assertPayslipUnlocked(tx: Db, employeeId: string, companyId: string) {
+    const [s] = await tx
+      .select({ required: schema.payrollSettings.payslipPinRequired })
+      .from(schema.payrollSettings)
+      .where(eq(schema.payrollSettings.companyId, companyId));
+    if (!s?.required) return;
+    const [e] = await tx
+      .select({ hash: schema.employees.payslipPinHash, until: schema.employees.payslipUnlockedUntil })
+      .from(schema.employees)
+      .where(eq(schema.employees.id, employeeId));
+    if (!e?.hash) throw new ForbiddenException("Atur PIN slip gaji terlebih dulu");
+    if (!e.until || e.until < new Date()) throw new ForbiddenException("Masukkan PIN slip gaji");
+  }
+
+  /** Status PIN slip karyawan (portal). */
+  @Get("me/payslip-pin")
+  myPin() {
+    return this.tenantDb.run(async (tx) => {
+      const e = await this.employees.mine(tx);
+      const [s] = await tx
+        .select({ required: schema.payrollSettings.payslipPinRequired })
+        .from(schema.payrollSettings)
+        .where(eq(schema.payrollSettings.companyId, e.companyId));
+      const now = new Date();
+      return {
+        required: Boolean(s?.required),
+        hasPin: e.payslipPinHash !== null,
+        unlocked: !!e.payslipUnlockedUntil && e.payslipUnlockedUntil > now,
+        lockedUntil:
+          e.payslipPinLockedUntil && e.payslipPinLockedUntil > now ? e.payslipPinLockedUntil : null,
+      };
+    });
+  }
+
+  /** Atur/ubah PIN slip (PIN lama wajib bila sudah ada). */
+  @Put("me/payslip-pin")
+  setPin(@Body() body: unknown) {
+    const input = parse(payslipPinSchema, body);
+    return this.tenantDb.run(async (tx) => {
+      const e = await this.employees.mine(tx);
+      if (e.payslipPinHash) {
+        if (!input.currentPin || !(await verifyPassword(input.currentPin, e.payslipPinHash)))
+          throw fieldError("currentPin", "PIN lama salah");
+      }
+      await tx
+        .update(schema.employees)
+        .set({
+          payslipPinHash: await hashPassword(input.pin),
+          payslipPinFailed: 0,
+          payslipPinLockedUntil: null,
+          payslipUnlockedUntil: sql`now() + interval '15 minutes'`,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(schema.employees.id, e.id));
+      return { ok: true };
+    });
+  }
+
+  /** Buka slip dengan PIN (15 menit); 5 kali salah → terkunci 15 menit. */
+  @Post("me/payslip-pin/verify")
+  @HttpCode(200)
+  async verifyPin(@Body() body: unknown) {
+    const input = parse(payslipPinVerifySchema, body);
+    // Percobaan gagal disimpan (transaksi selesai) sebelum error dikirim, agar penguncian tidak ikut dibatalkan.
+    const outcome = await this.tenantDb.run(async (tx) => {
+      const e = await this.employees.mine(tx);
+      if (!e.payslipPinHash) return "no-pin" as const;
+      if (e.payslipPinLockedUntil && e.payslipPinLockedUntil > new Date()) return "locked" as const;
+      if (!(await verifyPassword(input.pin, e.payslipPinHash))) {
+        const failed = e.payslipPinFailed + 1;
+        await tx
+          .update(schema.employees)
+          .set({
+            payslipPinFailed: failed >= 5 ? 0 : failed,
+            ...(failed >= 5 ? { payslipPinLockedUntil: sql`now() + interval '15 minutes'` } : {}),
+          })
+          .where(eq(schema.employees.id, e.id));
+        return "wrong" as const;
+      }
+      await tx
+        .update(schema.employees)
+        .set({ payslipPinFailed: 0, payslipUnlockedUntil: sql`now() + interval '15 minutes'` })
+        .where(eq(schema.employees.id, e.id));
+      return "ok" as const;
+    });
+    if (outcome === "no-pin") throw new BadRequestException("Atur PIN slip gaji terlebih dulu");
+    if (outcome === "locked")
+      throw new ForbiddenException(
+        "PIN slip terkunci sementara; coba lagi nanti atau minta HR mengatur ulang",
+      );
+    if (outcome === "wrong") throw fieldError("pin", "PIN slip salah");
+    return { ok: true };
   }
 }
 

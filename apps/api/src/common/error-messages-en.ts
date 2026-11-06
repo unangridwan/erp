@@ -467,6 +467,23 @@ export const MESSAGES_EN: Record<string, string> = {
   "Hanya penawaran draft yang bisa diajukan": "Only draft offers can be submitted",
   "Menunggu persetujuan; belum bisa diproses": "Waiting for approval; cannot be processed yet",
   "Ajukan persetujuan terlebih dulu": "Submit for approval first",
+  "Masa percobaan hanya untuk perjanjian kerja waktu tidak tertentu (PKWTT)":
+    "A probation period is only allowed for permanent (PKWTT) contracts",
+  "Kontrak ini tanpa masa percobaan": "This contract has no probation period",
+  "Hanya kontrak berjalan yang dievaluasi": "Only running contracts can be evaluated",
+  "Surat pengangkatan tersedia setelah karyawan lulus masa percobaan":
+    "The appointment letter is available after the employee passes probation",
+  "Data pelamar sudah dianonimkan": "The applicant data has been anonymized",
+  "Pelamar sudah menjadi karyawan; data dikelola di data karyawan":
+    "The applicant is already an employee; manage the data in the employee record",
+  "Atur PIN slip gaji terlebih dulu": "Set your payslip PIN first",
+  "Masukkan PIN slip gaji": "Enter your payslip PIN",
+  "PIN slip terkunci sementara; coba lagi nanti atau minta HR mengatur ulang":
+    "Payslip PIN temporarily locked; try again later or ask HR to reset it",
+  "PIN lama salah": "The current PIN is wrong",
+  "PIN slip salah": "Wrong payslip PIN",
+  "Masa percobaan maksimal 3 bulan": "Probation is at most 3 months",
+  "PIN slip harus 6 digit angka": "The payslip PIN must be 6 digits",
   "Komponen THR belum diatur di pengaturan payroll": "The THR component is not set in the payroll settings",
   "Komponen rapel belum diatur di pengaturan payroll":
     "The back-pay component is not set in the payroll settings",

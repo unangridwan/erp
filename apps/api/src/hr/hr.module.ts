@@ -17,7 +17,7 @@ import {
   Req,
   Res,
 } from "@nestjs/common";
-import { and, asc, desc, eq, gte, isNull, lte, ne, schema, sql, type Db } from "@erp/db";
+import { and, asc, desc, eq, gte, isNotNull, isNull, lte, ne, schema, sql, type Db } from "@erp/db";
 import {
   attendanceSchema,
   checkInSchema,
@@ -28,6 +28,8 @@ import {
   employeeSchema,
   gradePosition,
   gradeWageStatus,
+  hasPermission,
+  probationDecisionSchema,
   applyGradeBaseWageSchema,
   newEmployeeContractSchema,
   holidaySchema,
@@ -63,11 +65,14 @@ import { ATTENDANCE_COLUMNS, AttendanceService } from "./attendance.service.js";
 import { ApprovalService, beginApproval, type ApprovalModel } from "./approval.service.js";
 import { NotificationService } from "../notifications/notification.service.js";
 import { ChecklistService } from "./checklist.service.js";
+import { filledPersonalFields, logPersonalDataAccess } from "./privacy.js";
 import { ContractDocumentService } from "./contract-document.service.js";
+import { renderOfferPdf } from "./letters-pdf.js";
 import {
   assertDatesUnchanged,
   ContractService,
   contractGradeWage,
+  contractProbation,
   effectiveGrade,
 } from "./contract.service.js";
 import { HistoryService } from "./history.service.js";
@@ -569,6 +574,7 @@ class EmployeesController {
     @Inject(HistoryService) private readonly history: HistoryService,
     @Inject(ContractService) private readonly contracts: ContractService,
     @Inject(ContractDocumentService) private readonly documents: ContractDocumentService,
+    @Inject(ActivityService) private readonly activity: ActivityService,
   ) {}
 
   @Get()
@@ -579,10 +585,48 @@ class EmployeesController {
     return this.tenantDb.run((tx) => this.employees.list(tx, query));
   }
 
+  /** HR mengatur ulang PIN slip karyawan (lupa PIN / terkunci). */
+  @Post(":id/payslip-pin/reset")
+  @HttpCode(200)
+  @RequirePermission("hr.manage")
+  resetPayslipPin(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run(async (tx) => {
+      const employee = await this.employees.find(tx, id);
+      await tx
+        .update(schema.employees)
+        .set({
+          payslipPinHash: null,
+          payslipPinFailed: 0,
+          payslipPinLockedUntil: null,
+          payslipUnlockedUntil: null,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(schema.employees.id, id));
+      await this.activity.log(tx, {
+        resModel: "employee",
+        resId: id,
+        action: "comment",
+        message: `PIN slip gaji ${employee.name} diatur ulang`,
+      });
+      return { ok: true };
+    });
+  }
+
   @Get(":id")
   @RequirePermission("hr.read")
   get(@Param("id", ParseUUIDPipe) id: string) {
-    return this.tenantDb.run(async (tx) => this.employees.reveal(await this.employees.find(tx, id)));
+    return this.tenantDb.run(async (tx) => {
+      const employee = await this.employees.find(tx, id);
+      // Data pribadi terbuka penuh hanya untuk hr.manage; aksesnya dicatat (UU PDP).
+      if (hasPermission(currentContext().permissions, "hr.manage"))
+        await logPersonalDataAccess(tx, {
+          employeeId: employee.id,
+          employeeUserId: employee.userId,
+          fields: filledPersonalFields(employee),
+          purpose: "Membuka data karyawan",
+        });
+      return this.employees.reveal(employee);
+    });
   }
 
   /** Ringkasan untuk kepala form karyawan: statistik, kontrak berjalan, status akun portal. */
@@ -726,6 +770,7 @@ class EmployeesController {
           dateStart: contract.dateStart,
           dateEnd: contract.dateEnd ?? null,
           wage: contract.wage,
+          probationMonths: contract.probationMonths ?? null,
           allowances: contract.allowances,
         },
         "contract.",
@@ -834,6 +879,8 @@ class ContractsController {
       await assertBeforeRetirement(tx, owner, input);
       await assertContractType(tx, input.contractType, input, contract.contractType);
       const pay = await contractGradeWage(tx, owner, input);
+      // Hasil evaluasi yang sudah diputuskan tetap; masa percobaan dihitung ulang dari tanggal mulai.
+      const probation = contract.probationResult ? {} : await contractProbation(tx, input);
       await this.assertComponents(
         tx,
         input.allowances.map((a) => a.componentId),
@@ -847,6 +894,7 @@ class ContractsController {
           dateEnd: input.dateEnd ?? null,
           taxMethod: input.taxMethod,
           ...pay,
+          ...probation,
           note: input.note ?? null,
           updatedAt: sql`now()`,
         })
@@ -870,6 +918,84 @@ class ContractsController {
       });
       return this.load(tx, id);
     });
+  }
+
+  /** Hasil evaluasi masa percobaan (lulus/tidak lulus). Tidak lulus: akhiri lewat Akhiri kontrak. */
+  @Post(":id/probation")
+  @HttpCode(200)
+  @RequirePermission("hr.manage")
+  probation(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(probationDecisionSchema, body);
+    return this.tenantDb.run(async (tx) => {
+      const contract = await this.find(tx, id);
+      if (!contract.probationEnd) throw new BadRequestException("Kontrak ini tanpa masa percobaan");
+      if (contract.state !== "running")
+        throw new BadRequestException("Hanya kontrak berjalan yang dievaluasi");
+      await tx
+        .update(C)
+        .set({
+          probationResult: input.result,
+          probationNote: input.note ?? null,
+          probationDecidedAt: sql`now()`,
+          probationDecidedBy: currentContext().userId,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(C.id, id));
+      await this.activity.log(tx, {
+        resModel: "employee",
+        resId: contract.employeeId,
+        action: "comment",
+        message: `Masa percobaan ${contract.name}: ${input.result === "passed" ? "lulus" : "tidak lulus"}${input.note ? ` — ${input.note}` : ""}`,
+      });
+      return this.load(tx, id);
+    });
+  }
+
+  /** Surat pengangkatan karyawan tetap setelah lulus masa percobaan. */
+  @Get(":id/appointment-letter")
+  @RequirePermission("hr.read")
+  async appointmentLetter(@Param("id", ParseUUIDPipe) id: string, @Res() res: Response) {
+    const file = await this.tenantDb.run(async (tx) => {
+      const contract = await this.find(tx, id);
+      if (contract.probationResult !== "passed")
+        throw new BadRequestException("Surat pengangkatan tersedia setelah karyawan lulus masa percobaan");
+      const employee = await this.employees.find(tx, contract.employeeId);
+      const [company] = await tx
+        .select({ name: schema.companies.name, city: schema.companies.city })
+        .from(schema.companies)
+        .where(eq(schema.companies.id, contract.companyId));
+      const [job] = employee.jobId
+        ? await tx
+            .select({ name: schema.jobPositions.name })
+            .from(schema.jobPositions)
+            .where(eq(schema.jobPositions.id, employee.jobId))
+        : [];
+      const decided = (contract.probationDecidedAt ?? new Date()).toISOString().slice(0, 10);
+      const body = [
+        "SURAT PENGANGKATAN KARYAWAN TETAP",
+        "",
+        `Yang bertanda tangan di bawah ini, atas nama ${company?.name ?? ""}, menerangkan bahwa:`,
+        "",
+        `Nama          : ${employee.name}`,
+        `No. karyawan  : ${employee.employeeNumber}`,
+        `Jabatan       : ${job?.name ?? "-"}`,
+        "",
+        `telah menyelesaikan masa percobaan ${contract.probationMonths} bulan (${contract.dateStart} s.d. ${contract.probationEnd}) dengan hasil baik dan dengan ini diangkat sebagai karyawan tetap berdasarkan perjanjian kerja ${contract.name}, terhitung sejak ${addDays(contract.probationEnd!, 1)}.`,
+        "",
+        "Hak dan kewajiban karyawan mengikuti perjanjian kerja, peraturan perusahaan, dan ketentuan ketenagakerjaan yang berlaku.",
+        "",
+        `${company?.city ?? ""}${company?.city ? ", " : ""}${decided}`,
+        "",
+        "",
+        "(.................................)",
+        company?.name ?? "",
+      ].join("\n");
+      return {
+        name: `pengangkatan-${employee.employeeNumber.replace(/[^\w.-]+/g, "_")}.pdf`,
+        content: await renderOfferPdf({ company: company?.name ?? "", number: contract.name, body }),
+      };
+    });
+    res.type("application/pdf").attachment(file.name).send(file.content);
   }
 
   /** Mulai berlaku; hanya satu kontrak berjalan per karyawan. */
@@ -1021,6 +1147,87 @@ class ContractsController {
           }
         : null,
     };
+  }
+}
+
+/** Masa percobaan karyawan: berjalan (belum dievaluasi) atau semua, dengan sisa hari. */
+@Controller("hr/probations")
+class ProbationsController {
+  constructor(@Inject(TenantDb) private readonly tenantDb: TenantDb) {}
+
+  @Get()
+  @RequirePermission("hr.read")
+  list(@Query("state") state?: string) {
+    return this.tenantDb.run(async (tx) => {
+      const rows = await tx
+        .select({
+          contractId: C.id,
+          contractName: C.name,
+          dateStart: C.dateStart,
+          probationMonths: C.probationMonths,
+          probationEnd: C.probationEnd,
+          probationResult: C.probationResult,
+          probationNote: C.probationNote,
+          contractState: C.state,
+          employeeId: schema.employees.id,
+          employeeName: schema.employees.name,
+          employeeNumber: schema.employees.employeeNumber,
+        })
+        .from(C)
+        .innerJoin(schema.employees, eq(schema.employees.id, C.employeeId))
+        .where(
+          and(
+            eq(C.companyId, currentContext().companyId),
+            isNotNull(C.probationEnd),
+            state === "all" ? undefined : and(eq(C.state, "running"), isNull(C.probationResult)),
+          ),
+        )
+        .orderBy(asc(C.probationEnd));
+      const today = new Date().toISOString().slice(0, 10);
+      return rows.map((r) => ({
+        ...r,
+        daysLeft: Math.round((Date.parse(r.probationEnd!) - Date.parse(today)) / 86_400_000),
+      }));
+    });
+  }
+}
+
+/** Log akses data pribadi karyawan (UU PDP): siapa membuka NIK/NPWP/rekening/gaji, kapan, untuk apa. */
+@Controller("personal-data-access-logs")
+class PersonalDataAccessLogsController {
+  constructor(@Inject(TenantDb) private readonly tenantDb: TenantDb) {}
+
+  @Get()
+  @RequirePermission("hr.manage")
+  list(@Query("employeeId") employeeId?: string, @Query("from") from?: string, @Query("to") to?: string) {
+    const L = schema.personalDataAccessLogs;
+    return this.tenantDb.run((tx) =>
+      tx
+        .select({
+          id: L.id,
+          createdAt: L.createdAt,
+          fields: L.fields,
+          purpose: L.purpose,
+          recordCount: L.recordCount,
+          employeeId: L.employeeId,
+          employeeName: schema.employees.name,
+          userName: schema.users.name,
+          userEmail: schema.users.email,
+        })
+        .from(L)
+        .leftJoin(schema.employees, eq(schema.employees.id, L.employeeId))
+        .leftJoin(schema.users, eq(schema.users.id, L.userId))
+        .where(
+          and(
+            eq(L.companyId, currentContext().companyId),
+            employeeId ? eq(L.employeeId, employeeId) : undefined,
+            from ? gte(L.createdAt, new Date(`${from}T00:00:00Z`)) : undefined,
+            to ? lte(L.createdAt, new Date(`${to}T23:59:59Z`)) : undefined,
+          ),
+        )
+        .orderBy(desc(L.createdAt))
+        .limit(2000),
+    );
   }
 }
 
@@ -1350,6 +1557,8 @@ class PortalController {
     SalaryGradesController,
     SalaryGradeWageController,
     WageScaleController,
+    ProbationsController,
+    PersonalDataAccessLogsController,
     WorkCalendarController,
     OvertimeAttendanceController,
     HolidaysController,

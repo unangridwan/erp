@@ -489,6 +489,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   tertentu (hitung ulang periode lama tetap), bukti potong BP21 pegawai tidak tetap & bukan pegawai + XML Coretax
 - [x] Email notifikasi & persetujuan dokumen (migrasi 0059) — notifikasi juga dikirim lewat email (outbox, preferensi
   per pengguna), persetujuan opsional payroll run / mutasi / penawaran kerja lewat mesin persetujuan generik
+- [x] Masa percobaan, UU PDP & PIN slip (migrasi 0060) — masa percobaan ≤ 3 bulan khusus PKWTT (pengingat, evaluasi
+  lulus/tidak lulus, surat pengangkatan), persetujuan data pelamar + retensi & anonimisasi otomatis, log akses data
+  pribadi (NIK/NPWP/rekening/gaji), PIN 6 digit wajib sebelum membuka slip di portal (kunci 15 menit setelah 5 kali salah)
 
 ## Rekomendasi berikutnya — SDM & Payroll
 
@@ -506,10 +509,10 @@ Dari audit ketiga PRD SDM (Okt 2026), diurutkan menurut dampak bisnis:
 4. 🟡 **Notifikasi email (dan push)** untuk pengajuan & keputusan persetujuan — ✅ email (0059); push belum.
 5. 🟡 **Persetujuan berjenjang** untuk payroll run, mutasi/promosi, penawaran kerja (✅ 0059), offboarding/F&F (belum).
 6. ✅ **Parameter payroll berlaku per tanggal** (batas BPJS, JKK) agar perhitungan periode lama tetap (0058).
-7. **Keamanan slip gaji**: password/PIN slip ditentukan karyawan + OTP sebelum melihat slip.
-8. **UU PDP**: persetujuan pelamar, retensi & anonimisasi, log akses data pribadi.
-9. 🟡 **Kontrak & surat**: ✅ template kontrak + tanda tangan digital/basah/e-sign luar (0050); sisa: masa percobaan,
-   jenis karyawan, template surat pengangkatan/SK, mutasi antar perusahaan grup, riwayat perubahan NPP.
+7. 🟡 **Keamanan slip gaji**: ✅ PIN slip ditentukan karyawan, reset oleh HR (0060); OTP email belum.
+8. ✅ **UU PDP**: persetujuan pelamar, retensi & anonimisasi, log akses data pribadi (0060).
+9. 🟡 **Kontrak & surat**: ✅ template kontrak + tanda tangan digital/basah/e-sign luar (0050); ✅ masa percobaan + surat
+   pengangkatan (0060); sisa: jenis karyawan, template surat pengangkatan/SK, mutasi antar perusahaan grup, riwayat perubahan NPP.
 10. **Shift massal & rotasi**, kalender perusahaan, pengingat ulang tahun & masa kerja.
 11. **Pinjaman berbunga & jadwal**, aset yang dipegang karyawan (terhubung aset akuntansi & offboarding).
 12. **Kompetensi/skill matrix**, laporan SDM konsolidasi grup, PWA portal karyawan.

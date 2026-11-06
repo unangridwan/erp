@@ -41,7 +41,9 @@ type Settings = Record<
   | "bp21NonEmployeeCode"
   | "payrollRunApproval"
   | "movementApproval"
-  | "jobOfferApproval",
+  | "jobOfferApproval"
+  | "applicantRetentionMonths"
+  | "payslipPinRequired",
   string
 >;
 
@@ -88,6 +90,8 @@ export default function PayrollSettingsPage() {
           payrollRunApproval: s.payrollRunApproval ? "1" : "",
           movementApproval: s.movementApproval ? "1" : "",
           jobOfferApproval: s.jobOfferApproval ? "1" : "",
+          applicantRetentionMonths: s.applicantRetentionMonths ? String(s.applicantRetentionMonths) : "",
+          payslipPinRequired: s.payslipPinRequired ? "1" : "",
         }),
       )
       .catch((e: Error) => setError(e.message));
@@ -136,6 +140,8 @@ export default function PayrollSettingsPage() {
         payrollRunApproval,
         movementApproval,
         jobOfferApproval,
+        applicantRetentionMonths,
+        payslipPinRequired,
       } = form;
       await api("/payroll/settings", {
         method: "PUT",
@@ -175,6 +181,8 @@ export default function PayrollSettingsPage() {
           payrollRunApproval: payrollRunApproval === "1",
           movementApproval: movementApproval === "1",
           jobOfferApproval: jobOfferApproval === "1",
+          applicantRetentionMonths: applicantRetentionMonths ? Number(applicantRetentionMonths) : null,
+          payslipPinRequired: payslipPinRequired === "1",
         },
       });
       setNotice(l("Pengaturan disimpan.", "Settings saved."));
@@ -525,6 +533,34 @@ export default function PayrollSettingsPage() {
             <span>{label}</span>
           </label>
         ))}
+        <h3 className="o-group-title">{l("Perlindungan data pribadi", "Personal data protection")}</h3>
+        <label className="field check">
+          <input
+            type="checkbox"
+            checked={form.payslipPinRequired === "1"}
+            onChange={(e) => setForm((f) => ({ ...f!, payslipPinRequired: e.target.checked ? "1" : "" }))}
+          />
+          <span>
+            {l(
+              "Karyawan wajib memasukkan PIN slip (6 digit) sebelum melihat slip gaji di portal",
+              "Employees must enter a 6-digit payslip PIN before viewing payslips in the portal",
+            )}
+          </span>
+        </label>
+        <label className="field">
+          <span>
+            {l(
+              "Masa simpan data pelamar ditolak / lowongan ditutup (bulan; kosong = tidak dianonimkan otomatis)",
+              "Retention of refused applicants / closed openings (months; empty = no automatic anonymization)",
+            )}
+          </span>
+          <input
+            className="num"
+            inputMode="numeric"
+            value={form.applicantRetentionMonths}
+            onChange={set("applicantRetentionMonths")}
+          />
+        </label>
         <button className="primary">{l("Simpan", "Save")}</button>
       </form>
       <PayrollParametersPanel onChange={load} />

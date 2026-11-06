@@ -47,7 +47,7 @@ function Recruitment() {
   const [openings, setOpenings] = useState<Opening[]>([]);
   const [openingId, setOpeningId] = useState(search.get("openingId") ?? "");
   const [applicants, setApplicants] = useState<Applicant[]>([]);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", source: "jobportal" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", source: "jobportal", consent: false });
   const [version, setVersion] = useState(0);
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
@@ -79,10 +79,11 @@ function Recruitment() {
         email: form.email || null,
         phone: form.phone || null,
         source: form.source,
+        consent: form.consent,
       },
     }).then(
       () => {
-        setForm((f) => ({ ...f, name: "", email: "", phone: "" }));
+        setForm((f) => ({ ...f, name: "", email: "", phone: "", consent: false }));
         setVersion((v) => v + 1);
       },
       (err) => setError(errorText(err)),
@@ -175,6 +176,20 @@ function Recruitment() {
               <option value="walkin">{l("Datang langsung", "Walk-in")}</option>
               <option value="other">{l("Lainnya", "Other")}</option>
             </select>
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              required
+              checked={form.consent}
+              onChange={(e) => setForm((f) => ({ ...f, consent: e.target.checked }))}
+            />
+            <span>
+              {l(
+                "Pelamar menyetujui pemrosesan datanya untuk rekrutmen (UU PDP)",
+                "Applicant consents to processing their data for recruitment",
+              )}
+            </span>
           </label>
           <button className="primary">{l("Tambah pelamar", "Add applicant")}</button>
         </form>

@@ -286,6 +286,8 @@ export const APPS: App[] = [
         link("Analitik SDM", "HR Analytics", "/hr/analytics", "hr.read"),
         link("Struktur Organisasi", "Org Chart", "/hr/org-chart", "hr.read"),
         link("Pengingat", "Reminders", "/hr/reminders", "hr.read"),
+        link("Masa Percobaan", "Probations", "/hr/probations", "hr.read"),
+        link("Log Akses Data Pribadi", "Personal Data Access Log", "/hr/privacy-log", "hr.manage"),
         link("Siapa yang Cuti", "Who's Off", "/hr/whos-off", "hr.read"),
       ]),
       group("Konfigurasi", "Configuration", [
