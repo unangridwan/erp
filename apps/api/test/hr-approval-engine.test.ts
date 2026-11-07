@@ -7,6 +7,12 @@ import { client, createApp, hasDb, signup } from "./helpers.js";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const shift = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+/** Hari kerja terdekat setelah `days` hari dari sekarang (cuti di Sabtu/Minggu bernilai 0 hari kerja → ditolak). */
+const workday = (days: number) => {
+  const d = new Date(Date.now() + days * 86_400_000);
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+};
 const pdf = {
   name: "nota.pdf",
   type: "application/pdf",
@@ -287,7 +293,7 @@ describe.skipIf(!hasDb)("SDM: mesin persetujuan generik", () => {
       .expect(201);
     const leave = (
       await staff.api
-        .post("/leaves", { leaveTypeId: annual, dateFrom: shift(14), dateTo: shift(14) })
+        .post("/leaves", { leaveTypeId: annual, dateFrom: workday(14), dateTo: workday(14) })
         .expect(201)
     ).body;
     expect((await deputy.api.get("/approvals/pending").expect(200)).body).toEqual(
@@ -309,7 +315,7 @@ describe.skipIf(!hasDb)("SDM: mesin persetujuan generik", () => {
     ).id;
     const leave = (
       await staff.api
-        .post("/leaves", { leaveTypeId: annual, dateFrom: shift(21), dateTo: shift(21) })
+        .post("/leaves", { leaveTypeId: annual, dateFrom: workday(21), dateTo: workday(21) })
         .expect(201)
     ).body;
     await a
