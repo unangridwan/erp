@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { session, type Me } from "../lib/api";
 import { visibleMenu, type App, type MenuEntry } from "../lib/apps";
 import { useI18n } from "../lib/i18n";
@@ -118,14 +118,15 @@ export function Navbar({ me, app }: { me: Me; app: App | null }) {
               </button>
               {(open === entry.label.id || open === "burger") && (
                 <div className="nav-items">
-                  {entry.items.map((item) => (
-                    <Link
-                      key={item.href + item.label.id}
-                      href={item.href}
-                      className={active(item.href) ? "active" : ""}
-                    >
-                      {tx(item.label)}
-                    </Link>
+                  {entry.items.map((item, i) => (
+                    <Fragment key={item.href + item.label.id}>
+                      {item.section && item.section.id !== entry.items[i - 1]?.section?.id && (
+                        <div className="nav-section">{tx(item.section)}</div>
+                      )}
+                      <Link href={item.href} className={active(item.href) ? "active" : ""}>
+                        {tx(item.label)}
+                      </Link>
+                    </Fragment>
                   ))}
                 </div>
               )}
