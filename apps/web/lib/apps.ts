@@ -8,6 +8,8 @@ export interface MenuLink {
   href: string;
   /** Permission yang dibutuhkan ("" = semua user). */
   permission: string;
+  /** Subjudul dropdown (tampilan saja): tautan berurutan dengan subjudul sama dikelompokkan. */
+  section?: Text;
 }
 export interface MenuGroup {
   label: Text;
@@ -34,6 +36,9 @@ const link = (id: string, en: string, href: string, permission: string): MenuLin
   permission,
 });
 const group = (id: string, en: string, items: MenuLink[]): MenuGroup => ({ label: L(id, en), items });
+/** Beri subjudul pada sekelompok tautan di dalam dropdown (hanya pengelompokan tampilan). */
+const section = (id: string, en: string, items: MenuLink[]): MenuLink[] =>
+  items.map((i) => ({ ...i, section: L(id, en) }));
 
 const PRODUCTS = link("Produk", "Products", "/products", "product.read");
 const CATEGORIES = link("Kategori Produk", "Product Categories", "/product-categories", "product.read");
@@ -291,25 +296,35 @@ export const APPS: App[] = [
         link("Siapa yang Cuti", "Who's Off", "/hr/whos-off", "hr.read"),
       ]),
       group("Konfigurasi", "Configuration", [
-        link("Jadwal Kerja", "Work Schedules", "/work-schedules", "hr.read"),
-        link("Lokasi Kerja", "Work Locations", "/work-locations", "hr.read"),
-        link("Mesin Absensi", "Attendance Devices", "/hr/attendance-devices", "hr.read"),
-        link("Jabatan", "Job Positions", "/job-positions", "hr.read"),
-        link("Golongan Upah", "Salary Grades", "/salary-grades", "hr.read"),
-        link("Struktur & Skala Upah", "Wage Scale", "/hr/wage-scale", "hr.manage"),
-        link("Jenis Cuti", "Time Off Types", "/leave-types", "hr.read"),
-        link("Rencana Akrual Cuti", "Accrual Plans", "/hr/leave-plans", "hr.read"),
-        link("Tanggal Blok Cuti", "Blackout Dates", "/leave-block-dates", "hr.read"),
-        link("Kategori Klaim", "Expense Categories", "/expense-categories", "hr.read"),
-        link("Kategori Persetujuan", "Approval Categories", "/hr/approval-categories", "hr.manage"),
-        link("Template Checklist", "Checklist Templates", "/hr/checklist-templates", "hr.read"),
-        link("Jenis Kontrak", "Contract Types", "/hr/contract-types", "hr.read"),
-        link("Usia Pensiun", "Retirement Age", "/hr/retirement", "hr.read"),
-        link("Template Kontrak", "Contract Templates", "/hr/contract-templates", "hr.read"),
-        link("Penawaran & Alasan Tolak", "Offers & Refusal Reasons", "/hr/recruitment-settings", "hr.read"),
-        link("Template KPI", "KPI Templates", "/hr/appraisal-templates", "hr.read"),
-        link("Hari Libur", "Holidays", "/hr/holidays", "hr.read"),
-        link("Impor & Ekspor Data", "Data Import & Export", "/hr/data", "hr.read"),
+        ...section("Karyawan", "Employees", [
+          link("Jabatan", "Job Positions", "/job-positions", "hr.read"),
+          link("Golongan Upah", "Salary Grades", "/salary-grades", "hr.read"),
+          link("Struktur & Skala Upah", "Wage Scale", "/hr/wage-scale", "hr.manage"),
+          link("Jenis Kontrak", "Contract Types", "/hr/contract-types", "hr.read"),
+          link("Template Kontrak", "Contract Templates", "/hr/contract-templates", "hr.read"),
+          link("Template Checklist", "Checklist Templates", "/hr/checklist-templates", "hr.read"),
+          link("Usia Pensiun", "Retirement Age", "/hr/retirement", "hr.read"),
+          link("Lokasi Kerja", "Work Locations", "/work-locations", "hr.read"),
+        ]),
+        ...section("Manajemen Waktu", "Time Management", [
+          link("Jadwal Kerja", "Work Schedules", "/work-schedules", "hr.read"),
+          link("Hari Libur", "Holidays", "/hr/holidays", "hr.read"),
+          link("Mesin Absensi", "Attendance Devices", "/hr/attendance-devices", "hr.read"),
+          link("Jenis Cuti", "Time Off Types", "/leave-types", "hr.read"),
+          link("Rencana Akrual Cuti", "Accrual Plans", "/hr/leave-plans", "hr.read"),
+          link("Tanggal Blok Cuti", "Blackout Dates", "/leave-block-dates", "hr.read"),
+        ]),
+        ...section("Perekrutan & Kinerja", "Recruitment & Performance", [
+          link("Penawaran & Alasan Tolak", "Offers & Refusal Reasons", "/hr/recruitment-settings", "hr.read"),
+          link("Template KPI", "KPI Templates", "/hr/appraisal-templates", "hr.read"),
+        ]),
+        ...section("Klaim & Persetujuan", "Expenses & Approvals", [
+          link("Kategori Klaim", "Expense Categories", "/expense-categories", "hr.read"),
+          link("Kategori Persetujuan", "Approval Categories", "/hr/approval-categories", "hr.manage"),
+        ]),
+        ...section("Data", "Data", [
+          link("Impor & Ekspor Data", "Data Import & Export", "/hr/data", "hr.read"),
+        ]),
       ]),
     ],
   },
