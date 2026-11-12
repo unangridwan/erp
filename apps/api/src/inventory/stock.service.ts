@@ -897,6 +897,49 @@ export class StockService {
     return d(product.cost).toFixed(4);
   }
 
+  /**
+   * Tambah/kurangi nilai persediaan tanpa mengubah kuantitas (landed cost): sisa nilai lapisan masuk dinaikkan
+   * (dipakai FIFO saat barang keluar), dicatat sebagai lapisan nilai (qty 0), dan biaya rata-rata dihitung ulang.
+   */
+  async adjustLayerValue(
+    tx: Db,
+    companyId: string,
+    productId: string,
+    layerId: string,
+    delta: Decimal,
+    description: string,
+    accountMoveId: string | null,
+  ) {
+    if (delta.isZero()) return;
+    await this.lockCost(tx, companyId, productId);
+    const [layer] = await tx
+      .select()
+      .from(schema.stockValuationLayers)
+      .where(eq(schema.stockValuationLayers.id, layerId));
+    if (!layer) throw new BadRequestException("Lapisan valuasi penerimaan tidak ditemukan");
+    await tx
+      .update(schema.stockValuationLayers)
+      .set({ remainingValue: d(layer.remainingValue).plus(delta).toFixed(2) })
+      .where(eq(schema.stockValuationLayers.id, layerId));
+    await tx.insert(schema.stockValuationLayers).values({
+      companyId,
+      productId,
+      quantity: "0",
+      unitCost: "0",
+      value: delta.toFixed(2),
+      description,
+      accountMoveId,
+    });
+    const totals = await this.valuedTotals(tx, companyId, productId);
+    if (totals.qty.gt(0))
+      await this.setAverage(
+        tx,
+        companyId,
+        productId,
+        totals.value.div(totals.qty).toDecimalPlaces(4, Decimal.ROUND_HALF_UP).toFixed(4),
+      );
+  }
+
   /** Kunci baris biaya produk sebagai mutex valuasi per produk per perusahaan. */
   private async lockCost(tx: Db, companyId: string, productId: string) {
     await tx.insert(schema.productCompanyCosts).values({ companyId, productId }).onConflictDoNothing();

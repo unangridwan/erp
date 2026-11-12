@@ -335,6 +335,13 @@ export const RESOURCES: Resource[] = [
       { name: "cost", label: L("Biaya", "Cost"), type: "number" },
       { name: "barcode", label: L("Barcode", "Barcode"), type: "text" },
       {
+        name: "weight",
+        label: L("Berat per satuan (kg)", "Weight per unit (kg)"),
+        type: "number",
+        help: L("Dasar pembagian landed cost menurut berat.", "Basis for splitting landed costs by weight."),
+      },
+      { name: "volume", label: L("Volume per satuan (m³)", "Volume per unit (m³)"), type: "number" },
+      {
         name: "taxGoodsCode",
         label: L("Kode barang/jasa Coretax (6 digit)", "Coretax goods/service code (6 digits)"),
         type: "text",

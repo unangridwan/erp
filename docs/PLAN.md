@@ -512,6 +512,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] P2 payment run (migrasi 0067): rekening bank pemasok (banyak per kontak), usulan otomatis tagihan jatuh tempo,
   persetujuan (kategori PAYRUN, batas wewenang), eksekusi menjadi pembayaran per pemasok (sebagian terpisah), file
   transfer massal BCA/Mandiri/BRI/BNI/CSV, transfer gagal → pembayaran dibalik
+- [x] P2 pembelian & gudang lanjutan, bagian 1 — landed cost (migrasi 0068): pembagian per baris biaya
+  (nilai/kuantitas/berat/volume/rata), porsi barang terjual ke HPP, naik ke lapisan FIFO & biaya rata-rata, dari
+  tagihan jasa, pembatalan. Berikutnya: kontrak pembelian, lalu stock opname + barcode + lacak serial
 
 ## Rekomendasi berikutnya — SDM & Payroll
 
