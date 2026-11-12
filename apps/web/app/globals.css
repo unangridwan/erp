@@ -3371,3 +3371,35 @@ dialog.palette {
 .payslip-pin-fields .field {
   width: 10rem;
 }
+
+/* Batas kredit & dunning */
+.credit-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px 16px;
+  margin: 12px 0;
+}
+.credit-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.credit-summary span {
+  font-size: 12px;
+}
+.credit-neg {
+  color: var(--danger, #c0392b);
+}
+.meter.meter-over > span {
+  background: var(--danger, #c0392b);
+}
+.credit-form {
+  margin-top: 16px;
+}
+.credit-banner ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.credit-banner {
+  margin: 0 0 12px;
+}

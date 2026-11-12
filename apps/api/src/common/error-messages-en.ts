@@ -1021,4 +1021,9 @@ export const MESSAGES_EN: Record<string, string> = {
   "Pengecualian ganda": "Duplicate exception",
   "Jabatan/golongan/departemen tidak ditemukan": "Job position/grade/department not found",
   "Usia pensiun 40–80 tahun": "Retirement age must be 40–80",
+  // ---- Batas kredit & dunning ----
+  "Urutan tingkat sudah dipakai": "The level sequence is already used",
+  "Tingkat dunning tidak ditemukan": "Dunning level not found",
+  "Surat teguran tidak ditemukan": "Dunning letter not found",
+  "Nominal tidak valid": "Invalid amount",
 };

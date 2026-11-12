@@ -47,6 +47,7 @@ import { ManpowerPlanModule } from "./hr/manpower-plan.module.js";
 import { TaxModule } from "./tax/tax.module.js";
 import { BillingModule } from "./billing/billing.module.js";
 import { OnboardingModule } from "./onboarding/onboarding.module.js";
+import { CreditModule } from "./credit/credit.module.js";
 import { ConsolidationModule } from "./consolidation/consolidation.module.js";
 import { HealthController } from "./health/health.controller.js";
 import { MasterModule } from "./master/master.module.js";
@@ -105,6 +106,7 @@ import { WebhookService } from "./oauth/webhook.service.js";
     TaxModule,
     OnboardingModule,
     ConsolidationModule,
+    CreditModule,
   ],
   controllers: [
     HealthController,

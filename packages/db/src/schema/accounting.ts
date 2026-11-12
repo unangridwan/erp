@@ -108,6 +108,8 @@ export const accountingSettings = pgTable("accounting_settings", {
   unrealizedFxGainAccountId: uuid("unrealized_fx_gain_account_id"),
   unrealizedFxLossAccountId: uuid("unrealized_fx_loss_account_id"),
   priceDifferenceAccountId: uuid("price_difference_account_id"),
+  dunningEnabled: boolean("dunning_enabled").notNull().default(false),
+  dunningMinAmount: numeric("dunning_min_amount", { precision: 20, scale: 2 }).notNull().default("0"),
   updatedAt: audit.updatedAt,
 });
 
@@ -140,6 +142,9 @@ export const accountMoves = pgTable("account_moves", {
   invoiceOrigin: text("invoice_origin"),
   /** Faktur perusahaan grup yang menjadi sumber tagihan/nota otomatis ini. */
   icSourceMoveId: uuid("ic_source_move_id"),
+  /** Tingkat dunning terakhir yang sudah dikirim (0 = belum pernah ditagih). */
+  dunningLevel: smallint("dunning_level").notNull().default(0),
+  lastDunningAt: timestamp("last_dunning_at", { withTimezone: true }),
   postedAt: timestamp("posted_at", { withTimezone: true }),
   postedBy: uuid("posted_by"),
   createdBy: uuid("created_by"),
@@ -334,3 +339,63 @@ export interface FxRevaluationLine {
   revalued: string;
   difference: string;
 }
+
+/** Batas kredit pelanggan per perusahaan (peringatan saja). */
+export const partnerCreditLimits = pgTable("partner_credit_limits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  partnerId: uuid("partner_id").notNull(),
+  creditLimit: numeric("credit_limit", { precision: 20, scale: 2 }),
+  overdueWarnDays: integer("overdue_warn_days"),
+  dunningExcluded: boolean("dunning_excluded").notNull().default(false),
+  note: text("note"),
+  ...audit,
+});
+
+export const dunningLevels = pgTable("dunning_levels", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  sequence: smallint("sequence").notNull(),
+  name: text("name").notNull(),
+  daysOverdue: integer("days_overdue").notNull(),
+  emailSubject: text("email_subject").notNull(),
+  body: text("body").notNull(),
+  attachPdf: boolean("attach_pdf").notNull().default(true),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export interface DunningLetterInvoice {
+  moveId: string;
+  name: string;
+  date: string;
+  dueDate: string;
+  amountTotal: string;
+  residual: string;
+  daysOverdue: number;
+}
+
+export const dunningLetters = pgTable("dunning_letters", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  partnerId: uuid("partner_id").notNull(),
+  levelId: uuid("level_id"),
+  levelSequence: smallint("level_sequence").notNull(),
+  levelName: text("level_name").notNull(),
+  name: text("name").notNull(),
+  date: date("date").notNull(),
+  state: text("state", { enum: ["sent", "failed", "printed"] }).notNull(),
+  emailTo: text("email_to"),
+  currencyCode: text("currency_code").notNull(),
+  totalOverdue: numeric("total_overdue", { precision: 20, scale: 2 }).notNull(),
+  invoices: jsonb("invoices").$type<DunningLetterInvoice[]>().notNull().default([]),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  sentBy: uuid("sent_by"),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  error: text("error"),
+  ...audit,
+});

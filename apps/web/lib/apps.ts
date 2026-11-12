@@ -175,6 +175,7 @@ export const APPS: App[] = [
       group("Pelanggan", "Customers", [
         link("Faktur Penjualan", "Invoices", "/accounting/invoices", "accounting.read"),
         link("Pembayaran", "Payments", "/accounting/payments", "accounting.read"),
+        link("Penagihan (Dunning)", "Dunning", "/accounting/dunning", "accounting.read"),
         CUSTOMERS,
       ]),
       group("Pemasok", "Vendors", [

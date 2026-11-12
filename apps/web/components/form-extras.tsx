@@ -7,6 +7,7 @@ import { api, ApiError } from "../lib/api";
 import { formatDate, money } from "../lib/format";
 import { useI18n } from "../lib/i18n";
 import { can } from "../lib/resources";
+import { CreditPanel } from "./accounting/credit-panel";
 import { CareerPanel, ChecklistsPanel, DocumentsPanel } from "./hr/hr-panels";
 import { FeedbackPanel, NotesPanel } from "./hr/ess-panels";
 import {
@@ -606,7 +607,13 @@ function ExpenseLimitsPanel({ id }: { id: string }) {
 /** Panel tambahan di bawah form generik untuk resource tertentu. */
 export function FormExtras({ path, id }: { path: string; id: string }) {
   if (path === "products") return <VariantsPanel id={id} />;
-  if (path === "partners") return <PortalAccessPanel id={id} />;
+  if (path === "partners")
+    return (
+      <>
+        <CreditPanel id={id} />
+        <PortalAccessPanel id={id} />
+      </>
+    );
   if (path === "employees") return <EmployeeExtras id={id} />;
   if (path === "fleet-vehicles") return <VehicleExtras id={id} />;
   if (path === "fleet-contracts") return <ContractActions id={id} />;

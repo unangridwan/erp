@@ -16,6 +16,7 @@ import {
   PICKING_STATE_LABEL,
   PURCHASE_STATE_LABEL,
 } from "../../lib/resources";
+import { OrderCreditBanner, type CreditStatus } from "../accounting/credit-panel";
 import { download } from "../accounting/download";
 import { useOptions, type ProductOption, type TaxOption, type UomOption } from "../accounting/use-options";
 import { UomPick } from "../uom-pick";
@@ -312,6 +313,21 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
       setVersion((v) => v + 1);
     });
 
+  /** Konfirmasi; bila pelanggan melewati batas kredit/menunggak, minta penegasan dulu (tidak memblokir). */
+  const confirmOrder = async () => {
+    if (!props.id) return;
+    const check = await api<CreditStatus>(`/sale-orders/${props.id}/credit-check`).catch(() => null);
+    if (check?.warnings?.length) {
+      const ok = await ask({
+        title: l("Peringatan kredit pelanggan", "Customer credit warning"),
+        message: `${check.warnings.join("\n")}\n\n${l("Tetap konfirmasi pesanan ini?", "Confirm this order anyway?")}`,
+        confirmLabel: l("Tetap konfirmasi", "Confirm anyway"),
+      });
+      if (!ok) return;
+    }
+    await action("confirm");
+  };
+
   const send = () => {
     const to = prompt(
       l("Kirim ke email (kosong = email pelanggan)", "Send to email (empty = customer email)"),
@@ -379,7 +395,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                 <button type="button" disabled={busy} onClick={send}>
                   {l("Kirim email", "Send by email")}
                 </button>
-                <button type="button" className="primary" disabled={busy} onClick={() => action("confirm")}>
+                <button type="button" className="primary" disabled={busy} onClick={confirmOrder}>
                   {l("Konfirmasi", "Confirm")}
                 </button>
               </>
@@ -448,6 +464,9 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                 </button>
               )}
           </header>
+          {order && order.state !== "cancel" && props.id && (
+            <OrderCreditBanner orderId={props.id} refreshKey={version} />
+          )}
           {error && <p className="error">{error}</p>}
           {order?.icPurchaseOrderId && (
             <p className="notice">
