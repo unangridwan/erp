@@ -30,7 +30,7 @@ export function toPayload(fields: Field[], values: Values, isNew: boolean): Valu
       // Belum disentuh pada data baru: biarkan default server (mis. aktif = ya).
       if (!(isNew && v === undefined)) entries.push([f.name, Boolean(v)]);
     } else if (v === "" || v === undefined || v === null) {
-      if (!isNew && f.type !== "select") entries.push([f.name, null]);
+      if (!isNew && (f.type !== "select" || f.nullable)) entries.push([f.name, null]);
     } else entries.push([f.name, f.type === "number" ? Number(v) : v]);
   }
   return Object.fromEntries(entries);

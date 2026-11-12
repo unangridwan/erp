@@ -5,7 +5,15 @@ import { L, type Text } from "./i18n";
 export type Field = (
   | { name: string; label: Text; type: "text" | "email" | "number" | "date"; required?: boolean }
   | { name: string; label: Text; type: "boolean" }
-  | { name: string; label: Text; type: "select"; options: [string, Text][]; required?: boolean }
+  | {
+      name: string;
+      label: Text;
+      type: "select";
+      options: [string, Text][];
+      required?: boolean;
+      /** Pilihan kosong ("—") dikirim sebagai null saat mengubah data (mengosongkan nilai). */
+      nullable?: boolean;
+    }
   | {
       name: string;
       label: Text;
@@ -1103,6 +1111,22 @@ RESOURCES.push(
         name: "branchClearing",
         label: L("Rekening antar kantor (RK pusat–cabang)", "Inter-office account (branch clearing)"),
         type: "boolean",
+      },
+      {
+        name: "cashFlowCategory",
+        label: L("Kelompok arus kas", "Cash flow group"),
+        type: "select",
+        nullable: true,
+        options: [
+          ["cash", L("Kas & setara kas", "Cash & cash equivalents")],
+          ["operating", L("Aktivitas operasi", "Operating activities")],
+          ["investing", L("Aktivitas investasi", "Investing activities")],
+          ["financing", L("Aktivitas pendanaan", "Financing activities")],
+        ],
+        help: L(
+          "Dipakai laporan arus kas (metode tidak langsung). Kosong (—) = otomatis mengikuti jenis akun.",
+          "Used by the cash flow statement (indirect method). Empty (—) = automatic from the account type.",
+        ),
       },
     ],
   },

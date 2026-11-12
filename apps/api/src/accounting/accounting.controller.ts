@@ -344,6 +344,12 @@ export class ReportsController {
     return this.tenantDb.run((tx) => this.reports.aged(tx, parse(reportQuery, query)));
   }
 
+  @Get("cash-flow")
+  @RequirePermission("accounting.read")
+  cashFlow(@Query() query: unknown) {
+    return this.tenantDb.run((tx) => this.reports.cashFlow(tx, parse(reportQuery, query)));
+  }
+
   @Get("branch-clearing")
   @RequirePermission("accounting.read")
   branchClearing(@Query() query: unknown) {

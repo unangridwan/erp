@@ -49,6 +49,8 @@ export const accounts = pgTable("accounts", {
   reconcile: boolean("reconcile").notNull().default(false),
   /** Rekening antar kantor (RK pusat–cabang): saldo semua cabang harus saling hapus. */
   branchClearing: boolean("branch_clearing").notNull().default(false),
+  /** Kelompok arus kas (null = otomatis dari jenis akun). */
+  cashFlowCategory: text("cash_flow_category", { enum: ["cash", "operating", "investing", "financing"] }),
   currencyCode: text("currency_code").references(() => currencies.code),
   active: boolean("active").notNull().default(true),
   ...audit,

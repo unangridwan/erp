@@ -9,7 +9,37 @@ import { api } from "../../../../lib/api";
 import { formatDate, money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 
-type Tab = "trial-balance" | "profit-loss" | "balance-sheet" | "general-ledger" | "aged" | "branch-clearing";
+type Tab =
+  | "trial-balance"
+  | "profit-loss"
+  | "balance-sheet"
+  | "cash-flow"
+  | "general-ledger"
+  | "aged"
+  | "branch-clearing";
+interface CashFlowLine {
+  key: string;
+  code?: string;
+  label: string;
+  amount: string;
+}
+interface CashFlow {
+  dateFrom: string;
+  dateTo: string;
+  operating: { lines: CashFlowLine[]; total: string };
+  investing: { lines: CashFlowLine[]; total: string };
+  financing: { lines: CashFlowLine[]; total: string };
+  netChange: string;
+  cashOpening: string;
+  cashClosing: string;
+  difference: string;
+}
+/** Tanggal yang sama setahun sebelumnya (29 Feb → 28 Feb). */
+const lastYear = (d: string) => {
+  const [y, m, day] = d.split("-").map(Number) as [number, number, number];
+  const last = new Date(Date.UTC(y - 1, m, 0)).getUTCDate();
+  return `${y - 1}-${String(m).padStart(2, "0")}-${String(Math.min(day, last)).padStart(2, "0")}`;
+};
 interface Section {
   accounts: { accountId: string; code: string; name: string; amount: string }[];
   total: string;
@@ -40,6 +70,8 @@ export default function ReportsPage() {
   const [result, setResult] = useState<{ tab: Tab; data: any } | null>(null);
   const data = result?.tab === tab ? result.data : null;
   const [error, setError] = useState<string | null>(null);
+  const [compare, setCompare] = useState(false);
+  const [previous, setPrevious] = useState<CashFlow | null>(null);
 
   const queryString = () => {
     const params = new URLSearchParams({ dateTo: filters.dateTo, companyIds: filters.companyIds.join(",") });
@@ -63,19 +95,27 @@ export default function ReportsPage() {
     if (tab === "general-ledger") params.set("accountId", filters.accountId);
     if (tab === "aged") params.set("type", filters.type);
     setError(null);
+    setPrevious(null);
+    if (tab === "cash-flow" && compare) {
+      const prev = new URLSearchParams(params);
+      prev.set("dateFrom", lastYear(filters.dateFrom));
+      prev.set("dateTo", lastYear(filters.dateTo));
+      api<CashFlow>(`/reports/cash-flow?${prev}`).then(setPrevious, () => setPrevious(null));
+    }
     api(`/reports/${tab}?${params}`)
       .then((d) => setResult({ tab, data: d }))
       .catch((e: Error) => {
         setResult(null);
         setError(e.message);
       });
-  }, [tab, filters]);
+  }, [tab, filters, compare]);
 
   const m = (v: string | number) => money(v, locale);
   const set = (patch: Partial<typeof filters>) => setFilters((f) => ({ ...f, ...patch }));
   const tabs: [Tab, string][] = [
     ["profit-loss", l("Laba Rugi", "Profit & Loss")],
     ["balance-sheet", l("Neraca", "Balance Sheet")],
+    ["cash-flow", l("Arus Kas", "Cash Flow")],
     ["trial-balance", l("Neraca Saldo", "Trial Balance")],
     ["general-ledger", l("Buku Besar", "General Ledger")],
     ["aged", l("Umur Piutang/Utang", "Aged Balances")],
@@ -270,6 +310,16 @@ export default function ReportsPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {tab === "cash-flow" && (
+        <label className="check no-print">
+          <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} />
+          {l("Bandingkan dengan periode yang sama tahun lalu", "Compare with the same period last year")}
+        </label>
+      )}
+      {data && tab === "cash-flow" && (
+        <CashFlowTable data={data as CashFlow} previous={compare ? previous : null} />
       )}
 
       {data && tab === "trial-balance" && (
@@ -488,5 +538,113 @@ export default function ReportsPage() {
         </div>
       )}
     </>
+  );
+}
+
+function CashFlowTable({ data, previous }: { data: CashFlow; previous: CashFlow | null }) {
+  const { l, locale } = useI18n();
+  const m = (v: string | number | undefined) => (v === undefined ? "—" : money(v, locale));
+  const label = (line: CashFlowLine) =>
+    line.key === "net_profit"
+      ? l("Laba bersih", "Net profit")
+      : line.key === "depreciation"
+        ? l("Penyusutan & amortisasi", "Depreciation & amortization")
+        : line.key === "depreciation_offset"
+          ? l("Dikurangi: penyusutan (non-kas)", "Less: depreciation (non-cash)")
+          : line.label;
+  const prevLine = (section: "operating" | "investing" | "financing", key: string) =>
+    previous?.[section].lines.find((x) => x.key === key)?.amount ?? (previous ? "0" : undefined);
+  const block = (section: "operating" | "investing" | "financing", title: string, totalLabel: string) => {
+    // Gabungkan baris periode ini & pembanding (akun yang hanya ada di salah satu tetap tampil).
+    const lines = [...data[section].lines];
+    for (const p of previous?.[section].lines ?? []) {
+      if (!lines.some((x) => x.key === p.key)) lines.push({ ...p, amount: "0" });
+    }
+    return (
+      <Fragment key={section}>
+        <tr className="section">
+          <th colSpan={previous ? 3 : 2}>{title}</th>
+        </tr>
+        {lines.map((line) => (
+          <tr key={line.key}>
+            <td>
+              {line.code && <span className="muted">{line.code} </span>}
+              {line.code ? `${l("Perubahan", "Change in")} ${line.label}` : label(line)}
+            </td>
+            <td className="num">{m(line.amount)}</td>
+            {previous && <td className="num">{m(prevLine(section, line.key))}</td>}
+          </tr>
+        ))}
+        <tr className="subtotal">
+          <td>{totalLabel}</td>
+          <td className="num">{m(data[section].total)}</td>
+          {previous && <td className="num">{m(previous[section].total)}</td>}
+        </tr>
+      </Fragment>
+    );
+  };
+  const row = (text: string, key: "netChange" | "cashOpening" | "cashClosing", grand = false) => (
+    <tr className={grand ? "grand" : undefined}>
+      <td>{text}</td>
+      <td className="num">{m(data[key])}</td>
+      {previous && <td className="num">{m(previous[key])}</td>}
+    </tr>
+  );
+  return (
+    <div className="table-wrap report">
+      {Number(data.difference) !== 0 && (
+        <p className="error">
+          {l(
+            `Ada selisih ${money(data.difference, locale)} yang belum terklasifikasi. Periksa kelompok arus kas akun di Bagan Akun.`,
+            `There is an unclassified difference of ${money(data.difference, locale)}. Check the accounts' cash flow category in the Chart of Accounts.`,
+          )}
+        </p>
+      )}
+      <table>
+        {previous && (
+          <thead>
+            <tr>
+              <th />
+              <th className="num">
+                {formatDate(data.dateFrom, locale)} – {formatDate(data.dateTo, locale)}
+              </th>
+              <th className="num">
+                {formatDate(previous.dateFrom, locale)} – {formatDate(previous.dateTo, locale)}
+              </th>
+            </tr>
+          </thead>
+        )}
+        <tbody>
+          {block(
+            "operating",
+            l("Arus kas dari aktivitas operasi", "Cash flows from operating activities"),
+            l("Arus kas neto dari aktivitas operasi", "Net cash from operating activities"),
+          )}
+          {block(
+            "investing",
+            l("Arus kas dari aktivitas investasi", "Cash flows from investing activities"),
+            l("Arus kas neto dari aktivitas investasi", "Net cash from investing activities"),
+          )}
+          {block(
+            "financing",
+            l("Arus kas dari aktivitas pendanaan", "Cash flows from financing activities"),
+            l("Arus kas neto dari aktivitas pendanaan", "Net cash from financing activities"),
+          )}
+          {row(
+            l("Kenaikan (penurunan) neto kas & setara kas", "Net increase (decrease) in cash"),
+            "netChange",
+            true,
+          )}
+          {row(l("Kas & setara kas awal periode", "Cash at beginning of period"), "cashOpening")}
+          {row(l("Kas & setara kas akhir periode", "Cash at end of period"), "cashClosing", true)}
+        </tbody>
+      </table>
+      <p className="muted">
+        {l(
+          "Metode tidak langsung. Kelompok tiap akun mengikuti jenis akun; ubah di Bagan Akun (kolom Kelompok arus kas) bila perlu.",
+          "Indirect method. Each account's group follows its account type; override it in the Chart of Accounts (Cash flow group) if needed.",
+        )}
+      </p>
+    </div>
   );
 }

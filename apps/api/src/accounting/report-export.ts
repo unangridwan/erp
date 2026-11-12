@@ -165,6 +165,34 @@ export function reportSheet(name: string, data: any): Sheet {
           { cells: ["Total selisih", "", num(data.total)], bold: true },
         ],
       };
+    case "cash-flow": {
+      const section = (
+        title: string,
+        sec: { lines: { code?: string; label: string; amount: string }[]; total: string },
+      ) => [
+        { cells: [title, null] as Cell[], bold: true },
+        ...sec.lines.map((l) => ({
+          cells: [`${l.code ? `${l.code} ` : ""}${l.label}`, num(l.amount)] as Cell[],
+        })),
+        { cells: [`Arus kas neto dari ${title.toLowerCase()}`, num(sec.total)] as Cell[], bold: true },
+      ];
+      return {
+        title: "Laporan Arus Kas (metode tidak langsung)",
+        subtitle: `${data.dateFrom} s.d. ${data.dateTo}`,
+        columns: twoCol,
+        rows: [
+          ...section("Aktivitas operasi", data.operating),
+          ...section("Aktivitas investasi", data.investing),
+          ...section("Aktivitas pendanaan", data.financing),
+          { cells: ["Kenaikan (penurunan) neto kas", num(data.netChange)], bold: true },
+          { cells: ["Kas & setara kas awal periode", num(data.cashOpening)] },
+          { cells: ["Kas & setara kas akhir periode", num(data.cashClosing)], bold: true },
+          ...(Number(data.difference) !== 0
+            ? [{ cells: ["Selisih belum terklasifikasi", num(data.difference)] as Cell[] }]
+            : []),
+        ],
+      };
+    }
     case "budget":
       return {
         title: `Anggaran vs Realisasi — ${data.budget.name}`,
