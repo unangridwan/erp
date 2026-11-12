@@ -1,7 +1,7 @@
 # ERP
 
 ERP SaaS multi-tenant (mirip Odoo) dengan lokalisasi Indonesia dan konsolidasi grup usaha.
-Rencana lengkap: [docs/PLAN.md](docs/PLAN.md) · Keputusan arsitektur: [docs/adr](docs/adr) · Belajar membaca & mengedit kode: [docs/PANDUAN-KODE.md](docs/PANDUAN-KODE.md).
+Rencana lengkap: [docs/PLAN.md](docs/PLAN.md) · Keputusan arsitektur: [docs/adr](docs/adr) · Belajar membaca & mengedit kode: [docs/PANDUAN-KODE.md](docs/PANDUAN-KODE.md) · Perbandingan dengan SAP: [docs/ANALISIS-VS-SAP.md](docs/ANALISIS-VS-SAP.md).
 
 ## Struktur
 
