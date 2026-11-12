@@ -55,12 +55,16 @@ export default function ReportsPage() {
   const accounts = useOptions<AccountOption>("/accounts");
   const branches = useOptions<{ id: string; name: string }>("/branches");
   const units = useOptions<{ id: string; name: string }>("/business-units");
+  const costCenters = useOptions<{ id: string; code: string; name: string }>("/cost-centers");
+  const profitCenters = useOptions<{ id: string; code: string; name: string }>("/profit-centers");
   const [tab, setTab] = useState<Tab>("profit-loss");
   const [filters, setFilters] = useState({
     dateFrom: yearStart(),
     dateTo: today(),
     branchId: "",
     businessUnitId: "",
+    costCenterId: "",
+    profitCenterId: "",
     accountId: "",
     type: "receivable",
     companyIds: [me.activeCompanyId],
@@ -78,6 +82,8 @@ export default function ReportsPage() {
     if (!POINT_IN_TIME.includes(tab)) params.set("dateFrom", filters.dateFrom);
     if (filters.branchId) params.set("branchId", filters.branchId);
     if (filters.businessUnitId) params.set("businessUnitId", filters.businessUnitId);
+    if (filters.costCenterId) params.set("costCenterId", filters.costCenterId);
+    if (filters.profitCenterId) params.set("profitCenterId", filters.profitCenterId);
     if (tab === "general-ledger") params.set("accountId", filters.accountId);
     if (tab === "aged") params.set("type", filters.type);
     return params.toString();
@@ -92,6 +98,8 @@ export default function ReportsPage() {
     if (!POINT_IN_TIME.includes(tab)) params.set("dateFrom", filters.dateFrom);
     if (filters.branchId) params.set("branchId", filters.branchId);
     if (filters.businessUnitId) params.set("businessUnitId", filters.businessUnitId);
+    if (filters.costCenterId) params.set("costCenterId", filters.costCenterId);
+    if (filters.profitCenterId) params.set("profitCenterId", filters.profitCenterId);
     if (tab === "general-ledger") params.set("accountId", filters.accountId);
     if (tab === "aged") params.set("type", filters.type);
     setError(null);
@@ -245,6 +253,32 @@ export default function ReportsPage() {
             ))}
           </select>
         </label>
+        {costCenters.length > 0 && (
+          <label className="field">
+            <span>{l("Cost center", "Cost center")}</span>
+            <select value={filters.costCenterId} onChange={(e) => set({ costCenterId: e.target.value })}>
+              <option value="">{l("Semua", "All")}</option>
+              {costCenters.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.code} {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {profitCenters.length > 0 && (
+          <label className="field">
+            <span>{l("Profit center", "Profit center")}</span>
+            <select value={filters.profitCenterId} onChange={(e) => set({ profitCenterId: e.target.value })}>
+              <option value="">{l("Semua", "All")}</option>
+              {profitCenters.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.code} {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {me.companies.length > 1 && (
           <fieldset className="choices">
             <legend>

@@ -152,6 +152,7 @@ export const saleOrders = pgTable("sale_orders", {
   note: text("note"),
   branchId: uuid("branch_id"),
   businessUnitId: uuid("business_unit_id"),
+  profitCenterId: uuid("profit_center_id"),
   amountUntaxed: numeric("amount_untaxed", { precision: 20, scale: 2 }).notNull().default("0"),
   amountTax: numeric("amount_tax", { precision: 20, scale: 2 }).notNull().default("0"),
   amountTotal: numeric("amount_total", { precision: 20, scale: 2 }).notNull().default("0"),

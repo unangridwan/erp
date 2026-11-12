@@ -170,7 +170,15 @@ export const APPS: App[] = [
     id: "accounting",
     name: L("Akuntansi", "Accounting"),
     home: "/accounting/invoices",
-    prefixes: ["/accounting", "/accounts", "/journals", "/taxes", "/currency-rates"],
+    prefixes: [
+      "/accounting",
+      "/accounts",
+      "/journals",
+      "/taxes",
+      "/currency-rates",
+      "/cost-centers",
+      "/profit-centers",
+    ],
     menu: [
       group("Pelanggan", "Customers", [
         link("Faktur Penjualan", "Invoices", "/accounting/invoices", "accounting.read"),
@@ -192,10 +200,13 @@ export const APPS: App[] = [
       ]),
       group("Laporan", "Reporting", [
         link("Laporan Keuangan", "Financial Reports", "/accounting/reports", "accounting.read"),
+        link("Laporan Controlling", "Controlling Reports", "/accounting/controlling", "accounting.read"),
       ]),
       group("Konfigurasi", "Configuration", [
         link("Pengaturan Akuntansi", "Settings", "/accounting/settings", "accounting.manage"),
         link("Bagan Akun", "Chart of Accounts", "/accounts", "accounting.read"),
+        link("Cost Center", "Cost Centers", "/cost-centers", "accounting.read"),
+        link("Profit Center", "Profit Centers", "/profit-centers", "accounting.read"),
         link("Jurnal", "Journals", "/journals", "accounting.read"),
         link("Pajak", "Taxes", "/taxes", "accounting.read"),
         link("Kurs Harian", "Currency Rates", "/currency-rates", "currency.read"),

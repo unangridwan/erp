@@ -112,6 +112,17 @@ const SERVICE_STATES: [string, Text][] = [
   ["cancelled", L("Dibatalkan", "Cancelled")],
 ];
 
+const HELP_CC = L(
+  "Biaya (servis, penyusutan) dibebankan ke cost center ini.",
+  "Costs (service, depreciation) are charged to this cost center.",
+);
+export const COST_CENTER_CATEGORIES: [string, Text][] = [
+  ["production", L("Produksi", "Production")],
+  ["sales", L("Penjualan & pemasaran", "Sales & marketing")],
+  ["admin", L("Administrasi & umum", "General & administrative")],
+  ["service", L("Layanan pendukung", "Support service")],
+];
+
 const name = (required = true): Field => ({ name: "name", label: L("Nama", "Name"), type: "text", required });
 const code: Field = { name: "code", label: L("Kode", "Code"), type: "text", required: true };
 const companyScope: Field = {
@@ -748,6 +759,14 @@ export const RESOURCES: Resource[] = [
         display: "name",
       },
       {
+        name: "costCenterId",
+        label: L("Cost center", "Cost center"),
+        type: "ref",
+        resource: "cost-centers?active=true",
+        display: "name",
+        help: HELP_CC,
+      },
+      {
         name: "stnkNo",
         label: L("Nomor STNK", "Vehicle registration (STNK) no."),
         type: "text",
@@ -1128,6 +1147,121 @@ RESOURCES.push(
           "Used by the cash flow statement (indirect method). Empty (—) = automatic from the account type.",
         ),
       },
+      {
+        name: "defaultCostCenterId",
+        label: L("Cost center bawaan", "Default cost center"),
+        type: "ref",
+        resource: "cost-centers?active=true",
+        display: "name",
+        section: L("Controlling", "Controlling"),
+        help: L(
+          "Diisi otomatis pada baris jurnal akun ini bila baris tidak punya cost center.",
+          "Filled automatically on this account's journal lines that have no cost center.",
+        ),
+      },
+      {
+        name: "defaultProfitCenterId",
+        label: L("Profit center bawaan", "Default profit center"),
+        type: "ref",
+        resource: "profit-centers?active=true",
+        display: "name",
+        help: L(
+          "Untuk akun pendapatan; baris ber-cost center memakai profit center milik cost center-nya.",
+          "For revenue accounts; lines with a cost center use that cost center's profit center.",
+        ),
+      },
+    ],
+  },
+  {
+    path: "profit-centers",
+    model: "profit_center",
+    title: L("Profit Center", "Profit Centers"),
+    singular: L("Profit Center", "Profit Center"),
+    permission: "accounting",
+    writePermission: "accounting.manage",
+    group: ACCOUNTING,
+    csv: true,
+    columns: [
+      { name: "code", label: L("Kode", "Code") },
+      { name: "name", label: L("Nama", "Name") },
+      { name: "parentId", label: L("Induk", "Parent") },
+      { name: "active", label: L("Aktif", "Active") },
+    ],
+    fields: [
+      code,
+      name(),
+      {
+        name: "parentId",
+        label: L("Induk", "Parent"),
+        type: "ref",
+        resource: "profit-centers",
+        display: "name",
+      },
+      {
+        name: "managerEmployeeId",
+        label: L("Penanggung jawab", "Manager"),
+        type: "ref",
+        resource: "employees",
+        display: "name",
+      },
+      { name: "description", label: L("Keterangan", "Description"), type: "text" },
+      { name: "active", label: L("Aktif", "Active"), type: "boolean" },
+    ],
+  },
+  {
+    path: "cost-centers",
+    model: "cost_center",
+    title: L("Cost Center", "Cost Centers"),
+    singular: L("Cost Center", "Cost Center"),
+    permission: "accounting",
+    writePermission: "accounting.manage",
+    group: ACCOUNTING,
+    csv: true,
+    columns: [
+      { name: "code", label: L("Kode", "Code") },
+      { name: "name", label: L("Nama", "Name") },
+      { name: "parentId", label: L("Induk", "Parent") },
+      { name: "profitCenterId", label: L("Profit center", "Profit center") },
+      { name: "category", label: L("Kategori", "Category") },
+      { name: "active", label: L("Aktif", "Active") },
+    ],
+    fields: [
+      code,
+      name(),
+      {
+        name: "parentId",
+        label: L("Induk", "Parent"),
+        type: "ref",
+        resource: "cost-centers",
+        display: "name",
+      },
+      {
+        name: "profitCenterId",
+        label: L("Profit center", "Profit center"),
+        type: "ref",
+        resource: "profit-centers?active=true",
+        display: "name",
+        help: L(
+          "Baris jurnal ber-cost center ini otomatis masuk ke profit center tersebut.",
+          "Journal lines with this cost center go to this profit center automatically.",
+        ),
+      },
+      {
+        name: "category",
+        label: L("Kategori", "Category"),
+        type: "select",
+        required: true,
+        options: COST_CENTER_CATEGORIES,
+      },
+      {
+        name: "managerEmployeeId",
+        label: L("Penanggung jawab", "Manager"),
+        type: "ref",
+        resource: "employees",
+        display: "name",
+      },
+      { name: "description", label: L("Keterangan", "Description"), type: "text" },
+      { name: "active", label: L("Aktif", "Active"), type: "boolean" },
     ],
   },
   {
@@ -1621,6 +1755,17 @@ RESOURCES.push(
         resource: "business-units",
         display: "name",
       },
+      {
+        name: "costCenterId",
+        label: L("Cost center", "Cost center"),
+        type: "ref",
+        resource: "cost-centers?active=true",
+        display: "name",
+        help: L(
+          "Kosong = mengikuti cost center departemen. Dipakai jurnal gaji & klaim biaya.",
+          "Empty = follows the department's cost center. Used for payroll & expense claim entries.",
+        ),
+      },
       { name: "joinDate", label: L("Tanggal masuk", "Join date"), type: "date", required: true },
       { name: "resignDate", label: L("Tanggal keluar", "Resign date"), type: "date" },
       {
@@ -1775,6 +1920,17 @@ RESOURCES.push(
         type: "ref",
         resource: "employees",
         display: "name",
+      },
+      {
+        name: "costCenterId",
+        label: L("Cost center", "Cost center"),
+        type: "ref",
+        resource: "cost-centers?active=true",
+        display: "name",
+        help: L(
+          "Beban gaji & klaim karyawan departemen ini (dan sub-departemen tanpa cost center) masuk ke cost center ini.",
+          "Payroll & expense claims of this department (and sub-departments without a cost center) go to this cost center.",
+        ),
       },
       { name: "active", label: L("Aktif", "Active"), type: "boolean" },
     ],

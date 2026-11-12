@@ -286,6 +286,8 @@ const dimensions = {
   partnerId: z.string().uuid().nullish(),
   businessUnitId: z.string().uuid().nullish(),
   branchId: z.string().uuid().nullish(),
+  costCenterId: z.string().uuid().nullish(),
+  profitCenterId: z.string().uuid().nullish(),
 };
 
 export const ACCOUNT_TYPE_VALUES = [
@@ -316,6 +318,8 @@ export const accountSchema = z.object({
   branchClearing: z.boolean().default(false),
   /** Kelompok arus kas; kosong = otomatis dari jenis akun. */
   cashFlowCategory: z.enum(["cash", "operating", "investing", "financing"]).nullish(),
+  defaultCostCenterId: z.string().uuid().nullish(),
+  defaultProfitCenterId: z.string().uuid().nullish(),
   currencyCode: z.string().length(3).toUpperCase().nullish(),
   active: z.boolean().default(true),
 });
@@ -354,6 +358,7 @@ export const accountingSettingsSchema = z.object({
     .nullish(),
   deferredRevenueAccountId: z.string().uuid().nullish(),
   deferredExpenseAccountId: z.string().uuid().nullish(),
+  costCenterRequired: z.boolean().optional(),
 });
 
 export const journalEntrySchema = z.object({
@@ -399,6 +404,8 @@ export const invoiceSchema = z.object({
         taxIds: z.array(z.string().uuid()).default([]),
         businessUnitId: z.string().uuid().nullish(),
         branchId: z.string().uuid().nullish(),
+        costCenterId: z.string().uuid().nullish(),
+        profitCenterId: z.string().uuid().nullish(),
         uomId: z.string().uuid().nullish(),
         /** Periode penangguhan: pendapatan/biaya diakui prorata per bulan dari tanggal mulai s.d. akhir. */
         deferralStart: z.string().date().nullish(),
@@ -456,6 +463,7 @@ export const assetSchema = z.object({
   journalId: z.string().uuid().optional(),
   branchId: z.string().uuid().nullish(),
   businessUnitId: z.string().uuid().nullish(),
+  costCenterId: z.string().uuid().nullish(),
 });
 
 export const depreciateSchema = z.object({ date: z.string().date() });
@@ -489,6 +497,7 @@ export const budgetSchema = z.object({
         amount: decimalString(2),
         businessUnitId: z.string().uuid().nullish(),
         branchId: z.string().uuid().nullish(),
+        costCenterId: z.string().uuid().nullish(),
       }),
     )
     .default([]),
@@ -667,6 +676,7 @@ export const saleOrderSchema = z.object({
   note: z.string().max(5000).nullish(),
   branchId: z.string().uuid().nullish(),
   businessUnitId: z.string().uuid().nullish(),
+  profitCenterId: z.string().uuid().nullish(),
   lines: z
     .array(
       z.object({
@@ -837,6 +847,7 @@ export const purchaseOrderSchema = z.object({
   note: z.string().max(5000).nullish(),
   branchId: z.string().uuid().nullish(),
   businessUnitId: z.string().uuid().nullish(),
+  costCenterId: z.string().uuid().nullish(),
   lines: z
     .array(
       z.object({
@@ -874,6 +885,7 @@ export const departmentSchema = z.object({
   name: z.string().trim().min(1).max(100),
   parentId: optionalUuid,
   managerId: optionalUuid,
+  costCenterId: optionalUuid,
   active: z.boolean().default(true),
 });
 
@@ -957,6 +969,7 @@ export const employeeSchema = z.object({
   workPhone: optionalText,
   branchId: optionalUuid,
   businessUnitId: optionalUuid,
+  costCenterId: optionalUuid,
   nik: digits([16], "NIK")
     .nullish()
     .or(z.literal("").transform(() => null)),
@@ -2486,6 +2499,7 @@ export const fleetVehicleSchema = z.object({
   state: z.enum(["new_request", "to_order", "registered", "downgraded"]).default("registered"),
   branchId: optionalUuid,
   businessUnitId: optionalUuid,
+  costCenterId: optionalUuid,
   managerUserId: optionalUuid,
   driverEmployeeId: optionalUuid,
   nextDriverEmployeeId: optionalUuid,

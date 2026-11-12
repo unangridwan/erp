@@ -15,7 +15,13 @@ import { AssetService, validateAsset } from "./asset.service.js";
 import { BankService } from "./bank.service.js";
 import { BudgetService } from "./budget.service.js";
 import { ClosingService } from "./closing.service.js";
-import { assertCompanyAccounts } from "./context.js";
+import { assertCenters, assertCompanyAccounts } from "./context.js";
+import {
+  ControllingController,
+  ControllingService,
+  CostCentersController,
+  ProfitCentersController,
+} from "./controlling.module.js";
 import {
   AssetActionsController,
   BankController,
@@ -49,6 +55,19 @@ const AccountsController = createCrudController({
   orderBy: schema.accounts.code,
   companyColumn: schema.accounts.companyId,
   perCompany: true,
+  beforeSave: async (tx, values) => {
+    await assertCenters(
+      tx,
+      String(values.companyId ?? ""),
+      [
+        {
+          costCenterId: values.defaultCostCenterId as string | null | undefined,
+          profitCenterId: values.defaultProfitCenterId as string | null | undefined,
+        },
+      ],
+      "",
+    );
+  },
 });
 
 const JournalsController = createCrudController({
@@ -114,8 +133,12 @@ const AssetsController = createCrudController({
     BudgetsController,
     ClosingAndExportController,
     RecurringController,
+    CostCentersController,
+    ProfitCentersController,
+    ControllingController,
   ],
   providers: [
+    ControllingService,
     ActivityService,
     SequenceService,
     MoveService,

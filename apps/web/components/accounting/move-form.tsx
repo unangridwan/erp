@@ -37,6 +37,8 @@ interface MoveLine {
   taxIds: string[];
   branchId: string | null;
   businessUnitId: string | null;
+  costCenterId: string | null;
+  profitCenterId: string | null;
   deferralStart: string | null;
   deferralEnd: string | null;
   deferralAccountId: string | null;
@@ -75,6 +77,9 @@ interface InvoiceLine {
   discount: string;
   taxIds: string[];
   branchId: string;
+  businessUnitId: string;
+  costCenterId: string;
+  profitCenterId: string;
   deferralStart: string;
   deferralEnd: string;
 }
@@ -85,6 +90,9 @@ interface EntryLine {
   debit: string;
   credit: string;
   branchId: string;
+  businessUnitId: string;
+  costCenterId: string;
+  profitCenterId: string;
 }
 
 const emptyInvoiceLine = (): InvoiceLine => ({
@@ -96,6 +104,9 @@ const emptyInvoiceLine = (): InvoiceLine => ({
   discount: "0",
   taxIds: [],
   branchId: "",
+  businessUnitId: "",
+  costCenterId: "",
+  profitCenterId: "",
   deferralStart: "",
   deferralEnd: "",
 });
@@ -106,6 +117,9 @@ const emptyEntryLine = (): EntryLine => ({
   debit: "",
   credit: "",
   branchId: "",
+  businessUnitId: "",
+  costCenterId: "",
+  profitCenterId: "",
 });
 const orNull = (v: string) => (v === "" ? null : v);
 
@@ -125,6 +139,8 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
   const products = useOptions<ProductOption>(isEntry ? null : "/products");
   const currencies = useOptions<CurrencyOption>("/currencies");
   const branches = useOptions<{ id: string; name: string; companyId: string }>("/branches");
+  const costCenters = useOptions<{ id: string; code: string; name: string }>("/cost-centers");
+  const profitCenters = useOptions<{ id: string; code: string; name: string }>("/profit-centers");
 
   const [header, setHeader] = useState({
     partnerId: "",
@@ -165,6 +181,9 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
               debit: Number(x.debit) ? x.debit : "",
               credit: Number(x.credit) ? x.credit : "",
               branchId: x.branchId ?? "",
+              businessUnitId: x.businessUnitId ?? "",
+              costCenterId: x.costCenterId ?? "",
+              profitCenterId: x.profitCenterId ?? "",
             })),
           );
         } else {
@@ -182,6 +201,9 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                 discount: String(Number(x.discount)),
                 taxIds: x.taxIds,
                 branchId: x.branchId ?? "",
+                businessUnitId: x.businessUnitId ?? "",
+                costCenterId: x.costCenterId ?? "",
+                profitCenterId: x.profitCenterId ?? "",
                 deferralStart: x.deferralStart ?? "",
                 deferralEnd: x.deferralEnd ?? "",
               })),
@@ -239,6 +261,9 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
             debit: x.debit || "0",
             credit: x.credit || "0",
             branchId: orNull(x.branchId),
+            businessUnitId: orNull(x.businessUnitId),
+            costCenterId: orNull(x.costCenterId),
+            profitCenterId: orNull(x.profitCenterId),
           })),
       };
     }
@@ -259,6 +284,9 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
         discount: x.discount || "0",
         taxIds: x.taxIds,
         branchId: orNull(x.branchId),
+        businessUnitId: orNull(x.businessUnitId),
+        costCenterId: orNull(x.costCenterId),
+        profitCenterId: orNull(x.profitCenterId),
         deferralStart: orNull(x.deferralStart),
         deferralEnd: orNull(x.deferralEnd),
       })),
@@ -471,6 +499,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                       <th>{l("Keterangan", "Label")}</th>
                       <th>{l("Partner", "Partner")}</th>
                       <th>{l("Cabang", "Branch")}</th>
+                      {costCenters.length > 0 && <th>{l("Cost center", "Cost center")}</th>}
                       <th className="num">{l("Debit", "Debit")}</th>
                       <th className="num">{l("Kredit", "Credit")}</th>
                       {editable && <th />}
@@ -526,6 +555,24 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                             ))}
                           </select>
                         </td>
+                        {costCenters.length > 0 && (
+                          <td>
+                            <select
+                              disabled={!editable}
+                              aria-label={l("Cost center", "Cost center")}
+                              value={x.costCenterId}
+                              onChange={(e) => setEnt(i, { costCenterId: e.target.value })}
+                            >
+                              <option value="">{l("Otomatis", "Automatic")}</option>
+                              {costCenters.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.code} {c.name}
+                                </option>
+                              ))}
+                            </select>
+                            {err(`lines.${i}.costCenterId`)}
+                          </td>
+                        )}
                         <td>
                           <input
                             disabled={!editable}
@@ -565,7 +612,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colSpan={4}>
+                      <td colSpan={costCenters.length > 0 ? 5 : 4}>
                         {editable && (
                           <button
                             type="button"
@@ -676,6 +723,45 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                             ))}
                           </select>
                           {err(`lines.${i}.accountId`)}
+                          {sale
+                            ? profitCenters.length > 0 && (
+                                <select
+                                  className="line-center"
+                                  disabled={!editable}
+                                  aria-label={l("Profit center", "Profit center")}
+                                  value={x.profitCenterId}
+                                  onChange={(e) => setInv(i, { profitCenterId: e.target.value })}
+                                >
+                                  <option value="">
+                                    {l("Profit center: otomatis", "Profit center: automatic")}
+                                  </option>
+                                  {profitCenters.map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.code} {c.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              )
+                            : costCenters.length > 0 && (
+                                <select
+                                  className="line-center"
+                                  disabled={!editable}
+                                  aria-label={l("Cost center", "Cost center")}
+                                  value={x.costCenterId}
+                                  onChange={(e) => setInv(i, { costCenterId: e.target.value })}
+                                >
+                                  <option value="">
+                                    {l("Cost center: otomatis", "Cost center: automatic")}
+                                  </option>
+                                  {costCenters.map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.code} {c.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                          {err(`lines.${i}.costCenterId`)}
+                          {err(`lines.${i}.profitCenterId`)}
                         </td>
                         <td>
                           <input

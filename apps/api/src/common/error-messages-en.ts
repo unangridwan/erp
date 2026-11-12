@@ -1027,6 +1027,24 @@ export const MESSAGES_EN: Record<string, string> = {
   "Surat teguran tidak ditemukan": "Dunning letter not found",
   "Nominal tidak valid": "Invalid amount",
   // ---- Penangguhan & jurnal berulang ----
+  // ---- Controlling ----
+  "Cost center tidak ditemukan atau tidak aktif di perusahaan ini":
+    "Cost center not found or inactive in this company",
+  "Profit center tidak ditemukan atau tidak aktif di perusahaan ini":
+    "Profit center not found or inactive in this company",
+  "Cost center wajib diisi untuk baris akun beban: {}. Isi cost center di baris, atau atur cost center bawaan di akun":
+    "A cost center is required on expense account lines: {0}. Fill in the cost center on the line, or set a default cost center on the account",
+  "Induk tidak ditemukan di perusahaan ini": "Parent not found in this company",
+  "Induk tidak boleh dirinya sendiri atau turunannya":
+    "The parent cannot be itself or one of its descendants",
+  "Profit center tidak ditemukan di perusahaan ini": "Profit center not found in this company",
+  "Masih punya turunan; pindahkan atau hapus turunannya dulu":
+    "It still has children; move or delete them first",
+  "Sudah dipakai di jurnal; nonaktifkan saja": "Already used in journal entries; deactivate it instead",
+  "Cost center tidak ditemukan": "Cost center not found",
+  "Kode wajib diisi": "Code is required",
+  "Kode hanya huruf, angka, titik, garis bawah, atau strip":
+    "Code may only contain letters, digits, dots, underscores, or hyphens",
   "Akun pendapatan diterima di muka belum diatur di Pengaturan Akuntansi":
     "The deferred revenue account is not set in Accounting Settings",
   "Akun biaya dibayar di muka belum diatur di Pengaturan Akuntansi":

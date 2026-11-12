@@ -95,8 +95,14 @@ export async function assertPartner(tx: Db, companyId: string, partnerId: string
 export async function assertDimensions(
   tx: Db,
   companyId: string,
-  lines: { businessUnitId?: string | null; branchId?: string | null }[],
+  lines: {
+    businessUnitId?: string | null;
+    branchId?: string | null;
+    costCenterId?: string | null;
+    profitCenterId?: string | null;
+  }[],
 ) {
+  await assertCenters(tx, companyId, lines);
   for (const [i, line] of lines.entries()) {
     if (line.businessUnitId) {
       const [bu] = await tx
@@ -112,6 +118,62 @@ export async function assertDimensions(
         .where(and(eq(schema.branches.id, line.branchId), eq(schema.branches.companyId, companyId)));
       if (!branch) throw fieldError(`lines.${i}.branchId`, "Cabang tidak ditemukan di perusahaan ini");
     }
+  }
+}
+
+/** Cost center & profit center harus aktif dan milik perusahaan ini. */
+export async function assertCenters(
+  tx: Db,
+  companyId: string,
+  lines: { costCenterId?: string | null; profitCenterId?: string | null }[],
+  prefix = "lines",
+) {
+  const cc = [...new Set(lines.map((l) => l.costCenterId).filter((v): v is string => !!v))];
+  const pc = [...new Set(lines.map((l) => l.profitCenterId).filter((v): v is string => !!v))];
+  const okCc = cc.length
+    ? new Set(
+        (
+          await tx
+            .select({ id: schema.costCenters.id })
+            .from(schema.costCenters)
+            .where(
+              and(
+                inArray(schema.costCenters.id, cc),
+                eq(schema.costCenters.companyId, companyId),
+                eq(schema.costCenters.active, true),
+              ),
+            )
+        ).map((r) => r.id),
+      )
+    : new Set<string>();
+  const okPc = pc.length
+    ? new Set(
+        (
+          await tx
+            .select({ id: schema.profitCenters.id })
+            .from(schema.profitCenters)
+            .where(
+              and(
+                inArray(schema.profitCenters.id, pc),
+                eq(schema.profitCenters.companyId, companyId),
+                eq(schema.profitCenters.active, true),
+              ),
+            )
+        ).map((r) => r.id),
+      )
+    : new Set<string>();
+  for (const [i, line] of lines.entries()) {
+    const path = prefix ? `${prefix}.${i}.` : "";
+    if (line.costCenterId && !okCc.has(line.costCenterId))
+      throw fieldError(
+        `${path}costCenterId`,
+        "Cost center tidak ditemukan atau tidak aktif di perusahaan ini",
+      );
+    if (line.profitCenterId && !okPc.has(line.profitCenterId))
+      throw fieldError(
+        `${path}profitCenterId`,
+        "Profit center tidak ditemukan atau tidak aktif di perusahaan ini",
+      );
   }
 }
 

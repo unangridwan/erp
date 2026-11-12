@@ -1,4 +1,5 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { employeeCostCenters } from "../accounting/cost-center-source.js";
 import { and, desc, eq, inArray, schema, sql, type Db } from "@erp/db";
 import { severance, workDaysPerMonth, type severanceInputSchema } from "@erp/shared";
 import { Decimal } from "decimal.js";
@@ -75,8 +76,20 @@ export class SeveranceService {
     if (!settings) throw new BadRequestException("Payroll belum disiapkan");
     if (d(p.gross).lte(0)) throw new BadRequestException("Tidak ada hak akhir yang perlu dibayar");
     const label = `Hak akhir ${employee.name} (${p.article})`;
-    const lines = [
-      { accountId: settings.salaryExpenseAccountId, name: label, debit: d(p.gross).toFixed(2), credit: "0" },
+    const lines: {
+      accountId: string;
+      name: string;
+      debit: string;
+      credit: string;
+      costCenterId?: string | null;
+    }[] = [
+      {
+        accountId: settings.salaryExpenseAccountId,
+        name: label,
+        debit: d(p.gross).toFixed(2),
+        credit: "0",
+        costCenterId: (await employeeCostCenters(tx, [employee.id])).get(employee.id) ?? null,
+      },
       { accountId: settings.salaryPayableAccountId, name: label, debit: "0", credit: d(p.net).toFixed(2) },
     ];
     if (d(p.tax).gt(0))

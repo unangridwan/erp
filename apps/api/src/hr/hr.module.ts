@@ -111,7 +111,7 @@ const DepartmentsController = createCrudController({
   orderBy: schema.departments.name,
   companyColumn: schema.departments.companyId,
   perCompany: true,
-  refs: { parentId: schema.departments, managerId: schema.employees },
+  refs: { parentId: schema.departments, managerId: schema.employees, costCenterId: schema.costCenters },
 });
 
 const JobPositionsController = createCrudController({

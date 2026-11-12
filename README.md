@@ -214,6 +214,27 @@ perusahaan, cabang, atau unit bisnis, dan diekspor ke Excel. Kelompok tiap akun 
 ditimpa lewat kolom **Kelompok arus kas** di Bagan Akun. Bila ada perubahan yang belum terklasifikasi, laporan
 menampilkan selisihnya. Entri tutup buku tidak ikut dihitung.
 
+**Controlling: cost center & profit center (migrasi 0065).** Akuntansi › Konfigurasi › **Cost Center** dan **Profit
+Center** (berjenjang, per perusahaan; tiap cost center masuk ke satu profit center). Baris jurnal punya kolom cost
+center dan profit center yang terisi otomatis:
+
+- payroll, klaim biaya & pesangon dari cost center karyawan, atau departemennya (naik ke departemen induk);
+- penyusutan & pelepasan aset dari aset, tagihan servis dari kendaraan, tagihan dari PO, faktur dari SO (profit center);
+- bila masih kosong, dari **cost center/profit center bawaan** akun; profit center diambil dari cost center-nya.
+
+Pengaturan Akuntansi › **Cost center wajib** menolak posting entri yang punya baris akun beban (operasional &
+penyusutan) tanpa cost center. Baris anggaran bisa diberi cost center (realisasi termasuk cost center turunannya).
+Akuntansi › Laporan › **Laporan Controlling** menampilkan biaya per cost center (berjenjang, rincian per akun, vs
+anggaran yang diprorata menurut periode) dan laba rugi per profit center (pendapatan, HPP, laba kotor, beban, laba
+bersih, margin). Laporan keuangan biasa bisa difilter per cost center atau profit center.
+
+| Endpoint                                                     | Keterangan                                                        |
+| ------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `/cost-centers`, `/profit-centers`                           | CRUD (hapus ditolak bila sudah dipakai jurnal atau punya turunan) |
+| `GET /controlling/cost-centers?dateFrom&dateTo&branchId`     | Biaya per cost center (pohon + rollup) vs anggaran                |
+| `GET /controlling/cost-centers/:id/accounts?dateFrom&dateTo` | Rincian biaya per akun untuk cost center beserta turunannya       |
+| `GET /controlling/profit-centers?dateFrom&dateTo&branchId`   | Laba rugi per profit center                                       |
+
 ### CRM & Penjualan (Fase 2)
 
 | Endpoint                                                                                      | Keterangan                                                                     |

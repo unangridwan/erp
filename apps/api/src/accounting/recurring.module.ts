@@ -109,6 +109,8 @@ export class RecurringService {
         partnerId: l.partnerId ?? null,
         businessUnitId: l.businessUnitId ?? null,
         branchId: l.branchId ?? null,
+        costCenterId: l.costCenterId ?? null,
+        profitCenterId: l.profitCenterId ?? null,
       })),
       frequency: input.frequency,
       interval: input.interval,

@@ -629,6 +629,7 @@ export class SaleOrderService implements OnModuleInit {
           discount: l.discount,
           taxIds: l.taxIds,
           businessUnitId: order.businessUnitId,
+          profitCenterId: order.profitCenterId,
           branchId: order.branchId,
           uomId: l.uomId ?? null,
         })),
@@ -693,6 +694,7 @@ export class SaleOrderService implements OnModuleInit {
           discount: l.discount,
           taxIds: l.taxIds,
           businessUnitId: order.businessUnitId,
+          profitCenterId: order.profitCenterId,
           branchId: order.branchId,
           uomId: l.uomId,
         })),
@@ -962,7 +964,11 @@ export class SaleOrderService implements OnModuleInit {
         throw fieldError("leadId", "Peluang tidak ditemukan");
       });
     await assertDimensions(tx, companyId, [
-      { businessUnitId: input.businessUnitId, branchId: input.branchId },
+      {
+        businessUnitId: input.businessUnitId,
+        branchId: input.branchId,
+        profitCenterId: input.profitCenterId,
+      },
     ]);
     const warehouseId = input.warehouseId ?? (await this.stock.defaultWarehouse(tx, companyId)).id;
     await this.stock.warehouse(tx, warehouseId, companyId);
@@ -1061,6 +1067,7 @@ export class SaleOrderService implements OnModuleInit {
         note: input.note ?? null,
         branchId: input.branchId ?? null,
         businessUnitId: input.businessUnitId ?? null,
+        profitCenterId: input.profitCenterId ?? null,
         amountUntaxed: dec(result.amountUntaxed).toFixed(2),
         amountTax: dec(result.amountTax).toFixed(2),
         amountTotal: dec(result.amountTotal).toFixed(2),

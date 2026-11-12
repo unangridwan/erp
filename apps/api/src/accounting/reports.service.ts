@@ -23,6 +23,9 @@ export const reportQuery = z.object({
   dateTo: z.string().date().default(today),
   businessUnitId: z.string().uuid().optional(),
   branchId: z.string().uuid().optional(),
+  /** Termasuk cost/profit center turunannya. */
+  costCenterId: z.string().uuid().optional(),
+  profitCenterId: z.string().uuid().optional(),
   accountId: z.string().uuid().optional(),
   type: z.enum(["receivable", "payable"]).default("receivable"),
 });
@@ -41,6 +44,13 @@ const list = (values: readonly string[]) =>
     values.map((v) => sql`${v}`),
     sql`, `,
   );
+
+/** Subquery id center beserta turunannya (rekursif). */
+const centerTree = (table: "cost_centers" | "profit_centers", id: string) => sql`
+  with recursive t as (
+    select id from ${sql.raw(table)} where id = ${id}
+    union select c.id from ${sql.raw(table)} c join t on c.parent_id = t.id
+  ) select id from t`;
 
 type AccountRow = {
   id: string;
@@ -451,6 +461,10 @@ export class ReportService {
     const filters: SQL[] = [sql`m.state = 'posted'`, sql`l.company_id in (${list(companyIds)})`];
     if (q.businessUnitId) filters.push(sql`l.business_unit_id = ${q.businessUnitId}`);
     if (q.branchId) filters.push(sql`l.branch_id = ${q.branchId}`);
+    if (q.costCenterId)
+      filters.push(sql`l.cost_center_id in (${centerTree("cost_centers", q.costCenterId)})`);
+    if (q.profitCenterId)
+      filters.push(sql`l.profit_center_id in (${centerTree("profit_centers", q.profitCenterId)})`);
     return { companyIds, fyStart, where: sql.join(filters, sql` and `) };
   }
 
