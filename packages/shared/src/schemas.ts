@@ -330,6 +330,15 @@ export const journalSchema = z.object({
   name: z.string().trim().min(1).max(100),
   journalType: z.enum(["sale", "purchase", "bank", "cash", "general"]),
   defaultAccountId: z.string().uuid().nullish(),
+  /** Jurnal bank: rekening perusahaan untuk file transfer massal. */
+  bankAccountNumber: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/[\s.-]/g, ""))
+    .refine((v) => v === "" || /^\d{5,34}$/.test(v), "Nomor rekening 5–34 digit angka")
+    .transform((v) => v || null)
+    .nullish(),
+  bankCompanyCode: z.string().trim().max(30).nullish(),
   active: z.boolean().default(true),
 });
 

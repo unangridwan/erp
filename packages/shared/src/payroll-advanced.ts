@@ -205,7 +205,20 @@ const join = (rows: (string | number)[][], sep: string) => rows.map((r) => r.joi
  * sisanya dikembalikan di `skipped` untuk ditransfer dengan format lain/antarbank. Tata letak mengikuti templat
  * unggah massal umum tiap bank — cocokkan dengan templat terbaru dari bank sebelum dipakai produksi.
  */
-export function bankTransferFile(format: BankFormat, header: TransferHeader, rows: TransferRow[]) {
+export interface TransferFileOptions {
+  /** Awalan nama file (bawaan "transfer-gaji"). */
+  filePrefix?: string;
+  /** Label kolom referensi & alasan nominal nol di file CSV (bawaan untuk gaji karyawan). */
+  referenceLabel?: string;
+  zeroReason?: string;
+}
+
+export function bankTransferFile(
+  format: BankFormat,
+  header: TransferHeader,
+  rows: TransferRow[],
+  opts: TransferFileOptions = {},
+) {
   const valid = rows.filter((r) => accountNo(r.bankAccount) && d(r.amount).gt(0));
   const included = format === "csv" ? valid : valid.filter((r) => bankOf(r.bankName) === format);
   const skipped = rows
@@ -217,7 +230,7 @@ export function bankTransferFile(format: BankFormat, header: TransferHeader, row
       reason: !accountNo(r.bankAccount)
         ? "Rekening kosong"
         : d(r.amount).lte(0)
-          ? "Gaji bersih nol"
+          ? (opts.zeroReason ?? "Gaji bersih nol")
           : "Bank berbeda",
     }));
   const total = included.reduce((s, r) => s.plus(r.amount), d(0)).toFixed(0);
@@ -306,9 +319,9 @@ export function bankTransferFile(format: BankFormat, header: TransferHeader, row
       break;
     default:
       content = toCsv(
-        ["NIK Karyawan", "Nama", "Bank", "No Rekening", "Atas Nama", "Jumlah"],
+        [opts.referenceLabel ?? "NIK Karyawan", "Nama", "Bank", "No Rekening", "Atas Nama", "Jumlah"],
         included.map((r) => ({
-          "NIK Karyawan": r.employeeNumber,
+          [opts.referenceLabel ?? "NIK Karyawan"]: r.employeeNumber,
           Nama: r.name,
           Bank: r.bankName,
           "No Rekening": accountNo(r.bankAccount),
@@ -318,7 +331,7 @@ export function bankTransferFile(format: BankFormat, header: TransferHeader, row
       );
   }
   return {
-    filename: `transfer-gaji-${format}-${period}.${extension}`,
+    filename: `${opts.filePrefix ?? "transfer-gaji"}-${format}-${period}.${extension}`,
     contentType: extension === "txt" ? "text/plain; charset=utf-8" : "text/csv; charset=utf-8",
     content,
     count: included.length,

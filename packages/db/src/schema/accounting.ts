@@ -82,6 +82,9 @@ export const journals = pgTable("journals", {
   name: text("name").notNull(),
   journalType: text("journal_type", { enum: JOURNAL_TYPES }).notNull(),
   defaultAccountId: uuid("default_account_id"),
+  /** Jurnal bank: nomor rekening perusahaan (sumber file transfer) & corporate ID internet banking. */
+  bankAccountNumber: text("bank_account_number"),
+  bankCompanyCode: text("bank_company_code"),
   active: boolean("active").notNull().default(true),
   ...audit,
 });
@@ -565,4 +568,58 @@ export const allocationRuns = pgTable("allocation_runs", {
   reversedBy: uuid("reversed_by"),
   reversedAt: timestamp("reversed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Rekening bank pemasok/kontak (untuk payment run & file transfer). */
+export const partnerBankAccounts = pgTable("partner_bank_accounts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  partnerId: uuid("partner_id").notNull(),
+  bankCode: text("bank_code", { enum: ["bca", "mandiri", "bri", "bni", "other"] })
+    .notNull()
+    .default("other"),
+  bankName: text("bank_name").notNull(),
+  bankIdentifier: text("bank_identifier"),
+  accountNumber: text("account_number").notNull(),
+  accountHolder: text("account_holder").notNull(),
+  currencyCode: text("currency_code").notNull().default("IDR"),
+  isDefault: boolean("is_default").notNull().default(false),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+/** Payment run: usulan pembayaran pemasok massal → persetujuan → eksekusi. */
+export const paymentRuns = pgTable("payment_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  paymentDate: date("payment_date").notNull(),
+  journalId: uuid("journal_id").notNull(),
+  dueUntil: date("due_until").notNull(),
+  state: text("state", { enum: ["draft", "in_approval", "approved", "done", "cancel"] })
+    .notNull()
+    .default("draft"),
+  approvalRequestId: uuid("approval_request_id"),
+  note: text("note"),
+  createdBy: uuid("created_by"),
+  executedBy: uuid("executed_by"),
+  executedAt: timestamp("executed_at", { withTimezone: true }),
+  ...audit,
+});
+
+export const paymentRunLines = pgTable("payment_run_lines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  runId: uuid("run_id").notNull(),
+  partnerId: uuid("partner_id").notNull(),
+  bankAccountId: uuid("bank_account_id"),
+  moveId: uuid("move_id").notNull(),
+  amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
+  included: boolean("included").notNull().default(true),
+  state: text("state", { enum: ["pending", "paid", "failed"] })
+    .notNull()
+    .default("pending"),
+  paymentId: uuid("payment_id"),
+  error: text("error"),
 });

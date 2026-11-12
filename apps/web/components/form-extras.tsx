@@ -7,6 +7,7 @@ import { api, ApiError } from "../lib/api";
 import { formatDate, money } from "../lib/format";
 import { useI18n } from "../lib/i18n";
 import { can } from "../lib/resources";
+import { BankAccountsPanel } from "./accounting/bank-accounts-panel";
 import { CreditPanel } from "./accounting/credit-panel";
 import { CareerPanel, ChecklistsPanel, DocumentsPanel } from "./hr/hr-panels";
 import { FeedbackPanel, NotesPanel } from "./hr/ess-panels";
@@ -611,6 +612,7 @@ export function FormExtras({ path, id }: { path: string; id: string }) {
     return (
       <>
         <CreditPanel id={id} />
+        <BankAccountsPanel id={id} />
         <PortalAccessPanel id={id} />
       </>
     );

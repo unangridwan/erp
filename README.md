@@ -250,6 +250,30 @@ tiap penerima sebelum diposting.
 | `POST /allocation-runs/preview`, `POST /allocation-runs` `{period}`    | Pratinjau / jalankan & posting semua siklus aktif bulan itu |
 | `GET /allocation-runs?period`, `POST /allocation-runs/:id/reverse`     | Riwayat & pembalikan                                        |
 
+**Payment run — pembayaran pemasok massal (migrasi 0067).** Akuntansi › Pemasok › **Payment Run**:
+
+1. **Usulan**: pilih tanggal jatuh tempo, tanggal bayar, dan jurnal bank; semua tagihan pemasok terbuka (mata uang
+   perusahaan) yang jatuh tempo diusulkan otomatis. Tagihan bisa dikeluarkan, dibayar sebagian, dan rekening tujuan
+   dipilih per pemasok. Tagihan yang sudah ada di run aktif lain tidak diusulkan lagi.
+2. **Persetujuan**: diajukan ke kategori **Pembayaran Pemasok** (PAYRUN) di mesin persetujuan; aturan & batas wewenang
+   berlaku (nominal = total run).
+3. **Eksekusi** (hak posting): per pemasok satu pembayaran (Dr Utang / Cr Bank) yang melunasi tagihannya; tagihan
+   dibayar sebagian dicatat terpisah. Tagihan yang berubah sejak disetujui (sudah dibayar) ditandai gagal dan tidak
+   dibayar dua kali.
+4. **File transfer massal** BCA/Mandiri/BRI/BNI (sesama bank) dan CSV; rekening sumber & corporate ID diisi di jurnal
+   bank (Bagan › Jurnal).
+5. **Transfer gagal** per pemasok: pembayaran dibalik dan tagihan terbuka lagi untuk run berikutnya.
+
+Rekening bank pemasok dikelola di panel **Rekening bank** pada form kontak (beberapa rekening, satu utama).
+
+| Endpoint                                                             | Keterangan                                       |
+| -------------------------------------------------------------------- | ------------------------------------------------ |
+| `GET/POST /partners/:id/bank-accounts`, `PUT/DELETE …/:accountId`    | Rekening bank kontak                             |
+| `GET/POST /payment-runs`, `GET/PUT /payment-runs/:id`                | Daftar, usulan otomatis, ubah baris (draft)      |
+| `POST /payment-runs/:id/submit`, `…/cancel`, `…/execute`             | Ajukan persetujuan, batalkan, eksekusi & posting |
+| `GET /payment-runs/:id/bank-file?format=bca\|mandiri\|bri\|bni\|csv` | File transfer massal (`&info=1` ringkasan)       |
+| `POST /payment-runs/:id/fail` `{partnerId}`                          | Transfer gagal: balik pembayaran pemasok itu     |
+
 ### CRM & Penjualan (Fase 2)
 
 | Endpoint                                                                                      | Keterangan                                                                     |

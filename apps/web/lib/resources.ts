@@ -1300,6 +1300,20 @@ RESOURCES.push(
         resource: "accounts",
         display: "name",
       },
+      {
+        name: "bankAccountNumber",
+        label: L("Nomor rekening perusahaan (jurnal bank)", "Company account number (bank journal)"),
+        type: "text",
+        help: L(
+          "Rekening sumber pada file transfer massal payment run.",
+          "Source account in payment run bulk transfer files.",
+        ),
+      },
+      {
+        name: "bankCompanyCode",
+        label: L("Corporate ID internet banking", "Internet banking corporate ID"),
+        type: "text",
+      },
     ],
   },
   {

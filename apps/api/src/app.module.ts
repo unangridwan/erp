@@ -1,6 +1,7 @@
 import { Inject, Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { AccountingModule } from "./accounting/accounting.module.js";
+import { PaymentRunModule } from "./accounting/payment-run.module.js";
 import { ActivityController, ActivityService } from "./activity/activity.service.js";
 import { AuthController } from "./auth/auth.controller.js";
 import { AuthGuard } from "./auth/auth.guard.js";
@@ -73,6 +74,7 @@ import { WebhookService } from "./oauth/webhook.service.js";
     MailModule,
     MasterModule,
     AccountingModule,
+    PaymentRunModule,
     CrmModule,
     SalesModule,
     InventoryModule,
