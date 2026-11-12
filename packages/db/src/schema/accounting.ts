@@ -161,6 +161,8 @@ export const accountMoves = pgTable("account_moves", {
   /** Faktur/tagihan asal untuk jurnal pengakuan penangguhan. */
   deferralSourceMoveId: uuid("deferral_source_move_id"),
   recurringId: uuid("recurring_id"),
+  /** Entri hasil alokasi biaya (controlling). */
+  allocationCycleId: uuid("allocation_cycle_id"),
   postedAt: timestamp("posted_at", { withTimezone: true }),
   postedBy: uuid("posted_by"),
   createdBy: uuid("created_by"),
@@ -492,4 +494,75 @@ export const costCenters = pgTable("cost_centers", {
   description: text("description"),
   active: boolean("active").notNull().default(true),
   ...audit,
+});
+
+/** Kunci statistik untuk alokasi: jumlah karyawan (otomatis) atau angka manual per cost center. */
+export const statisticalKeys = pgTable("statistical_keys", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  unit: text("unit"),
+  kind: text("kind", { enum: ["manual", "headcount"] })
+    .notNull()
+    .default("manual"),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const statisticalKeyValues = pgTable("statistical_key_values", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  keyId: uuid("key_id").notNull(),
+  costCenterId: uuid("cost_center_id").notNull(),
+  /** Tanggal 1 bulan mulai berlaku. */
+  period: date("period").notNull(),
+  value: numeric("value", { precision: 20, scale: 4 }).notNull(),
+  ...audit,
+});
+
+/** Siklus alokasi biaya dari satu cost center sumber ke beberapa penerima. */
+export const allocationCycles = pgTable("allocation_cycles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  sequence: smallint("sequence").notNull().default(10),
+  sourceCostCenterId: uuid("source_cost_center_id").notNull(),
+  accountIds: uuid("account_ids").array().notNull().default([]),
+  method: text("method", { enum: ["percent", "key"] }).notNull(),
+  keyId: uuid("key_id"),
+  journalId: uuid("journal_id"),
+  active: boolean("active").notNull().default(true),
+  note: text("note"),
+  ...audit,
+});
+
+export const allocationReceivers = pgTable("allocation_receivers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  cycleId: uuid("cycle_id").notNull(),
+  costCenterId: uuid("cost_center_id").notNull(),
+  percent: numeric("percent", { precision: 7, scale: 4 }),
+});
+
+export const allocationRuns = pgTable("allocation_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  cycleId: uuid("cycle_id").notNull(),
+  period: date("period").notNull(),
+  state: text("state", { enum: ["posted", "reversed"] })
+    .notNull()
+    .default("posted"),
+  amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
+  details: jsonb("details").notNull().default([]),
+  moveId: uuid("move_id"),
+  reversalMoveId: uuid("reversal_move_id"),
+  createdBy: uuid("created_by"),
+  reversedBy: uuid("reversed_by"),
+  reversedAt: timestamp("reversed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

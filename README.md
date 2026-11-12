@@ -235,6 +235,21 @@ bersih, margin). Laporan keuangan biasa bisa difilter per cost center atau profi
 | `GET /controlling/cost-centers/:id/accounts?dateFrom&dateTo` | Rincian biaya per akun untuk cost center beserta turunannya       |
 | `GET /controlling/profit-centers?dateFrom&dateTo&branchId`   | Laba rugi per profit center                                       |
 
+**Alokasi biaya periodik (migrasi 0066).** Akuntansi › **Alokasi Biaya** membagi biaya cost center pendukung (mis. IT,
+umum) ke cost center lain tiap bulan. Metodenya **persen tetap** (total 100%) atau **kunci statistik**: jumlah karyawan
+aktif per cost center (otomatis) atau angka yang diinput (luas lantai, jam mesin) yang berlaku mulai bulan tertentu.
+Siklus dijalankan berurutan sehingga biaya yang diterima dari siklus sebelumnya ikut dibagi. Hasilnya satu jurnal per
+siklus bertanggal akhir bulan, per akun asal (kredit sumber, debit penerima). Satu siklus hanya terposting sekali per
+bulan; hasil bisa dibalik (dimulai dari siklus lanjutan) lalu dijalankan ulang. Pratinjau menampilkan dasar dan bagian
+tiap penerima sebelum diposting.
+
+| Endpoint                                                               | Keterangan                                                  |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `/statistical-keys`, `GET/PUT /statistical-keys/:id/values?period`     | Kunci statistik & nilai per cost center per bulan           |
+| `GET/POST /allocation-cycles`, `GET/PUT/DELETE /allocation-cycles/:id` | Siklus alokasi + penerima                                   |
+| `POST /allocation-runs/preview`, `POST /allocation-runs` `{period}`    | Pratinjau / jalankan & posting semua siklus aktif bulan itu |
+| `GET /allocation-runs?period`, `POST /allocation-runs/:id/reverse`     | Riwayat & pembalikan                                        |
+
 ### CRM & Penjualan (Fase 2)
 
 | Endpoint                                                                                      | Keterangan                                                                     |

@@ -16,6 +16,7 @@ import { BankService } from "./bank.service.js";
 import { BudgetService } from "./budget.service.js";
 import { ClosingService } from "./closing.service.js";
 import { assertCenters, assertCompanyAccounts } from "./context.js";
+import { AllocationController, AllocationService, StatisticalKeysController } from "./allocation.module.js";
 import {
   ControllingController,
   ControllingService,
@@ -136,9 +137,12 @@ const AssetsController = createCrudController({
     CostCentersController,
     ProfitCentersController,
     ControllingController,
+    StatisticalKeysController,
+    AllocationController,
   ],
   providers: [
     ControllingService,
+    AllocationService,
     ActivityService,
     SequenceService,
     MoveService,

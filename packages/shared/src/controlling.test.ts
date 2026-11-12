@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  allocateAmount,
+  allocationCycleSchema,
+  allocationRunSchema,
+  monthEnd,
   budgetVariance,
   costCenterSchema,
   descendantIds,
@@ -81,5 +85,42 @@ describe("misc", () => {
   it("validates code", () => {
     expect(costCenterSchema.safeParse({ code: "CC 1", name: "x" }).success).toBe(false);
     expect(costCenterSchema.parse({ code: "CC-1", name: "IT" }).category).toBe("admin");
+  });
+});
+
+describe("alokasi", () => {
+  it("allocateAmount: jumlah persis, sisa ke pecahan terbesar", () => {
+    expect(allocateAmount("100", [1, 1, 1])).toEqual(["33.34", "33.33", "33.33"]);
+    expect(allocateAmount("1000", ["50", "30", "20"])).toEqual(["500.00", "300.00", "200.00"]);
+    expect(allocateAmount("10", [2, 1], 0)).toEqual(["7", "3"]);
+    expect(allocateAmount("-100", [1, 2])).toEqual(["-33.33", "-66.67"]);
+    expect(() => allocateAmount("10", [0, 0])).toThrow();
+  });
+  it("monthEnd", () => {
+    expect(monthEnd("2026-02-01")).toBe("2026-02-28");
+    expect(monthEnd("2024-02-01")).toBe("2024-02-29");
+    expect(monthEnd("2026-12-01")).toBe("2026-12-31");
+  });
+  it("validasi siklus", () => {
+    const base = { code: "AL1", name: "IT", sourceCostCenterId: "00000000-0000-4000-8000-000000000001" };
+    const r = (id: string, percent?: number) => ({
+      costCenterId: `00000000-0000-4000-8000-00000000000${id}`,
+      percent,
+    });
+    expect(
+      allocationCycleSchema.safeParse({ ...base, method: "percent", receivers: [r("2", 60), r("3", 40)] })
+        .success,
+    ).toBe(true);
+    expect(
+      allocationCycleSchema.safeParse({ ...base, method: "percent", receivers: [r("2", 60), r("3", 30)] })
+        .success,
+    ).toBe(false);
+    expect(
+      allocationCycleSchema.safeParse({ ...base, method: "percent", receivers: [r("1", 100)] }).success,
+    ).toBe(false);
+    expect(allocationCycleSchema.safeParse({ ...base, method: "key", receivers: [r("2")] }).success).toBe(
+      false,
+    );
+    expect(allocationRunSchema.parse({ period: "2026-03" }).period).toBe("2026-03-01");
   });
 });

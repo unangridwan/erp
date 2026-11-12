@@ -506,6 +506,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   dimensi di baris jurnal, isi otomatis (default akun, departemen/karyawan untuk payroll & klaim, aset, kendaraan, PO,
   SO), opsi wajib cost center untuk akun beban, anggaran per cost center, laporan biaya per cost center vs anggaran
   dan laba rugi per profit center, filter di laporan keuangan. Berikutnya: alokasi biaya periodik
+- [x] P1 controlling dasar, bagian 2 — alokasi biaya periodik (migrasi 0066): siklus berurutan (bertingkat), persen
+  tetap atau kunci statistik (jumlah karyawan otomatis / nilai manual per bulan), pratinjau, jurnal alokasi per akun
+  asal bertanggal akhir bulan, sekali per bulan, pembalikan & jalankan ulang. P1 controlling dasar selesai
 
 ## Rekomendasi berikutnya — SDM & Payroll
 
