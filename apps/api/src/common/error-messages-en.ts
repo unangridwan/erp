@@ -1027,6 +1027,37 @@ export const MESSAGES_EN: Record<string, string> = {
   "Surat teguran tidak ditemukan": "Dunning letter not found",
   "Nominal tidak valid": "Invalid amount",
   // ---- Penangguhan & jurnal berulang ----
+  // ---- Payment run ----
+  "Kontak tidak ditemukan": "Contact not found",
+  "Rekening tidak ditemukan": "Bank account not found",
+  "Nomor rekening sudah terdaftar untuk kontak ini":
+    "This account number is already registered for the contact",
+  "Rekening sudah dipakai payment run; nonaktifkan saja":
+    "The bank account is used by a payment run; deactivate it instead",
+  "Payment run tidak ditemukan": "Payment run not found",
+  "Tidak ada tagihan pemasok terbuka yang jatuh tempo sampai tanggal itu":
+    "No open vendor bills are due by that date",
+  "Hanya payment run draft yang bisa diubah": "Only draft payment runs can be changed",
+  "Baris tidak ditemukan di payment run ini": "Line not found in this payment run",
+  "Rekening bukan milik pemasok ini atau tidak aktif":
+    "The bank account does not belong to this vendor or is inactive",
+  "Payment run sudah diajukan": "The payment run has already been submitted",
+  "Tidak ada tagihan yang diikutkan": "No bills are included",
+  "Payment run yang sudah dieksekusi atau dibatalkan tidak bisa dibatalkan":
+    "An executed or cancelled payment run cannot be cancelled",
+  "Payment run harus disetujui sebelum dieksekusi": "The payment run must be approved before it is executed",
+  "Sisa tagihan berubah sejak disetujui (sudah dibayar/dibatalkan)":
+    "The bill's open amount changed since approval (already paid/cancelled)",
+  "Payment run belum dieksekusi": "The payment run has not been executed yet",
+  "Tidak ada pembayaran terposting untuk pemasok ini di run ini":
+    "No posted payments for this vendor in this run",
+  "File bank tersedia setelah payment run disetujui":
+    "The bank file is available once the payment run is approved",
+  "Nomor rekening perusahaan belum diisi di jurnal bank ini":
+    "The company account number is not set on this bank journal",
+  "Nomor rekening 5–34 digit angka": "The account number must be 5–34 digits",
+  "Jumlah melebihi sisa tagihan ({})": "The amount exceeds the bill's open amount ({0})",
+  "Transfer gagal": "Transfer failed",
   // ---- Controlling ----
   "Kunci statistik dipakai siklus alokasi; nonaktifkan saja":
     "The statistical key is used by an allocation cycle; deactivate it instead",

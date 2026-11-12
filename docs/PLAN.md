@@ -509,6 +509,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] P1 controlling dasar, bagian 2 — alokasi biaya periodik (migrasi 0066): siklus berurutan (bertingkat), persen
   tetap atau kunci statistik (jumlah karyawan otomatis / nilai manual per bulan), pratinjau, jurnal alokasi per akun
   asal bertanggal akhir bulan, sekali per bulan, pembalikan & jalankan ulang. P1 controlling dasar selesai
+- [x] P2 payment run (migrasi 0067): rekening bank pemasok (banyak per kontak), usulan otomatis tagihan jatuh tempo,
+  persetujuan (kategori PAYRUN, batas wewenang), eksekusi menjadi pembayaran per pemasok (sebagian terpisah), file
+  transfer massal BCA/Mandiri/BRI/BNI/CSV, transfer gagal → pembayaran dibalik
 
 ## Rekomendasi berikutnya — SDM & Payroll
 
