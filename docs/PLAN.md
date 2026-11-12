@@ -494,6 +494,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] Masa percobaan, UU PDP & PIN slip (migrasi 0060) — masa percobaan ≤ 3 bulan khusus PKWTT (pengingat, evaluasi
   lulus/tidak lulus, surat pengangkatan), persetujuan data pelamar + retensi & anonimisasi otomatis, log akses data
   pribadi (NIK/NPWP/rekening/gaji), PIN 6 digit wajib sebelum membuka slip di portal (kunci 15 menit setelah 5 kali salah)
+- [x] P1 kontrol keuangan, bagian 1 — batas kredit & dunning (migrasi 0062): batas kredit per pelanggan per perusahaan
+  (peringatan di SO, tidak memblokir), penagihan bertingkat dengan email + PDF surat teguran, kirim manual atau otomatis
+  harian. Berikutnya: akrual/deferral & jurnal berulang, lalu laporan arus kas per perusahaan
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

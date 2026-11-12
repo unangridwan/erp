@@ -165,21 +165,33 @@ komisi), dan tampilan yang dikelompokkan (hari libur per bulan, aktivitas CRM pe
 
 ### Akuntansi (Fase 1)
 
-| Endpoint                                                                                                     | Keterangan                                                                       |
-| ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| `/accounts`, `/journals`, `/taxes`                                                                           | Bagan akun, jurnal, pajak (per perusahaan aktif; dipasang otomatis)              |
-| `POST /accounting/setup`, `GET/PATCH /accounting/settings`                                                   | Pasang COA standar, lock date                                                    |
-| `GET/POST /moves`, `GET/PATCH/DELETE /moves/:id`                                                             | Draft jurnal umum atau faktur/tagihan (`moveType`)                               |
-| `POST /moves/:id/post`, `POST /moves/:id/reverse`                                                            | Posting (nomor `INV/2026/0001`), jurnal balik / nota kredit                      |
-| `GET/POST /payments`, `POST /reconcile`                                                                      | Pembayaran (melunasi faktur), rekonsiliasi manual                                |
-| `GET /reports/trial-balance`, `/general-ledger`, `/balance-sheet`, `/profit-loss`, `/aged`                   | Laporan; filter `dateFrom`, `dateTo`, `companyIds`, `branchId`, `businessUnitId` |
-| `GET /reports/:name/export`                                                                                  | Ekspor laporan ke Excel (parameter sama)                                         |
-| `/bank-statements`, `POST /bank-statements/import`, `/bank-statement-lines/:id/{suggestions,reconcile,undo}` | Rekonsiliasi bank                                                                |
-| `/assets`, `POST /assets/:id/confirm`, `POST /assets/depreciate`                                             | Aset tetap & penyusutan                                                          |
-| `POST /assets/:id/dispose`                                                                                   | Jual (faktur + jurnal pelepasan) atau hapus buku aset; laba/rugi ke 4-9500       |
-| `GET /accounting/fx-revaluations[/preview?date=]`, `POST /accounting/fx-revaluations`                        | Revaluasi kurs akhir bulan (4-9110/7-1110), dibalik otomatis hari berikutnya     |
-| `/budgets`, `GET /reports/budget?budgetId=`                                                                  | Anggaran vs realisasi                                                            |
-| `POST /accounting/close-year`                                                                                | Tutup buku tahun fiskal                                                          |
+| Endpoint                                                                                                     | Keterangan                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `/accounts`, `/journals`, `/taxes`                                                                           | Bagan akun, jurnal, pajak (per perusahaan aktif; dipasang otomatis)                                                  |
+| `POST /accounting/setup`, `GET/PATCH /accounting/settings`                                                   | Pasang COA standar, lock date                                                                                        |
+| `GET/POST /moves`, `GET/PATCH/DELETE /moves/:id`                                                             | Draft jurnal umum atau faktur/tagihan (`moveType`)                                                                   |
+| `POST /moves/:id/post`, `POST /moves/:id/reverse`                                                            | Posting (nomor `INV/2026/0001`), jurnal balik / nota kredit                                                          |
+| `GET/POST /payments`, `POST /reconcile`                                                                      | Pembayaran (melunasi faktur), rekonsiliasi manual                                                                    |
+| `GET /reports/trial-balance`, `/general-ledger`, `/balance-sheet`, `/profit-loss`, `/aged`                   | Laporan; filter `dateFrom`, `dateTo`, `companyIds`, `branchId`, `businessUnitId`                                     |
+| `GET /reports/:name/export`                                                                                  | Ekspor laporan ke Excel (parameter sama)                                                                             |
+| `/bank-statements`, `POST /bank-statements/import`, `/bank-statement-lines/:id/{suggestions,reconcile,undo}` | Rekonsiliasi bank                                                                                                    |
+| `/assets`, `POST /assets/:id/confirm`, `POST /assets/depreciate`                                             | Aset tetap & penyusutan                                                                                              |
+| `POST /assets/:id/dispose`                                                                                   | Jual (faktur + jurnal pelepasan) atau hapus buku aset; laba/rugi ke 4-9500                                           |
+| `GET /accounting/fx-revaluations[/preview?date=]`, `POST /accounting/fx-revaluations`                        | Revaluasi kurs akhir bulan (4-9110/7-1110), dibalik otomatis hari berikutnya                                         |
+| `/budgets`, `GET /reports/budget?budgetId=`                                                                  | Anggaran vs realisasi                                                                                                |
+| `POST /accounting/close-year`                                                                                | Tutup buku tahun fiskal                                                                                              |
+| `GET/PUT /partners/:id/credit`, `GET /sale-orders/:id/credit-check`                                          | Batas kredit pelanggan per perusahaan (peringatan saja): paparan = piutang terbuka + SO belum ditagih + faktur draft |
+| `/dunning-levels`, `GET/PUT /dunning/settings`, `GET /dunning/preview?date=`, `POST /dunning/send`           | Penagihan bertingkat (dunning): tingkat & isi surat, pratinjau, kirim surat teguran (email + PDF)                    |
+| `GET /dunning-letters`, `GET /dunning-letters/:id/pdf`, `POST /dunning-letters/:id/resend`                   | Riwayat surat teguran, cetak, kirim ulang                                                                            |
+
+**Batas kredit & dunning (migrasi 0062).** Batas kredit diisi per pelanggan per perusahaan di form Kontak (panel
+**Kredit & penagihan**). Batas ini tidak memblokir: form pesanan penjualan menampilkan peringatan, konfirmasi meminta
+penegasan, dan peringatan dicatat di riwayat pesanan. Menu Akuntansi › **Penagihan (Dunning)** menampilkan pelanggan
+dengan faktur lewat jatuh tempo. Tingkat bawaannya: H+7 pengingat email, H+30 surat teguran 1, H+60 teguran terakhir
+dengan lampiran PDF. Tingkat naik sesuai umur tunggakan, dan faktur yang sudah ditagih pada suatu tingkat tidak ditagih
+ulang pada tingkat itu. Pelanggan tanpa email dicatat "gagal kirim" dan suratnya bisa dicetak atau dikirim ulang ke
+alamat lain. Bila **Kirim otomatis** diaktifkan di tab Pengaturan, penjadwal mengirim surat setiap hari
+(`DUNNING_SCHEDULER=off` untuk mematikannya). Pelanggan perusahaan grup tidak pernah ditagih.
 
 ### CRM & Penjualan (Fase 2)
 

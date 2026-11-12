@@ -55,8 +55,8 @@ bervolume transaksi sangat besar.
 | Anggaran & realisasi                         |   🟡   | Anggaran per akun/periode; tanpa versi, komitmen, atau kontrol dana     |
 | Laporan keuangan                             |   🟡   | Neraca, laba rugi, neraca saldo, buku besar; arus kas hanya konsolidasi |
 | Nomor dokumen per tahun                      |   ✅   | Urutan per tahun (`sequence_years`)                                     |
-| Batas kredit & blokir pengiriman             |   ❌   | —                                                                       |
-| Dunning (surat tagih bertingkat)             |   ❌   | —                                                                       |
+| Batas kredit & blokir pengiriman             |   🟡   | Batas kredit per pelanggan per perusahaan (peringatan, tanpa blokir)    |
+| Dunning (surat tagih bertingkat)             |   ✅   | Akuntansi › Penagihan: tingkat, email + PDF, otomatis harian            |
 | Payment run otomatis (vendor)                |   🟡   | Ada file transfer bank untuk payroll; belum untuk pembayaran pemasok    |
 | Akrual/deferral, jurnal berulang             |   ❌   | —                                                                       |
 | Multi-ledger (IFRS + lokal), valuasi paralel |   ❌   | —                                                                       |
