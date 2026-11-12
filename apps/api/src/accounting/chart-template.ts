@@ -28,7 +28,7 @@ const ACCOUNTS: {
   { key: "vatIn", code: "1-1500", name: "PPN Masukan", type: "asset_current" },
   { key: "pph23Prepaid", code: "1-1510", name: "PPh 23 Dibayar Dimuka", type: "asset_current" },
   { code: "1-1600", name: "Uang Muka Pembelian", type: "asset_current" },
-  { code: "1-1700", name: "Biaya Dibayar Dimuka", type: "asset_current" },
+  { key: "prepaidExpense", code: "1-1700", name: "Biaya Dibayar Dimuka", type: "asset_current" },
   { code: "1-1800", name: "Piutang Karyawan", type: "asset_current" },
   {
     code: "1-1900",
@@ -62,6 +62,7 @@ const ACCOUNTS: {
   { code: "2-1410", name: "Utang BPJS Kesehatan", type: "liability_current" },
   { code: "2-1500", name: "Utang Gaji", type: "liability_current" },
   { key: "customerDown", code: "2-1600", name: "Uang Muka Pelanggan", type: "liability_current" },
+  { key: "deferredRevenue", code: "2-1650", name: "Pendapatan Diterima di Muka", type: "liability_current" },
   { code: "2-1700", name: "Biaya Masih Harus Dibayar", type: "liability_current" },
   { key: "stockInput", code: "2-1800", name: "Barang Diterima Belum Ditagih", type: "liability_current" },
   { code: "2-2100", name: "Utang Bank Jangka Panjang", type: "liability_non_current" },
@@ -274,6 +275,8 @@ export async function installChart(tx: Db, companyId: string): Promise<boolean> 
     cogsAccountId: account("cogs"),
     stockAdjustmentAccountId: account("stockAdjustment"),
     priceDifferenceAccountId: account("priceDifference"),
+    deferredRevenueAccountId: account("deferredRevenue"),
+    deferredExpenseAccountId: account("prepaidExpense"),
     stockJournalId: journal("stock"),
   });
   return true;

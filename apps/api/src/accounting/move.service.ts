@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { and, asc, eq, inArray, schema, sql, type Db } from "@erp/db";
-import { computeInvoice, type invoiceSchema, type journalEntrySchema } from "@erp/shared";
+import { computeInvoice, deferralSchedule, type invoiceSchema, type journalEntrySchema } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
@@ -49,6 +49,11 @@ const REVERSAL: Record<MoveType, MoveType> = {
 
 export const isInvoice = (t: MoveType) => t !== "entry";
 
+const assertAutoReverse = (input: JournalEntryInput) => {
+  if (input.autoReverseDate && input.autoReverseDate <= input.date)
+    throw fieldError("autoReverseDate", "Tanggal pembalikan harus setelah tanggal entri");
+};
+
 const dec = (v: Decimal.Value) => new Decimal(v);
 const sideOf = (balance: Decimal, decimals: number) => ({
   debit: balance.gt(0) ? balance.toFixed(decimals) : "0",
@@ -84,6 +89,7 @@ export class MoveService {
     const books = await loadBooks(tx, companyId);
     const journalId = input.journalId ?? books.settings.generalJournalId;
     await assertCompanyJournal(tx, companyId, journalId, ["general", "bank", "cash", "sale", "purchase"]);
+    assertAutoReverse(input);
     const lines = (await this.entryLines(tx, books, input)).map((l, i) => ({
       ...l,
       ...(opts.lineCurrency?.[i] ?? {}),
@@ -97,6 +103,7 @@ export class MoveService {
         date: input.date,
         ref: input.ref ?? null,
         narration: input.narration ?? null,
+        autoReverseDate: input.autoReverseDate ?? null,
         currencyCode: books.currencyCode,
         createdBy: currentContext().userId,
       })
@@ -188,6 +195,7 @@ export class MoveService {
         "sale",
         "purchase",
       ]);
+      assertAutoReverse(input);
       const lines = await this.entryLines(tx, books, input);
       await tx
         .update(schema.accountMoves)
@@ -196,6 +204,7 @@ export class MoveService {
           date: input.date,
           ref: input.ref ?? null,
           narration: input.narration ?? null,
+          autoReverseDate: input.autoReverseDate ?? null,
           updatedAt: sql`now()`,
         })
         .where(eq(schema.accountMoves.id, id));
@@ -233,6 +242,31 @@ export class MoveService {
       throw new BadRequestException(
         `Periode sudah dikunci sampai ${lock}; ubah tanggal entri atau buka kunci periode`,
       );
+    }
+
+    const deferred = isInvoice(move.moveType)
+      ? lines.filter((l) => l.displayType === "product" && l.deferralStart && l.deferralEnd)
+      : [];
+    if (deferred.length) {
+      const sale = SALE_TYPES.includes(move.moveType);
+      const deferralAccountId = sale
+        ? books.settings.deferredRevenueAccountId
+        : books.settings.deferredExpenseAccountId;
+      if (!deferralAccountId) {
+        throw new BadRequestException(
+          sale
+            ? "Akun pendapatan diterima di muka belum diatur di Pengaturan Akuntansi"
+            : "Akun biaya dibayar di muka belum diatur di Pengaturan Akuntansi",
+        );
+      }
+      for (const line of deferred) {
+        await tx
+          .update(schema.accountMoveLines)
+          .set({ accountId: deferralAccountId, deferralAccountId: line.accountId })
+          .where(eq(schema.accountMoveLines.id, line.id));
+        line.deferralAccountId = line.accountId;
+        line.accountId = deferralAccountId;
+      }
     }
 
     const [journal] = await tx.select().from(schema.journals).where(eq(schema.journals.id, move.journalId));
@@ -285,7 +319,91 @@ export class MoveService {
     });
     for (const hook of this.postHooks)
       await hook(tx, { id, name, moveType: move.moveType, companyId: move.companyId });
+    if (deferred.length) await this.createDeferralEntries(tx, books, { ...move, name }, deferred);
+    if (move.moveType === "entry" && move.autoReverseDate) await this.reverse(tx, id, move.autoReverseDate);
     return name;
+  }
+
+  /**
+   * Jurnal pengakuan penangguhan: satu draft per akhir bulan (prorata hari), memindahkan nilai dari akun
+   * penangguhan ke akun pendapatan/beban asal. Diposting otomatis oleh penjadwal saat tanggalnya tiba.
+   */
+  private async createDeferralEntries(
+    tx: Db,
+    books: CompanyBooks,
+    move: typeof schema.accountMoves.$inferSelect & { name: string },
+    lines: (typeof schema.accountMoveLines.$inferSelect)[],
+  ) {
+    const byDate = new Map<string, { line: (typeof lines)[number]; amount: Decimal }[]>();
+    for (const line of lines) {
+      const balance = dec(line.debit).minus(line.credit);
+      for (const p of deferralSchedule(line.deferralStart!, line.deferralEnd!, balance.toFixed(2))) {
+        if (dec(p.amount).isZero()) continue;
+        byDate.set(p.date, [...(byDate.get(p.date) ?? []), { line, amount: dec(p.amount) }]);
+      }
+    }
+    for (const [date, parts] of [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+      const entryLines: NewLine[] = [];
+      parts.forEach(({ line, amount }, i) => {
+        const base = {
+          companyId: books.companyId,
+          displayType: "line" as const,
+          partnerId: line.partnerId,
+          name: line.name,
+          currencyCode: books.currencyCode,
+          businessUnitId: line.businessUnitId,
+          branchId: line.branchId,
+          icCompanyId: line.icCompanyId,
+        };
+        // Akun asal menerima saldo yang sama dengan baris faktur; akun penangguhan dikurangi.
+        entryLines.push({
+          ...base,
+          sequence: i * 2,
+          accountId: line.deferralAccountId!,
+          ...sideOf(amount, 2),
+          amountCurrency: amount.toFixed(2),
+        });
+        entryLines.push({
+          ...base,
+          sequence: i * 2 + 1,
+          accountId: line.accountId,
+          ...sideOf(amount.negated(), 2),
+          amountCurrency: amount.negated().toFixed(2),
+        });
+      });
+      const [entry] = await tx
+        .insert(schema.accountMoves)
+        .values({
+          companyId: books.companyId,
+          journalId: books.settings.generalJournalId,
+          moveType: "entry",
+          date,
+          ref: `Pengakuan penangguhan ${move.name}`,
+          currencyCode: books.currencyCode,
+          partnerId: move.partnerId,
+          autoPost: true,
+          deferralSourceMoveId: move.id,
+          createdBy: move.createdBy ?? currentContext().userId,
+        })
+        .returning({ id: schema.accountMoves.id });
+      await tx.insert(schema.accountMoveLines).values(entryLines.map((l) => ({ ...l, moveId: entry!.id })));
+    }
+  }
+
+  /** Jadwal pengakuan penangguhan sebuah faktur/tagihan (draft & terposting). */
+  async deferralEntries(tx: Db, sourceId: string) {
+    return tx
+      .select({
+        id: schema.accountMoves.id,
+        name: schema.accountMoves.name,
+        date: schema.accountMoves.date,
+        state: schema.accountMoves.state,
+        autoPost: schema.accountMoves.autoPost,
+        amount: sql<string>`(select sum(l.debit) from account_move_lines l where l.move_id = "account_moves"."id")`,
+      })
+      .from(schema.accountMoves)
+      .where(eq(schema.accountMoves.deferralSourceMoveId, sourceId))
+      .orderBy(asc(schema.accountMoves.date));
   }
 
   /**
@@ -306,6 +424,17 @@ export class MoveService {
       .from(schema.accountMoves)
       .where(eq(schema.accountMoves.reversedEntryId, id));
     if (already) throw new ConflictException("Entri ini sudah pernah dibalik");
+
+    // Faktur/tagihan ditangguhkan: draft pengakuan dihapus, pengakuan yang sudah diposting ikut dibalik.
+    const children = await tx
+      .select({ id: schema.accountMoves.id, state: schema.accountMoves.state })
+      .from(schema.accountMoves)
+      .where(eq(schema.accountMoves.deferralSourceMoveId, id));
+    for (const child of children) {
+      if (child.state === "draft")
+        await tx.delete(schema.accountMoves).where(eq(schema.accountMoves.id, child.id));
+      else await this.reverse(tx, child.id, date);
+    }
 
     const lines = await tx
       .select()
@@ -349,6 +478,9 @@ export class MoveService {
             moveId: reversal!.id,
             debit: l.credit,
             credit: l.debit,
+            // Pembalikan langsung membalik akun penangguhan; tidak membuat jadwal pengakuan baru.
+            deferralStart: null,
+            deferralEnd: null,
             amountCurrency: dec(l.amountCurrency).negated().toFixed(2),
             tenantId: undefined,
           }),
@@ -568,6 +700,8 @@ export class MoveService {
           taxIds: l.taxIds,
           businessUnitId: l.businessUnitId ?? null,
           branchId: l.branchId ?? null,
+          deferralStart: l.deferralStart ?? null,
+          deferralEnd: l.deferralEnd ?? null,
         },
         dec(result.lines[i]!.subtotal),
       );

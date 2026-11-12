@@ -23,6 +23,7 @@ interface Move {
   amountTotal: string;
   amountResidual: string;
   paymentState: string;
+  autoPost?: boolean;
 }
 
 /** Jurnal / faktur / tagihan: dimuat sekali per jenis lalu cari, filter, sort & paginasi di browser. */
@@ -103,6 +104,14 @@ export function MoveList({ kind }: { kind: MoveKind }) {
         render: (m) => (
           <>
             <StateBadge state={m.state} />{" "}
+            {m.state === "draft" && m.autoPost && (
+              <span
+                className="muted small"
+                title={l("Diposting otomatis pada tanggalnya", "Posted automatically on its date")}
+              >
+                {l("terjadwal", "scheduled")}
+              </span>
+            )}
             {!isEntry && m.state === "posted" && <PaymentBadge state={m.paymentState} />}
           </>
         ),

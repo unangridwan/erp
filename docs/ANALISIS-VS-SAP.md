@@ -44,23 +44,23 @@ bervolume transaksi sangat besar.
 
 ### 2.1 Keuangan (SAP FI)
 
-| Fitur SAP                                    | Status | Di ERP ini                                                              |
-| -------------------------------------------- | :----: | ----------------------------------------------------------------------- |
-| Buku besar, COA, jurnal, multi perusahaan    |   ✅   | Akuntansi › Akun, Jurnal, Entri; COA otomatis saat perusahaan dibuat    |
-| Piutang & utang (faktur, tagihan, bayar)     |   ✅   | Akuntansi › Faktur, Tagihan, Pembayaran; umur piutang/utang             |
-| Multi mata uang & revaluasi kurs             |   ✅   | Kurs + sumber kurs otomatis, revaluasi kurs, selisih kurs realisasi     |
-| Rekonsiliasi bank                            |   ✅   | Akuntansi › Bank (impor mutasi CSV + mapping)                           |
-| Aset tetap (FI-AA)                           |   ✅   | Akuntansi › Aset: penyusutan, pelepasan                                 |
-| Tutup buku periode                           |   ✅   | Pengaturan akuntansi (tanggal kunci, tutup tahun)                       |
-| Anggaran & realisasi                         |   🟡   | Anggaran per akun/periode; tanpa versi, komitmen, atau kontrol dana     |
-| Laporan keuangan                             |   🟡   | Neraca, laba rugi, neraca saldo, buku besar; arus kas hanya konsolidasi |
-| Nomor dokumen per tahun                      |   ✅   | Urutan per tahun (`sequence_years`)                                     |
-| Batas kredit & blokir pengiriman             |   🟡   | Batas kredit per pelanggan per perusahaan (peringatan, tanpa blokir)    |
-| Dunning (surat tagih bertingkat)             |   ✅   | Akuntansi › Penagihan: tingkat, email + PDF, otomatis harian            |
-| Payment run otomatis (vendor)                |   🟡   | Ada file transfer bank untuk payroll; belum untuk pembayaran pemasok    |
-| Akrual/deferral, jurnal berulang             |   ❌   | —                                                                       |
-| Multi-ledger (IFRS + lokal), valuasi paralel |   ❌   | —                                                                       |
-| Jejak audit                                  |   🟡   | Log aktivitas & riwayat perubahan; belum log kepatuhan formal (SOX)     |
+| Fitur SAP                                    | Status | Di ERP ini                                                               |
+| -------------------------------------------- | :----: | ------------------------------------------------------------------------ |
+| Buku besar, COA, jurnal, multi perusahaan    |   ✅   | Akuntansi › Akun, Jurnal, Entri; COA otomatis saat perusahaan dibuat     |
+| Piutang & utang (faktur, tagihan, bayar)     |   ✅   | Akuntansi › Faktur, Tagihan, Pembayaran; umur piutang/utang              |
+| Multi mata uang & revaluasi kurs             |   ✅   | Kurs + sumber kurs otomatis, revaluasi kurs, selisih kurs realisasi      |
+| Rekonsiliasi bank                            |   ✅   | Akuntansi › Bank (impor mutasi CSV + mapping)                            |
+| Aset tetap (FI-AA)                           |   ✅   | Akuntansi › Aset: penyusutan, pelepasan                                  |
+| Tutup buku periode                           |   ✅   | Pengaturan akuntansi (tanggal kunci, tutup tahun)                        |
+| Anggaran & realisasi                         |   🟡   | Anggaran per akun/periode; tanpa versi, komitmen, atau kontrol dana      |
+| Laporan keuangan                             |   🟡   | Neraca, laba rugi, neraca saldo, buku besar; arus kas hanya konsolidasi  |
+| Nomor dokumen per tahun                      |   ✅   | Urutan per tahun (`sequence_years`)                                      |
+| Batas kredit & blokir pengiriman             |   🟡   | Batas kredit per pelanggan per perusahaan (peringatan, tanpa blokir)     |
+| Dunning (surat tagih bertingkat)             |   ✅   | Akuntansi › Penagihan: tingkat, email + PDF, otomatis harian             |
+| Payment run otomatis (vendor)                |   🟡   | Ada file transfer bank untuk payroll; belum untuk pembayaran pemasok     |
+| Akrual/deferral, jurnal berulang             |   ✅   | Penangguhan prorata per baris faktur, pembalik otomatis, Jurnal Berulang |
+| Multi-ledger (IFRS + lokal), valuasi paralel |   ❌   | —                                                                        |
+| Jejak audit                                  |   🟡   | Log aktivitas & riwayat perubahan; belum log kepatuhan formal (SOX)      |
 
 ### 2.2 Controlling (SAP CO)
 

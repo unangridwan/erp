@@ -183,6 +183,9 @@ komisi), dan tampilan yang dikelompokkan (hari libur per bulan, aktivitas CRM pe
 | `GET/PUT /partners/:id/credit`, `GET /sale-orders/:id/credit-check`                                          | Batas kredit pelanggan per perusahaan (peringatan saja): paparan = piutang terbuka + SO belum ditagih + faktur draft |
 | `/dunning-levels`, `GET/PUT /dunning/settings`, `GET /dunning/preview?date=`, `POST /dunning/send`           | Penagihan bertingkat (dunning): tingkat & isi surat, pratinjau, kirim surat teguran (email + PDF)                    |
 | `GET /dunning-letters`, `GET /dunning-letters/:id/pdf`, `POST /dunning-letters/:id/resend`                   | Riwayat surat teguran, cetak, kirim ulang                                                                            |
+| Baris faktur `deferralStart`/`deferralEnd`, `GET /moves/:id/deferrals`                                       | Pendapatan/biaya ditangguhkan: diakui prorata hari per akhir bulan                                                   |
+| Jurnal umum `autoReverseDate`                                                                                | Jurnal akrual: pembalik dibuat & diposting otomatis saat entri diposting                                             |
+| `/recurring-entries`, `POST /recurring-entries/:id/generate`                                                 | Jurnal berulang (mingguan/bulanan/triwulan/tahunan), posting otomatis atau draft                                     |
 
 **Batas kredit & dunning (migrasi 0062).** Batas kredit diisi per pelanggan per perusahaan di form Kontak (panel
 **Kredit & penagihan**). Batas ini tidak memblokir: form pesanan penjualan menampilkan peringatan, konfirmasi meminta
@@ -192,6 +195,16 @@ dengan lampiran PDF. Tingkat naik sesuai umur tunggakan, dan faktur yang sudah d
 ulang pada tingkat itu. Pelanggan tanpa email dicatat "gagal kirim" dan suratnya bisa dicetak atau dikirim ulang ke
 alamat lain. Bila **Kirim otomatis** diaktifkan di tab Pengaturan, penjadwal mengirim surat setiap hari
 (`DUNNING_SCHEDULER=off` untuk mematikannya). Pelanggan perusahaan grup tidak pernah ditagih.
+
+**Penangguhan, akrual & jurnal berulang (migrasi 0063).** Di baris faktur atau tagihan, isi periode **Ditangguhkan**
+(mulai–akhir), misalnya untuk langganan setahun atau sewa dibayar di muka. Saat diposting, nilai baris dicatat ke akun
+Pendapatan Diterima di Muka (2-1650) atau Biaya Dibayar Dimuka (1-1700); keduanya bisa diubah di Pengaturan Akuntansi.
+Sistem lalu membuat draft jurnal pengakuan per akhir bulan, dihitung prorata hari, yang diposting otomatis saat
+tanggalnya tiba. Membalik faktur juga membalik pengakuan yang sudah diposting dan menghapus draft sisanya. Jurnal umum
+punya kolom **Balik otomatis pada** untuk akrual. Menu Akuntansi › **Jurnal Berulang** membuat jurnal sesuai jadwal;
+tiap template bisa diposting otomatis atau dibuat sebagai draft, punya opsi balik otomatis hari berikutnya, dan
+bisa berhenti pada tanggal tertentu atau setelah sejumlah kali. Penjadwal berjalan tiap jam
+(`ACCOUNTING_SCHEDULER=off` untuk mematikannya).
 
 ### CRM & Penjualan (Fase 2)
 

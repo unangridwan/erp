@@ -1026,4 +1026,20 @@ export const MESSAGES_EN: Record<string, string> = {
   "Tingkat dunning tidak ditemukan": "Dunning level not found",
   "Surat teguran tidak ditemukan": "Dunning letter not found",
   "Nominal tidak valid": "Invalid amount",
+  // ---- Penangguhan & jurnal berulang ----
+  "Akun pendapatan diterima di muka belum diatur di Pengaturan Akuntansi":
+    "The deferred revenue account is not set in Accounting Settings",
+  "Akun biaya dibayar di muka belum diatur di Pengaturan Akuntansi":
+    "The prepaid expense account is not set in Accounting Settings",
+  "Tanggal pembalikan harus setelah tanggal entri": "The reversal date must be after the entry date",
+  "Jurnal berulang tidak ditemukan": "Recurring entry not found",
+  "Jurnal berulang sudah menghasilkan entri; nonaktifkan saja":
+    "The recurring entry has already generated entries; deactivate it instead",
+  "Jurnal berulang tidak aktif": "The recurring entry is inactive",
+  "Isi tanggal mulai dan akhir penangguhan": "Fill in both the deferral start and end dates",
+  "Tanggal akhir penangguhan sebelum tanggal mulai": "The deferral end date is before the start date",
+  "Total debit dan kredit harus sama": "Total debit and credit must be equal",
+  "Total jurnal tidak boleh nol": "The entry total cannot be zero",
+  "Isi debit atau kredit, bukan keduanya": "Fill in debit or credit, not both",
+  "Angka tidak valid (maks. 2 desimal, tidak negatif)": "Invalid number (max. 2 decimals, not negative)",
 };

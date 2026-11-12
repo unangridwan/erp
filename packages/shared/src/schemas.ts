@@ -350,11 +350,15 @@ export const accountingSettingsSchema = z.object({
     .union([z.number(), z.string().regex(/^\d+(\.\d{1,2})?$/)])
     .transform(String)
     .nullish(),
+  deferredRevenueAccountId: z.string().uuid().nullish(),
+  deferredExpenseAccountId: z.string().uuid().nullish(),
 });
 
 export const journalEntrySchema = z.object({
   journalId: z.string().uuid().optional(),
   date: z.string().date(),
+  /** Jurnal akrual: pembalik bertanggal ini dibuat & diposting saat entri diposting. */
+  autoReverseDate: z.string().date().nullish(),
   ref: z.string().trim().max(200).nullish(),
   narration: z.string().max(2000).nullish(),
   lines: z
@@ -394,9 +398,28 @@ export const invoiceSchema = z.object({
         businessUnitId: z.string().uuid().nullish(),
         branchId: z.string().uuid().nullish(),
         uomId: z.string().uuid().nullish(),
+        /** Periode penangguhan: pendapatan/biaya diakui prorata per bulan dari tanggal mulai s.d. akhir. */
+        deferralStart: z.string().date().nullish(),
+        deferralEnd: z.string().date().nullish(),
       }),
     )
-    .min(1, "Minimal satu baris"),
+    .min(1, "Minimal satu baris")
+    .superRefine((lines, ctx) => {
+      lines.forEach((l, i) => {
+        if (Boolean(l.deferralStart) !== Boolean(l.deferralEnd))
+          ctx.addIssue({
+            code: "custom",
+            path: [i, l.deferralStart ? "deferralEnd" : "deferralStart"],
+            message: "Isi tanggal mulai dan akhir penangguhan",
+          });
+        else if (l.deferralStart && l.deferralEnd && l.deferralEnd < l.deferralStart)
+          ctx.addIssue({
+            code: "custom",
+            path: [i, "deferralEnd"],
+            message: "Tanggal akhir penangguhan sebelum tanggal mulai",
+          });
+      });
+    }),
 });
 
 export const paymentSchema = z.object({

@@ -497,6 +497,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] P1 kontrol keuangan, bagian 1 — batas kredit & dunning (migrasi 0062): batas kredit per pelanggan per perusahaan
   (peringatan di SO, tidak memblokir), penagihan bertingkat dengan email + PDF surat teguran, kirim manual atau otomatis
   harian. Berikutnya: akrual/deferral & jurnal berulang, lalu laporan arus kas per perusahaan
+- [x] P1 kontrol keuangan, bagian 2 — penangguhan & jurnal berulang (migrasi 0063): pendapatan/biaya ditangguhkan
+  per baris faktur (prorata hari, diposting otomatis per akhir bulan), jurnal akrual dengan pembalik otomatis, jurnal
+  berulang (posting otomatis atau draft per template). Berikutnya: laporan arus kas per perusahaan
 
 ## Rekomendasi berikutnya — SDM & Payroll
 
