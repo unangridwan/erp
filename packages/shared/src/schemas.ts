@@ -314,6 +314,8 @@ export const accountSchema = z.object({
   accountType: z.enum(ACCOUNT_TYPE_VALUES),
   reconcile: z.boolean().default(false),
   branchClearing: z.boolean().default(false),
+  /** Kelompok arus kas; kosong = otomatis dari jenis akun. */
+  cashFlowCategory: z.enum(["cash", "operating", "investing", "financing"]).nullish(),
   currencyCode: z.string().length(3).toUpperCase().nullish(),
   active: z.boolean().default(true),
 });

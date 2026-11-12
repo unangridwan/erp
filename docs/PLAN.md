@@ -500,6 +500,8 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] P1 kontrol keuangan, bagian 2 — penangguhan & jurnal berulang (migrasi 0063): pendapatan/biaya ditangguhkan
   per baris faktur (prorata hari, diposting otomatis per akhir bulan), jurnal akrual dengan pembalik otomatis, jurnal
   berulang (posting otomatis atau draft per template). Berikutnya: laporan arus kas per perusahaan
+- [x] P1 kontrol keuangan, bagian 3 — laporan arus kas per perusahaan (migrasi 0064): metode tidak langsung,
+  kelompok per akun bisa ditimpa, pembanding tahun lalu, filter cabang/unit, ekspor Excel. P1 selesai
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

@@ -12,18 +12,18 @@ distribusi). Cakupannya setara Odoo Community/Enterprise tanpa manufaktur, ditam
 konsolidasi grup yang lebih dalam. ERP ini **belum** pengganti SAP untuk korporasi manufaktur, multinasional, atau
 bervolume transaksi sangat besar.
 
-| Area                                | Cakupan dibanding SAP | Catatan singkat                                         |
-| ----------------------------------- | :-------------------: | ------------------------------------------------------- |
-| Keuangan (FI)                       |         ±70%          | Inti lengkap; kontrol kredit, akrual, payment run belum |
-| Controlling (CO)                    |         ±25%          | Hanya dimensi unit bisnis/cabang + anggaran             |
-| Konsolidasi grup                    |         ±85%          | Kuat: eliminasi IC, goodwill, NCI, CTA, segmen          |
-| Penjualan (SD) & CRM                |         ±60%          | Alur lengkap; pricing & kontrak sederhana               |
-| Pembelian (MM)                      |         ±60%          | RFQ–PO–3-way match; kontrak & landed cost belum         |
-| Persediaan & gudang (IM/EWM)        |         ±50%          | Multi gudang, lot/serial; bin & barcode belum           |
-| Manufaktur, QM, Maintenance, Proyek |          ±5%          | Belum ada (kecuali armada)                              |
-| SDM & Payroll (HCM/SuccessFactors)  |         ±85%          | Sangat lengkap untuk aturan Indonesia                   |
-| Pajak Indonesia                     |   **lebih unggul**    | SAP perlu add-on partner lokal                          |
-| Platform (keamanan, integrasi, BI)  |         ±55%          | RBAC & persetujuan kuat; extensibility & BI belum       |
+| Area                                | Cakupan dibanding SAP | Catatan singkat                                                     |
+| ----------------------------------- | :-------------------: | ------------------------------------------------------------------- |
+| Keuangan (FI)                       |         ±85%          | Inti lengkap + kredit, dunning, akrual, arus kas; payment run belum |
+| Controlling (CO)                    |         ±25%          | Hanya dimensi unit bisnis/cabang + anggaran                         |
+| Konsolidasi grup                    |         ±85%          | Kuat: eliminasi IC, goodwill, NCI, CTA, segmen                      |
+| Penjualan (SD) & CRM                |         ±60%          | Alur lengkap; pricing & kontrak sederhana                           |
+| Pembelian (MM)                      |         ±60%          | RFQ–PO–3-way match; kontrak & landed cost belum                     |
+| Persediaan & gudang (IM/EWM)        |         ±50%          | Multi gudang, lot/serial; bin & barcode belum                       |
+| Manufaktur, QM, Maintenance, Proyek |          ±5%          | Belum ada (kecuali armada)                                          |
+| SDM & Payroll (HCM/SuccessFactors)  |         ±85%          | Sangat lengkap untuk aturan Indonesia                               |
+| Pajak Indonesia                     |   **lebih unggul**    | SAP perlu add-on partner lokal                                      |
+| Platform (keamanan, integrasi, BI)  |         ±55%          | RBAC & persetujuan kuat; extensibility & BI belum                   |
 
 **Keunggulan utama dibanding SAP:**
 
@@ -38,29 +38,29 @@ bervolume transaksi sangat besar.
 
 1. Tidak ada **manufaktur/MRP, QM, maintenance aset, dan project system**.
 2. **Controlling** belum ada: cost center, profit center, alokasi biaya, product costing, profitabilitas (CO-PA).
-3. **Kontrol keuangan operasional**: batas kredit pelanggan, dunning, payment run, akrual/deferral, jurnal berulang.
+3. **Kontrol keuangan operasional**: payment run otomatis ke pemasok dan blokir pengiriman saat batas kredit terlampaui (batas kredit peringatan, dunning, akrual/deferral, jurnal berulang, dan arus kas sudah ada sejak P1).
 
 ## 2. Perbandingan per modul
 
 ### 2.1 Keuangan (SAP FI)
 
-| Fitur SAP                                    | Status | Di ERP ini                                                               |
-| -------------------------------------------- | :----: | ------------------------------------------------------------------------ |
-| Buku besar, COA, jurnal, multi perusahaan    |   ✅   | Akuntansi › Akun, Jurnal, Entri; COA otomatis saat perusahaan dibuat     |
-| Piutang & utang (faktur, tagihan, bayar)     |   ✅   | Akuntansi › Faktur, Tagihan, Pembayaran; umur piutang/utang              |
-| Multi mata uang & revaluasi kurs             |   ✅   | Kurs + sumber kurs otomatis, revaluasi kurs, selisih kurs realisasi      |
-| Rekonsiliasi bank                            |   ✅   | Akuntansi › Bank (impor mutasi CSV + mapping)                            |
-| Aset tetap (FI-AA)                           |   ✅   | Akuntansi › Aset: penyusutan, pelepasan                                  |
-| Tutup buku periode                           |   ✅   | Pengaturan akuntansi (tanggal kunci, tutup tahun)                        |
-| Anggaran & realisasi                         |   🟡   | Anggaran per akun/periode; tanpa versi, komitmen, atau kontrol dana      |
-| Laporan keuangan                             |   🟡   | Neraca, laba rugi, neraca saldo, buku besar; arus kas hanya konsolidasi  |
-| Nomor dokumen per tahun                      |   ✅   | Urutan per tahun (`sequence_years`)                                      |
-| Batas kredit & blokir pengiriman             |   🟡   | Batas kredit per pelanggan per perusahaan (peringatan, tanpa blokir)     |
-| Dunning (surat tagih bertingkat)             |   ✅   | Akuntansi › Penagihan: tingkat, email + PDF, otomatis harian             |
-| Payment run otomatis (vendor)                |   🟡   | Ada file transfer bank untuk payroll; belum untuk pembayaran pemasok     |
-| Akrual/deferral, jurnal berulang             |   ✅   | Penangguhan prorata per baris faktur, pembalik otomatis, Jurnal Berulang |
-| Multi-ledger (IFRS + lokal), valuasi paralel |   ❌   | —                                                                        |
-| Jejak audit                                  |   🟡   | Log aktivitas & riwayat perubahan; belum log kepatuhan formal (SOX)      |
+| Fitur SAP                                    | Status | Di ERP ini                                                                           |
+| -------------------------------------------- | :----: | ------------------------------------------------------------------------------------ |
+| Buku besar, COA, jurnal, multi perusahaan    |   ✅   | Akuntansi › Akun, Jurnal, Entri; COA otomatis saat perusahaan dibuat                 |
+| Piutang & utang (faktur, tagihan, bayar)     |   ✅   | Akuntansi › Faktur, Tagihan, Pembayaran; umur piutang/utang                          |
+| Multi mata uang & revaluasi kurs             |   ✅   | Kurs + sumber kurs otomatis, revaluasi kurs, selisih kurs realisasi                  |
+| Rekonsiliasi bank                            |   ✅   | Akuntansi › Bank (impor mutasi CSV + mapping)                                        |
+| Aset tetap (FI-AA)                           |   ✅   | Akuntansi › Aset: penyusutan, pelepasan                                              |
+| Tutup buku periode                           |   ✅   | Pengaturan akuntansi (tanggal kunci, tutup tahun)                                    |
+| Anggaran & realisasi                         |   🟡   | Anggaran per akun/periode; tanpa versi, komitmen, atau kontrol dana                  |
+| Laporan keuangan                             |   ✅   | Neraca, laba rugi, neraca saldo, buku besar, arus kas (per perusahaan & konsolidasi) |
+| Nomor dokumen per tahun                      |   ✅   | Urutan per tahun (`sequence_years`)                                                  |
+| Batas kredit & blokir pengiriman             |   🟡   | Batas kredit per pelanggan per perusahaan (peringatan, tanpa blokir)                 |
+| Dunning (surat tagih bertingkat)             |   ✅   | Akuntansi › Penagihan: tingkat, email + PDF, otomatis harian                         |
+| Payment run otomatis (vendor)                |   🟡   | Ada file transfer bank untuk payroll; belum untuk pembayaran pemasok                 |
+| Akrual/deferral, jurnal berulang             |   ✅   | Penangguhan prorata per baris faktur, pembalik otomatis, Jurnal Berulang             |
+| Multi-ledger (IFRS + lokal), valuasi paralel |   ❌   | —                                                                                    |
+| Jejak audit                                  |   🟡   | Log aktivitas & riwayat perubahan; belum log kepatuhan formal (SOX)                  |
 
 ### 2.2 Controlling (SAP CO)
 
@@ -184,15 +184,15 @@ Di SAP, kebutuhan ini dipenuhi oleh add-on partner lokal (biaya tambahan).
 
 Urutan berdasarkan dampak untuk target pasar (grup usaha menengah Indonesia).
 
-| Prioritas | Paket                       | Isi                                                                                     | Memakai ulang                         |
-| :-------: | --------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------- |
-|    P1     | Kontrol keuangan            | Batas kredit + blokir SO, dunning, akrual/deferral, jurnal berulang, laporan arus kas   | Faktur, pembayaran, scheduler laporan |
-|    P1     | Controlling dasar           | Cost center & profit center (hierarki), alokasi biaya periodik, laporan per pusat biaya | Dimensi unit bisnis/cabang, anggaran  |
-|    P2     | Payment run & bank          | Usulan bayar pemasok jatuh tempo, file transfer bank, persetujuan                       | File bank payroll, aturan persetujuan |
-|    P2     | Pembelian & gudang lanjutan | Landed cost, kontrak pembelian, evaluasi pemasok, barcode, cycle count, FEFO            | Picking, lot/serial, penyesuaian      |
-|    P3     | Manufaktur ringan           | BOM, work order, konsumsi bahan & hasil produksi, MRP sederhana, HPP produksi           | Persediaan, valuasi, reorder          |
-|    P4     | Platform                    | Custom field, dashboard BI, pembuat laporan untuk semua modul, workflow designer        | Pembuat laporan, mesin persetujuan    |
-|    P5     | Maintenance & mutu          | Maintenance aset umum (bukan hanya armada), inspeksi mutu saat terima/produksi          | Modul armada, aset tetap              |
+| Prioritas | Paket                         | Isi                                                                                     | Memakai ulang                         |
+| :-------: | ----------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------- |
+|    P1     | Kontrol keuangan (✅ selesai) | Batas kredit (peringatan), dunning, akrual/deferral, jurnal berulang, laporan arus kas  | Faktur, pembayaran, scheduler laporan |
+|    P1     | Controlling dasar             | Cost center & profit center (hierarki), alokasi biaya periodik, laporan per pusat biaya | Dimensi unit bisnis/cabang, anggaran  |
+|    P2     | Payment run & bank            | Usulan bayar pemasok jatuh tempo, file transfer bank, persetujuan                       | File bank payroll, aturan persetujuan |
+|    P2     | Pembelian & gudang lanjutan   | Landed cost, kontrak pembelian, evaluasi pemasok, barcode, cycle count, FEFO            | Picking, lot/serial, penyesuaian      |
+|    P3     | Manufaktur ringan             | BOM, work order, konsumsi bahan & hasil produksi, MRP sederhana, HPP produksi           | Persediaan, valuasi, reorder          |
+|    P4     | Platform                      | Custom field, dashboard BI, pembuat laporan untuk semua modul, workflow designer        | Pembuat laporan, mesin persetujuan    |
+|    P5     | Maintenance & mutu            | Maintenance aset umum (bukan hanya armada), inspeksi mutu saat terima/produksi          | Modul armada, aset tetap              |
 
 ## 4. Kesimpulan
 

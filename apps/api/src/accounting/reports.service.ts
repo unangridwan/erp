@@ -1,6 +1,12 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { eq, inArray, schema, sql, type Db, type SQL } from "@erp/db";
-import { BALANCE_SHEET_GROUPS, PROFIT_LOSS_GROUPS, PROFIT_LOSS_TYPES } from "@erp/shared";
+import {
+  BALANCE_SHEET_GROUPS,
+  cashFlowStatement,
+  PROFIT_LOSS_GROUPS,
+  PROFIT_LOSS_TYPES,
+  type CashFlowCategory,
+} from "@erp/shared";
 import { Decimal } from "decimal.js";
 import { z } from "zod";
 import { currentContext } from "../common/request-context.js";
@@ -375,6 +381,53 @@ export class ReportService {
     const list = [...accounts.values()].map((a) => ({ ...a, total: fmt(a.total) }));
     const total = list.reduce((sum, a) => sum.plus(a.total), dec(0));
     return { date: q.dateTo, accounts: list, total: fmt(total), balanced: total.isZero() };
+  }
+
+  /**
+   * Laporan arus kas metode tidak langsung untuk rentang `dateFrom`..`dateTo` (bawaan: awal tahun fiskal).
+   * Entri tutup buku diabaikan agar laba bersih tidak muncul lagi sebagai perubahan ekuitas.
+   */
+  async cashFlow(tx: Db, q: ReportQuery) {
+    const s = await this.scope(tx, q);
+    const from = q.dateFrom ?? s.fyStart;
+    const rows = await tx.execute<
+      AccountRow & {
+        cash_flow_category: CashFlowCategory | null;
+        opening: string;
+        closing: string;
+        period: string;
+      }
+    >(sql`
+      select a.id, a.code, a.name, a.account_type, a.cash_flow_category,
+        coalesce(sum(case when m.date < ${from} then l.balance else 0 end), 0) as opening,
+        coalesce(sum(l.balance), 0) as closing,
+        coalesce(sum(case when m.date >= ${from} then l.balance else 0 end), 0) as period
+      from account_move_lines l
+      join account_moves m on m.id = l.move_id
+      join accounts a on a.id = l.account_id
+      where ${s.where} and m.date <= ${q.dateTo} and m.closing_year is null
+      group by a.id, a.code, a.name, a.account_type, a.cash_flow_category
+      order by a.code`);
+    const pl = rows.filter((r) => (PROFIT_LOSS_TYPES as readonly string[]).includes(r.account_type));
+    // Laba bersih = −(saldo debit akun laba rugi) dalam periode.
+    const netProfit = pl.reduce((t, r) => t.minus(r.period), dec(0));
+    const depreciation = pl
+      .filter((r) => r.account_type === "expense_depreciation")
+      .reduce((t, r) => t.plus(r.period), dec(0));
+    const statement = cashFlowStatement({
+      netProfit: netProfit.toFixed(2),
+      depreciation: depreciation.toFixed(2),
+      accounts: rows.map((r) => ({
+        id: r.id,
+        code: r.code,
+        name: r.name,
+        accountType: r.account_type,
+        cashFlowCategory: r.cash_flow_category,
+        opening: r.opening,
+        closing: r.closing,
+      })),
+    });
+    return { dateFrom: from, dateTo: q.dateTo, ...statement };
   }
 
   // ---- Internal ----

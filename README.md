@@ -186,6 +186,7 @@ komisi), dan tampilan yang dikelompokkan (hari libur per bulan, aktivitas CRM pe
 | Baris faktur `deferralStart`/`deferralEnd`, `GET /moves/:id/deferrals`                                       | Pendapatan/biaya ditangguhkan: diakui prorata hari per akhir bulan                                                   |
 | Jurnal umum `autoReverseDate`                                                                                | Jurnal akrual: pembalik dibuat & diposting otomatis saat entri diposting                                             |
 | `/recurring-entries`, `POST /recurring-entries/:id/generate`                                                 | Jurnal berulang (mingguan/bulanan/triwulan/tahunan), posting otomatis atau draft                                     |
+| `GET /reports/cash-flow`, `GET /reports/cash-flow/export`                                                    | Laporan arus kas metode tidak langsung (filter sama dengan laporan lain)                                             |
 
 **Batas kredit & dunning (migrasi 0062).** Batas kredit diisi per pelanggan per perusahaan di form Kontak (panel
 **Kredit & penagihan**). Batas ini tidak memblokir: form pesanan penjualan menampilkan peringatan, konfirmasi meminta
@@ -205,6 +206,13 @@ punya kolom **Balik otomatis pada** untuk akrual. Menu Akuntansi › **Jurnal Be
 tiap template bisa diposting otomatis atau dibuat sebagai draft, punya opsi balik otomatis hari berikutnya, dan
 bisa berhenti pada tanggal tertentu atau setelah sejumlah kali. Penjadwal berjalan tiap jam
 (`ACCOUNTING_SCHEDULER=off` untuk mematikannya).
+
+**Laporan arus kas (migrasi 0064).** Akuntansi › Laporan Keuangan › tab **Arus Kas** menyajikan arus kas metode
+tidak langsung (PSAK 2): laba bersih, penyusutan, dan perubahan modal kerja (operasi), lalu aktivitas investasi dan
+pendanaan, serta kas awal dan akhir. Laporan ini bisa dibandingkan dengan periode yang sama tahun lalu, difilter per
+perusahaan, cabang, atau unit bisnis, dan diekspor ke Excel. Kelompok tiap akun mengikuti jenis akunnya dan bisa
+ditimpa lewat kolom **Kelompok arus kas** di Bagan Akun. Bila ada perubahan yang belum terklasifikasi, laporan
+menampilkan selisihnya. Entri tutup buku tidak ikut dihitung.
 
 ### CRM & Penjualan (Fase 2)
 
