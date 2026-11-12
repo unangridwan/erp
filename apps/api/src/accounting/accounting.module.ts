@@ -28,6 +28,7 @@ import { MoveService } from "./move.service.js";
 import { PaymentService } from "./payment.service.js";
 import { ReconcileService } from "./reconcile.service.js";
 import { ReportService } from "./reports.service.js";
+import { AccountingScheduler, RecurringController, RecurringService } from "./recurring.module.js";
 
 /** Akun rujukan (akun pajak, akun bawaan jurnal) harus milik perusahaan yang sama. */
 const sameCompanyAccount = (field: string) => async (tx: Db, values: Record<string, unknown>) => {
@@ -112,6 +113,7 @@ const AssetsController = createCrudController({
     AssetsController,
     BudgetsController,
     ClosingAndExportController,
+    RecurringController,
   ],
   providers: [
     ActivityService,
@@ -125,7 +127,9 @@ const AssetsController = createCrudController({
     BudgetService,
     ClosingService,
     FxRevaluationService,
+    RecurringService,
+    AccountingScheduler,
   ],
-  exports: [MoveService],
+  exports: [MoveService, AccountingScheduler],
 })
 export class AccountingModule {}

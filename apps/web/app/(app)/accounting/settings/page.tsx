@@ -3,11 +3,14 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
+import { useOptions, type AccountOption } from "../../../../components/accounting/use-options";
 import { ask } from "../../../../components/feedback";
 
 interface Settings {
   lockDate: string | null;
   purchaseApprovalAmount: string | null;
+  deferredRevenueAccountId: string | null;
+  deferredExpenseAccountId: string | null;
 }
 
 export default function AccountingSettingsPage() {
@@ -15,6 +18,9 @@ export default function AccountingSettingsPage() {
   const [settings, setSettings] = useState<Settings | null | undefined>(undefined);
   const [lockDate, setLockDate] = useState("");
   const [approval, setApproval] = useState("");
+  const [deferredRevenue, setDeferredRevenue] = useState("");
+  const [deferredExpense, setDeferredExpense] = useState("");
+  const accounts = useOptions<AccountOption>("/accounts");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,6 +29,8 @@ export default function AccountingSettingsPage() {
       setSettings(s);
       setLockDate(s?.lockDate ?? "");
       setApproval(s?.purchaseApprovalAmount ? String(Number(s.purchaseApprovalAmount)) : "");
+      setDeferredRevenue(s?.deferredRevenueAccountId ?? "");
+      setDeferredExpense(s?.deferredExpenseAccountId ?? "");
     });
 
   useEffect(() => {
@@ -36,7 +44,12 @@ export default function AccountingSettingsPage() {
     try {
       await api("/accounting/settings", {
         method: "PATCH",
-        body: { lockDate: lockDate || null, purchaseApprovalAmount: approval || null },
+        body: {
+          lockDate: lockDate || null,
+          purchaseApprovalAmount: approval || null,
+          deferredRevenueAccountId: deferredRevenue || null,
+          deferredExpenseAccountId: deferredExpense || null,
+        },
       });
       setNotice(l("Pengaturan disimpan.", "Settings saved."));
       await load();
@@ -128,6 +141,34 @@ export default function AccountingSettingsPage() {
             {l(
               "Batas default: PO dengan total di atas nilai ini (mata uang perusahaan) harus disetujui user ber-hak purchase.approve. Kosong = tanpa persetujuan. Batas per peran/pengguna dan alur bertingkat diatur di Pengaturan › Aturan Persetujuan.",
               "Default limit: purchase orders above this total (company currency) need approval by a user with purchase.approve. Empty = no approval. Per-role/user limits and tiered flows are set in Settings › Approval Rules.",
+            )}
+          </p>
+          <label className="field">
+            <span>{l("Akun pendapatan diterima di muka", "Deferred revenue account")}</span>
+            <select value={deferredRevenue} onChange={(e) => setDeferredRevenue(e.target.value)}>
+              <option value="">—</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.code} {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>{l("Akun biaya dibayar di muka", "Prepaid expense account")}</span>
+            <select value={deferredExpense} onChange={(e) => setDeferredExpense(e.target.value)}>
+              <option value="">—</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.code} {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="muted">
+            {l(
+              "Baris faktur/tagihan yang diberi periode penangguhan dicatat ke akun ini saat diposting, lalu diakui prorata per bulan.",
+              "Invoice/bill lines with a deferral period are booked to these accounts on posting, then recognized pro rata each month.",
             )}
           </p>
           <button className="primary">{l("Simpan", "Save")}</button>

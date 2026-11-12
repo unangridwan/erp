@@ -27,6 +27,7 @@ import { z } from "zod";
 import { RequirePermission } from "../auth/decorators.js";
 import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
+import { assertCompanyAccounts } from "./context.js";
 import { parse } from "../common/zod.js";
 import { installInventory } from "../inventory/setup.js";
 import { installPayroll } from "../payroll/setup.js";
@@ -84,10 +85,25 @@ export class AccountingController {
     // Hanya field yang dikirim yang diubah; null mengosongkan.
     const sent = (key: string) => body !== null && typeof body === "object" && key in body;
     return this.tenantDb.run(async (tx) => {
+      const companyId = currentContext().companyId;
+      const accounts = (["deferredRevenueAccountId", "deferredExpenseAccountId"] as const).filter(
+        (k) => sent(k) && input[k],
+      );
+      await assertCompanyAccounts(
+        tx,
+        companyId,
+        accounts.map((k) => ({ path: k, id: input[k]! })),
+      );
       const [row] = await tx
         .update(schema.accountingSettings)
         .set({
           ...(sent("lockDate") ? { lockDate: input.lockDate ?? null } : {}),
+          ...(sent("deferredRevenueAccountId")
+            ? { deferredRevenueAccountId: input.deferredRevenueAccountId ?? null }
+            : {}),
+          ...(sent("deferredExpenseAccountId")
+            ? { deferredExpenseAccountId: input.deferredExpenseAccountId ?? null }
+            : {}),
           ...(sent("purchaseApprovalAmount")
             ? { purchaseApprovalAmount: input.purchaseApprovalAmount ?? null }
             : {}),
@@ -139,6 +155,9 @@ export class MovesController {
           amountResidual: m.amountResidual,
           paymentState: m.paymentState,
           journalId: m.journalId,
+          autoPost: m.autoPost,
+          recurringId: m.recurringId,
+          deferralSourceMoveId: m.deferralSourceMoveId,
         })
         .from(m)
         .leftJoin(schema.partners, eq(schema.partners.id, m.partnerId))
@@ -159,6 +178,13 @@ export class MovesController {
   @RequirePermission("accounting.read")
   get(@Param("id", ParseUUIDPipe) id: string) {
     return this.tenantDb.run((tx) => this.moves.get(tx, id));
+  }
+
+  /** Jadwal pengakuan penangguhan faktur/tagihan. */
+  @Get(":id/deferrals")
+  @RequirePermission("accounting.read")
+  deferrals(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.moves.deferralEntries(tx, id));
   }
 
   /** Buat draft: jurnal umum (tanpa `moveType`/`moveType: "entry"`) atau faktur/tagihan. */

@@ -34,6 +34,8 @@ export interface AppConfig {
   reports: { scheduler: boolean };
   /** Penagihan bertingkat (dunning) otomatis harian. */
   dunning: { scheduler: boolean };
+  /** Posting otomatis jurnal pengakuan penangguhan & pembuatan jurnal berulang. */
+  accounting: { scheduler: boolean };
   /** Pengirim email notifikasi (outbox, tiap menit). */
   notifyEmail: { scheduler: boolean };
   /** Token untuk GET /metrics (Prometheus); kosong = endpoint dimatikan. */
@@ -87,6 +89,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     dunning: {
       scheduler: env.DUNNING_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
+    },
+    accounting: {
+      scheduler: env.ACCOUNTING_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
     },
     notifyEmail: {
       scheduler: env.NOTIFY_EMAIL_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,

@@ -1,10 +1,11 @@
 "use client";
 
 import { computeInvoice } from "@erp/shared";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../lib/api";
-import { money, today } from "../../lib/format";
+import { formatDate, money, today } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
 import { can, MOVE_TYPE_LABEL } from "../../lib/resources";
 import { Chatter } from "../chatter";
@@ -36,6 +37,9 @@ interface MoveLine {
   taxIds: string[];
   branchId: string | null;
   businessUnitId: string | null;
+  deferralStart: string | null;
+  deferralEnd: string | null;
+  deferralAccountId: string | null;
 }
 interface Move {
   id: string;
@@ -55,6 +59,10 @@ interface Move {
   amountResidual: string;
   paymentState: string;
   reversedEntryId: string | null;
+  autoPost: boolean;
+  autoReverseDate: string | null;
+  deferralSourceMoveId: string | null;
+  recurringId: string | null;
   lines: MoveLine[];
 }
 
@@ -67,6 +75,8 @@ interface InvoiceLine {
   discount: string;
   taxIds: string[];
   branchId: string;
+  deferralStart: string;
+  deferralEnd: string;
 }
 interface EntryLine {
   accountId: string;
@@ -86,6 +96,8 @@ const emptyInvoiceLine = (): InvoiceLine => ({
   discount: "0",
   taxIds: [],
   branchId: "",
+  deferralStart: "",
+  deferralEnd: "",
 });
 const emptyEntryLine = (): EntryLine => ({
   accountId: "",
@@ -121,6 +133,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
     currencyCode: "",
     ref: "",
     narration: "",
+    autoReverseDate: "",
   });
   const [invoiceLines, setInvoiceLines] = useState<InvoiceLine[]>([emptyInvoiceLine()]);
   const [entryLines, setEntryLines] = useState<EntryLine[]>([emptyEntryLine(), emptyEntryLine()]);
@@ -141,6 +154,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
           currencyCode: m.currencyCode,
           ref: m.ref ?? "",
           narration: m.narration ?? "",
+          autoReverseDate: m.autoReverseDate ?? "",
         });
         if (m.moveType === "entry") {
           setEntryLines(
@@ -160,13 +174,16 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
               .map((x) => ({
                 productId: x.productId ?? "",
                 name: x.name ?? "",
-                accountId: x.accountId,
+                // Baris ditangguhkan yang sudah diposting: tampilkan akun pendapatan/beban asal.
+                accountId: x.deferralAccountId ?? x.accountId,
                 // Buang nol desimal berlebih dari kolom numeric (2.0000 → 2).
                 quantity: String(Number(x.quantity ?? 1)),
                 priceUnit: String(Number(x.priceUnit ?? 0)),
                 discount: String(Number(x.discount)),
                 taxIds: x.taxIds,
                 branchId: x.branchId ?? "",
+                deferralStart: x.deferralStart ?? "",
+                deferralEnd: x.deferralEnd ?? "",
               })),
           );
         }
@@ -212,6 +229,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
         date: header.date,
         ref: orNull(header.ref),
         narration: orNull(header.narration),
+        autoReverseDate: orNull(header.autoReverseDate),
         lines: entryLines
           .filter((x) => x.accountId)
           .map((x) => ({
@@ -241,6 +259,8 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
         discount: x.discount || "0",
         taxIds: x.taxIds,
         branchId: orNull(x.branchId),
+        deferralStart: orNull(x.deferralStart),
+        deferralEnd: orNull(x.deferralEnd),
       })),
     };
   }
@@ -396,7 +416,49 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
               <span>{l("Referensi", "Reference")}</span>
               <input value={header.ref} onChange={(e) => setHeader((h) => ({ ...h, ref: e.target.value }))} />
             </label>
+            {isEntry && (
+              <label className="field">
+                <span>{l("Balik otomatis pada", "Auto-reverse on")}</span>
+                <input
+                  type="date"
+                  value={header.autoReverseDate}
+                  min={header.date}
+                  onChange={(e) => setHeader((h) => ({ ...h, autoReverseDate: e.target.value }))}
+                />
+                <small className="muted">
+                  {l(
+                    "Untuk jurnal akrual: pembalik dibuat & diposting otomatis saat entri ini diposting.",
+                    "For accruals: a reversal is created and posted automatically when this entry is posted.",
+                  )}
+                </small>
+                {err("autoReverseDate")}
+              </label>
+            )}
           </fieldset>
+          {move?.deferralSourceMoveId && (
+            <p className="muted">
+              {l("Pengakuan penangguhan dari", "Deferral recognition of")}{" "}
+              <Link href={`/accounting/moves/${move.deferralSourceMoveId}`}>
+                {l("dokumen asal", "source document")}
+              </Link>
+            </p>
+          )}
+          {move?.recurringId && (
+            <p className="muted">
+              {l("Dibuat dari", "Generated from")}{" "}
+              <Link href={`/accounting/recurring?id=${move.recurringId}`}>
+                {l("jurnal berulang", "recurring entry")}
+              </Link>
+            </p>
+          )}
+          {move?.state === "draft" && move.autoPost && (
+            <p className="notice">
+              {l(
+                `Draft ini diposting otomatis pada ${formatDate(move.date, locale)}.`,
+                `This draft is posted automatically on ${formatDate(move.date, locale)}.`,
+              )}
+            </p>
+          )}
 
           <h2>{isEntry ? l("Baris jurnal", "Journal items") : l("Baris", "Lines")}</h2>
           <div className="table-wrap">
@@ -576,6 +638,29 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                             onChange={(e) => setInv(i, { name: e.target.value })}
                           />
                           {err(`lines.${i}.name`)}
+                          {(editable || x.deferralStart) && (
+                            <div className="deferral-dates">
+                              <span className="muted">{l("Ditangguhkan", "Deferred")}</span>
+                              <input
+                                type="date"
+                                disabled={!editable}
+                                aria-label={l("Mulai penangguhan", "Deferral start")}
+                                value={x.deferralStart}
+                                onChange={(e) => setInv(i, { deferralStart: e.target.value })}
+                              />
+                              <span aria-hidden>–</span>
+                              <input
+                                type="date"
+                                disabled={!editable}
+                                aria-label={l("Akhir penangguhan", "Deferral end")}
+                                value={x.deferralEnd}
+                                min={x.deferralStart || undefined}
+                                onChange={(e) => setInv(i, { deferralEnd: e.target.value })}
+                              />
+                            </div>
+                          )}
+                          {err(`lines.${i}.deferralStart`)}
+                          {err(`lines.${i}.deferralEnd`)}
                         </td>
                         <td>
                           <select
@@ -740,6 +825,9 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
             </div>
           </section>
         )}
+        {move?.state === "posted" && move.lines.some((x) => x.deferralAccountId) && (
+          <DeferralSchedule moveId={move.id} version={version} />
+        )}
       </div>
       {move && <Chatter model="account_move" id={move.id} version={version} labels={{}} />}
     </div>
@@ -822,5 +910,60 @@ function PaymentPanel({
       </button>
       {error && <p className="error">{error}</p>}
     </form>
+  );
+}
+
+interface DeferralRow {
+  id: string;
+  name: string | null;
+  date: string;
+  state: string;
+  amount: string | null;
+}
+
+/** Jadwal pengakuan pendapatan/biaya ditangguhkan sebuah faktur/tagihan. */
+function DeferralSchedule({ moveId, version }: { moveId: string; version: number }) {
+  const { l, locale } = useI18n();
+  const [rows, setRows] = useState<DeferralRow[] | null>(null);
+  useEffect(() => {
+    api<DeferralRow[]>(`/moves/${moveId}/deferrals`).then(setRows, () => setRows([]));
+  }, [moveId, version]);
+  if (!rows) return null;
+  const recognized = rows.filter((r) => r.state === "posted").reduce((t, r) => t + Number(r.amount ?? 0), 0);
+  const total = rows.reduce((t, r) => t + Number(r.amount ?? 0), 0);
+  return (
+    <section className="panel">
+      <h2>{l("Jadwal pengakuan penangguhan", "Deferral recognition schedule")}</h2>
+      <p className="muted">
+        {l(
+          `Diakui ${money(recognized, locale)} dari ${money(total, locale)}. Jurnal draft diposting otomatis saat tanggalnya tiba.`,
+          `Recognized ${money(recognized, locale)} of ${money(total, locale)}. Draft entries are posted automatically on their date.`,
+        )}
+      </p>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>{l("Tanggal", "Date")}</th>
+              <th>{l("Entri", "Entry")}</th>
+              <th>{l("Status", "Status")}</th>
+              <th className="num">{l("Jumlah", "Amount")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td>{formatDate(r.date, locale)}</td>
+                <td>
+                  <Link href={`/accounting/moves/${r.id}`}>{r.name ?? l("Draft", "Draft")}</Link>
+                </td>
+                <td>{r.state === "posted" ? l("Diposting", "Posted") : l("Terjadwal", "Scheduled")}</td>
+                <td className="num">{money(r.amount, locale)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

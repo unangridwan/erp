@@ -108,6 +108,8 @@ export const accountingSettings = pgTable("accounting_settings", {
   unrealizedFxGainAccountId: uuid("unrealized_fx_gain_account_id"),
   unrealizedFxLossAccountId: uuid("unrealized_fx_loss_account_id"),
   priceDifferenceAccountId: uuid("price_difference_account_id"),
+  deferredRevenueAccountId: uuid("deferred_revenue_account_id"),
+  deferredExpenseAccountId: uuid("deferred_expense_account_id"),
   dunningEnabled: boolean("dunning_enabled").notNull().default(false),
   dunningMinAmount: numeric("dunning_min_amount", { precision: 20, scale: 2 }).notNull().default("0"),
   updatedAt: audit.updatedAt,
@@ -145,6 +147,13 @@ export const accountMoves = pgTable("account_moves", {
   /** Tingkat dunning terakhir yang sudah dikirim (0 = belum pernah ditagih). */
   dunningLevel: smallint("dunning_level").notNull().default(0),
   lastDunningAt: timestamp("last_dunning_at", { withTimezone: true }),
+  /** Draft yang diposting otomatis oleh penjadwal saat tanggalnya tiba. */
+  autoPost: boolean("auto_post").notNull().default(false),
+  /** Jurnal akrual: pembalik bertanggal ini dibuat & diposting saat entri diposting. */
+  autoReverseDate: date("auto_reverse_date"),
+  /** Faktur/tagihan asal untuk jurnal pengakuan penangguhan. */
+  deferralSourceMoveId: uuid("deferral_source_move_id"),
+  recurringId: uuid("recurring_id"),
   postedAt: timestamp("posted_at", { withTimezone: true }),
   postedBy: uuid("posted_by"),
   createdBy: uuid("created_by"),
@@ -187,6 +196,11 @@ export const accountMoveLines = pgTable("account_move_lines", {
     .notNull()
     .default("0"),
   reconciled: boolean("reconciled").notNull().default(false),
+  /** Periode penangguhan (pendapatan/biaya diakui prorata per bulan). */
+  deferralStart: date("deferral_start"),
+  deferralEnd: date("deferral_end"),
+  /** Akun tujuan asli baris yang dipindah ke akun penangguhan saat diposting. */
+  deferralAccountId: uuid("deferral_account_id"),
   createdAt: audit.createdAt,
 });
 
@@ -397,5 +411,40 @@ export const dunningLetters = pgTable("dunning_letters", {
   sentBy: uuid("sent_by"),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   error: text("error"),
+  ...audit,
+});
+
+export interface RecurringLine {
+  accountId: string;
+  name?: string | null;
+  debit: string;
+  credit: string;
+  partnerId?: string | null;
+  businessUnitId?: string | null;
+  branchId?: string | null;
+}
+
+/** Template jurnal berulang (sewa, alokasi biaya, akrual bulanan). */
+export const recurringEntries = pgTable("recurring_entries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  journalId: uuid("journal_id").notNull(),
+  ref: text("ref"),
+  narration: text("narration"),
+  lines: jsonb("lines").$type<RecurringLine[]>().notNull(),
+  frequency: text("frequency", { enum: ["weekly", "monthly", "quarterly", "yearly"] }).notNull(),
+  interval: smallint("interval").notNull().default(1),
+  startDate: date("start_date").notNull(),
+  nextDate: date("next_date"),
+  endDate: date("end_date"),
+  remainingCount: integer("remaining_count"),
+  autoPost: boolean("auto_post").notNull().default(false),
+  autoReverse: boolean("auto_reverse").notNull().default(false),
+  active: boolean("active").notNull().default(true),
+  lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  createdBy: uuid("created_by"),
   ...audit,
 });
