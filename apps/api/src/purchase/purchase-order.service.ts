@@ -624,6 +624,7 @@ export class PurchaseOrderService implements OnModuleInit {
           discount: l.discount,
           taxIds: l.taxIds,
           businessUnitId: order.businessUnitId,
+          costCenterId: order.costCenterId,
           branchId: order.branchId,
           uomId: l.uomId,
         })),
@@ -868,6 +869,7 @@ export class PurchaseOrderService implements OnModuleInit {
           discount: l.discount,
           taxIds: l.taxIds,
           businessUnitId: order.businessUnitId,
+          costCenterId: order.costCenterId,
           branchId: order.branchId,
           uomId: l.uomId,
         })),
@@ -1027,7 +1029,7 @@ export class PurchaseOrderService implements OnModuleInit {
     const warehouseId = input.warehouseId ?? (await this.stock.defaultWarehouse(tx, companyId)).id;
     await this.stock.warehouse(tx, warehouseId, companyId);
     await assertDimensions(tx, companyId, [
-      { businessUnitId: input.businessUnitId, branchId: input.branchId },
+      { businessUnitId: input.businessUnitId, branchId: input.branchId, costCenterId: input.costCenterId },
     ]);
     const currencyCode = input.currencyCode ?? books.currencyCode;
     const [currency] = await tx
@@ -1131,6 +1133,7 @@ export class PurchaseOrderService implements OnModuleInit {
         note: input.note ?? null,
         branchId: input.branchId ?? null,
         businessUnitId: input.businessUnitId ?? null,
+        costCenterId: input.costCenterId ?? null,
         amountUntaxed: d(result.amountUntaxed).toFixed(2),
         amountTax: d(result.amountTax).toFixed(2),
         amountTotal: d(result.amountTotal).toFixed(2),

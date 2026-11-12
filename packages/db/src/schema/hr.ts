@@ -46,6 +46,7 @@ export const departments = pgTable("departments", {
   name: text("name").notNull(),
   parentId: uuid("parent_id"),
   managerId: uuid("manager_id"),
+  costCenterId: uuid("cost_center_id"),
   active: boolean("active").notNull().default(true),
   ...audit,
 });
@@ -89,6 +90,7 @@ export const employees = pgTable("employees", {
   workPhone: text("work_phone"),
   branchId: uuid("branch_id"),
   businessUnitId: uuid("business_unit_id"),
+  costCenterId: uuid("cost_center_id"),
   nikEnc: text("nik_enc"),
   npwpEnc: text("npwp_enc"),
   bankAccountEnc: text("bank_account_enc"),

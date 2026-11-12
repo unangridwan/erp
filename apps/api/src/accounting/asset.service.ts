@@ -30,7 +30,9 @@ export async function validateAsset(tx: Db, values: Record<string, unknown>, id?
   if (!id && !values.journalId) values.journalId = (await loadBooks(tx, companyId)).settings.generalJournalId;
   if (typeof values.journalId === "string")
     await assertCompanyJournal(tx, companyId, values.journalId, ["general"]);
-  await assertDimensions(tx, companyId, [values as { branchId?: string; businessUnitId?: string }]);
+  await assertDimensions(tx, companyId, [
+    values as { branchId?: string; businessUnitId?: string; costCenterId?: string },
+  ]);
   if (
     values.firstDepreciationDate &&
     values.acquisitionDate &&
@@ -118,6 +120,7 @@ export class AssetService {
               credit: "0",
               branchId: asset.branchId,
               businessUnitId: asset.businessUnitId,
+              costCenterId: asset.costCenterId,
             },
             {
               accountId: asset.depreciationAccountId,
@@ -126,6 +129,7 @@ export class AssetService {
               credit: line.amount,
               branchId: asset.branchId,
               businessUnitId: asset.businessUnitId,
+              costCenterId: asset.costCenterId,
             },
           ],
         },
@@ -200,7 +204,11 @@ export class AssetService {
     const accumulated = posted.reduce((s, l) => s.plus(l.amount), new Decimal(0));
     const bookValue = new Decimal(asset.cost).minus(accumulated);
     const label = `Pelepasan aset ${asset.code ? `${asset.code} ` : ""}${asset.name}`;
-    const dims = { branchId: asset.branchId, businessUnitId: asset.businessUnitId };
+    const dims = {
+      branchId: asset.branchId,
+      businessUnitId: asset.businessUnitId,
+      costCenterId: asset.costCenterId,
+    };
 
     let invoiceId: string | null = null;
     if (sale) {

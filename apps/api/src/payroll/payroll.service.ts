@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { employeeCostCenters } from "../accounting/cost-center-source.js";
 import { and, asc, desc, eq, gte, inArray, isNull, lte, lt, ne, or, schema, sql, type Db } from "@erp/db";
 import {
   attendanceAllowance,
@@ -1076,21 +1077,29 @@ export class PayrollService {
     const add = (
       accountId: string,
       amount: Decimal,
-      dims: { branchId: string | null; businessUnitId: string | null } = {
+      dims: { branchId: string | null; businessUnitId: string | null; costCenterId?: string | null } = {
         branchId: null,
         businessUnitId: null,
       },
       program = "",
     ) => {
-      const key = `${accountId}|${dims.branchId ?? ""}|${dims.businessUnitId ?? ""}|${program}`;
+      const key = `${accountId}|${dims.branchId ?? ""}|${dims.businessUnitId ?? ""}|${program}|${dims.costCenterId ?? ""}`;
       entries.set(key, (entries.get(key) ?? d(0)).plus(amount));
     };
     const bpjsAccounts = (code: string) =>
       bpjsProgram(code) === "kes"
         ? { program: "kes", expense: s.bpjsKesExpenseAccountId, payable: s.bpjsKesPayableAccountId }
         : { program: "tk", expense: s.bpjsTkExpenseAccountId, payable: s.bpjsTkPayableAccountId };
+    const costCenters = await employeeCostCenters(
+      tx,
+      slips.map((x) => x.employeeId),
+    );
     for (const slip of slips) {
-      const dims = { branchId: slip.branchId, businessUnitId: slip.businessUnitId };
+      const dims = {
+        branchId: slip.branchId,
+        businessUnitId: slip.businessUnitId,
+        costCenterId: costCenters.get(slip.employeeId) ?? null,
+      };
       for (const { line, accountId, plan } of lines.filter((l) => l.line.payslipId === slip.id)) {
         const amount = d(line.amount);
         // Benefit: beban porsi perusahaan, utang premi/iuran ke penyedia untuk porsi perusahaan & karyawan.
@@ -1131,7 +1140,7 @@ export class PayrollService {
               if (!s.employeeLoanAccountId)
                 throw new BadRequestException("Akun piutang karyawan belum diatur di pengaturan payroll");
               add(s.employeeLoanAccountId, amount);
-            } else add(accountId ?? s.salaryExpenseAccountId, amount);
+            } else add(accountId ?? s.salaryExpenseAccountId, amount, dims);
             break;
         }
       }
@@ -1168,7 +1177,8 @@ export class PayrollService {
     const journalLines = [...entries.entries()]
       .filter(([, v]) => !v.isZero())
       .map(([key, v]) => {
-        const [accountId, branchId, businessUnitId, program] = key.split("|") as [
+        const [accountId, branchId, businessUnitId, program, costCenterId] = key.split("|") as [
+          string,
           string,
           string,
           string,
@@ -1186,6 +1196,7 @@ export class PayrollService {
           credit: v.lt(0) ? v.abs().toFixed(2) : "0",
           branchId: branchId || null,
           businessUnitId: businessUnitId || null,
+          costCenterId: costCenterId || null,
         };
       });
     if (!journalLines.length) throw new BadRequestException("Slip gaji masih kosong; isi selisih koreksinya");

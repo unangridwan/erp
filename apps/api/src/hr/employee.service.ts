@@ -306,7 +306,7 @@ export class EmployeeService {
     }
     if (input.userId) await assertCompanyUser(tx, input.userId);
     await assertDimensions(tx, companyId, [
-      { branchId: input.branchId, businessUnitId: input.businessUnitId },
+      { branchId: input.branchId, businessUnitId: input.businessUnitId, costCenterId: input.costCenterId },
     ]).catch((e: unknown) => {
       if (e instanceof BadRequestException) {
         const res = e.getResponse() as { errors?: { path: string; message: string }[] };

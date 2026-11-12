@@ -15,7 +15,7 @@ bervolume transaksi sangat besar.
 | Area                                | Cakupan dibanding SAP | Catatan singkat                                                     |
 | ----------------------------------- | :-------------------: | ------------------------------------------------------------------- |
 | Keuangan (FI)                       |         ±85%          | Inti lengkap + kredit, dunning, akrual, arus kas; payment run belum |
-| Controlling (CO)                    |         ±25%          | Hanya dimensi unit bisnis/cabang + anggaran                         |
+| Controlling (CO)                    |         ±50%          | Cost/profit center berjenjang, laporan; alokasi biaya belum         |
 | Konsolidasi grup                    |         ±85%          | Kuat: eliminasi IC, goodwill, NCI, CTA, segmen                      |
 | Penjualan (SD) & CRM                |         ±60%          | Alur lengkap; pricing & kontrak sederhana                           |
 | Pembelian (MM)                      |         ±60%          | RFQ–PO–3-way match; kontrak & landed cost belum                     |
@@ -37,7 +37,8 @@ bervolume transaksi sangat besar.
 **Celah terbesar:**
 
 1. Tidak ada **manufaktur/MRP, QM, maintenance aset, dan project system**.
-2. **Controlling** belum ada: cost center, profit center, alokasi biaya, product costing, profitabilitas (CO-PA).
+2. **Controlling** baru dasar: cost center & profit center sudah ada; alokasi biaya, product costing, dan
+   profitabilitas (CO-PA) belum.
 3. **Kontrol keuangan operasional**: payment run otomatis ke pemasok dan blokir pengiriman saat batas kredit terlampaui (batas kredit peringatan, dunning, akrual/deferral, jurnal berulang, dan arus kas sudah ada sejak P1).
 
 ## 2. Perbandingan per modul
@@ -64,14 +65,14 @@ bervolume transaksi sangat besar.
 
 ### 2.2 Controlling (SAP CO)
 
-| Fitur SAP                            | Status | Di ERP ini                                                |
-| ------------------------------------ | :----: | --------------------------------------------------------- |
-| Dimensi analitik di jurnal           |   🟡   | Unit bisnis & cabang per baris jurnal                     |
-| Hierarki cost center / profit center |   ❌   | —                                                         |
-| Alokasi & distribusi biaya           |   ❌   | —                                                         |
-| Product costing (HPP standar)        |   🟡   | Valuasi FIFO/rata-rata; tanpa standard cost & variance    |
-| Profitabilitas (CO-PA)               |   🟡   | Laporan penjualan & segmen konsolidasi; tanpa CO-PA       |
-| Biaya tenaga kerja per departemen    |   ✅   | Payroll › Biaya tenaga kerja, anggaran tenaga kerja (MPP) |
+| Fitur SAP                            | Status | Di ERP ini                                                   |
+| ------------------------------------ | :----: | ------------------------------------------------------------ |
+| Dimensi analitik di jurnal           |   ✅   | Unit bisnis, cabang, cost center, profit center per baris    |
+| Hierarki cost center / profit center |   ✅   | Akuntansi › Cost Center / Profit Center, Laporan Controlling |
+| Alokasi & distribusi biaya           |   ❌   | —                                                            |
+| Product costing (HPP standar)        |   🟡   | Valuasi FIFO/rata-rata; tanpa standard cost & variance       |
+| Profitabilitas (CO-PA)               |   🟡   | Laporan penjualan & segmen konsolidasi; tanpa CO-PA          |
+| Biaya tenaga kerja per departemen    |   ✅   | Payroll › Biaya tenaga kerja, anggaran tenaga kerja (MPP)    |
 
 ### 2.3 Konsolidasi grup (SAP Group Reporting)
 
@@ -184,15 +185,15 @@ Di SAP, kebutuhan ini dipenuhi oleh add-on partner lokal (biaya tambahan).
 
 Urutan berdasarkan dampak untuk target pasar (grup usaha menengah Indonesia).
 
-| Prioritas | Paket                         | Isi                                                                                     | Memakai ulang                         |
-| :-------: | ----------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------- |
-|    P1     | Kontrol keuangan (✅ selesai) | Batas kredit (peringatan), dunning, akrual/deferral, jurnal berulang, laporan arus kas  | Faktur, pembayaran, scheduler laporan |
-|    P1     | Controlling dasar             | Cost center & profit center (hierarki), alokasi biaya periodik, laporan per pusat biaya | Dimensi unit bisnis/cabang, anggaran  |
-|    P2     | Payment run & bank            | Usulan bayar pemasok jatuh tempo, file transfer bank, persetujuan                       | File bank payroll, aturan persetujuan |
-|    P2     | Pembelian & gudang lanjutan   | Landed cost, kontrak pembelian, evaluasi pemasok, barcode, cycle count, FEFO            | Picking, lot/serial, penyesuaian      |
-|    P3     | Manufaktur ringan             | BOM, work order, konsumsi bahan & hasil produksi, MRP sederhana, HPP produksi           | Persediaan, valuasi, reorder          |
-|    P4     | Platform                      | Custom field, dashboard BI, pembuat laporan untuk semua modul, workflow designer        | Pembuat laporan, mesin persetujuan    |
-|    P5     | Maintenance & mutu            | Maintenance aset umum (bukan hanya armada), inspeksi mutu saat terima/produksi          | Modul armada, aset tetap              |
+| Prioritas | Paket                           | Isi                                                                                           | Memakai ulang                         |
+| :-------: | ------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------- |
+|    P1     | Kontrol keuangan (✅ selesai)   | Batas kredit (peringatan), dunning, akrual/deferral, jurnal berulang, laporan arus kas        | Faktur, pembayaran, scheduler laporan |
+|    P1     | Controlling dasar (🟡 sebagian) | Cost center & profit center (hierarki) ✅, laporan per pusat biaya ✅, alokasi biaya periodik | Dimensi unit bisnis/cabang, anggaran  |
+|    P2     | Payment run & bank              | Usulan bayar pemasok jatuh tempo, file transfer bank, persetujuan                             | File bank payroll, aturan persetujuan |
+|    P2     | Pembelian & gudang lanjutan     | Landed cost, kontrak pembelian, evaluasi pemasok, barcode, cycle count, FEFO                  | Picking, lot/serial, penyesuaian      |
+|    P3     | Manufaktur ringan               | BOM, work order, konsumsi bahan & hasil produksi, MRP sederhana, HPP produksi                 | Persediaan, valuasi, reorder          |
+|    P4     | Platform                        | Custom field, dashboard BI, pembuat laporan untuk semua modul, workflow designer              | Pembuat laporan, mesin persetujuan    |
+|    P5     | Maintenance & mutu              | Maintenance aset umum (bukan hanya armada), inspeksi mutu saat terima/produksi                | Modul armada, aset tetap              |
 
 ## 4. Kesimpulan
 

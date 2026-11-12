@@ -128,6 +128,8 @@ export const recurringEntrySchema = z
           partnerId: z.string().uuid().nullish(),
           businessUnitId: z.string().uuid().nullish(),
           branchId: z.string().uuid().nullish(),
+          costCenterId: z.string().uuid().nullish(),
+          profitCenterId: z.string().uuid().nullish(),
         }),
       )
       .min(2, "Minimal dua baris"),

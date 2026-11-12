@@ -11,6 +11,7 @@ interface Settings {
   purchaseApprovalAmount: string | null;
   deferredRevenueAccountId: string | null;
   deferredExpenseAccountId: string | null;
+  costCenterRequired: boolean;
 }
 
 export default function AccountingSettingsPage() {
@@ -20,6 +21,7 @@ export default function AccountingSettingsPage() {
   const [approval, setApproval] = useState("");
   const [deferredRevenue, setDeferredRevenue] = useState("");
   const [deferredExpense, setDeferredExpense] = useState("");
+  const [costCenterRequired, setCostCenterRequired] = useState(false);
   const accounts = useOptions<AccountOption>("/accounts");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +33,7 @@ export default function AccountingSettingsPage() {
       setApproval(s?.purchaseApprovalAmount ? String(Number(s.purchaseApprovalAmount)) : "");
       setDeferredRevenue(s?.deferredRevenueAccountId ?? "");
       setDeferredExpense(s?.deferredExpenseAccountId ?? "");
+      setCostCenterRequired(Boolean(s?.costCenterRequired));
     });
 
   useEffect(() => {
@@ -49,6 +52,7 @@ export default function AccountingSettingsPage() {
           purchaseApprovalAmount: approval || null,
           deferredRevenueAccountId: deferredRevenue || null,
           deferredExpenseAccountId: deferredExpense || null,
+          costCenterRequired,
         },
       });
       setNotice(l("Pengaturan disimpan.", "Settings saved."));
@@ -169,6 +173,23 @@ export default function AccountingSettingsPage() {
             {l(
               "Baris faktur/tagihan yang diberi periode penangguhan dicatat ke akun ini saat diposting, lalu diakui prorata per bulan.",
               "Invoice/bill lines with a deferral period are booked to these accounts on posting, then recognized pro rata each month.",
+            )}
+          </p>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={costCenterRequired}
+              onChange={(e) => setCostCenterRequired(e.target.checked)}
+            />
+            {l(
+              "Cost center wajib untuk baris akun beban (operasional & penyusutan)",
+              "Require a cost center on expense account lines (operating & depreciation)",
+            )}
+          </label>
+          <p className="muted">
+            {l(
+              "Entri tidak bisa diposting bila baris beban tanpa cost center. Isi cost center di baris, atau atur cost center bawaan di akun, departemen, karyawan, aset, dan kendaraan agar terisi otomatis.",
+              "Entries cannot be posted while an expense line has no cost center. Fill it on the line, or set default cost centers on accounts, departments, employees, assets, and vehicles so it is filled automatically.",
             )}
           </p>
           <button className="primary">{l("Simpan", "Save")}</button>

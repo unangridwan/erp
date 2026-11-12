@@ -51,6 +51,9 @@ export const accounts = pgTable("accounts", {
   branchClearing: boolean("branch_clearing").notNull().default(false),
   /** Kelompok arus kas (null = otomatis dari jenis akun). */
   cashFlowCategory: text("cash_flow_category", { enum: ["cash", "operating", "investing", "financing"] }),
+  /** Controlling: cost/profit center bawaan untuk baris pada akun ini. */
+  defaultCostCenterId: uuid("default_cost_center_id"),
+  defaultProfitCenterId: uuid("default_profit_center_id"),
   currencyCode: text("currency_code").references(() => currencies.code),
   active: boolean("active").notNull().default(true),
   ...audit,
@@ -112,6 +115,8 @@ export const accountingSettings = pgTable("accounting_settings", {
   priceDifferenceAccountId: uuid("price_difference_account_id"),
   deferredRevenueAccountId: uuid("deferred_revenue_account_id"),
   deferredExpenseAccountId: uuid("deferred_expense_account_id"),
+  /** Controlling: baris akun beban (operasional & penyusutan) wajib punya cost center saat posting. */
+  costCenterRequired: boolean("cost_center_required").notNull().default(false),
   dunningEnabled: boolean("dunning_enabled").notNull().default(false),
   dunningMinAmount: numeric("dunning_min_amount", { precision: 20, scale: 2 }).notNull().default("0"),
   updatedAt: audit.updatedAt,
@@ -190,6 +195,8 @@ export const accountMoveLines = pgTable("account_move_lines", {
   taxBaseAmount: numeric("tax_base_amount", { precision: 20, scale: 2 }),
   businessUnitId: uuid("business_unit_id"),
   branchId: uuid("branch_id"),
+  costCenterId: uuid("cost_center_id"),
+  profitCenterId: uuid("profit_center_id"),
   icCompanyId: uuid("ic_company_id"),
   saleLineId: uuid("sale_line_id"),
   purchaseLineId: uuid("purchase_line_id"),
@@ -279,6 +286,7 @@ export const assets = pgTable("assets", {
   journalId: uuid("journal_id").notNull(),
   branchId: uuid("branch_id"),
   businessUnitId: uuid("business_unit_id"),
+  costCenterId: uuid("cost_center_id"),
   disposalDate: date("disposal_date"),
   disposalKind: text("disposal_kind", { enum: ["sale", "scrap"] }),
   disposalPrice: numeric("disposal_price", { precision: 20, scale: 2 }),
@@ -326,6 +334,7 @@ export const budgetLines = pgTable("budget_lines", {
   accountId: uuid("account_id").notNull(),
   businessUnitId: uuid("business_unit_id"),
   branchId: uuid("branch_id"),
+  costCenterId: uuid("cost_center_id"),
   amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
 });
 
@@ -424,6 +433,8 @@ export interface RecurringLine {
   partnerId?: string | null;
   businessUnitId?: string | null;
   branchId?: string | null;
+  costCenterId?: string | null;
+  profitCenterId?: string | null;
 }
 
 /** Template jurnal berulang (sewa, alokasi biaya, akrual bulanan). */
@@ -448,5 +459,37 @@ export const recurringEntries = pgTable("recurring_entries", {
   lastRunAt: timestamp("last_run_at", { withTimezone: true }),
   lastError: text("last_error"),
   createdBy: uuid("created_by"),
+  ...audit,
+});
+
+/** Controlling: profit center berjenjang per perusahaan. */
+export const profitCenters = pgTable("profit_centers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  parentId: uuid("parent_id"),
+  managerEmployeeId: uuid("manager_employee_id"),
+  description: text("description"),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const COST_CENTER_CATEGORIES = ["production", "sales", "admin", "service"] as const;
+
+/** Controlling: cost center berjenjang per perusahaan, masuk ke satu profit center. */
+export const costCenters = pgTable("cost_centers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  parentId: uuid("parent_id"),
+  profitCenterId: uuid("profit_center_id"),
+  category: text("category", { enum: COST_CENTER_CATEGORIES }).notNull().default("admin"),
+  managerEmployeeId: uuid("manager_employee_id"),
+  description: text("description"),
+  active: boolean("active").notNull().default(true),
   ...audit,
 });

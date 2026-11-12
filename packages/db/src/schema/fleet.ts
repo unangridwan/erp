@@ -62,6 +62,7 @@ export const fleetVehicles = pgTable("fleet_vehicles", {
     .default("registered"),
   branchId: uuid("branch_id"),
   businessUnitId: uuid("business_unit_id"),
+  costCenterId: uuid("cost_center_id"),
   managerUserId: uuid("manager_user_id"),
   driverEmployeeId: uuid("driver_employee_id"),
   nextDriverEmployeeId: uuid("next_driver_employee_id"),

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { and, asc, desc, eq, schema, sql, type Db } from "@erp/db";
-import { PROFIT_LOSS_GROUPS, PROFIT_LOSS_TYPES, type budgetSchema } from "@erp/shared";
+import { descendantIds, PROFIT_LOSS_GROUPS, PROFIT_LOSS_TYPES, type budgetSchema } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
 import { currentContext } from "../common/request-context.js";
@@ -74,6 +74,7 @@ export class BudgetService {
           amount: l.amount,
           businessUnitId: l.businessUnitId ?? null,
           branchId: l.branchId ?? null,
+          costCenterId: l.costCenterId ?? null,
         })),
       );
     }
@@ -94,6 +95,14 @@ export class BudgetService {
   /** Anggaran vs realisasi per baris anggaran (realisasi dari entri posted, tanpa entri penutup). */
   async report(tx: Db, id: string) {
     const budget = await this.get(tx, id);
+    const centers = await tx
+      .select({
+        id: schema.costCenters.id,
+        parentId: schema.costCenters.parentId,
+        code: schema.costCenters.code,
+      })
+      .from(schema.costCenters)
+      .where(eq(schema.costCenters.companyId, budget.companyId));
     const lines = [];
     const totals = {
       income: { budget: new Decimal(0), actual: new Decimal(0) },
@@ -107,7 +116,15 @@ export class BudgetService {
         where m.state = 'posted' and m.closing_year is null and l.company_id = ${budget.companyId}
           and l.account_id = ${line.accountId} and m.date between ${budget.dateFrom} and ${budget.dateTo}
           ${line.businessUnitId ? sql`and l.business_unit_id = ${line.businessUnitId}` : sql``}
-          ${line.branchId ? sql`and l.branch_id = ${line.branchId}` : sql``}`);
+          ${line.branchId ? sql`and l.branch_id = ${line.branchId}` : sql``}
+          ${
+            line.costCenterId
+              ? sql`and l.cost_center_id in (${sql.join(
+                  descendantIds(centers, line.costCenterId).map((c) => sql`${c}`),
+                  sql`, `,
+                )})`
+              : sql``
+          }`);
       const income = INCOME_TYPES.includes(account!.accountType);
       const actual = new Decimal(row?.balance ?? 0).times(income ? -1 : 1);
       const planned = new Decimal(line.amount);
@@ -122,6 +139,7 @@ export class BudgetService {
         kind: income ? "income" : "expense",
         businessUnitId: line.businessUnitId,
         branchId: line.branchId,
+        costCenterId: line.costCenterId,
         budget: planned.toFixed(2),
         actual: actual.toFixed(2),
         variance: actual.minus(planned).toFixed(2),

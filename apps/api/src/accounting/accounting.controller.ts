@@ -104,6 +104,7 @@ export class AccountingController {
           ...(sent("deferredExpenseAccountId")
             ? { deferredExpenseAccountId: input.deferredExpenseAccountId ?? null }
             : {}),
+          ...(input.costCenterRequired !== undefined ? { costCenterRequired: input.costCenterRequired } : {}),
           ...(sent("purchaseApprovalAmount")
             ? { purchaseApprovalAmount: input.purchaseApprovalAmount ?? null }
             : {}),

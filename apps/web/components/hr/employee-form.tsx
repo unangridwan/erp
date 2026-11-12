@@ -87,7 +87,7 @@ const GROUPS: Record<Tab, { title?: [string, string]; fields: string[] }[]> = {
     },
     {
       title: ["Lokasi & jadwal", "Location & schedule"],
-      fields: ["branchId", "businessUnitId", "workLocationId", "scheduleId"],
+      fields: ["branchId", "businessUnitId", "costCenterId", "workLocationId", "scheduleId"],
     },
     { title: ["Pensiun", "Retirement"], fields: ["retirementAge"] },
   ],

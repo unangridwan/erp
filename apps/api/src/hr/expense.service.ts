@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { employeeCostCenters } from "../accounting/cost-center-source.js";
 import { and, asc, desc, eq, gte, inArray, lte, ne, schema, sql, type Db } from "@erp/db";
 import {
   claimLimitCheck,
@@ -246,6 +247,7 @@ export class ExpenseService {
       .where(eq(schema.employees.id, claim.employeeId));
     const debits = await this.accountTotals(tx, [id]);
     const label = `${claim.name} ${employee!.name}`;
+    const costCenter = (await employeeCostCenters(tx, [claim.employeeId])).get(claim.employeeId) ?? null;
     const moveId = await this.moves.createEntry(
       tx,
       {
@@ -260,6 +262,7 @@ export class ExpenseService {
             credit: "0",
             branchId: employee!.branchId,
             businessUnitId: employee!.businessUnitId,
+            costCenterId: costCenter,
           })),
           {
             accountId: journal.defaultAccountId,

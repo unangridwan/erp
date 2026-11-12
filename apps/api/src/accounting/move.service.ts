@@ -7,7 +7,13 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { and, asc, eq, inArray, schema, sql, type Db } from "@erp/db";
-import { computeInvoice, deferralSchedule, type invoiceSchema, type journalEntrySchema } from "@erp/shared";
+import {
+  COST_CENTER_REQUIRED_TYPES,
+  computeInvoice,
+  deferralSchedule,
+  type invoiceSchema,
+  type journalEntrySchema,
+} from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
@@ -28,6 +34,27 @@ import { ReconcileService } from "./reconcile.service.js";
 export type JournalEntryInput = z.infer<typeof journalEntrySchema>;
 export type InvoiceInput = z.infer<typeof invoiceSchema>;
 type MoveType = (typeof schema.MOVE_TYPES)[number];
+/** Pengaturan "cost center wajib": baris akun beban operasional & penyusutan harus punya cost center. */
+async function assertCostCenters(tx: Db, lines: (typeof schema.accountMoveLines.$inferSelect)[]) {
+  const missing = lines.filter((l) => !l.costCenterId);
+  if (!missing.length) return;
+  const accounts = await tx
+    .select({
+      id: schema.accounts.id,
+      code: schema.accounts.code,
+      name: schema.accounts.name,
+      type: schema.accounts.accountType,
+    })
+    .from(schema.accounts)
+    .where(inArray(schema.accounts.id, [...new Set(missing.map((l) => l.accountId))]));
+  const required = accounts.filter((a) => (COST_CENTER_REQUIRED_TYPES as readonly string[]).includes(a.type));
+  if (!required.length) return;
+  const names = required.map((a) => `${a.code} ${a.name}`).join(", ");
+  throw new BadRequestException(
+    `Cost center wajib diisi untuk baris akun beban: ${names}. Isi cost center di baris, atau atur cost center bawaan di akun`,
+  );
+}
+
 type NewLine = Omit<typeof schema.accountMoveLines.$inferInsert, "moveId">;
 export interface PostedMove {
   id: string;
@@ -237,6 +264,7 @@ export class MoveService {
         `Entri tidak seimbang: debit ${debit.toFixed(2)}, kredit ${credit.toFixed(2)}`,
       );
     }
+    if (books.settings.costCenterRequired && !move.closingYear) await assertCostCenters(tx, lines);
     const lock = books.settings.lockDate;
     if (lock && move.date <= lock) {
       throw new BadRequestException(
@@ -353,6 +381,8 @@ export class MoveService {
           currencyCode: books.currencyCode,
           businessUnitId: line.businessUnitId,
           branchId: line.branchId,
+          costCenterId: line.costCenterId,
+          profitCenterId: line.profitCenterId,
           icCompanyId: line.icCompanyId,
         };
         // Akun asal menerima saldo yang sama dengan baris faktur; akun penangguhan dikurangi.
@@ -573,6 +603,8 @@ export class MoveService {
         amountCurrency: debit.minus(credit).toFixed(2),
         businessUnitId: l.businessUnitId ?? null,
         branchId: l.branchId ?? null,
+        costCenterId: l.costCenterId ?? null,
+        profitCenterId: l.profitCenterId ?? null,
         icCompanyId: partner?.icCompanyId ?? null,
       });
     }
@@ -700,6 +732,8 @@ export class MoveService {
           taxIds: l.taxIds,
           businessUnitId: l.businessUnitId ?? null,
           branchId: l.branchId ?? null,
+          costCenterId: l.costCenterId ?? null,
+          profitCenterId: l.profitCenterId ?? null,
           deferralStart: l.deferralStart ?? null,
           deferralEnd: l.deferralEnd ?? null,
         },

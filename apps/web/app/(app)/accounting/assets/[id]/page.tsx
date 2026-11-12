@@ -39,6 +39,7 @@ interface Asset {
   assetAccountId: string;
   depreciationAccountId: string;
   expenseAccountId: string;
+  costCenterId: string | null;
   disposalDate: string | null;
   disposalKind: "sale" | "scrap" | null;
   disposalPrice: string | null;
@@ -68,6 +69,7 @@ export default function AssetPage() {
   const me = useMe();
   const { l, locale } = useI18n();
   const accounts = useOptions<AccountOption>("/accounts");
+  const costCenters = useOptions<{ id: string; code: string; name: string }>("/cost-centers");
   const byCode = (code: string) => accounts.find((a) => a.code === code)?.id ?? "";
   const [asset, setAsset] = useState<Asset | null>(null);
   const [values, setValues] = useState({
@@ -82,6 +84,7 @@ export default function AssetPage() {
     assetAccountId: "",
     depreciationAccountId: "",
     expenseAccountId: "",
+    costCenterId: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -104,6 +107,7 @@ export default function AssetPage() {
           assetAccountId: a.assetAccountId,
           depreciationAccountId: a.depreciationAccountId,
           expenseAccountId: a.expenseAccountId,
+          costCenterId: a.costCenterId ?? "",
         });
       })
       .catch((e: Error) => setError(e.message));
@@ -131,6 +135,7 @@ export default function AssetPage() {
       const body = {
         ...values,
         code: values.code || null,
+        costCenterId: values.costCenterId || null,
         usefulLifeMonths: Number(values.usefulLifeMonths),
       };
       if (isNew) {
@@ -276,6 +281,20 @@ export default function AssetPage() {
             l("Akun akumulasi penyusutan *", "Accumulated depreciation *"),
           )}
           {accountSelect("expenseAccountId", l("Akun beban penyusutan *", "Depreciation expense *"))}
+          {costCenters.length > 0 && (
+            <label className="field">
+              <span>{l("Cost center", "Cost center")}</span>
+              <select value={values.costCenterId} onChange={(e) => set("costCenterId", e.target.value)}>
+                <option value="">—</option>
+                {costCenters.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.code} {c.name}
+                  </option>
+                ))}
+              </select>
+              {fieldErrors.costCenterId && <small className="error">{fieldErrors.costCenterId}</small>}
+            </label>
+          )}
         </fieldset>
         <p className="muted">
           {l(

@@ -15,6 +15,9 @@ import { can } from "../../../../../lib/resources";
 interface BudgetLine {
   accountId: string;
   amount: string;
+  businessUnitId?: string | null;
+  branchId?: string | null;
+  costCenterId?: string | null;
 }
 interface Report {
   lines: {
@@ -22,6 +25,7 @@ interface Report {
     code: string;
     name: string;
     kind: string;
+    costCenterId: string | null;
     budget: string;
     actual: string;
     variance: string;
@@ -44,6 +48,11 @@ export default function BudgetPage() {
   const accounts = useOptions<AccountOption>("/accounts").filter((a) =>
     PROFIT_LOSS_TYPES.includes(a.accountType),
   );
+  const costCenters = useOptions<{ id: string; code: string; name: string }>("/cost-centers");
+  const centerName = (cid: string | null) => {
+    const c = costCenters.find((x) => x.id === cid);
+    return c ? `${c.code} ${c.name}` : "";
+  };
   const [header, setHeader] = useState({ name: "", ...yearRange() });
   const [lines, setLines] = useState<BudgetLine[]>([{ accountId: "", amount: "" }]);
   const [report, setReport] = useState<Report | null>(null);
@@ -65,7 +74,7 @@ export default function BudgetPage() {
       .then((b) => {
         setHeader({ name: b.name, dateFrom: b.dateFrom, dateTo: b.dateTo });
         setSource(b.source);
-        setLines(b.lines.map((x) => ({ accountId: x.accountId, amount: String(Number(x.amount)) })));
+        setLines(b.lines.map((x) => ({ ...x, amount: String(Number(x.amount)) })));
       })
       .catch((e: Error) => setError(e.message));
     api<Report>(`/reports/budget?budgetId=${id}`)
@@ -82,7 +91,13 @@ export default function BudgetPage() {
         ...header,
         lines: lines
           .filter((x) => x.accountId)
-          .map((x) => ({ accountId: x.accountId, amount: x.amount || "0" })),
+          .map((x) => ({
+            accountId: x.accountId,
+            amount: x.amount || "0",
+            businessUnitId: x.businessUnitId ?? null,
+            branchId: x.branchId ?? null,
+            costCenterId: x.costCenterId || null,
+          })),
       };
       if (isNew) {
         const created = await api<{ id: string }>("/budgets", { method: "POST", body });
@@ -153,6 +168,7 @@ export default function BudgetPage() {
             <thead>
               <tr>
                 <th>{l("Akun pendapatan/beban", "Income/expense account")}</th>
+                {costCenters.length > 0 && <th>{l("Cost center", "Cost center")}</th>}
                 <th className="num">{l("Jumlah", "Amount")}</th>
                 <th />
               </tr>
@@ -177,6 +193,26 @@ export default function BudgetPage() {
                       <small className="error">{fieldErrors[`lines.${i}.accountId`]}</small>
                     )}
                   </td>
+                  {costCenters.length > 0 && (
+                    <td>
+                      <select
+                        disabled={!editable}
+                        aria-label={l("Cost center", "Cost center")}
+                        value={x.costCenterId ?? ""}
+                        onChange={(e) => setLine(i, { costCenterId: e.target.value || null })}
+                      >
+                        <option value="">{l("Semua", "All")}</option>
+                        {costCenters.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.code} {c.name}
+                          </option>
+                        ))}
+                      </select>
+                      {fieldErrors[`lines.${i}.costCenterId`] && (
+                        <small className="error">{fieldErrors[`lines.${i}.costCenterId`]}</small>
+                      )}
+                    </td>
+                  )}
                   <td>
                     <input
                       disabled={!editable}
@@ -244,6 +280,7 @@ export default function BudgetPage() {
                   <tr key={x.id}>
                     <td>
                       <span className="muted">{x.code}</span> {x.name}
+                      {x.costCenterId && <span className="muted"> · {centerName(x.costCenterId)}</span>}
                     </td>
                     <td className="num">{m(x.budget)}</td>
                     <td className="num">{m(x.actual)}</td>

@@ -502,6 +502,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   berulang (posting otomatis atau draft per template). Berikutnya: laporan arus kas per perusahaan
 - [x] P1 kontrol keuangan, bagian 3 — laporan arus kas per perusahaan (migrasi 0064): metode tidak langsung,
   kelompok per akun bisa ditimpa, pembanding tahun lalu, filter cabang/unit, ekspor Excel. P1 selesai
+- [x] P1 controlling dasar, bagian 1 — cost center & profit center (migrasi 0065): master berjenjang per perusahaan,
+  dimensi di baris jurnal, isi otomatis (default akun, departemen/karyawan untuk payroll & klaim, aset, kendaraan, PO,
+  SO), opsi wajib cost center untuk akun beban, anggaran per cost center, laporan biaya per cost center vs anggaran
+  dan laba rugi per profit center, filter di laporan keuangan. Berikutnya: alokasi biaya periodik
 
 ## Rekomendasi berikutnya — SDM & Payroll
 
