@@ -197,6 +197,7 @@ export const APPS: App[] = [
         link("Aset Tetap", "Assets", "/accounting/assets", "accounting.read"),
         link("Revaluasi Kurs", "Currency Revaluation", "/accounting/fx-revaluation", "accounting.read"),
         link("Anggaran", "Budgets", "/accounting/budgets", "accounting.read"),
+        link("Alokasi Biaya", "Cost Allocation", "/accounting/allocation", "accounting.read"),
       ]),
       group("Laporan", "Reporting", [
         link("Laporan Keuangan", "Financial Reports", "/accounting/reports", "accounting.read"),

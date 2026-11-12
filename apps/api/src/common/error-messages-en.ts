@@ -1028,6 +1028,31 @@ export const MESSAGES_EN: Record<string, string> = {
   "Nominal tidak valid": "Invalid amount",
   // ---- Penangguhan & jurnal berulang ----
   // ---- Controlling ----
+  "Kunci statistik dipakai siklus alokasi; nonaktifkan saja":
+    "The statistical key is used by an allocation cycle; deactivate it instead",
+  "Kunci statistik tidak ditemukan": "Statistical key not found",
+  "Kunci jumlah karyawan dihitung otomatis dan tidak bisa diisi":
+    "The headcount key is computed automatically and cannot be entered",
+  "Siklus alokasi tidak ditemukan": "Allocation cycle not found",
+  "Cost center tidak ditemukan di perusahaan ini": "Cost center not found in this company",
+  "Kode sudah dipakai": "Code already in use",
+  "Siklus sudah pernah dijalankan; nonaktifkan saja": "The cycle has already been run; deactivate it instead",
+  "Nilai kunci statistik semua penerima nol untuk bulan ini":
+    "The statistical key value of every receiver is zero for this month",
+  "Total persen penerima nol": "The receivers' total percentage is zero",
+  "Tidak ada biaya di cost center sumber pada bulan ini": "No costs in the source cost center this month",
+  "Hasil alokasi tidak ditemukan": "Allocation result not found",
+  "Hasil alokasi ini sudah dibalik": "This allocation result has already been reversed",
+  "Balik dulu alokasi lanjutan yang memakai hasil ini: {}":
+    "First reverse the follow-up allocations that use this result: {0}",
+  "Angka tidak valid (maks. 4 desimal)": "Invalid number (max. 4 decimals)",
+  "Pilih kunci statistik": "Select a statistical key",
+  "Penerima tidak boleh sama dengan sumber": "A receiver cannot be the same as the source",
+  "Penerima ganda": "Duplicate receiver",
+  "Isi persen lebih dari 0": "Enter a percentage above 0",
+  "Total persen harus 100 (sekarang {})": "The total percentage must be 100 (currently {0})",
+  "Minimal satu penerima": "At least one receiver",
+  "Total bobot alokasi harus lebih dari 0": "The total allocation weight must be above 0",
   "Cost center tidak ditemukan atau tidak aktif di perusahaan ini":
     "Cost center not found or inactive in this company",
   "Profit center tidak ditemukan atau tidak aktif di perusahaan ini":

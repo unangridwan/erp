@@ -178,3 +178,125 @@ export function budgetVariance(actual: Decimal.Value, budget: Decimal.Value) {
     percent: b.isZero() ? null : a.div(b).times(100).toDecimalPlaces(1).toNumber(),
   };
 }
+
+// ---- Alokasi biaya ----
+
+export const ALLOCATION_METHODS = ["percent", "key"] as const;
+
+export const statisticalKeySchema = z.object({
+  code,
+  name: z.string().trim().min(1).max(120),
+  unit: z.string().trim().max(20).nullish(),
+  kind: z.enum(["manual", "headcount"]).default("manual"),
+  active: z.boolean().default(true),
+});
+
+const monthStart = z
+  .string()
+  .regex(/^\d{4}-\d{2}$/, "Format bulan YYYY-MM")
+  .transform((v) => `${v}-01`);
+
+export const statisticalKeyValuesSchema = z.object({
+  period: monthStart,
+  values: z
+    .array(
+      z.object({
+        costCenterId: z.string().uuid(),
+        value: z
+          .union([z.number(), z.string().trim()])
+          .transform(String)
+          .refine((v) => /^\d+(\.\d{1,4})?$/.test(v), "Angka tidak valid (maks. 4 desimal)"),
+      }),
+    )
+    .max(500),
+});
+
+export const allocationCycleSchema = z
+  .object({
+    code,
+    name: z.string().trim().min(1).max(120),
+    sequence: z.coerce.number().int().min(1).max(999).default(10),
+    sourceCostCenterId: z.string().uuid(),
+    accountIds: z.array(z.string().uuid()).max(100).default([]),
+    method: z.enum(ALLOCATION_METHODS),
+    keyId: optionalUuid,
+    journalId: optionalUuid,
+    active: z.boolean().default(true),
+    note: z.string().trim().max(300).nullish(),
+    receivers: z
+      .array(
+        z.object({
+          costCenterId: z.string().uuid(),
+          percent: z.union([z.number(), z.string().trim()]).transform(String).nullish(),
+        }),
+      )
+      .min(1, "Minimal satu penerima")
+      .max(100),
+  })
+  .superRefine((v, ctx) => {
+    if (v.method === "key" && !v.keyId)
+      ctx.addIssue({ code: "custom", path: ["keyId"], message: "Pilih kunci statistik" });
+    const seen = new Set<string>();
+    v.receivers.forEach((r, i) => {
+      if (r.costCenterId === v.sourceCostCenterId)
+        ctx.addIssue({
+          code: "custom",
+          path: ["receivers", i, "costCenterId"],
+          message: "Penerima tidak boleh sama dengan sumber",
+        });
+      if (seen.has(r.costCenterId))
+        ctx.addIssue({ code: "custom", path: ["receivers", i, "costCenterId"], message: "Penerima ganda" });
+      seen.add(r.costCenterId);
+      if (v.method === "percent" && !(Number(r.percent) > 0))
+        ctx.addIssue({
+          code: "custom",
+          path: ["receivers", i, "percent"],
+          message: "Isi persen lebih dari 0",
+        });
+    });
+    if (v.method === "percent") {
+      const total = v.receivers.reduce((s, r) => s.plus(r.percent || 0), new Decimal(0));
+      if (!total.equals(100))
+        ctx.addIssue({
+          code: "custom",
+          path: ["receivers"],
+          message: `Total persen harus 100 (sekarang ${total.toString()})`,
+        });
+    }
+  });
+
+export const allocationRunSchema = z.object({
+  period: monthStart,
+  cycleIds: z.array(z.string().uuid()).max(100).optional(),
+});
+
+/**
+ * Bagi `amount` menurut bobot (persen atau nilai kunci). Pembulatan ke `decimals`; sisa pembulatan diberikan ke
+ * bagian dengan pecahan terbesar (largest remainder) sehingga jumlah bagian = amount persis.
+ */
+export function allocateAmount(amount: Decimal.Value, weights: Decimal.Value[], decimals = 2): string[] {
+  const total = weights.reduce<Decimal>((s, w) => s.plus(w), new Decimal(0));
+  const amt = new Decimal(amount);
+  if (total.lte(0)) throw new Error("Total bobot alokasi harus lebih dari 0");
+  const unit = new Decimal(10).pow(-decimals);
+  const raw = weights.map((w) => amt.times(w).div(total));
+  const floored = raw.map((r) => r.toDecimalPlaces(decimals, Decimal.ROUND_DOWN));
+  let rest = amt.minus(floored.reduce((s, v) => s.plus(v), new Decimal(0)));
+  const order = raw
+    .map((r, i) => ({ i, frac: r.minus(floored[i]!).abs() }))
+    .sort((a, b) => b.frac.comparedTo(a.frac) || a.i - b.i);
+  const step = rest.isNegative() ? unit.negated() : unit;
+  for (let k = 0; !rest.isZero() && k < order.length * 2; k++) {
+    const idx = order[k % order.length]!.i;
+    floored[idx] = floored[idx]!.plus(step);
+    rest = rest.minus(step);
+  }
+  return floored.map((v) => v.toFixed(decimals));
+}
+
+/** Akhir bulan dari tanggal 1 (YYYY-MM-01). */
+export function monthEnd(period: string): string {
+  const [y, m] = period.split("-").map(Number) as [number, number];
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return `${period.slice(0, 7)}-${String(last).padStart(2, "0")}`;
+}
