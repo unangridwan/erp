@@ -315,6 +315,14 @@ aktual), biaya konversi (menit × tarif) Dr WIP / Cr **Biaya Konversi Produksi D
 Dr Persediaan / Cr WIP sebesar total biaya sehingga WIP per order kembali nol. Laporan **Biaya Produksi** per produk
 (bahan, konversi, biaya per unit). Hak akses `mrp.read/write/manage` dan peran bawaan "Manajer Produksi".
 
+**MRP sederhana (migrasi 0072).** Manufaktur › **Perencanaan (MRP)** menjalankan perencanaan kebutuhan per gudang
+sampai tanggal batas: kebutuhan = pengiriman pelanggan yang belum selesai + bahan order produksi terbuka + pengisian
+stok minimum (aturan pemesanan ulang, sampai maksimum & kelipatan), dikurangi stok gudang dan pasokan terbuka
+(penerimaan, RFQ/PO, order produksi). Produk diproses per level BOM (produk jadi lalu komponennya), dengan **lead time**
+produksi (di BOM) dan pembelian (Harga Pemasok) untuk tanggal mulai. Hasilnya usulan **order produksi** (produk ber-BOM)
+dan **pembelian** ke pemasok utama; usulan terpilih dikonfirmasi menjadi order produksi draft dan RFQ per pemasok,
+atau diabaikan. MRP yang dijalankan ulang memperhitungkan dokumen yang sudah dibuat sehingga tidak mengusulkan ganda.
+
 ### CRM & Penjualan (Fase 2)
 
 | Endpoint                                                                                      | Keterangan                                                                     |

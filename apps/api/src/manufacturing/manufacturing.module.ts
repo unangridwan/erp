@@ -18,6 +18,12 @@ import {
 import { and, asc, desc, eq, gte, inArray, isNull, lte, or, schema, sql, type Db } from "@erp/db";
 import {
   bomCostEstimate,
+  mrpConfirmSchema,
+  mrpPlan,
+  mrpRunSchema,
+  pickSupplier,
+  type MrpDemand,
+  type MrpItem,
   bomCycle,
   bomSchema,
   explodeBom,
@@ -46,6 +52,8 @@ import { StockService } from "../inventory/stock.service.js";
 import { uomRatio } from "../master/uom.js";
 import { assertNotTemplate } from "../master/variant.service.js";
 import { SequenceService } from "../sequences/sequence.service.js";
+import { PurchaseModule } from "../purchase/purchase.module.js";
+import { PurchaseOrderService } from "../purchase/purchase-order.service.js";
 
 const WC = schema.workCenters;
 const B = schema.boms;
@@ -92,7 +100,7 @@ export class ManufacturingService {
   // ---- BOM ----
 
   /** Semua BOM aktif perusahaan sebagai node (kuantitas komponen dalam satuan produk). */
-  private async bomIndex(tx: Db, companyId: string) {
+  async bomIndex(tx: Db, companyId: string) {
     const boms = await tx
       .select()
       .from(B)
@@ -193,6 +201,7 @@ export class ManufacturingService {
         code: input.code ?? null,
         quantity: d(input.quantity).toFixed(4),
         bomType: input.bomType,
+        leadDays: input.leadDays,
         active: input.active,
         note: input.note ?? null,
       },
@@ -872,11 +881,297 @@ export class ManufacturingService {
   }
 }
 
+const RUN = schema.mrpRuns;
+const PR = schema.mrpProposals;
+const plusDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+
+/** Perencanaan kebutuhan bahan (MRP) per gudang: usulan order produksi & pembelian dari kebutuhan bersih. */
+@Injectable()
+export class MrpService {
+  constructor(
+    @Inject(StockService) private readonly stock: StockService,
+    @Inject(ManufacturingService) private readonly manufacturing: ManufacturingService,
+    @Inject(PurchaseOrderService) private readonly orders: PurchaseOrderService,
+  ) {}
+
+  async run(tx: Db, body: unknown) {
+    const input = parse(mrpRunSchema, body ?? {});
+    const ctx = currentContext();
+    const companyId = ctx.companyId;
+    const warehouse = input.warehouseId
+      ? await this.stock.warehouse(tx, input.warehouseId, companyId)
+      : await this.stock.defaultWarehouse(tx, companyId);
+    const horizon = input.horizonDate ?? plusDays(30);
+    const wh = warehouse.id;
+    const internal = sql`(select l.id from stock_locations l where l.usage = 'internal' and l.warehouse_id = ${wh})`;
+
+    // Permintaan: pengiriman (SO) belum selesai dari gudang ini, dan bahan order produksi terbuka.
+    const shipments = await tx.execute<{ product_id: string; qty: string; date: string; ref: string }>(sql`
+      select m.product_id, m.quantity::text as qty, p.scheduled_date::text as date, coalesce(p.origin, p.name) as ref
+      from stock_moves m join stock_pickings p on p.id = m.picking_id
+      where m.company_id = ${companyId} and m.state in ('draft', 'ready')
+        and m.location_id in ${internal} and m.location_dest_id not in ${internal}
+        and p.picking_type = 'outgoing' and p.scheduled_date <= ${horizon}`);
+    const moComponents = await tx.execute<{ product_id: string; qty: string; date: string; ref: string }>(sql`
+      select c.product_id, c.qty_required::text as qty, o.date_planned::text as date, o.name as ref
+      from production_components c join production_orders o on o.id = c.order_id
+      where o.company_id = ${companyId} and o.warehouse_id = ${wh}
+        and o.state in ('draft', 'confirmed', 'in_progress') and o.date_planned <= ${horizon}`);
+    const demands: MrpDemand[] = [...shipments, ...moComponents].map((r) => ({
+      productId: r.product_id,
+      quantity: r.qty,
+      date: r.date < today() ? today() : r.date,
+      source: r.ref,
+    }));
+
+    // Stok & pasokan per produk di gudang ini.
+    const onHand = await tx.execute<{ product_id: string; qty: string }>(sql`
+      select q.product_id, sum(q.quantity)::text as qty from stock_quants q
+      where q.company_id = ${companyId} and q.location_id in ${internal} group by q.product_id`);
+    const supply = await tx.execute<{ product_id: string; qty: string }>(sql`
+      select product_id, sum(qty)::text as qty from (
+        select m.product_id, m.quantity as qty from stock_moves m
+        where m.company_id = ${companyId} and m.state = 'ready'
+          and m.location_dest_id in ${internal} and m.location_id not in ${internal}
+        union all
+        select pl.product_id, pl.quantity * pl.uom_ratio from purchase_order_lines pl
+        join purchase_orders po on po.id = pl.order_id
+        where po.company_id = ${companyId} and po.warehouse_id = ${wh} and pl.product_id is not null
+          and po.state in ('draft', 'sent', 'to_approve')
+        union all
+        select o.product_id, o.quantity from production_orders o
+        where o.company_id = ${companyId} and o.warehouse_id = ${wh} and o.state in ('draft', 'confirmed', 'in_progress')
+      ) s group by product_id`);
+    const rules = await tx
+      .select()
+      .from(schema.stockReorderRules)
+      .where(
+        and(
+          eq(schema.stockReorderRules.companyId, companyId),
+          eq(schema.stockReorderRules.warehouseId, wh),
+          eq(schema.stockReorderRules.active, true),
+        ),
+      );
+    const index = await this.manufacturing.bomIndex(tx, companyId);
+    const bomLead = new Map(
+      (
+        await tx
+          .select({ id: schema.boms.id, leadDays: schema.boms.leadDays })
+          .from(schema.boms)
+          .where(eq(schema.boms.companyId, companyId))
+      ).map((b) => [b.id, b.leadDays]),
+    );
+    const productIds = new Set<string>([
+      ...demands.map((x) => x.productId),
+      ...rules.map((r) => r.productId),
+      ...index.nodes.flatMap((n) => [n.productId, ...n.lines.map((l) => l.productId)]),
+    ]);
+    const products = productIds.size
+      ? await tx
+          .select()
+          .from(P)
+          .where(and(inArray(P.id, [...productIds]), or(isNull(P.companyId), eq(P.companyId, companyId))))
+      : [];
+    const suppliers = productIds.size
+      ? await tx
+          .select()
+          .from(schema.productSuppliers)
+          .where(
+            and(
+              inArray(schema.productSuppliers.productId, [...productIds]),
+              or(isNull(schema.productSuppliers.companyId), eq(schema.productSuppliers.companyId, companyId)),
+            ),
+          )
+      : [];
+    const items = new Map<string, MrpItem>();
+    for (const p of products) {
+      if (p.productType === "service") continue;
+      const supplier = pickSupplier(
+        suppliers.filter((s) => s.productId === p.id),
+        "1",
+      );
+      const rule = rules.find((r) => r.productId === p.id);
+      const bom = index.first.get(p.id);
+      items.set(p.id, {
+        productId: p.id,
+        onHand: onHand.find((r) => r.product_id === p.id)?.qty ?? "0",
+        supply: supply.find((r) => r.product_id === p.id)?.qty ?? "0",
+        rule: rule ? { minQty: rule.minQty, maxQty: rule.maxQty, qtyMultiple: rule.qtyMultiple } : null,
+        supplierId: supplier?.partnerId ?? null,
+        purchaseLeadDays: supplier?.delayDays ?? 0,
+        produceLeadDays: bom ? (bomLead.get(bom.id) ?? 0) : 0,
+      });
+    }
+    let plan;
+    try {
+      plan = mrpPlan({
+        items,
+        demands: demands.filter((x) => items.has(x.productId)),
+        boms: index.first,
+        today: today(),
+      }).filter((x) => items.has(x.productId));
+    } catch (e) {
+      throw new BadRequestException(e instanceof Error ? e.message : String(e));
+    }
+    const [run] = await tx
+      .insert(RUN)
+      .values({
+        companyId,
+        warehouseId: wh,
+        horizonDate: horizon,
+        proposals: plan.length,
+        createdBy: ctx.userId,
+      })
+      .returning({ id: RUN.id });
+    // Sumber "bahan <id produk induk>" ditampilkan dengan SKU induk.
+    const skuOf = new Map(products.map((p) => [p.id, p.sku]));
+    const label = (reason: string) =>
+      reason.replace(/bahan ([0-9a-f-]{36})/g, (_, id: string) => `bahan ${skuOf.get(id) ?? id}`);
+    if (plan.length)
+      await tx.insert(PR).values(plan.map((x) => ({ ...x, reason: label(x.reason), runId: run!.id })));
+    return this.detail(tx, run!.id);
+  }
+
+  private async find(tx: Db, id: string) {
+    const [run] = await tx
+      .select()
+      .from(RUN)
+      .where(and(eq(RUN.id, id), eq(RUN.companyId, currentContext().companyId)));
+    if (!run) throw new NotFoundException("Hasil MRP tidak ditemukan");
+    return run;
+  }
+
+  async list(tx: Db) {
+    return tx
+      .select({
+        id: RUN.id,
+        createdAt: RUN.createdAt,
+        horizonDate: RUN.horizonDate,
+        proposals: RUN.proposals,
+        warehouseName: schema.warehouses.name,
+        done: sql<number>`(select count(*)::int from mrp_proposals p where p.run_id = ${RUN.id} and p.state = 'done')`,
+      })
+      .from(RUN)
+      .innerJoin(schema.warehouses, eq(schema.warehouses.id, RUN.warehouseId))
+      .where(eq(RUN.companyId, currentContext().companyId))
+      .orderBy(desc(RUN.createdAt))
+      .limit(100);
+  }
+
+  async detail(tx: Db, id: string) {
+    const run = await this.find(tx, id);
+    const proposals = await tx
+      .select({
+        p: PR,
+        sku: P.sku,
+        productName: P.name,
+        supplierName: schema.partners.name,
+        moName: schema.productionOrders.name,
+        poName: schema.purchaseOrders.name,
+      })
+      .from(PR)
+      .innerJoin(P, eq(P.id, PR.productId))
+      .leftJoin(schema.partners, eq(schema.partners.id, PR.supplierId))
+      .leftJoin(schema.productionOrders, eq(schema.productionOrders.id, PR.productionOrderId))
+      .leftJoin(schema.purchaseOrders, eq(schema.purchaseOrders.id, PR.purchaseOrderId))
+      .where(eq(PR.runId, id))
+      .orderBy(asc(PR.level), asc(PR.dateStart), asc(P.sku));
+    const [wh] = await tx
+      .select({ name: schema.warehouses.name })
+      .from(schema.warehouses)
+      .where(eq(schema.warehouses.id, run.warehouseId));
+    return {
+      ...run,
+      warehouseName: wh?.name ?? null,
+      proposals: proposals.map((r) => ({
+        ...r.p,
+        sku: r.sku,
+        productName: r.productName,
+        supplierName: r.supplierName,
+        productionOrderName: r.moName,
+        purchaseOrderName: r.poName,
+      })),
+    };
+  }
+
+  /** Konfirmasi usulan: order produksi draft per usulan produksi, RFQ per pemasok untuk usulan pembelian. */
+  async confirm(tx: Db, id: string, body: unknown) {
+    const run = await this.find(tx, id);
+    const input = parse(mrpConfirmSchema, body);
+    const rows = await tx
+      .select({ p: PR, uomId: P.uomId })
+      .from(PR)
+      .innerJoin(P, eq(P.id, PR.productId))
+      .where(and(eq(PR.runId, id), inArray(PR.id, input.proposalIds), eq(PR.state, "proposed")));
+    const skipped: { id: string; reason: string }[] = [];
+    const created = { productionOrders: [] as string[], purchaseOrders: [] as string[] };
+    for (const r of rows.filter((x) => x.p.kind === "manufacture")) {
+      const mo = await this.manufacturing.createOrder(tx, {
+        productId: r.p.productId,
+        bomId: r.p.bomId,
+        quantity: d(r.p.quantity).toFixed(4),
+        warehouseId: run.warehouseId,
+        datePlanned: r.p.dateStart,
+        origin: `MRP ${run.createdAt.toISOString().slice(0, 10)}`,
+      });
+      created.productionOrders.push(mo.id);
+      await tx.update(PR).set({ state: "done", productionOrderId: mo.id }).where(eq(PR.id, r.p.id));
+    }
+    const groups = new Map<string, typeof rows>();
+    for (const r of rows.filter((x) => x.p.kind === "purchase")) {
+      if (!r.p.supplierId) {
+        skipped.push({ id: r.p.id, reason: "Produk belum punya pemasok (Harga Pemasok)" });
+        continue;
+      }
+      groups.set(r.p.supplierId, [...(groups.get(r.p.supplierId) ?? []), r]);
+    }
+    for (const [supplierId, list] of groups) {
+      const dates = list.map((x) => x.p.dateNeeded).sort();
+      const po = await this.orders.create(tx, {
+        partnerId: supplierId,
+        dateOrder: today(),
+        datePlanned: dates[0]!,
+        warehouseId: run.warehouseId,
+        note: "Dibuat dari usulan MRP",
+        lines: list.map((x) => ({
+          productId: x.p.productId,
+          quantity: d(x.p.quantity).toFixed(4),
+          discount: "0",
+          uomId: x.uomId,
+          datePlanned: x.p.dateNeeded,
+        })),
+      });
+      created.purchaseOrders.push(po.id);
+      await tx
+        .update(PR)
+        .set({ state: "done", purchaseOrderId: po.id })
+        .where(
+          inArray(
+            PR.id,
+            list.map((x) => x.p.id),
+          ),
+        );
+    }
+    return { ...created, skipped, run: await this.detail(tx, id) };
+  }
+
+  async ignore(tx: Db, id: string, body: unknown) {
+    await this.find(tx, id);
+    const input = parse(mrpConfirmSchema, body);
+    await tx
+      .update(PR)
+      .set({ state: "ignored" })
+      .where(and(eq(PR.runId, id), inArray(PR.id, input.proposalIds), eq(PR.state, "proposed")));
+    return this.detail(tx, id);
+  }
+}
+
 @Controller()
 export class ManufacturingController {
   constructor(
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(ManufacturingService) private readonly service: ManufacturingService,
+    @Inject(MrpService) private readonly mrp: MrpService,
   ) {}
 
   @Get("boms")
@@ -980,6 +1275,38 @@ export class ManufacturingController {
     return this.tenantDb.run((tx) => this.service.cancel(tx, id));
   }
 
+  @Get("mrp/runs")
+  @RequirePermission("mrp.read")
+  mrpRuns() {
+    return this.tenantDb.run((tx) => this.mrp.list(tx));
+  }
+
+  @Post("mrp/runs")
+  @RequirePermission("mrp.write")
+  mrpRun(@Body() body: unknown) {
+    return this.tenantDb.run((tx) => this.mrp.run(tx, body));
+  }
+
+  @Get("mrp/runs/:id")
+  @RequirePermission("mrp.read")
+  mrpRunDetail(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.mrp.detail(tx, id));
+  }
+
+  @Post("mrp/runs/:id/confirm")
+  @HttpCode(200)
+  @RequirePermission("mrp.write")
+  mrpConfirm(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    return this.tenantDb.run((tx) => this.mrp.confirm(tx, id, body));
+  }
+
+  @Post("mrp/runs/:id/ignore")
+  @HttpCode(200)
+  @RequirePermission("mrp.write")
+  mrpIgnore(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    return this.tenantDb.run((tx) => this.mrp.ignore(tx, id, body));
+  }
+
   @Get("manufacturing/reports/costs")
   @RequirePermission("mrp.read")
   costReport(@Query("from") from?: string, @Query("to") to?: string) {
@@ -998,8 +1325,8 @@ export class ManufacturingController {
 }
 
 @Module({
-  imports: [AccountingModule, InventoryModule],
+  imports: [AccountingModule, InventoryModule, PurchaseModule],
   controllers: [WorkCentersController, ManufacturingController],
-  providers: [ManufacturingService, SequenceService, ActivityService],
+  providers: [ManufacturingService, MrpService, SequenceService, ActivityService],
 })
 export class ManufacturingModule {}

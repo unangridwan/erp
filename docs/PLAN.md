@@ -524,6 +524,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] P3 manufaktur ringan, bagian 1 — BOM, stasiun kerja, order produksi (migrasi 0071): BOM multi-level dengan kit
   phantom & operasi, order produksi dengan konsumsi bahan aktual + biaya konversi (menit × tarif) lewat akun WIP,
   lot/serial hasil, laporan biaya produksi. Berikutnya: MRP sederhana (usulan MO & PO dari kebutuhan)
+- [x] P3 manufaktur ringan, bagian 2 — MRP sederhana (migrasi 0072): kebutuhan bersih per level BOM dari pengiriman,
+  bahan order produksi & stok minimum, lead time produksi/pembelian, usulan order produksi & RFQ per pemasok yang
+  dikonfirmasi/diabaikan. Paket P3 selesai
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

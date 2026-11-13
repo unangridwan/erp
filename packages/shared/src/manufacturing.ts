@@ -36,6 +36,8 @@ export const bomSchema = z
     code: z.string().trim().max(60).nullish(),
     quantity: num(4, true).default("1"),
     bomType: z.enum(["normal", "phantom"]).default("normal"),
+    /** Lead time produksi dalam hari (dipakai MRP untuk tanggal mulai). */
+    leadDays: z.coerce.number().int().min(0).max(365).default(0),
     active: z.boolean().default(true),
     note: z.string().max(2000).nullish(),
     lines: z
