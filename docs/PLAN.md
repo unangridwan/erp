@@ -518,6 +518,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] P2 pembelian & gudang lanjutan, bagian 2 — kontrak pembelian / blanket order (migrasi 0069): harga tetap,
   komitmen kuantitas per produk + plafon nilai, persetujuan kontrak, PO dari kontrak & harga kontrak otomatis,
   realisasi, PO melebihi sisa/plafon/masa kontrak wajib disetujui. Berikutnya: stock opname + barcode + lacak serial
+- [x] P2 pembelian & gudang lanjutan, bagian 3 — stock opname + barcode + lacak serial (migrasi 0070): sesi hitung
+  (penuh/cycle count per kategori) dengan snapshot, hitung manual/scan/impor Excel, persetujuan selisih, posting
+  penyesuaian; scan barcode di transfer; label Code 128; riwayat lot/serial. Paket P2 selesai
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

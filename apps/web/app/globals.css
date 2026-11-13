@@ -3452,3 +3452,11 @@ dialog.palette {
 .contract-usage .meter {
   min-width: 90px;
 }
+.scan-box {
+  max-width: 420px;
+  margin: 8px 0 12px;
+}
+.scan-box input {
+  font-family: var(--mono, ui-monospace, monospace);
+  width: min(320px, 100%);
+}

@@ -1156,4 +1156,30 @@ export const MESSAGES_EN: Record<string, string> = {
   "Produk berbeda dengan baris kontrak": "The product differs from the contract line",
   "Produk ganda dalam kontrak": "Duplicate product in the contract",
   "Pilih minimal satu baris": "Select at least one line",
+  // ---- Stock opname & barcode ----
+  "Baris dari stok sistem tidak bisa dihapus; isi hitungan 0 bila barang tidak ada":
+    "Lines from system stock cannot be removed; count 0 if the item is missing",
+  "Baris hitung tidak ditemukan": "Count line not found",
+  "Hanya sesi draft atau batal yang bisa dihapus": "Only draft or cancelled sessions can be deleted",
+  "Hanya sesi yang disetujui yang bisa dihitung ulang": "Only approved sessions can be recounted",
+  "Kategori produk tidak ditemukan": "Product category not found",
+  "Lokasi bukan milik gudang ini": "The location does not belong to this warehouse",
+  "Lokasi di luar cakupan sesi opname": "The location is outside the count session's scope",
+  "Pilih produk atau lot untuk dicetak labelnya": "Select products or lots to print labels for",
+  "Produk ini ber-lot/serial: scan nomor lot/serialnya":
+    "This product is lot/serial tracked: scan its lot/serial number",
+  "Produk ini bukan produk stok": "This product is not a stockable product",
+  "Selisih opname belum disetujui": "The count variance has not been approved",
+  "Sesi stock opname tidak ditemukan": "Stock count session not found",
+  "Sesi sudah dimulai": "The session has already started",
+  "Sesi tidak sedang dalam tahap hitung": "The session is not in the counting stage",
+  "Sesi yang sudah diposting atau dibatalkan tidak bisa dibatalkan":
+    "Posted or cancelled sessions cannot be cancelled",
+  'Barcode "{}" tidak dikenali': 'Barcode "{0}" not recognized',
+  "Masih ada {} baris yang belum dihitung; isi atau anggap nol":
+    "{0} lines are still uncounted; fill them in or treat them as zero",
+  "Kuantitas tidak valid (maks. 4 desimal, tidak negatif)":
+    "Invalid quantity (max. 4 decimals, not negative)",
+  "Teks barcode hanya boleh karakter ASCII cetak (maks. 80)":
+    "Barcode text may only contain printable ASCII characters (max. 80)",
 };

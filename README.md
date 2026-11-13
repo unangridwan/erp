@@ -291,6 +291,19 @@ yang punya tepat satu kontrak aktif otomatis memakai harga kontrak (atau pilih k
 minimal pesan, atau di luar masa kontrak** ditandai peringatan dan konfirmasinya **wajib disetujui**. Kontrak aktif yang
 lewat tanggal berakhir tampil "Berakhir"; kontrak bisa ditutup kapan saja.
 
+**Stock opname, barcode & lacak serial (migrasi 0070).** Persediaan › **Stock Opname** membuat sesi hitung fisik per
+gudang/lokasi (opname penuh) atau per kategori produk (cycle count). _Mulai hitung_ mengambil snapshot stok sistem per
+lokasi & lot; hasil hitung diisi langsung di tabel, lewat **scan barcode** (barcode produk, SKU, atau nomor lot/serial;
+pemindai biasa/keyboard wedge), atau **impor Excel/CSV** dari lembar hitung yang diunduh. Barang temuan (produk/serial
+yang tidak ada di sistem) bisa ditambahkan. _Ajukan selisih_ mengirim selisih ke mesin persetujuan (kategori "Selisih
+Stock Opname", nominal = nilai selisih absolut); tanpa selisih langsung siap diposting. _Posting penyesuaian_ menyetel
+stok tiap baris ke hasil hitung lewat penyesuaian persediaan (jurnal selisih otomatis). Menu lama berganti nama
+**Penyesuaian Stok** untuk koreksi cepat. Transfer (penerimaan/pengiriman/internal) punya kotak **scan barcode**: scan
+produk menambah kuantitas dikerjakan, scan serial/lot menambah baris lot (penerimaan: kode baru = nomor serial baru).
+**Label Barcode** mencetak label Code 128 (A4, 3 × 8) untuk produk dan lot/serial. Halaman detail **Lot / Serial**
+menampilkan riwayat lengkap nomor itu: penerimaan dari pemasok, perpindahan, opname, pengiriman ke pelanggan, dan posisi
+stok sekarang.
+
 ### CRM & Penjualan (Fase 2)
 
 | Endpoint                                                                                      | Keterangan                                                                     |

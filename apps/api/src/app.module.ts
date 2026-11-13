@@ -3,6 +3,7 @@ import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { AccountingModule } from "./accounting/accounting.module.js";
 import { PaymentRunModule } from "./accounting/payment-run.module.js";
 import { LandedCostModule } from "./inventory/landed-cost.module.js";
+import { StockCountModule } from "./inventory/stock-count.module.js";
 import { ActivityController, ActivityService } from "./activity/activity.service.js";
 import { AuthController } from "./auth/auth.controller.js";
 import { AuthGuard } from "./auth/auth.guard.js";
@@ -78,6 +79,7 @@ import { WebhookService } from "./oauth/webhook.service.js";
     AccountingModule,
     PaymentRunModule,
     LandedCostModule,
+    StockCountModule,
     CrmModule,
     SalesModule,
     InventoryModule,

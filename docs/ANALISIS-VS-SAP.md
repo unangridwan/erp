@@ -19,7 +19,7 @@ bervolume transaksi sangat besar.
 | Konsolidasi grup                    |         ±85%          | Kuat: eliminasi IC, goodwill, NCI, CTA, segmen                    |
 | Penjualan (SD) & CRM                |         ±60%          | Alur lengkap; pricing & kontrak sederhana                         |
 | Pembelian (MM)                      |         ±70%          | RFQ–PO–3-way match, landed cost, kontrak pembelian                |
-| Persediaan & gudang (IM/EWM)        |         ±50%          | Multi gudang, lot/serial; bin & barcode belum                     |
+| Persediaan & gudang (IM/EWM)        |         ±60%          | Multi gudang, lot/serial + lacak, opname, barcode; bin belum      |
 | Manufaktur, QM, Maintenance, Proyek |          ±5%          | Belum ada (kecuali armada)                                        |
 | SDM & Payroll (HCM/SuccessFactors)  |         ±85%          | Sangat lengkap untuk aturan Indonesia                             |
 | Pajak Indonesia                     |   **lebih unggul**    | SAP perlu add-on partner lokal                                    |
@@ -117,15 +117,15 @@ bervolume transaksi sangat besar.
 
 ### 2.6 Persediaan & gudang (SAP IM / EWM)
 
-| Fitur SAP                                  | Status | Di ERP ini                                       |
-| ------------------------------------------ | :----: | ------------------------------------------------ |
-| Multi gudang & lokasi, transfer internal   |   ✅   | Gudang, Lokasi, Transfer                         |
-| Valuasi FIFO / rata-rata, kartu stok       |   ✅   | Valuasi, Kartu stok                              |
-| Lot & nomor serial, varian produk, satuan  |   ✅   | Lot/serial, konversi satuan, varian              |
-| Penyesuaian / stock opname                 |   🟡   | Penyesuaian stok; tanpa jadwal cycle count       |
-| Bin, putaway, picking wave, packing        |   ❌   | —                                                |
-| Barcode / pemindai (RF)                    |   🟡   | Kolom barcode untuk pencarian; belum mode pindai |
-| Kedaluwarsa (FEFO), karantina, QM inspeksi |   ❌   | —                                                |
+| Fitur SAP                                  | Status | Di ERP ini                                   |
+| ------------------------------------------ | :----: | -------------------------------------------- |
+| Multi gudang & lokasi, transfer internal   |   ✅   | Gudang, Lokasi, Transfer                     |
+| Valuasi FIFO / rata-rata, kartu stok       |   ✅   | Valuasi, Kartu stok                          |
+| Lot & nomor serial, varian produk, satuan  |   ✅   | Lot/serial, konversi satuan, varian          |
+| Penyesuaian / stock opname                 |   ✅   | Sesi opname/cycle count, persetujuan selisih |
+| Bin, putaway, picking wave, packing        |   ❌   | —                                            |
+| Barcode / pemindai (RF)                    |   ✅   | Scan di transfer & opname, label Code 128    |
+| Kedaluwarsa (FEFO), karantina, QM inspeksi |   ❌   | —                                            |
 
 ### 2.7 Manufaktur, mutu, maintenance, proyek, transportasi
 
@@ -185,15 +185,15 @@ Di SAP, kebutuhan ini dipenuhi oleh add-on partner lokal (biaya tambahan).
 
 Urutan berdasarkan dampak untuk target pasar (grup usaha menengah Indonesia).
 
-| Prioritas | Paket                            | Isi                                                                                     | Memakai ulang                         |
-| :-------: | -------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------- |
-|    P1     | Kontrol keuangan (✅ selesai)    | Batas kredit (peringatan), dunning, akrual/deferral, jurnal berulang, laporan arus kas  | Faktur, pembayaran, scheduler laporan |
-|    P1     | Controlling dasar (✅ selesai)   | Cost center & profit center (hierarki), alokasi biaya periodik, laporan per pusat biaya | Dimensi unit bisnis/cabang, anggaran  |
-|    P2     | Payment run & bank (✅ selesai)  | Usulan bayar pemasok jatuh tempo, file transfer bank, persetujuan                       | File bank payroll, aturan persetujuan |
-|    P2     | Pembelian & gudang lanjutan (🟡) | Landed cost ✅, kontrak pembelian ✅, evaluasi pemasok, barcode, cycle count, FEFO      | Picking, lot/serial, penyesuaian      |
-|    P3     | Manufaktur ringan                | BOM, work order, konsumsi bahan & hasil produksi, MRP sederhana, HPP produksi           | Persediaan, valuasi, reorder          |
-|    P4     | Platform                         | Custom field, dashboard BI, pembuat laporan untuk semua modul, workflow designer        | Pembuat laporan, mesin persetujuan    |
-|    P5     | Maintenance & mutu               | Maintenance aset umum (bukan hanya armada), inspeksi mutu saat terima/produksi          | Modul armada, aset tetap              |
+| Prioritas | Paket                            | Isi                                                                                      | Memakai ulang                         |
+| :-------: | -------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------- |
+|    P1     | Kontrol keuangan (✅ selesai)    | Batas kredit (peringatan), dunning, akrual/deferral, jurnal berulang, laporan arus kas   | Faktur, pembayaran, scheduler laporan |
+|    P1     | Controlling dasar (✅ selesai)   | Cost center & profit center (hierarki), alokasi biaya periodik, laporan per pusat biaya  | Dimensi unit bisnis/cabang, anggaran  |
+|    P2     | Payment run & bank (✅ selesai)  | Usulan bayar pemasok jatuh tempo, file transfer bank, persetujuan                        | File bank payroll, aturan persetujuan |
+|    P2     | Pembelian & gudang lanjutan (✅) | Landed cost ✅, kontrak pembelian ✅, barcode ✅, cycle count ✅; evaluasi pemasok, FEFO | Picking, lot/serial, penyesuaian      |
+|    P3     | Manufaktur ringan                | BOM, work order, konsumsi bahan & hasil produksi, MRP sederhana, HPP produksi            | Persediaan, valuasi, reorder          |
+|    P4     | Platform                         | Custom field, dashboard BI, pembuat laporan untuk semua modul, workflow designer         | Pembuat laporan, mesin persetujuan    |
+|    P5     | Maintenance & mutu               | Maintenance aset umum (bukan hanya armada), inspeksi mutu saat terima/produksi           | Modul armada, aset tetap              |
 
 ## 4. Kesimpulan
 
