@@ -199,6 +199,9 @@ export const products = pgTable("products", {
   salePrice: numeric("sale_price", { precision: 18, scale: 2 }).notNull().default("0"),
   cost: numeric("cost", { precision: 18, scale: 2 }).notNull().default("0"),
   barcode: text("barcode"),
+  /** Berat (kg) & volume (m³) per satuan produk — dasar pembagian landed cost. */
+  weight: numeric("weight", { precision: 14, scale: 4 }),
+  volume: numeric("volume", { precision: 14, scale: 6 }),
   tracking: text("tracking", { enum: ["none", "lot", "serial"] })
     .notNull()
     .default("none"),

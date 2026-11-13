@@ -1,4 +1,14 @@
-import { boolean, date, numeric, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  date,
+  numeric,
+  pgTable,
+  primaryKey,
+  smallint,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { audit, tenantId } from "./core.js";
 
 // FK di database berbentuk komposit (tenant_id, id); di sini cukup dideklarasikan kolomnya.
@@ -152,4 +162,57 @@ export const stockReorderRules = pgTable("stock_reorder_rules", {
   qtyMultiple: numeric("qty_multiple", { precision: 18, scale: 4 }).notNull().default("1"),
   active: boolean("active").notNull().default(true),
   ...audit,
+});
+
+/** Landed cost: biaya tambahan penerimaan (angkut, bea masuk, asuransi) yang menambah nilai persediaan. */
+export const landedCosts = pgTable("landed_costs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  date: date("date").notNull(),
+  state: text("state", { enum: ["draft", "posted", "cancel"] })
+    .notNull()
+    .default("draft"),
+  vendorBillId: uuid("vendor_bill_id"),
+  moveId: uuid("move_id"),
+  reversalMoveId: uuid("reversal_move_id"),
+  note: text("note"),
+  createdBy: uuid("created_by"),
+  postedAt: timestamp("posted_at", { withTimezone: true }),
+  ...audit,
+});
+
+export const landedCostPickings = pgTable("landed_cost_pickings", {
+  tenantId: tenantId(),
+  landedCostId: uuid("landed_cost_id").notNull(),
+  pickingId: uuid("picking_id").notNull(),
+});
+
+export const LANDED_COST_SPLIT = ["value", "quantity", "weight", "volume", "equal"] as const;
+
+export const landedCostLines = pgTable("landed_cost_lines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  landedCostId: uuid("landed_cost_id").notNull(),
+  sequence: smallint("sequence").notNull().default(0),
+  name: text("name").notNull(),
+  accountId: uuid("account_id").notNull(),
+  amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
+  splitMethod: text("split_method", { enum: LANDED_COST_SPLIT }).notNull().default("value"),
+});
+
+export const landedCostAdjustments = pgTable("landed_cost_adjustments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  landedCostId: uuid("landed_cost_id").notNull(),
+  lineId: uuid("line_id").notNull(),
+  stockMoveId: uuid("stock_move_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  layerId: uuid("layer_id"),
+  basis: numeric("basis", { precision: 24, scale: 6 }).notNull(),
+  addition: numeric("addition", { precision: 20, scale: 2 }).notNull(),
+  stockPortion: numeric("stock_portion", { precision: 20, scale: 2 }).notNull(),
+  soldPortion: numeric("sold_portion", { precision: 20, scale: 2 }).notNull(),
+  remainingQtyAtPost: numeric("remaining_qty_at_post", { precision: 18, scale: 4 }).notNull().default("0"),
 });

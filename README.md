@@ -274,6 +274,14 @@ Rekening bank pemasok dikelola di panel **Rekening bank** pada form kontak (bebe
 | `GET /payment-runs/:id/bank-file?format=bca\|mandiri\|bri\|bni\|csv` | File transfer massal (`&info=1` ringkasan)       |
 | `POST /payment-runs/:id/fail` `{partnerId}`                          | Transfer gagal: balik pembayaran pemasok itu     |
 
+**Landed cost (migrasi 0068).** Persediaan › **Landed Cost** menambahkan biaya angkut, bea masuk, asuransi, dan biaya
+lain ke nilai barang dari satu atau beberapa penerimaan yang sudah selesai. Tiap baris biaya punya akun lawan (mis.
+biaya angkut di tagihan jasa, atau biaya masih harus dibayar) dan metode pembagian: **nilai barang, kuantitas, berat,
+volume, atau rata per baris** (berat & volume diisi di produk). Pratinjau menampilkan tambahan per barang, porsi ke
+persediaan, porsi ke HPP (barang yang sudah keluar), dan biaya per unit baru. Posting menaikkan nilai lapisan valuasi
+(FIFO) dan biaya rata-rata, lalu membuat jurnal Dr Persediaan + Dr HPP / Cr akun lawan. Landed cost bisa dibuat dari
+tagihan jasa (`POST /landed-costs/from-bill/:billId`) dan dibatalkan selama barangnya belum keluar lagi.
+
 ### CRM & Penjualan (Fase 2)
 
 | Endpoint                                                                                      | Keterangan                                                                     |

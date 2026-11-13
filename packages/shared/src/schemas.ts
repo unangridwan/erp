@@ -210,6 +210,17 @@ export const productSchema = z.object({
   salePrice: money.default("0"),
   cost: money.default("0"),
   barcode: optionalText,
+  /** Berat (kg) & volume (m³) per satuan — dasar pembagian landed cost. */
+  weight: z
+    .union([z.number(), z.string().trim()])
+    .transform((v) => (v === "" ? null : String(v)))
+    .refine((v) => v === null || /^\d+(\.\d{1,4})?$/.test(v), "Angka tidak valid (maks. 4 desimal)")
+    .nullish(),
+  volume: z
+    .union([z.number(), z.string().trim()])
+    .transform((v) => (v === "" ? null : String(v)))
+    .refine((v) => v === null || /^\d+(\.\d{1,6})?$/.test(v), "Angka tidak valid (maks. 6 desimal)")
+    .nullish(),
   tracking: z.enum(["none", "lot", "serial"]).default("none"),
   costMethod: z.enum(["average", "fifo"]).default("average"),
   taxGoodsCode: z

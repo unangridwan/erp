@@ -18,7 +18,7 @@ bervolume transaksi sangat besar.
 | Controlling (CO)                    |         ±60%          | Cost/profit center, laporan, alokasi biaya; product costing belum |
 | Konsolidasi grup                    |         ±85%          | Kuat: eliminasi IC, goodwill, NCI, CTA, segmen                    |
 | Penjualan (SD) & CRM                |         ±60%          | Alur lengkap; pricing & kontrak sederhana                         |
-| Pembelian (MM)                      |         ±60%          | RFQ–PO–3-way match; kontrak & landed cost belum                   |
+| Pembelian (MM)                      |         ±65%          | RFQ–PO–3-way match, landed cost; kontrak pembelian belum          |
 | Persediaan & gudang (IM/EWM)        |         ±50%          | Multi gudang, lot/serial; bin & barcode belum                     |
 | Manufaktur, QM, Maintenance, Proyek |          ±5%          | Belum ada (kecuali armada)                                        |
 | SDM & Payroll (HCM/SuccessFactors)  |         ±85%          | Sangat lengkap untuk aturan Indonesia                             |
@@ -103,17 +103,17 @@ bervolume transaksi sangat besar.
 
 ### 2.5 Pembelian (SAP MM)
 
-| Fitur SAP                                  | Status | Di ERP ini                                      |
-| ------------------------------------------ | :----: | ----------------------------------------------- |
-| RFQ → PO → penerimaan → tagihan            |   ✅   | Pembelian                                       |
-| Pencocokan 3 arah, selisih harga beli      |   ✅   | Pembelian › Pencocokan                          |
-| Persetujuan PO bertingkat & batas wewenang |   ✅   | Pengaturan › Aturan persetujuan                 |
-| Pemasok per produk, reorder otomatis       |   ✅   | Pemasok produk, aturan reorder, pengadaan ulang |
-| Dropship                                   |   ✅   |                                                 |
-| Kontrak kerangka / blanket PO, quota       |   ❌   | —                                               |
-| Evaluasi pemasok                           |   ❌   | —                                               |
-| Landed cost (bea, ongkir ke HPP)           |   ❌   | —                                               |
-| Purchase requisition dari departemen       |   🟡   | Lewat permintaan persetujuan generik            |
+| Fitur SAP                                  | Status | Di ERP ini                                                              |
+| ------------------------------------------ | :----: | ----------------------------------------------------------------------- |
+| RFQ → PO → penerimaan → tagihan            |   ✅   | Pembelian                                                               |
+| Pencocokan 3 arah, selisih harga beli      |   ✅   | Pembelian › Pencocokan                                                  |
+| Persetujuan PO bertingkat & batas wewenang |   ✅   | Pengaturan › Aturan persetujuan                                         |
+| Pemasok per produk, reorder otomatis       |   ✅   | Pemasok produk, aturan reorder, pengadaan ulang                         |
+| Dropship                                   |   ✅   |                                                                         |
+| Kontrak kerangka / blanket PO, quota       |   ❌   | —                                                                       |
+| Evaluasi pemasok                           |   ❌   | —                                                                       |
+| Landed cost (bea, ongkir ke HPP)           |   ✅   | Persediaan › Landed Cost (5 metode pembagian, HPP untuk barang terjual) |
+| Purchase requisition dari departemen       |   🟡   | Lewat permintaan persetujuan generik                                    |
 
 ### 2.6 Persediaan & gudang (SAP IM / EWM)
 
@@ -185,15 +185,15 @@ Di SAP, kebutuhan ini dipenuhi oleh add-on partner lokal (biaya tambahan).
 
 Urutan berdasarkan dampak untuk target pasar (grup usaha menengah Indonesia).
 
-| Prioritas | Paket                           | Isi                                                                                     | Memakai ulang                         |
-| :-------: | ------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------- |
-|    P1     | Kontrol keuangan (✅ selesai)   | Batas kredit (peringatan), dunning, akrual/deferral, jurnal berulang, laporan arus kas  | Faktur, pembayaran, scheduler laporan |
-|    P1     | Controlling dasar (✅ selesai)  | Cost center & profit center (hierarki), alokasi biaya periodik, laporan per pusat biaya | Dimensi unit bisnis/cabang, anggaran  |
-|    P2     | Payment run & bank (✅ selesai) | Usulan bayar pemasok jatuh tempo, file transfer bank, persetujuan                       | File bank payroll, aturan persetujuan |
-|    P2     | Pembelian & gudang lanjutan     | Landed cost, kontrak pembelian, evaluasi pemasok, barcode, cycle count, FEFO            | Picking, lot/serial, penyesuaian      |
-|    P3     | Manufaktur ringan               | BOM, work order, konsumsi bahan & hasil produksi, MRP sederhana, HPP produksi           | Persediaan, valuasi, reorder          |
-|    P4     | Platform                        | Custom field, dashboard BI, pembuat laporan untuk semua modul, workflow designer        | Pembuat laporan, mesin persetujuan    |
-|    P5     | Maintenance & mutu              | Maintenance aset umum (bukan hanya armada), inspeksi mutu saat terima/produksi          | Modul armada, aset tetap              |
+| Prioritas | Paket                            | Isi                                                                                     | Memakai ulang                         |
+| :-------: | -------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------- |
+|    P1     | Kontrol keuangan (✅ selesai)    | Batas kredit (peringatan), dunning, akrual/deferral, jurnal berulang, laporan arus kas  | Faktur, pembayaran, scheduler laporan |
+|    P1     | Controlling dasar (✅ selesai)   | Cost center & profit center (hierarki), alokasi biaya periodik, laporan per pusat biaya | Dimensi unit bisnis/cabang, anggaran  |
+|    P2     | Payment run & bank (✅ selesai)  | Usulan bayar pemasok jatuh tempo, file transfer bank, persetujuan                       | File bank payroll, aturan persetujuan |
+|    P2     | Pembelian & gudang lanjutan (🟡) | Landed cost ✅, kontrak pembelian, evaluasi pemasok, barcode, cycle count, FEFO         | Picking, lot/serial, penyesuaian      |
+|    P3     | Manufaktur ringan                | BOM, work order, konsumsi bahan & hasil produksi, MRP sederhana, HPP produksi           | Persediaan, valuasi, reorder          |
+|    P4     | Platform                         | Custom field, dashboard BI, pembuat laporan untuk semua modul, workflow designer        | Pembuat laporan, mesin persetujuan    |
+|    P5     | Maintenance & mutu               | Maintenance aset umum (bukan hanya armada), inspeksi mutu saat terima/produksi          | Modul armada, aset tetap              |
 
 ## 4. Kesimpulan
 

@@ -154,6 +154,7 @@ export const APPS: App[] = [
       group("Laporan", "Reporting", [
         link("Kartu Stok", "Stock Moves", "/inventory/card", "inventory.read"),
         link("Valuasi Persediaan", "Valuation", "/inventory/valuation", "inventory.read"),
+        link("Landed Cost", "Landed Costs", "/inventory/landed-costs", "inventory.read"),
       ]),
       group("Konfigurasi", "Configuration", [
         link("Gudang", "Warehouses", "/warehouses", "inventory.read"),

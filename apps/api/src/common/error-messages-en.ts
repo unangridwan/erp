@@ -1027,6 +1027,25 @@ export const MESSAGES_EN: Record<string, string> = {
   "Surat teguran tidak ditemukan": "Dunning letter not found",
   "Nominal tidak valid": "Invalid amount",
   // ---- Penangguhan & jurnal berulang ----
+  // ---- Landed cost ----
+  "Lapisan valuasi penerimaan tidak ditemukan": "Receipt valuation layer not found",
+  "Landed cost tidak ditemukan": "Landed cost not found",
+  "Penerimaan tidak ditemukan atau belum selesai": "Receipt not found or not done yet",
+  "Tagihan pemasok tidak ditemukan": "Vendor bill not found",
+  "Hanya landed cost draft yang bisa diubah": "Only draft landed costs can be changed",
+  "Landed cost terposting tidak bisa dihapus; batalkan dulu":
+    "A posted landed cost cannot be deleted; cancel it first",
+  "Penerimaan terpilih tidak memuat barang stok yang tervaluasi":
+    "The selected receipts contain no valued stock products",
+  "Landed cost sudah diposting atau dibatalkan": "The landed cost is already posted or cancelled",
+  "Landed cost sudah dibatalkan": "The landed cost is already cancelled",
+  "Barang yang menanggung landed cost ini sudah keluar sejak diposting; buat koreksi dengan landed cost baru":
+    "Goods carrying this landed cost have left stock since posting; correct it with a new landed cost",
+  "Tagihan pemasok terposting tidak ditemukan": "Posted vendor bill not found",
+  "Pilih minimal satu penerimaan": "Select at least one receipt",
+  "Minimal satu baris biaya": "At least one cost line",
+  'Dasar pembagian "{}" nol untuk barang ini': 'The "{0}" split basis is zero for these products',
+  "Angka tidak valid (maks. 6 desimal)": "Invalid number (max. 6 decimals)",
   // ---- Payment run ----
   "Kontak tidak ditemukan": "Contact not found",
   "Rekening tidak ditemukan": "Bank account not found",
