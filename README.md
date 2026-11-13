@@ -333,6 +333,19 @@ diubah di dokumen yang sudah dikonfirmasi/diposting (`PATCH /custom-values/:mode
 lewat form/impor/API yang mengirim `custom`; dokumen buatan sistem memakai nilai bawaan. Menghapus field ikut menghapus
 nilainya; untuk menyembunyikan saja, nonaktifkan.
 
+**Laporan & Dashboard (migrasi 0074).** Aplikasi baru **Laporan & Dashboard** (`/bi`):
+
+- **Pembuat Laporan** (dipindah dari SDM/Payroll ke `/bi/reports`) kini mencakup semua modul: pesanan & baris
+  penjualan, lead CRM, faktur/tagihan (umur piutang/utang), item jurnal (laba rugi per akun, cost/profit center),
+  pesanan & baris pembelian, stok per lokasi (nilai, di bawah minimum), pergerakan stok, order produksi, riwayat biaya
+  gaji, plus dataset SDM/Payroll yang sudah ada. Setiap dataset punya kolom **bulan** untuk tren dan ikut memuat
+  **field kustom**; hak baca mengikuti permission modul. Simpan, ekspor, dan jadwal email berlaku untuk semua dataset.
+- **Dashboard bawaan**: Penjualan & CRM, Keuangan, Persediaan & Pembelian, SDM & Produksi — KPI dengan perbandingan
+  periode sebelumnya, grafik, dan tabel; widget yang datanya tidak boleh dilihat pengguna disembunyikan.
+- **Dashboard kustom**: tambah widget dari laporan tersimpan atau atur cepat (data → kelompok → hitung → tampilan),
+  atur lebar & urutan, pilih periode (bulan ini … 12 bulan terakhir, rentang kustom), bagikan ke perusahaan, duplikat
+  dashboard bawaan, dan **sematkan ke Beranda** (angka KPI tampil di Beranda).
+
 ### CRM & Penjualan (Fase 2)
 
 | Endpoint                                                                                      | Keterangan                                                                     |

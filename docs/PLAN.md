@@ -530,6 +530,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] P4 platform, bagian 1 — field kustom (migrasi 0073): definisi per model (master + dokumen utama) dengan 11 tipe,
   wajib/bawaan/bagian/per perusahaan, tampil di form & kolom daftar, ekspor/impor CSV/Excel, PDF pesanan, ubah nilai
   di dokumen terkunci. Berikutnya: pembuat laporan semua modul + dashboard BI, lalu aturan otomatis (workflow)
+- [x] P4 platform, bagian 2 — laporan & dashboard (migrasi 0074): dataset laporan semua modul (penjualan, CRM,
+  faktur, jurnal, pembelian, stok, produksi, biaya gaji; kolom bulan & field kustom), aplikasi Laporan & Dashboard,
+  4 dashboard bawaan, dashboard kustom (KPI + pembanding periode, grafik, tabel, berbagi, duplikat, sematan Beranda).
+  Berikutnya: aturan otomatis (workflow)
 
 ## Rekomendasi berikutnya — SDM & Payroll
 
