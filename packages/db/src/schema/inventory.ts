@@ -216,3 +216,40 @@ export const landedCostAdjustments = pgTable("landed_cost_adjustments", {
   soldPortion: numeric("sold_portion", { precision: 20, scale: 2 }).notNull(),
   remainingQtyAtPost: numeric("remaining_qty_at_post", { precision: 18, scale: 4 }).notNull().default("0"),
 });
+
+export const STOCK_COUNT_STATES = ["draft", "counting", "in_approval", "approved", "done", "cancel"] as const;
+
+/** Sesi stock opname: snapshot stok sistem, hitung fisik, persetujuan selisih, posting penyesuaian. */
+export const stockCounts = pgTable("stock_counts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  warehouseId: uuid("warehouse_id").notNull(),
+  locationId: uuid("location_id").notNull(),
+  categoryId: uuid("category_id"),
+  date: date("date").notNull(),
+  state: text("state", { enum: STOCK_COUNT_STATES }).notNull().default("draft"),
+  approvalRequestId: uuid("approval_request_id"),
+  note: text("note"),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  postedAt: timestamp("posted_at", { withTimezone: true }),
+  createdBy: uuid("created_by"),
+  ...audit,
+});
+
+export const stockCountLines = pgTable("stock_count_lines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  countId: uuid("count_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  locationId: uuid("location_id").notNull(),
+  lotId: uuid("lot_id"),
+  lotName: text("lot_name"),
+  systemQty: numeric("system_qty", { precision: 18, scale: 4 }).notNull().default("0"),
+  countedQty: numeric("counted_qty", { precision: 18, scale: 4 }),
+  unitCost: numeric("unit_cost", { precision: 20, scale: 4 }).notNull().default("0"),
+  note: text("note"),
+  countedBy: uuid("counted_by"),
+  countedAt: timestamp("counted_at", { withTimezone: true }),
+});

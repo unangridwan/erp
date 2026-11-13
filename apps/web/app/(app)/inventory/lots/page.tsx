@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { DataTable, type DataColumn } from "../../../../components/data-table";
 import { formatDate, money, today } from "../../../../lib/format";
@@ -65,6 +66,9 @@ export default function LotsPage() {
     <>
       <header className="toolbar">
         <h1>{l("Lot / Serial", "Lots / Serial Numbers")}</h1>
+        <Link className="button" href="/inventory/labels">
+          {l("Cetak label barcode", "Print barcode labels")}
+        </Link>
       </header>
       {list.error && <p className="error">{list.error}</p>}
       {!list.loading || list.rows.length ? (
@@ -73,6 +77,7 @@ export default function LotsPage() {
           columns={columns}
           storageKey="lots"
           rowKey={(r) => r.id}
+          rowHref={(r) => `/inventory/lots/${r.id}`}
           searchPlaceholder={l("Cari nomor, produk…", "Search number, product…")}
           empty={l("Belum ada lot.", "No lots yet.")}
           tools={

@@ -145,12 +145,14 @@ export const APPS: App[] = [
         link("Pengiriman", "Deliveries", "/inventory/deliveries", "inventory.read"),
         link("Transfer Internal", "Internal Transfers", "/inventory/internal", "inventory.read"),
         link("Dropship", "Dropship", "/inventory/dropship", "inventory.read"),
-        link("Stock Opname", "Physical Inventory", "/inventory/adjustments", "inventory.manage"),
+        link("Stock Opname", "Physical Inventory", "/inventory/counts", "inventory.read"),
+        link("Penyesuaian Stok", "Stock Adjustments", "/inventory/adjustments", "inventory.manage"),
         link("Pengadaan Ulang", "Replenishment", "/inventory/replenishment", "inventory.read"),
       ]),
       group("Produk", "Products", [
         PRODUCTS,
         link("Lot / Serial", "Lots / Serial Numbers", "/inventory/lots", "inventory.read"),
+        link("Label Barcode", "Barcode Labels", "/inventory/labels", "inventory.read"),
       ]),
       group("Laporan", "Reporting", [
         link("Kartu Stok", "Stock Moves", "/inventory/card", "inventory.read"),

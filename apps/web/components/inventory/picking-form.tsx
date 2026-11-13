@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
+import { ScanBox } from "./scan-box";
 import { api, ApiError } from "../../lib/api";
 import { formatDate, money, today } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
@@ -100,6 +101,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
   const [busy, setBusy] = useState(false);
   const [work, setWork] = useState<Record<string, Work>>({});
   const [backorder, setBackorder] = useState(true);
+  const [scanMode, setScanMode] = useState(false);
   /** Dokumen yang dibuat otomatis saat validasi (mis. draft nota kredit dari retur yang sudah ditagih). */
   const [documents, setDocuments] = useState<{ id: string; moveType: "out_refund" | "in_refund" }[]>([]);
   const [returnQty, setReturnQty] = useState<Record<string, string> | null>(null);
@@ -294,6 +296,67 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
   const title = picking?.name ?? `${tx(PICKING_TYPE_LABEL[type]!)} ${l("baru", "new")}`;
   const setWorkFor = (moveId: string, patch: Partial<Work>) =>
     setWork((w) => ({ ...w, [moveId]: { ...w[moveId]!, ...patch } }));
+  /** Scan barcode di transfer: produk menambah kuantitas dikerjakan; lot/serial menambah baris lot. */
+  const scan = async (code: string): Promise<string> => {
+    if (!picking) return "";
+    const moves = picking.moves.filter((m) => m.state !== "cancel");
+    let hit: {
+      product: { id: string; sku: string; name: string; tracking: string };
+      lot: { id: string; name: string } | null;
+    } | null = null;
+    try {
+      hit = await api(`/barcode/lookup?code=${encodeURIComponent(code)}`);
+    } catch {
+      hit = null;
+    }
+    // Penerimaan: kode tak dikenal = nomor lot/serial baru untuk produk ber-lot yang masih kurang.
+    if (!hit || (hit.lot && type === "incoming")) {
+      if (type !== "incoming")
+        throw new Error(l(`Barcode "${code}" tidak dikenali`, `Barcode "${code}" not recognized`));
+      const target = moves.find((m) => {
+        if (m.tracking === "none" || (hit && m.productId !== hit.product.id)) return false;
+        const w = work[m.id]!;
+        return (
+          w.lots.filter((x) => x.lotName).length < Math.round(Number(m.quantity)) || m.tracking === "lot"
+        );
+      });
+      if (!target) throw new Error(l(`Barcode "${code}" tidak dikenali`, `Barcode "${code}" not recognized`));
+      const w = work[target.id]!;
+      const filled = w.lots.filter((x) => x.lotName || x.lotId);
+      const same = filled.find((x) => x.lotName === code);
+      if (same && target.tracking === "serial")
+        throw new Error(l(`Serial ${code} sudah discan`, `Serial ${code} already scanned`));
+      const lots = same
+        ? filled.map((x) => (x === same ? { ...x, quantity: String(Number(x.quantity) + 1) } : x))
+        : [...filled, { ...emptyLot(), lotName: code }];
+      const total = lots.reduce((sum, x) => sum + Number(x.quantity || 0), 0);
+      setWorkFor(target.id, { lots, quantityDone: String(total) });
+      return `${target.sku} ${target.productName}: ${code} (${total})`;
+    }
+    const move = moves.find((m) => m.productId === hit!.product.id);
+    if (!move)
+      throw new Error(
+        l(`${hit.product.name} tidak ada di transfer ini`, `${hit.product.name} is not in this transfer`),
+      );
+    const w = work[move.id]!;
+    if (move.tracking !== "none") {
+      if (!hit.lot)
+        throw new Error(l("Scan nomor lot/serial produk ini", "Scan this product's lot/serial number"));
+      const filled = w.lots.filter((x) => x.lotName || x.lotId);
+      const same = filled.find((x) => x.lotId === hit!.lot!.id);
+      if (same && move.tracking === "serial")
+        throw new Error(l(`Serial ${hit.lot.name} sudah discan`, `Serial ${hit.lot.name} already scanned`));
+      const lots = same
+        ? filled.map((x) => (x === same ? { ...x, quantity: String(Number(x.quantity) + 1) } : x))
+        : [...filled, { ...emptyLot(), lotId: hit.lot.id, lotName: hit.lot.name }];
+      const total = lots.reduce((sum, x) => sum + Number(x.quantity || 0), 0);
+      setWorkFor(move.id, { lots, quantityDone: String(total) });
+      return `${move.sku} ${move.productName}: ${hit.lot.name} (${total})`;
+    }
+    const next = Number(w.quantityDone || 0) + 1;
+    setWorkFor(move.id, { quantityDone: String(next) });
+    return `${move.sku} ${move.productName}: ${next} / ${num(move.quantity)}`;
+  };
   const setLot = (moveId: string, i: number, patch: Partial<LotRow>) =>
     setWorkFor(moveId, { lots: work[moveId]!.lots.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
   const orderHref = picking?.saleOrderId
@@ -637,139 +700,165 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
             </div>
           ) : (
             picking && (
-              <div className="table-wrap">
-                <table className="lines">
-                  <thead>
-                    <tr>
-                      <th>{l("Produk", "Product")}</th>
-                      <th className="num">{l("Diminta", "Demand")}</th>
-                      {picking.state === "ready" && picking.availability && (
-                        <th className="num">{l("Dicadangkan", "Reserved")}</th>
-                      )}
-                      <th className="num">{l("Dikerjakan", "Done")}</th>
-                      <th>{l("Lot / serial", "Lot / serial")}</th>
-                      {picking.state === "done" && <th className="num">{l("Biaya/unit", "Unit cost")}</th>}
-                      {picking.state === "done" && <th className="num">{l("Nilai", "Value")}</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {picking.moves.map((m, i) => {
-                      const w = work[m.id];
-                      const active = workable && m.state !== "cancel" && w;
-                      return (
-                        <tr key={m.id} className={m.state === "cancel" ? "muted" : ""}>
-                          <td>
-                            {m.sku} {m.productName}
-                            {Number(m.returnedQty) > 0 && (
-                              <small className="muted">
-                                {" "}
-                                · {l("diretur", "returned")} {num(m.returnedQty)}
-                              </small>
+              <>
+                {workable && (
+                  <div className="toolbar">
+                    <ScanBox onScan={scan} />
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={scanMode}
+                        onChange={(e) => {
+                          setScanMode(e.target.checked);
+                          if (e.target.checked)
+                            setWork((w) =>
+                              Object.fromEntries(
+                                Object.keys(w).map((k) => [k, { quantityDone: "0", lots: [] }]),
+                              ),
+                            );
+                        }}
+                      />{" "}
+                      {l("Mulai dari nol (hitung lewat scan)", "Start from zero (count by scanning)")}
+                    </label>
+                  </div>
+                )}
+                <div className="table-wrap">
+                  <table className="lines">
+                    <thead>
+                      <tr>
+                        <th>{l("Produk", "Product")}</th>
+                        <th className="num">{l("Diminta", "Demand")}</th>
+                        {picking.state === "ready" && picking.availability && (
+                          <th className="num">{l("Dicadangkan", "Reserved")}</th>
+                        )}
+                        <th className="num">{l("Dikerjakan", "Done")}</th>
+                        <th>{l("Lot / serial", "Lot / serial")}</th>
+                        {picking.state === "done" && <th className="num">{l("Biaya/unit", "Unit cost")}</th>}
+                        {picking.state === "done" && <th className="num">{l("Nilai", "Value")}</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {picking.moves.map((m, i) => {
+                        const w = work[m.id];
+                        const active = workable && m.state !== "cancel" && w;
+                        return (
+                          <tr key={m.id} className={m.state === "cancel" ? "muted" : ""}>
+                            <td>
+                              {m.sku} {m.productName}
+                              {Number(m.returnedQty) > 0 && (
+                                <small className="muted">
+                                  {" "}
+                                  · {l("diretur", "returned")} {num(m.returnedQty)}
+                                </small>
+                              )}
+                            </td>
+                            <td className="num">
+                              {num(m.quantity)} {m.uomName}
+                            </td>
+                            {picking.state === "ready" && picking.availability && (
+                              <td className="num">{num(m.quantityReserved)}</td>
                             )}
-                          </td>
-                          <td className="num">
-                            {num(m.quantity)} {m.uomName}
-                          </td>
-                          {picking.state === "ready" && picking.availability && (
-                            <td className="num">{num(m.quantityReserved)}</td>
-                          )}
-                          <td className="num">
-                            {active ? (
-                              <input
-                                className="num short"
-                                inputMode="decimal"
-                                value={w.quantityDone}
-                                onChange={(e) => setWorkFor(m.id, { quantityDone: e.target.value })}
-                              />
-                            ) : (
-                              num(m.quantityDone)
-                            )}
-                            {err(`moves.${i}.quantityDone`)}
-                          </td>
-                          <td>
-                            {active && m.tracking !== "none" ? (
-                              <div className="stack">
-                                {w.lots.map((x, j) => (
-                                  <span key={j}>
-                                    {type === "incoming" ? (
-                                      <input
-                                        placeholder={
-                                          m.tracking === "serial"
-                                            ? l("No. serial", "Serial no.")
-                                            : l("No. lot", "Lot no.")
+                            <td className="num">
+                              {active ? (
+                                <input
+                                  className="num short"
+                                  inputMode="decimal"
+                                  value={w.quantityDone}
+                                  onChange={(e) => setWorkFor(m.id, { quantityDone: e.target.value })}
+                                />
+                              ) : (
+                                num(m.quantityDone)
+                              )}
+                              {err(`moves.${i}.quantityDone`)}
+                            </td>
+                            <td>
+                              {active && m.tracking !== "none" ? (
+                                <div className="stack">
+                                  {w.lots.map((x, j) => (
+                                    <span key={j}>
+                                      {type === "incoming" ? (
+                                        <input
+                                          placeholder={
+                                            m.tracking === "serial"
+                                              ? l("No. serial", "Serial no.")
+                                              : l("No. lot", "Lot no.")
+                                          }
+                                          value={x.lotName}
+                                          onChange={(e) => setLot(m.id, j, { lotName: e.target.value })}
+                                        />
+                                      ) : (
+                                        <select
+                                          value={x.lotId}
+                                          onChange={(e) => setLot(m.id, j, { lotId: e.target.value })}
+                                        >
+                                          <option value="">—</option>
+                                          {(lotOptions[m.productId] ?? []).map((o) => (
+                                            <option key={o.id} value={o.id}>
+                                              {o.name} ({num(o.onHand)})
+                                            </option>
+                                          ))}
+                                        </select>
+                                      )}
+                                      {m.tracking === "lot" && (
+                                        <input
+                                          className="num short"
+                                          inputMode="decimal"
+                                          value={x.quantity}
+                                          onChange={(e) => setLot(m.id, j, { quantity: e.target.value })}
+                                        />
+                                      )}
+                                      {type === "incoming" && (
+                                        <input
+                                          type="date"
+                                          title={l("Kedaluwarsa", "Expiration")}
+                                          value={x.expirationDate}
+                                          onChange={(e) =>
+                                            setLot(m.id, j, { expirationDate: e.target.value })
+                                          }
+                                        />
+                                      )}
+                                      <button
+                                        type="button"
+                                        className="link"
+                                        onClick={() =>
+                                          setWorkFor(m.id, { lots: w.lots.filter((_, k) => k !== j) })
                                         }
-                                        value={x.lotName}
-                                        onChange={(e) => setLot(m.id, j, { lotName: e.target.value })}
-                                      />
-                                    ) : (
-                                      <select
-                                        value={x.lotId}
-                                        onChange={(e) => setLot(m.id, j, { lotId: e.target.value })}
                                       >
-                                        <option value="">—</option>
-                                        {(lotOptions[m.productId] ?? []).map((o) => (
-                                          <option key={o.id} value={o.id}>
-                                            {o.name} ({num(o.onHand)})
-                                          </option>
-                                        ))}
-                                      </select>
-                                    )}
-                                    {m.tracking === "lot" && (
-                                      <input
-                                        className="num short"
-                                        inputMode="decimal"
-                                        value={x.quantity}
-                                        onChange={(e) => setLot(m.id, j, { quantity: e.target.value })}
-                                      />
-                                    )}
-                                    {type === "incoming" && (
-                                      <input
-                                        type="date"
-                                        title={l("Kedaluwarsa", "Expiration")}
-                                        value={x.expirationDate}
-                                        onChange={(e) => setLot(m.id, j, { expirationDate: e.target.value })}
-                                      />
-                                    )}
-                                    <button
-                                      type="button"
-                                      className="link"
-                                      onClick={() =>
-                                        setWorkFor(m.id, { lots: w.lots.filter((_, k) => k !== j) })
-                                      }
-                                    >
-                                      ✕
-                                    </button>
-                                  </span>
-                                ))}
-                                <button
-                                  type="button"
-                                  className="link"
-                                  onClick={() => setWorkFor(m.id, { lots: [...w.lots, emptyLot()] })}
-                                >
-                                  + {m.tracking === "serial" ? l("serial", "serial") : l("lot", "lot")}
-                                </button>
-                                {err(`moves.${i}.lots`)}
-                              </div>
-                            ) : (
-                              m.lots
-                                .map(
-                                  (x) => `${x.lotName}${m.tracking === "lot" ? ` (${num(x.quantity)})` : ""}`,
-                                )
-                                .join(", ")
+                                        ✕
+                                      </button>
+                                    </span>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    className="link"
+                                    onClick={() => setWorkFor(m.id, { lots: [...w.lots, emptyLot()] })}
+                                  >
+                                    + {m.tracking === "serial" ? l("serial", "serial") : l("lot", "lot")}
+                                  </button>
+                                  {err(`moves.${i}.lots`)}
+                                </div>
+                              ) : (
+                                m.lots
+                                  .map(
+                                    (x) =>
+                                      `${x.lotName}${m.tracking === "lot" ? ` (${num(x.quantity)})` : ""}`,
+                                  )
+                                  .join(", ")
+                              )}
+                            </td>
+                            {picking.state === "done" && (
+                              <td className="num">{m.unitCost ? money(m.unitCost, locale, 4) : "—"}</td>
                             )}
-                          </td>
-                          {picking.state === "done" && (
-                            <td className="num">{m.unitCost ? money(m.unitCost, locale, 4) : "—"}</td>
-                          )}
-                          {picking.state === "done" && (
-                            <td className="num">{m.value ? money(m.value, locale) : "—"}</td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                            {picking.state === "done" && (
+                              <td className="num">{m.value ? money(m.value, locale) : "—"}</td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )
           )}
           {workable && (
