@@ -374,6 +374,7 @@ export const APPS: App[] = [
     menu: [
       group("Operasi", "Operations", [
         link("Order Produksi", "Production Orders", "/manufacturing/orders", "mrp.read"),
+        link("Perencanaan (MRP)", "Planning (MRP)", "/manufacturing/mrp", "mrp.read"),
       ]),
       group("Produk", "Products", [
         link("Bill of Materials", "Bills of Materials", "/manufacturing/boms", "mrp.read"),

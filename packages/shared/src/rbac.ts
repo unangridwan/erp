@@ -368,6 +368,13 @@ export const PERMISSION_CATALOG: readonly ModuleDef[] = [
     features: [
       f("orders", "Order produksi", "Production orders", ["/production-orders"], ["/manufacturing/orders"]),
       f("boms", "Bill of materials", "Bills of materials", ["/boms"], ["/manufacturing/boms"]),
+      f(
+        "mrp",
+        "Perencanaan kebutuhan (MRP)",
+        "Material requirements planning (MRP)",
+        ["/mrp"],
+        ["/manufacturing/mrp"],
+      ),
       f("workcenters", "Stasiun kerja", "Work centers", ["/work-centers"], ["/manufacturing/work-centers"]),
       f(
         "reports",

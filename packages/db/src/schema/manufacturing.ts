@@ -23,6 +23,8 @@ export const boms = pgTable("boms", {
   code: text("code"),
   quantity: numeric("quantity", { precision: 18, scale: 4 }).notNull().default("1"),
   bomType: text("bom_type", { enum: BOM_TYPES }).notNull().default("normal"),
+  /** Lead time produksi (hari) untuk MRP. */
+  leadDays: integer("lead_days").notNull().default(0),
   active: boolean("active").notNull().default(true),
   note: text("note"),
   ...audit,
@@ -106,4 +108,38 @@ export const productionOperations = pgTable("production_operations", {
   startedAt: timestamp("started_at", { withTimezone: true }),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
   cost: numeric("cost", { precision: 20, scale: 2 }).notNull().default("0"),
+});
+
+export const mrpRuns = pgTable("mrp_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  warehouseId: uuid("warehouse_id").notNull(),
+  horizonDate: date("horizon_date").notNull(),
+  proposals: integer("proposals").notNull().default(0),
+  createdBy: uuid("created_by"),
+  createdAt: audit.createdAt,
+});
+
+export const MRP_PROPOSAL_KINDS = ["manufacture", "purchase"] as const;
+export const MRP_PROPOSAL_STATES = ["proposed", "done", "ignored"] as const;
+
+export const mrpProposals = pgTable("mrp_proposals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  runId: uuid("run_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  kind: text("kind", { enum: MRP_PROPOSAL_KINDS }).notNull(),
+  level: integer("level").notNull().default(0),
+  demand: numeric("demand", { precision: 18, scale: 4 }).notNull().default("0"),
+  available: numeric("available", { precision: 18, scale: 4 }).notNull().default("0"),
+  quantity: numeric("quantity", { precision: 18, scale: 4 }).notNull(),
+  dateNeeded: date("date_needed").notNull(),
+  dateStart: date("date_start").notNull(),
+  bomId: uuid("bom_id"),
+  supplierId: uuid("supplier_id"),
+  reason: text("reason"),
+  state: text("state", { enum: MRP_PROPOSAL_STATES }).notNull().default("proposed"),
+  productionOrderId: uuid("production_order_id"),
+  purchaseOrderId: uuid("purchase_order_id"),
 });

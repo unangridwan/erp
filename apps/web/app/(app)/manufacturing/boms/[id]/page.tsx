@@ -47,6 +47,7 @@ interface Bom {
   code: string | null;
   quantity: string;
   bomType: "normal" | "phantom";
+  leadDays: number;
   active: boolean;
   note: string | null;
   lines: { productId: string; quantity: string; uomId: string | null }[];
@@ -71,6 +72,7 @@ function BomForm() {
     code: "",
     quantity: "1",
     bomType: "normal" as "normal" | "phantom",
+    leadDays: "0",
     active: true,
     note: "",
     lines: [{ productId: "", quantity: "1", uomId: "" }] as Line[],
@@ -87,6 +89,7 @@ function BomForm() {
       code: b.code ?? "",
       quantity: n(b.quantity),
       bomType: b.bomType,
+      leadDays: String(b.leadDays ?? 0),
       active: b.active,
       note: b.note ?? "",
       lines: b.lines.map((x) => ({ productId: x.productId, quantity: n(x.quantity), uomId: x.uomId ?? "" })),
@@ -112,6 +115,7 @@ function BomForm() {
       const body = {
         ...form,
         code: form.code || null,
+        leadDays: Number(form.leadDays) || 0,
         note: form.note || null,
         lines: form.lines.filter((x) => x.productId).map((x) => ({ ...x, uomId: x.uomId || null })),
         operations: form.operations.filter((o) => o.name && o.workCenterId),
@@ -207,6 +211,15 @@ function BomForm() {
                 </option>
               ))}
             </select>
+          </label>
+          <label className="field">
+            <span>{l("Lead time produksi (hari)", "Manufacturing lead time (days)")}</span>
+            <input
+              inputMode="numeric"
+              value={form.leadDays}
+              onChange={(e) => setForm({ ...form, leadDays: e.target.value })}
+            />
+            {err("leadDays")}
           </label>
           <label className="field">
             <span>{l("Kode / versi", "Code / version")}</span>

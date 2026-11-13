@@ -1222,4 +1222,7 @@ export const MESSAGES_EN: Record<string, string> = {
   "Stok bahan tidak cukup: {}": "Not enough component stock: {0}",
   "Nomor serial {} sudah ada di stok": "Serial number {0} is already in stock",
   "Harus lebih dari 0": "Must be greater than 0",
+  // ---- MRP ----
+  "Hasil MRP tidak ditemukan": "MRP run not found",
+  "Pilih minimal satu usulan": "Select at least one proposal",
 };
