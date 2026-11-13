@@ -493,6 +493,7 @@ export const APPS: App[] = [
       link("SSO", "Single Sign-On", "/settings/sso", "settings.manage"),
       link("Aplikasi Terhubung", "Connected Apps", "/settings/connected-apps", "integration.manage"),
       link("Field Kustom", "Custom Fields", "/settings/custom-fields", "customization.manage"),
+      link("Aturan Otomatis", "Automation Rules", "/settings/automation", "customization.manage"),
     ],
   },
   {

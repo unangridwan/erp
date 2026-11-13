@@ -533,7 +533,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] P4 platform, bagian 2 — laporan & dashboard (migrasi 0074): dataset laporan semua modul (penjualan, CRM,
   faktur, jurnal, pembelian, stok, produksi, biaya gaji; kolom bulan & field kustom), aplikasi Laporan & Dashboard,
   4 dashboard bawaan, dashboard kustom (KPI + pembanding periode, grafik, tabel, berbagi, duplikat, sematan Beranda).
-  Berikutnya: aturan otomatis (workflow)
+- [x] P4 platform, bagian 3 — aturan otomatis (migrasi 0075): pemicu data dibuat/diubah (hanya saat berubah),
+  berdasarkan tanggal (± hari, sekali per data), terjadwal; syarat per kolom termasuk field kustom; aksi notifikasi,
+  email, ubah field, aktivitas, permintaan persetujuan, webhook ber-HMAC; outbox trigger DB + job 30 detik, hak pemilik
+  aturan, savepoint per aksi, batas rantai 3 tingkat, uji coba & log eksekusi. Paket P4 selesai
 
 ## Rekomendasi berikutnya — SDM & Payroll
 
