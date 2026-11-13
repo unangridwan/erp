@@ -11,6 +11,8 @@ interface Settings {
   purchaseApprovalAmount: string | null;
   deferredRevenueAccountId: string | null;
   deferredExpenseAccountId: string | null;
+  wipAccountId: string | null;
+  productionAbsorptionAccountId: string | null;
   costCenterRequired: boolean;
 }
 
@@ -22,6 +24,8 @@ export default function AccountingSettingsPage() {
   const [deferredRevenue, setDeferredRevenue] = useState("");
   const [deferredExpense, setDeferredExpense] = useState("");
   const [costCenterRequired, setCostCenterRequired] = useState(false);
+  const [wip, setWip] = useState("");
+  const [absorption, setAbsorption] = useState("");
   const accounts = useOptions<AccountOption>("/accounts");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +38,8 @@ export default function AccountingSettingsPage() {
       setDeferredRevenue(s?.deferredRevenueAccountId ?? "");
       setDeferredExpense(s?.deferredExpenseAccountId ?? "");
       setCostCenterRequired(Boolean(s?.costCenterRequired));
+      setWip(s?.wipAccountId ?? "");
+      setAbsorption(s?.productionAbsorptionAccountId ?? "");
     });
 
   useEffect(() => {
@@ -53,6 +59,8 @@ export default function AccountingSettingsPage() {
           deferredRevenueAccountId: deferredRevenue || null,
           deferredExpenseAccountId: deferredExpense || null,
           costCenterRequired,
+          wipAccountId: wip || null,
+          productionAbsorptionAccountId: absorption || null,
         },
       });
       setNotice(l("Pengaturan disimpan.", "Settings saved."));
@@ -173,6 +181,36 @@ export default function AccountingSettingsPage() {
             {l(
               "Baris faktur/tagihan yang diberi periode penangguhan dicatat ke akun ini saat diposting, lalu diakui prorata per bulan.",
               "Invoice/bill lines with a deferral period are booked to these accounts on posting, then recognized pro rata each month.",
+            )}
+          </p>
+          <label className="field">
+            <span>{l("Akun barang dalam proses (WIP)", "Work-in-progress account")}</span>
+            <select value={wip} onChange={(e) => setWip(e.target.value)}>
+              <option value="">—</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.code} {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>
+              {l("Akun biaya konversi produksi dibebankan", "Applied production conversion cost account")}
+            </span>
+            <select value={absorption} onChange={(e) => setAbsorption(e.target.value)}>
+              <option value="">—</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.code} {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="muted">
+            {l(
+              "Order produksi: bahan keluar ke WIP, biaya tenaga kerja & overhead (jam × tarif stasiun kerja) dibebankan ke WIP lewat akun biaya konversi, lalu barang jadi masuk persediaan sebesar total biaya.",
+              "Production orders: components move into WIP, labor & overhead (hours × work center rate) are applied to WIP via the conversion cost account, then finished goods enter inventory at total cost.",
             )}
           </p>
           <label className="check">

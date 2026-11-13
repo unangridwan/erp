@@ -7,7 +7,7 @@ type Usage = (typeof schema.LOCATION_USAGES)[number];
 export async function virtualLocation(
   tx: Db,
   companyId: string,
-  usage: "supplier" | "customer" | "inventory",
+  usage: "supplier" | "customer" | "inventory" | "production",
 ) {
   const [loc] = await tx
     .select()
@@ -81,5 +81,6 @@ export async function installInventory(tx: Db, companyId: string) {
   await location(tx, companyId, "Pemasok", "supplier", partner);
   await location(tx, companyId, "Pelanggan", "customer", partner);
   await location(tx, companyId, "Penyesuaian Persediaan", "inventory", virtual);
+  await location(tx, companyId, "Produksi", "production", virtual);
   await createWarehouse(tx, companyId, { code: "WH", name: "Gudang Utama" });
 }

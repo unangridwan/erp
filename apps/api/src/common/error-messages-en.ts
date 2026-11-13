@@ -1182,4 +1182,44 @@ export const MESSAGES_EN: Record<string, string> = {
     "Invalid quantity (max. 4 decimals, not negative)",
   "Teks barcode hanya boleh karakter ASCII cetak (maks. 80)":
     "Barcode text may only contain printable ASCII characters (max. 80)",
+  // ---- Manufaktur ----
+  "BOM berputar: salah satu komponen memakai produk jadi ini":
+    "Circular BOM: a component uses this finished product",
+  "BOM berputar (komponen memuat produk jadinya sendiri)":
+    "Circular BOM (a component contains its own finished product)",
+  "BOM kit/phantom tidak diproduksi lewat order produksi":
+    "Kit/phantom BOMs are not produced through production orders",
+  "BOM sudah dipakai order produksi; nonaktifkan saja":
+    "The BOM is used by production orders; deactivate it instead",
+  "BOM tidak ditemukan": "BOM not found",
+  "BOM tidak ditemukan untuk produk ini": "BOM not found for this product",
+  "Hanya order produksi draft atau batal yang bisa dihapus":
+    "Only draft or cancelled production orders can be deleted",
+  "Hanya order produksi draft yang bisa dikonfirmasi": "Only draft production orders can be confirmed",
+  "Isi menit aktual": "Enter the actual minutes",
+  "Isi nomor lot barang jadi": "Enter the lot number of the finished product",
+  "Isi satu nomor serial unik untuk setiap unit": "Enter one unique serial number per unit",
+  "Jumlah lot harus sama dengan kuantitas terpakai": "Lot quantities must equal the consumed quantity",
+  "Komponen ganda dalam BOM": "Duplicate component in the BOM",
+  "Komponen sama dengan produk jadi": "The component is the same as the finished product",
+  "Minimal satu komponen": "At least one component",
+  "Komponen tidak ditemukan": "Component not found",
+  "Operasi sudah dimulai": "The operation has already started",
+  "Operasi tidak ditemukan": "Operation not found",
+  "Order produksi belum dikonfirmasi atau sudah selesai":
+    "The production order is not confirmed or already done",
+  "Order produksi tidak ditemukan": "Production order not found",
+  "Order produksi yang selesai atau batal tidak bisa dibatalkan":
+    "Done or cancelled production orders cannot be cancelled",
+  "Produk ini belum punya BOM aktif": "This product has no active BOM",
+  "Produk jadi harus produk stok": "The finished product must be a stockable product",
+  "Produk jadi tidak boleh jasa": "The finished product cannot be a service",
+  "Produk tidak ditemukan": "Product not found",
+  "Stasiun kerja dipakai di BOM; nonaktifkan saja": "The work center is used in BOMs; deactivate it instead",
+  "Stasiun kerja tidak ditemukan": "Work center not found",
+  "Akun barang dalam proses & biaya konversi belum diatur di pengaturan akuntansi":
+    "Work-in-progress and conversion cost accounts are not set in accounting settings",
+  "Stok bahan tidak cukup: {}": "Not enough component stock: {0}",
+  "Nomor serial {} sudah ada di stok": "Serial number {0} is already in stock",
+  "Harus lebih dari 0": "Must be greater than 0",
 };

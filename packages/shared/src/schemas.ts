@@ -378,6 +378,8 @@ export const accountingSettingsSchema = z.object({
     .nullish(),
   deferredRevenueAccountId: z.string().uuid().nullish(),
   deferredExpenseAccountId: z.string().uuid().nullish(),
+  wipAccountId: z.string().uuid().nullish(),
+  productionAbsorptionAccountId: z.string().uuid().nullish(),
   costCenterRequired: z.boolean().optional(),
 });
 

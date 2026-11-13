@@ -69,6 +69,7 @@ export const PURCHASE = L("Pembelian", "Purchase");
 export const HR = L("SDM", "Employees");
 export const PAYROLL = L("Payroll", "Payroll");
 export const FLEET = L("Armada", "Fleet");
+export const MANUFACTURING = L("Manufaktur", "Manufacturing");
 
 const VEHICLE_STATES: [string, Text][] = [
   ["new_request", L("Permintaan baru", "New request")],
@@ -907,6 +908,40 @@ export const RESOURCES: Resource[] = [
       },
       { name: "state", label: L("Status", "Status"), type: "select", options: SERVICE_STATES },
       { name: "description", label: L("Keterangan", "Description"), type: "text" },
+    ],
+  },
+  {
+    path: "work-centers",
+    model: "work_center",
+    title: L("Stasiun Kerja", "Work Centers"),
+    singular: L("Stasiun kerja", "Work center"),
+    permission: "mrp",
+    writePermission: "mrp.manage",
+    group: MANUFACTURING,
+    columns: [
+      { name: "code", label: L("Kode", "Code") },
+      { name: "name", label: L("Nama", "Name") },
+      { name: "costPerHour", label: L("Tarif per jam", "Cost per hour") },
+      { name: "capacityHoursPerDay", label: L("Kapasitas jam/hari", "Capacity hours/day") },
+    ],
+    fields: [
+      { name: "code", label: L("Kode", "Code"), type: "text", required: true },
+      name(),
+      {
+        name: "costPerHour",
+        label: L("Tarif tenaga kerja + overhead per jam", "Labor + overhead cost per hour"),
+        type: "number",
+        help: L(
+          "Dipakai menghitung biaya konversi order produksi (menit operasi × tarif).",
+          "Used to compute production conversion cost (operation minutes × rate).",
+        ),
+      },
+      {
+        name: "capacityHoursPerDay",
+        label: L("Kapasitas jam per hari", "Capacity hours per day"),
+        type: "number",
+      },
+      { name: "active", label: L("Aktif", "Active"), type: "boolean" },
     ],
   },
   {

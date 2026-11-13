@@ -25,6 +25,7 @@ const ACCOUNTS: {
     reconcile: true,
   },
   { key: "stock", code: "1-1400", name: "Persediaan Barang Dagang", type: "asset_current" },
+  { key: "wip", code: "1-1450", name: "Barang Dalam Proses", type: "asset_current" },
   { key: "vatIn", code: "1-1500", name: "PPN Masukan", type: "asset_current" },
   { key: "pph23Prepaid", code: "1-1510", name: "PPh 23 Dibayar Dimuka", type: "asset_current" },
   { code: "1-1600", name: "Uang Muka Pembelian", type: "asset_current" },
@@ -89,6 +90,12 @@ const ACCOUNTS: {
   { key: "cogs", code: "5-1000", name: "Harga Pokok Penjualan", type: "expense_direct_cost" },
   { key: "priceDifference", code: "5-1100", name: "Selisih Harga Pembelian", type: "expense_direct_cost" },
   { key: "stockAdjustment", code: "5-1200", name: "Selisih Persediaan", type: "expense_direct_cost" },
+  {
+    key: "productionAbsorption",
+    code: "5-1300",
+    name: "Biaya Konversi Produksi Dibebankan",
+    type: "expense_direct_cost",
+  },
   { code: "6-1000", name: "Beban Gaji dan Tunjangan", type: "expense" },
   { code: "6-1100", name: "Beban BPJS Ketenagakerjaan", type: "expense" },
   { code: "6-1110", name: "Beban BPJS Kesehatan", type: "expense" },
@@ -277,6 +284,8 @@ export async function installChart(tx: Db, companyId: string): Promise<boolean> 
     priceDifferenceAccountId: account("priceDifference"),
     deferredRevenueAccountId: account("deferredRevenue"),
     deferredExpenseAccountId: account("prepaidExpense"),
+    wipAccountId: account("wip"),
+    productionAbsorptionAccountId: account("productionAbsorption"),
     stockJournalId: journal("stock"),
   });
   return true;

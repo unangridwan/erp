@@ -521,6 +521,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] P2 pembelian & gudang lanjutan, bagian 3 — stock opname + barcode + lacak serial (migrasi 0070): sesi hitung
   (penuh/cycle count per kategori) dengan snapshot, hitung manual/scan/impor Excel, persetujuan selisih, posting
   penyesuaian; scan barcode di transfer; label Code 128; riwayat lot/serial. Paket P2 selesai
+- [x] P3 manufaktur ringan, bagian 1 — BOM, stasiun kerja, order produksi (migrasi 0071): BOM multi-level dengan kit
+  phantom & operasi, order produksi dengan konsumsi bahan aktual + biaya konversi (menit × tarif) lewat akun WIP,
+  lot/serial hasil, laporan biaya produksi. Berikutnya: MRP sederhana (usulan MO & PO dari kebutuhan)
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

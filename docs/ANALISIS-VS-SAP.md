@@ -20,7 +20,7 @@ bervolume transaksi sangat besar.
 | Penjualan (SD) & CRM                |         ±60%          | Alur lengkap; pricing & kontrak sederhana                         |
 | Pembelian (MM)                      |         ±70%          | RFQ–PO–3-way match, landed cost, kontrak pembelian                |
 | Persediaan & gudang (IM/EWM)        |         ±60%          | Multi gudang, lot/serial + lacak, opname, barcode; bin belum      |
-| Manufaktur, QM, Maintenance, Proyek |          ±5%          | Belum ada (kecuali armada)                                        |
+| Manufaktur, QM, Maintenance, Proyek |         ±20%          | BOM, rute, order produksi & HPP produksi; MRP, QM, PM belum       |
 | SDM & Payroll (HCM/SuccessFactors)  |         ±85%          | Sangat lengkap untuk aturan Indonesia                             |
 | Pajak Indonesia                     |   **lebih unggul**    | SAP perlu add-on partner lokal                                    |
 | Platform (keamanan, integrasi, BI)  |         ±55%          | RBAC & persetujuan kuat; extensibility & BI belum                 |
@@ -131,7 +131,7 @@ bervolume transaksi sangat besar.
 
 | Modul SAP                           | Status | Catatan                                                     |
 | ----------------------------------- | :----: | ----------------------------------------------------------- |
-| PP / MRP (BOM, routing, work order) |   ❌   | Belum ada; penting untuk anak usaha produksi (mis. herbal)  |
+| PP / MRP (BOM, routing, work order) |   🟡   | Manufaktur › BOM, Stasiun Kerja, Order Produksi; MRP belum  |
 | QM (inspeksi mutu)                  |   ❌   | —                                                           |
 | PM / EAM (maintenance aset)         |   🟡   | Hanya armada: servis, kontrak, odometer, pengingat STNK/KIR |
 | PS (project system)                 |   ❌   | Integrasi aplikasi proyek luar sudah dihapus                |
@@ -191,7 +191,7 @@ Urutan berdasarkan dampak untuk target pasar (grup usaha menengah Indonesia).
 |    P1     | Controlling dasar (✅ selesai)   | Cost center & profit center (hierarki), alokasi biaya periodik, laporan per pusat biaya  | Dimensi unit bisnis/cabang, anggaran  |
 |    P2     | Payment run & bank (✅ selesai)  | Usulan bayar pemasok jatuh tempo, file transfer bank, persetujuan                        | File bank payroll, aturan persetujuan |
 |    P2     | Pembelian & gudang lanjutan (✅) | Landed cost ✅, kontrak pembelian ✅, barcode ✅, cycle count ✅; evaluasi pemasok, FEFO | Picking, lot/serial, penyesuaian      |
-|    P3     | Manufaktur ringan                | BOM, work order, konsumsi bahan & hasil produksi, MRP sederhana, HPP produksi            | Persediaan, valuasi, reorder          |
+|    P3     | Manufaktur ringan (🟡)           | BOM, work order, konsumsi bahan & hasil produksi, MRP sederhana, HPP produksi            | Persediaan, valuasi, reorder          |
 |    P4     | Platform                         | Custom field, dashboard BI, pembuat laporan untuk semua modul, workflow designer         | Pembuat laporan, mesin persetujuan    |
 |    P5     | Maintenance & mutu               | Maintenance aset umum (bukan hanya armada), inspeksi mutu saat terima/produksi           | Modul armada, aset tetap              |
 

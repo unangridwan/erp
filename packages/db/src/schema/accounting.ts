@@ -118,6 +118,9 @@ export const accountingSettings = pgTable("accounting_settings", {
   priceDifferenceAccountId: uuid("price_difference_account_id"),
   deferredRevenueAccountId: uuid("deferred_revenue_account_id"),
   deferredExpenseAccountId: uuid("deferred_expense_account_id"),
+  /** Barang dalam proses (WIP) & lawan biaya konversi produksi yang dibebankan. */
+  wipAccountId: uuid("wip_account_id"),
+  productionAbsorptionAccountId: uuid("production_absorption_account_id"),
   /** Controlling: baris akun beban (operasional & penyusutan) wajib punya cost center saat posting. */
   costCenterRequired: boolean("cost_center_required").notNull().default(false),
   dunningEnabled: boolean("dunning_enabled").notNull().default(false),

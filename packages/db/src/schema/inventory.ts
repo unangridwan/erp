@@ -13,7 +13,15 @@ import { audit, tenantId } from "./core.js";
 
 // FK di database berbentuk komposit (tenant_id, id); di sini cukup dideklarasikan kolomnya.
 
-export const LOCATION_USAGES = ["view", "internal", "supplier", "customer", "inventory", "transit"] as const;
+export const LOCATION_USAGES = [
+  "view",
+  "internal",
+  "supplier",
+  "customer",
+  "inventory",
+  "transit",
+  "production",
+] as const;
 export const PICKING_TYPES = ["incoming", "outgoing", "internal", "dropship"] as const;
 export const PICKING_STATES = ["draft", "ready", "done", "cancel"] as const;
 
@@ -99,6 +107,7 @@ export const stockMoves = pgTable("stock_moves", {
   purchaseLineId: uuid("purchase_line_id"),
   originReturnMoveId: uuid("origin_return_move_id"),
   isInventory: boolean("is_inventory").notNull().default(false),
+  productionOrderId: uuid("production_order_id"),
   reference: text("reference"),
   date: timestamp("date", { withTimezone: true }),
   createdAt: audit.createdAt,
