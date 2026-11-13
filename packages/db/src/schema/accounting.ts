@@ -129,6 +129,7 @@ export const accountingSettings = pgTable("accounting_settings", {
 });
 
 export const accountMoves = pgTable("account_moves", {
+  custom: jsonb("custom").$type<Record<string, unknown>>().notNull().default({}),
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
   companyId: uuid("company_id").notNull(),

@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { and, asc, count, eq, ilike, or, schema, sql, type Db, type SQL } from "@erp/db";
 import { hasPermission, LIST_LOAD_LIMIT, type employeeSchema } from "@erp/shared";
+import { normalizeCustom } from "../customization/custom-values.js";
 import type { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
 import { assertDimensions, fieldError } from "../accounting/context.js";
@@ -203,7 +204,7 @@ export class EmployeeService {
 
   async update(tx: Db, id: string, sent: Partial<EmployeeInput>) {
     const before = await this.find(tx, id);
-    const values = await this.prepare(tx, sent, before.companyId, id);
+    const values = await this.prepare(tx, sent, before.companyId, id, before.custom);
     if (Object.keys(values).length === 0) return this.reveal(before);
     const [row] = await tx
       .update(E)
@@ -241,9 +242,17 @@ export class EmployeeService {
   }
 
   /** Validasi rujukan & enkripsi data sensitif. Mengembalikan kolom yang akan disimpan. */
-  private async prepare(tx: Db, input: Partial<EmployeeInput>, companyId: string, id?: string) {
-    const { nik, npwp, bankAccount, kkNo, employeeNumber, ...rest } = input;
+  private async prepare(
+    tx: Db,
+    input: Partial<EmployeeInput>,
+    companyId: string,
+    id?: string,
+    existingCustom?: Record<string, unknown>,
+  ) {
+    const { nik, npwp, bankAccount, kkNo, employeeNumber, custom, ...rest } = input;
     const values: Record<string, unknown> = { ...rest };
+    if (!id || custom !== undefined)
+      values.custom = await normalizeCustom(tx, "employee", custom, id ? existingCustom : null, companyId);
     if (employeeNumber && id) values.employeeNumber = employeeNumber;
     const canManage = hasPermission(currentContext().permissions, "hr.manage");
     for (const [field, column] of Object.entries(SENSITIVE)) {

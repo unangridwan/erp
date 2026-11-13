@@ -144,6 +144,7 @@ export function MoveList({ kind }: { kind: MoveKind }) {
       {list.error && <p className="error">{list.error}</p>}
       {!list.loading || list.rows.length ? (
         <DataTable
+          customModel="account_move"
           rows={list.rows}
           columns={columns}
           storageKey={`moves.${kind}`}

@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { and, asc, eq, inArray, schema, sql, type Db } from "@erp/db";
+import { normalizeCustom } from "../customization/custom-values.js";
 import {
   COST_CENTER_REQUIRED_TYPES,
   computeInvoice,
@@ -132,6 +133,7 @@ export class MoveService {
         narration: input.narration ?? null,
         autoReverseDate: input.autoReverseDate ?? null,
         currencyCode: books.currencyCode,
+        custom: await normalizeCustom(tx, "account_move", input.custom, null, companyId),
         createdBy: currentContext().userId,
       })
       .returning({ id: schema.accountMoves.id });
@@ -162,6 +164,7 @@ export class MoveService {
         ...header,
         companyId,
         invoiceOrigin: opts.invoiceOrigin ?? null,
+        custom: await normalizeCustom(tx, "account_move", input.custom, null, companyId),
         createdBy: currentContext().userId,
       })
       .returning({ id: schema.accountMoves.id });
@@ -182,6 +185,11 @@ export class MoveService {
   async updateDraft(tx: Db, id: string, input: JournalEntryInput | InvoiceInput) {
     const move = await this.lockDraft(tx, id);
     const books = await loadBooks(tx, move.companyId);
+    if (input.custom !== undefined)
+      await tx
+        .update(schema.accountMoves)
+        .set({ custom: await normalizeCustom(tx, "account_move", input.custom, move.custom, move.companyId) })
+        .where(eq(schema.accountMoves.id, id));
     // Tautan ke baris pesanan penjualan/pembelian dipertahankan bila baris di posisi yang sama masih produk yang sama.
     const oldLines = await tx
       .select({

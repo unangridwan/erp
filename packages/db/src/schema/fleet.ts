@@ -1,4 +1,5 @@
 import {
+  jsonb,
   boolean,
   date,
   integer,
@@ -52,6 +53,7 @@ export const fleetServiceTypes = pgTable("fleet_service_types", {
 });
 
 export const fleetVehicles = pgTable("fleet_vehicles", {
+  custom: jsonb("custom").$type<Record<string, unknown>>().notNull().default({}),
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
   companyId: uuid("company_id").notNull(),

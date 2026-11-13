@@ -95,6 +95,7 @@ export function PickingList({ kind }: { kind: PickingKind }) {
       {list.error && <p className="error">{list.error}</p>}
       {!list.loading || list.rows.length ? (
         <DataTable
+          customModel="stock_picking"
           rows={list.rows}
           columns={columns}
           storageKey={`pickings.${kind}`}

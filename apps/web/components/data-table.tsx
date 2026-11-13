@@ -3,12 +3,15 @@
 import {
   activeFilterCount,
   distinctOptions,
+  formatCustomValue,
   TABLE_PAGE_SIZES,
   type ColumnFilter,
+  type CustomFieldModel,
   type TableState,
 } from "@erp/shared";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCustomFields } from "./custom-fields";
 import { EmptyState } from "./empty-state";
 import { formatDate } from "../lib/format";
 import { useI18n } from "../lib/i18n";
@@ -431,6 +434,7 @@ export function DataTable<T>({
   rowHref,
   createHref,
   createLabel,
+  customModel,
 }: {
   rows: T[];
   columns: DataColumn<T>[];
@@ -455,7 +459,41 @@ export function DataTable<T>({
   /** Tombol "buat" di keadaan kosong. */
   createHref?: string;
   createLabel?: string;
+  /** Tambahkan kolom field kustom bertanda "tampil di daftar" (baris membawa `custom`). */
+  customModel?: CustomFieldModel;
 }) {
+  const { locale } = useI18n();
+  const customDefs = useCustomFields(customModel);
+  const allColumns = useMemo<DataColumn<T>[]>(() => {
+    const extra = customDefs
+      .filter((d) => d.showInList)
+      .map((d): DataColumn<T> => {
+        const raw = (row: T) => ((row as { custom?: Record<string, unknown> }).custom ?? {})[d.key];
+        const text = (row: T) => formatCustomValue(d, raw(row), { lang: locale });
+        const numeric = d.fieldType === "number" || d.fieldType === "money";
+        return {
+          key: `custom.${d.key}`,
+          label: (locale === "en" && d.labelEn) || d.label,
+          type: numeric
+            ? "number"
+            : d.fieldType === "date"
+              ? "date"
+              : d.fieldType === "select" || d.fieldType === "boolean"
+                ? "enum"
+                : "text",
+          value: (row: T) => {
+            const v = raw(row);
+            if (numeric) return typeof v === "number" ? v : null;
+            if (d.fieldType === "date") return (v as string | undefined) ?? null;
+            return text(row) || null;
+          },
+          text,
+          className: numeric ? "num" : undefined,
+        };
+      });
+    return extra.length ? [...columns, ...extra] : columns;
+  }, [columns, customDefs, locale]);
+  columns = allColumns;
   const view = useTableView(rows, columns, { storageKey, defaultSort, initialFilters, pageSize });
   const rowLink = useRowLink();
   const shown = columns.filter((c) => !c.hidden && (foot || !view.hidden.includes(c.key)));

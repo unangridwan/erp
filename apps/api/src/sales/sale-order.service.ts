@@ -29,6 +29,7 @@ import {
   type createInvoiceFromOrderSchema,
   type saleOrderSchema,
 } from "@erp/shared";
+import { customPdfRows, normalizeCustom } from "../customization/custom-values.js";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
@@ -291,9 +292,10 @@ export class SaleOrderService implements OnModuleInit {
       companyId,
       new Date(`${input.dateOrder}T00:00:00Z`),
     );
+    const custom = await normalizeCustom(tx, "sale_order", input.custom, null, companyId);
     const [order] = await tx
       .insert(O)
-      .values({ ...header, companyId, name, createdBy: currentContext().userId })
+      .values({ ...header, companyId, name, custom, createdBy: currentContext().userId })
       .returning();
     await tx.insert(OL).values(lines.map(({ productName: _p, ...l }) => ({ ...l, orderId: order!.id })));
     await this.activity.log(tx, { resModel: "sale_order", resId: order!.id, action: "create" });
@@ -306,9 +308,13 @@ export class SaleOrderService implements OnModuleInit {
     if (order.state !== "draft" && order.state !== "sent")
       throw new BadRequestException("Hanya penawaran (draft/terkirim) yang bisa diubah");
     const { header, lines } = await this.prepare(tx, input);
+    const custom =
+      input.custom === undefined
+        ? undefined
+        : await normalizeCustom(tx, "sale_order", input.custom, order.custom, order.companyId);
     await tx
       .update(O)
-      .set({ ...header, updatedAt: sql`now()` })
+      .set({ ...header, ...(custom ? { custom } : {}), updatedAt: sql`now()` })
       .where(eq(O.id, id));
     await tx.delete(OL).where(eq(OL.orderId, id));
     await tx.insert(OL).values(lines.map(({ productName: _p, ...l }) => ({ ...l, orderId: id })));
@@ -750,6 +756,7 @@ export class SaleOrderService implements OnModuleInit {
       amountUntaxed: order.amountUntaxed,
       amountTotal: order.amountTotal,
       note: order.note,
+      extra: await customPdfRows(tx, "sale_order", order.custom, order.companyId),
     });
     return { filename: `${order.name.replace(/[^\w.-]+/g, "_")}.pdf`, content };
   }

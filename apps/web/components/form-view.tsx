@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { canDelete, canWrite, type Field, type Resource } from "../lib/resources";
@@ -14,6 +14,7 @@ import { RefSelect } from "./ref-select";
 import { ask, Skeleton, toast } from "./feedback";
 import { focusFirstError, useDirtyGuard, useSaveShortcut } from "../lib/use-form-guard";
 import { rememberRecent } from "../lib/recent";
+import { CustomFieldsSection, customPayload, useCustomFields, type CustomValues } from "./custom-fields";
 
 type Values = Record<string, unknown>;
 
@@ -55,10 +56,12 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
   const [saved, setSaved] = useState<Values>(values);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const formRef = useRef<HTMLFormElement>(null);
-  const dirty = useMemo(
-    () => editable && resource.fields.some((f) => !same(values[f.name], saved[f.name])),
-    [editable, resource.fields, values, saved],
-  );
+  const customDefs = useCustomFields(resource.customModel);
+  const customOf = (v: Values) => customPayload(customDefs, (v.custom ?? {}) as CustomValues);
+  const dirty =
+    editable &&
+    (resource.fields.some((f) => !same(values[f.name], saved[f.name])) ||
+      JSON.stringify(customOf(values)) !== JSON.stringify(customOf(saved)));
   useDirtyGuard(dirty && !saving);
   useSaveShortcut(() => formRef.current?.requestSubmit(), editable);
 
@@ -103,6 +106,7 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
     setFieldErrors({});
     try {
       const body = toPayload(resource.fields, values, isNew);
+      if (customDefs.length) body.custom = customOf(values);
       if (isNew) {
         const created = await api<{ id: string }>(`/${resource.path}`, { method: "POST", body });
         setSaved(values);
@@ -238,6 +242,21 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
                 </label>,
               ])}
             </fieldset>
+            {resource.customModel && (
+              <CustomFieldsSection
+                bare
+                model={resource.customModel}
+                value={(values.custom ?? {}) as CustomValues}
+                onChange={(c) => {
+                  set("custom", c);
+                  setFieldErrors((fe) =>
+                    Object.fromEntries(Object.entries(fe).filter(([k]) => !k.startsWith("custom."))),
+                  );
+                }}
+                editable={editable}
+                errors={fieldErrors}
+              />
+            )}
           </form>
           {!isNew && <FormExtras path={resource.path} id={id} />}
         </div>

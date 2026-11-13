@@ -30,7 +30,15 @@ import {
   type PgTable,
   type SQL,
 } from "@erp/db";
-import { ALL_PERMISSIONS, LIST_LOAD_LIMIT, parseCsv, toCsv, type Permission } from "@erp/shared";
+import {
+  ALL_PERMISSIONS,
+  customColumnName,
+  LIST_LOAD_LIMIT,
+  parseCsv,
+  toCsv,
+  type CustomFieldModel,
+  type Permission,
+} from "@erp/shared";
 import type { Response } from "express";
 import { z } from "zod";
 import type { AnyZodObject } from "zod";
@@ -40,6 +48,13 @@ import { TenantDb } from "./database.js";
 import { currentContext } from "./request-context.js";
 import { coerceCsvRow, exportColumns, parseXlsx, toXlsx } from "./csv-import.js";
 import { parse } from "./zod.js";
+import {
+  customFromImportRow,
+  customRefNames,
+  loadCustomDefs,
+  normalizeCustom,
+  withCustomColumns,
+} from "../customization/custom-values.js";
 
 type Table = PgTable & { id: PgColumn };
 
@@ -71,6 +86,8 @@ export interface CrudOptions<T extends Table> {
   beforeSave?: (tx: Db, values: Record<string, unknown>, id?: string) => Promise<void>;
   /** Dipanggil sebelum menghapus (mis. menolak penghapusan data yang sudah dipakai). */
   beforeDelete?: (tx: Db, row: Record<string, unknown>) => Promise<void>;
+  /** Tabel punya kolom `custom` untuk field kustom model ini. */
+  customModel?: CustomFieldModel;
   /** Dipanggil setelah baris baru dibuat, dalam transaksi yang sama. */
   afterCreate?: (tx: Db, row: Record<string, unknown> & { id: string }) => Promise<void>;
 }
@@ -157,6 +174,17 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
     return and(...filters);
   };
 
+  const customDefs = (tx: Db) =>
+    opts.customModel ? loadCustomDefs(tx, opts.customModel, { activeOnly: true }) : Promise.resolve([]);
+  const bodyCustom = (body: unknown) =>
+    body !== null && typeof body === "object" && "custom" in body
+      ? (body as { custom: unknown }).custom
+      : undefined;
+  const hasCustom = (body: unknown) =>
+    !!opts.customModel && body !== null && typeof body === "object" && "custom" in body;
+  const rowCompany = (values: Record<string, unknown>) =>
+    (values.companyId as string | null | undefined) ?? currentContext().companyId;
+
   @Controller(opts.path)
   class CrudController {
     constructor(
@@ -188,17 +216,33 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
     @Get("export-columns")
     @RequirePermission(opts.read)
     exportColumns() {
-      return exportColumns(opts.schema);
+      return this.tenantDb.run(async (tx) => [
+        ...exportColumns(opts.schema),
+        ...(await customDefs(tx)).map((d) => customColumnName(d.key)),
+      ]);
     }
 
     /** Ekspor CSV dengan filter yang sama seperti list. Didaftarkan sebelum `:id` agar tidak tertangkap rute itu. */
     @Get("export")
     @RequirePermission(opts.read)
     async export(@Query() query: Record<string, string | undefined>, @Res() res: Response) {
-      const columns = pickColumns(exportColumns(opts.schema), query.columns);
-      const rows = await this.tenantDb.run((tx) =>
-        tx.select().from(table).where(listFilter(query)).orderBy(asc(opts.orderBy)).limit(EXPORT_LIMIT),
-      );
+      const { columns, rows } = await this.tenantDb.run(async (tx) => {
+        const defs = await customDefs(tx);
+        const columns = pickColumns(
+          [...exportColumns(opts.schema), ...defs.map((d) => customColumnName(d.key))],
+          query.columns,
+        );
+        const raw = (await tx
+          .select()
+          .from(table)
+          .where(listFilter(query))
+          .orderBy(asc(opts.orderBy))
+          .limit(EXPORT_LIMIT)) as Record<string, unknown>[];
+        return {
+          columns,
+          rows: defs.length ? withCustomColumns(defs, raw, await customRefNames(tx, defs, raw)) : raw,
+        };
+      });
       if (query.format === "xlsx")
         return res
           .type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -239,7 +283,7 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
             errors.push({ row: i + 2, path: issue.path.join("."), message: issue.message });
           }
         }
-        return { id, values: result.success ? (result.data as Record<string, unknown>) : {} };
+        return { id, raw, values: result.success ? (result.data as Record<string, unknown>) : {} };
       });
       if (errors.length)
         throw new BadRequestException({ message: "Impor dibatalkan: ada baris tidak valid", errors });
@@ -247,7 +291,8 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
       return this.tenantDb.run(async (tx) => {
         let created = 0;
         let updated = 0;
-        for (const [i, { id, values }] of parsed.entries()) {
+        const defs = await customDefs(tx);
+        for (const [i, { id, raw, values }] of parsed.entries()) {
           try {
             if (opts.perCompany && !id) values.companyId ??= currentContext().companyId;
             assertCompanyAllowed(values);
@@ -255,6 +300,15 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
             if (id) {
               const before = await this.find(tx, id);
               if (opts.perCompany) delete values.companyId;
+              const custom = opts.customModel && customFromImportRow(defs, raw);
+              if (custom)
+                values.custom = await normalizeCustom(
+                  tx,
+                  opts.customModel!,
+                  custom,
+                  before.custom as Record<string, unknown>,
+                  (before.companyId as string | null) ?? currentContext().companyId,
+                );
               await opts.beforeSave?.(tx, { companyId: before.companyId, ...values }, id);
               await tx
                 .update(table)
@@ -268,6 +322,14 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
               });
               updated++;
             } else {
+              if (opts.customModel)
+                values.custom = await normalizeCustom(
+                  tx,
+                  opts.customModel,
+                  customFromImportRow(defs, raw),
+                  null,
+                  rowCompany(values),
+                );
               await opts.beforeSave?.(tx, values);
               const [row] = await tx.insert(table).values(values).returning();
               const createdRow = row as Record<string, unknown> & { id: string };
@@ -318,6 +380,14 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
       assertCompanyAllowed(values);
       return this.tenantDb.run(async (tx) => {
         await assertRefsVisible(tx, opts.refs ?? {}, values);
+        if (opts.customModel)
+          values.custom = await normalizeCustom(
+            tx,
+            opts.customModel,
+            bodyCustom(body),
+            null,
+            rowCompany(values),
+          );
         await opts.beforeSave?.(tx, values);
         const [row] = await tx.insert(table).values(values).returning();
         const created = row as Record<string, unknown> & { id: string };
@@ -344,6 +414,14 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
         const before = await this.find(tx, id);
         await assertRefsVisible(tx, opts.refs ?? {}, sent);
         await opts.beforeSave?.(tx, { companyId: before.companyId, ...sent }, id);
+        if (hasCustom(body))
+          sent.custom = await normalizeCustom(
+            tx,
+            opts.customModel!,
+            bodyCustom(body),
+            before.custom as Record<string, unknown>,
+            (before.companyId as string | null) ?? currentContext().companyId,
+          );
         if (Object.keys(sent).length === 0) return before;
         const [row] = await tx
           .update(table)

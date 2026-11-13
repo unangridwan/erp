@@ -54,6 +54,7 @@ export const bomOperations = pgTable("bom_operations", {
 export const PRODUCTION_STATES = ["draft", "confirmed", "in_progress", "done", "cancel"] as const;
 
 export const productionOrders = pgTable("production_orders", {
+  custom: jsonb("custom").$type<Record<string, unknown>>().notNull().default({}),
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
   companyId: uuid("company_id").notNull(),

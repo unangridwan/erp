@@ -23,7 +23,7 @@ bervolume transaksi sangat besar.
 | Manufaktur, QM, Maintenance, Proyek |         ±25%          | BOM, rute, order produksi, HPP produksi, MRP; QM, PM belum        |
 | SDM & Payroll (HCM/SuccessFactors)  |         ±85%          | Sangat lengkap untuk aturan Indonesia                             |
 | Pajak Indonesia                     |   **lebih unggul**    | SAP perlu add-on partner lokal                                    |
-| Platform (keamanan, integrasi, BI)  |         ±55%          | RBAC & persetujuan kuat; extensibility & BI belum                 |
+| Platform (keamanan, integrasi, BI)  |         ±55%          | RBAC & persetujuan kuat; field kustom ada; BI & workflow belum    |
 
 **Keunggulan utama dibanding SAP:**
 
@@ -175,7 +175,7 @@ Di SAP, kebutuhan ini dipenuhi oleh add-on partner lokal (biaya tambahan).
 | SSO & integrasi                         |   ✅   | SSO OIDC/SAML masuk; ERP sebagai penyedia OIDC; webhook; REST API |
 | Laporan kustom & terjadwal              |   🟡   | Pembuat laporan untuk SDM & payroll; modul lain laporan tetap     |
 | Dashboard BI / analitik tertanam        |   ❌   | —                                                                 |
-| Custom field & workflow designer visual |   ❌   | —                                                                 |
+| Custom field & workflow designer visual |   🟡   | Field kustom ✅ (master & dokumen utama); workflow designer belum |
 | EDI / IDoc, integrasi marketplace/bank  |   ❌   | Impor/ekspor file saja                                            |
 | Aplikasi mobile                         |   🟡   | Web responsif; tanpa aplikasi native/offline                      |
 | Skala & kinerja                         |   🟡   | Belum diuji pada jutaan transaksi; daftar dimuat ≤5.000 baris     |
@@ -192,7 +192,7 @@ Urutan berdasarkan dampak untuk target pasar (grup usaha menengah Indonesia).
 |    P2     | Payment run & bank (✅ selesai)  | Usulan bayar pemasok jatuh tempo, file transfer bank, persetujuan                        | File bank payroll, aturan persetujuan |
 |    P2     | Pembelian & gudang lanjutan (✅) | Landed cost ✅, kontrak pembelian ✅, barcode ✅, cycle count ✅; evaluasi pemasok, FEFO | Picking, lot/serial, penyesuaian      |
 |    P3     | Manufaktur ringan (✅)           | BOM, work order, konsumsi bahan & hasil produksi, MRP sederhana, HPP produksi            | Persediaan, valuasi, reorder          |
-|    P4     | Platform                         | Custom field, dashboard BI, pembuat laporan untuk semua modul, workflow designer         | Pembuat laporan, mesin persetujuan    |
+|    P4     | Platform (custom field ✅)       | Custom field ✅, dashboard BI, pembuat laporan untuk semua modul, workflow designer      | Pembuat laporan, mesin persetujuan    |
 |    P5     | Maintenance & mutu               | Maintenance aset umum (bukan hanya armada), inspeksi mutu saat terima/produksi           | Modul armada, aset tetap              |
 
 ## 4. Kesimpulan

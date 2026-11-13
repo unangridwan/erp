@@ -1,4 +1,4 @@
-import { date, integer, numeric, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { date, integer, jsonb, numeric, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { audit, tenantId } from "./core.js";
 
 export const PURCHASE_STATES = ["draft", "sent", "to_approve", "purchase", "cancel"] as const;
@@ -19,6 +19,7 @@ export const productSuppliers = pgTable("product_suppliers", {
 });
 
 export const purchaseOrders = pgTable("purchase_orders", {
+  custom: jsonb("custom").$type<Record<string, unknown>>().notNull().default({}),
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
   companyId: uuid("company_id").notNull(),

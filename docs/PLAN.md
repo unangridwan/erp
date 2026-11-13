@@ -527,6 +527,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] P3 manufaktur ringan, bagian 2 — MRP sederhana (migrasi 0072): kebutuhan bersih per level BOM dari pengiriman,
   bahan order produksi & stok minimum, lead time produksi/pembelian, usulan order produksi & RFQ per pemasok yang
   dikonfirmasi/diabaikan. Paket P3 selesai
+- [x] P4 platform, bagian 1 — field kustom (migrasi 0073): definisi per model (master + dokumen utama) dengan 11 tipe,
+  wajib/bawaan/bagian/per perusahaan, tampil di form & kolom daftar, ekspor/impor CSV/Excel, PDF pesanan, ubah nilai
+  di dokumen terkunci. Berikutnya: pembuat laporan semua modul + dashboard BI, lalu aturan otomatis (workflow)
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

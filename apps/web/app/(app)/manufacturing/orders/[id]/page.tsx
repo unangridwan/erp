@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  CustomFieldsSection,
+  customPayload,
+  useCustomFields,
+  type CustomValues,
+} from "../../../../../components/custom-fields";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
@@ -38,6 +44,7 @@ interface Operation {
 }
 interface Order {
   id: string;
+  custom?: CustomValues;
   name: string;
   state: string;
   productId: string;
@@ -85,6 +92,8 @@ function NewOrder() {
     origin: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [custom, setCustom] = useState<CustomValues>({});
+  const customDefs = useCustomFields("production_order");
   useEffect(() => {
     api<BomRow[]>("/boms")
       .then(setBoms)
@@ -108,6 +117,7 @@ function NewOrder() {
           warehouseId: form.warehouseId || null,
           datePlanned: form.datePlanned,
           origin: form.origin || null,
+          ...(customDefs.length ? { custom: customPayload(customDefs, custom) } : {}),
         },
       });
       router.replace(`/manufacturing/orders/${created.id}`);
@@ -193,6 +203,14 @@ function NewOrder() {
             <input value={form.origin} onChange={(e) => setForm({ ...form, origin: e.target.value })} />
           </label>
         </div>
+        <CustomFieldsSection
+          bare
+          model="production_order"
+          value={custom}
+          onChange={setCustom}
+          editable
+          errors={errors}
+        />
       </div>
     </div>
   );
@@ -431,6 +449,14 @@ function OrderForm({ id }: { id: string }) {
           </div>
         </div>
       )}
+
+      <CustomFieldsSection
+        model="production_order"
+        value={doc.custom ?? {}}
+        editable={false}
+        recordId={doc.id}
+        onSaved={(c) => setDoc({ ...doc, custom: c })}
+      />
 
       <h2>{l("Bahan", "Components")}</h2>
       <div className="table-wrap">

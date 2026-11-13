@@ -1,4 +1,5 @@
 import {
+  jsonb,
   boolean,
   date,
   integer,
@@ -83,6 +84,7 @@ export const pricelistItems = pgTable("pricelist_items", {
 });
 
 export const crmLeads = pgTable("crm_leads", {
+  custom: jsonb("custom").$type<Record<string, unknown>>().notNull().default({}),
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
   companyId: uuid("company_id").notNull(),
@@ -131,6 +133,7 @@ export const scheduledActivities = pgTable("scheduled_activities", {
 });
 
 export const saleOrders = pgTable("sale_orders", {
+  custom: jsonb("custom").$type<Record<string, unknown>>().notNull().default({}),
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
   companyId: uuid("company_id").notNull(),

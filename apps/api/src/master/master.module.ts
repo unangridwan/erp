@@ -126,6 +126,7 @@ const BranchesController = createCrudController({
 
 const PartnersController = createCrudController({
   path: "partners",
+  customModel: "partner",
   model: "partner",
   table: schema.partners,
   schema: partnerSchema,
@@ -180,6 +181,7 @@ const UomsController = createCrudController({
 
 const ProductsController = createCrudController({
   path: "products",
+  customModel: "product",
   model: "product",
   table: schema.products,
   schema: productSchema,

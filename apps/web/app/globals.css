@@ -3460,3 +3460,28 @@ dialog.palette {
   font-family: var(--mono, ui-monospace, monospace);
   width: min(320px, 100%);
 }
+
+/* Field kustom: bagian tambahan di form & daftar pilihan ganda. */
+.custom-fields-grid {
+  margin-top: 20px;
+}
+.check-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+.check-list .check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: normal;
+}
+.custom-fields .actions,
+.custom-fields-grid + .actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+dialog .field-section {
+  margin: 20px 0 12px;
+}

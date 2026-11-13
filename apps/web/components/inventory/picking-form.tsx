@@ -1,5 +1,6 @@
 "use client";
 
+import { CustomFieldsSection, customPayload, useCustomFields, type CustomValues } from "../custom-fields";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
@@ -34,6 +35,7 @@ interface Move {
 }
 interface Picking {
   id: string;
+  custom?: CustomValues;
   name: string;
   pickingType: "incoming" | "outgoing" | "internal" | "dropship";
   state: "draft" | "ready" | "done" | "cancel";
@@ -98,6 +100,8 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [custom, setCustom] = useState<CustomValues>({});
+  const customDefs = useCustomFields("stock_picking");
   const [busy, setBusy] = useState(false);
   const [work, setWork] = useState<Record<string, Work>>({});
   const [backorder, setBackorder] = useState(true);
@@ -133,6 +137,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
     api<Picking>(`/pickings/${id}`)
       .then((p) => {
         setPicking(p);
+        setCustom(p.custom ?? {});
         setHeader({
           partnerId: p.partnerId ?? "",
           warehouseId: p.warehouseId,
@@ -209,6 +214,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
     scheduledDate: header.scheduledDate,
     origin: header.origin || null,
     note: header.note || null,
+    ...(customDefs.length ? { custom: customPayload(customDefs, custom) } : {}),
     moves: lines
       .filter((x) => x.productId)
       .map((x) => ({
@@ -603,6 +609,16 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
               )}
             </label>
           </fieldset>
+          <CustomFieldsSection
+            bare
+            model="stock_picking"
+            value={custom}
+            onChange={setCustom}
+            editable={editable}
+            recordId={isNew ? undefined : id}
+            errors={fieldErrors}
+            onSaved={setCustom}
+          />
 
           <h2>{l("Produk", "Products")}</h2>
           {editable ? (

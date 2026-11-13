@@ -323,6 +323,16 @@ produksi (di BOM) dan pembelian (Harga Pemasok) untuk tanggal mulai. Hasilnya us
 dan **pembelian** ke pemasok utama; usulan terpilih dikonfirmasi menjadi order produksi draft dan RFQ per pemasok,
 atau diabaikan. MRP yang dijalankan ulang memperhitungkan dokumen yang sudah dibuat sehingga tidak mengusulkan ganda.
 
+**Field kustom (migrasi 0073).** Pengaturan › **Field Kustom** (hak `customization.manage`) menambah kolom sendiri ke
+kontak, produk, karyawan, kendaraan, lead, pesanan penjualan & pembelian, faktur/tagihan/jurnal, transfer stok, dan
+order produksi. Tipe: teks, teks panjang, angka, nominal, tanggal, ya/tidak, pilihan, pilihan ganda, URL, email, dan
+rujukan (kontak/produk/karyawan/pengguna); bisa wajib, punya nilai bawaan, teks bantuan, dikelompokkan per bagian, dan
+berlaku untuk semua atau satu perusahaan. Field tampil di form, bisa menjadi kolom daftar (ikut cari/filter/sort),
+ikut ekspor/impor CSV/Excel master (kolom `custom.<kunci>`), dan dicetak di PDF penawaran/pesanan. Nilainya tetap bisa
+diubah di dokumen yang sudah dikonfirmasi/diposting (`PATCH /custom-values/:model/:id`). Wajib hanya dipaksa untuk isian
+lewat form/impor/API yang mengirim `custom`; dokumen buatan sistem memakai nilai bawaan. Menghapus field ikut menghapus
+nilainya; untuk menyembunyikan saja, nonaktifkan.
+
 ### CRM & Penjualan (Fase 2)
 
 | Endpoint                                                                                      | Keterangan                                                                     |

@@ -105,6 +105,7 @@ export function LeadList() {
       {list.error && <p className="error">{list.error}</p>}
       {!list.loading || list.rows.length ? (
         <DataTable
+          customModel="crm_lead"
           rows={rows}
           columns={columns}
           storageKey="leads"

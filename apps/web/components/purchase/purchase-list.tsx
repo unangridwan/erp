@@ -123,6 +123,7 @@ export function PurchaseList({ kind }: { kind: PurchaseKind }) {
       {list.error && <p className="error">{list.error}</p>}
       {!list.loading || list.rows.length ? (
         <DataTable
+          customModel="purchase_order"
           rows={list.rows}
           columns={columns}
           storageKey={`purchase-orders.${kind}`}

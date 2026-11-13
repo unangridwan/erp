@@ -459,6 +459,12 @@ export const PERMISSION_CATALOG: readonly ModuleDef[] = [
     features: [],
     specials: [],
   },
+  {
+    key: "customization",
+    label: ["Kustomisasi (field kustom)", "Customization (custom fields)"],
+    features: [],
+    specials: [],
+  },
   { key: "settings", label: ["Pengaturan sistem", "System settings"], features: [], specials: [] },
   { key: "billing", label: ["Langganan", "Subscription"], features: [], specials: [] },
 ];

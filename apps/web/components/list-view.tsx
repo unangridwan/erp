@@ -1,6 +1,7 @@
 "use client";
 
-import { LIST_LOAD_LIMIT, type TableColumnType } from "@erp/shared";
+import { formatCustomValue, LIST_LOAD_LIMIT, type TableColumnType } from "@erp/shared";
+import { useCustomFields } from "./custom-fields";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, apiRaw } from "../lib/api";
@@ -83,7 +84,8 @@ function useViewMode(resource: Resource) {
 
 export function ListView({ resource }: { resource: Resource }) {
   const me = useMe();
-  const { t, tx, l } = useI18n();
+  const { t, tx, l, locale } = useI18n();
+  const customDefs = useCustomFields(resource.customModel);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [importErrors, setImportErrors] = useState<{ row: number; path: string; message: string }[]>([]);
@@ -104,7 +106,22 @@ export function ListView({ resource }: { resource: Resource }) {
   // Data dimuat sekali (s.d. 5.000 baris); cari/filter/sort/paginasi di browser.
   const list = useListData<Row>(`/${resource.path}`, {}, search);
 
+  const customListDefs = customDefs.filter((d) => d.showInList);
+  const listColumns = [
+    ...resource.columns,
+    ...customListDefs.map((d) => ({
+      name: `custom.${d.key}`,
+      label: { id: d.label, en: d.labelEn || d.label },
+    })),
+  ];
+  const customDef = (name: string) =>
+    name.startsWith("custom.") ? customDefs.find((d) => `custom.${d.key}` === name) : undefined;
+  const customRaw = (row: Row, name: string) =>
+    ((row.custom ?? {}) as Record<string, unknown>)[name.slice("custom.".length)];
+
   const cell = (row: Row, name: string) => {
+    const def = customDef(name);
+    if (def) return formatCustomValue(def, customRaw(row, name), { lang: locale });
     const v = row[name];
     if (v === null || v === undefined) return "";
     const field = resource.fields.find((f) => f.name === name);
@@ -117,8 +134,27 @@ export function ListView({ resource }: { resource: Resource }) {
 
   const columns = useMemo<ViewColumn<Row>[]>(
     () =>
-      resource.columns.map((c) => {
+      listColumns.map((c) => {
         const field = resource.fields.find((f) => f.name === c.name);
+        const def = customDef(c.name);
+        if (def)
+          return {
+            key: c.name,
+            label: tx(c.label),
+            type: (def.fieldType === "number" || def.fieldType === "money"
+              ? "number"
+              : def.fieldType === "date"
+                ? "date"
+                : def.fieldType === "select" || def.fieldType === "boolean"
+                  ? "enum"
+                  : "text") as TableColumnType,
+            value: (row: Row) => {
+              const v = customRaw(row, c.name);
+              if (def.fieldType === "select" || def.fieldType === "boolean") return cell(row, c.name) || null;
+              return Array.isArray(v) ? cell(row, c.name) : (v as string | number | null | undefined);
+            },
+            text: (row: Row) => cell(row, c.name),
+          };
         const type: TableColumnType =
           field?.type === "select" || field?.type === "ref" || field?.type === "boolean"
             ? "enum"
@@ -144,12 +180,12 @@ export function ListView({ resource }: { resource: Resource }) {
           },
         };
       }),
-    [resource, list.rows, refLabels, tx, l],
+    [resource, list.rows, refLabels, tx, l, customDefs, locale],
   );
   const table = useTableView(list.rows, columns, { storageKey: `list.${resource.path}` });
   useEffect(() => setSearch(table.state.q), [table.state.q]);
   const data = list.loading && !list.rows.length ? null : list;
-  const shownColumns = resource.columns.filter((c) => !table.hidden.includes(c.name));
+  const shownColumns = listColumns.filter((c) => !table.hidden.includes(c.name));
   // Pilihan hanya untuk baris yang masih ada setelah dimuat ulang.
   useEffect(() => {
     setSelected((s) => {
@@ -538,10 +574,15 @@ export function ListView({ resource }: { resource: Resource }) {
           storageKey={`erp.export.${resource.path}`}
           columns={(exportColumns ?? []).map((key) => {
             const field = resource.fields.find((f) => f.name === key);
+            const def = customDef(key);
             return {
               key,
-              header: key === "id" ? "id" : field ? tx(field.label) : key,
-              group: field?.section ? tx(field.section) : tx(resource.singular),
+              header: key === "id" ? "id" : field ? tx(field.label) : def ? def.label : key,
+              group: field?.section
+                ? tx(field.section)
+                : def
+                  ? l("Field kustom", "Custom fields")
+                  : tx(resource.singular),
               key0: key === "id",
             };
           })}

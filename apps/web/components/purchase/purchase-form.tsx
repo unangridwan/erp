@@ -1,5 +1,6 @@
 "use client";
 
+import { CustomFieldsSection, customPayload, useCustomFields, type CustomValues } from "../custom-fields";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
@@ -47,6 +48,7 @@ interface Line {
 }
 interface Order {
   id: string;
+  custom?: CustomValues;
   name: string;
   state: "draft" | "sent" | "to_approve" | "purchase" | "cancel";
   partnerId: string;
@@ -156,6 +158,8 @@ export function PurchaseForm({ id }: { id: string }) {
   });
   const [contracts, setContracts] = useState<ContractOption[]>([]);
   const [lines, setLines] = useState<FormLine[]>([emptyLine()]);
+  const [custom, setCustom] = useState<CustomValues>({});
+  const customDefs = useCustomFields("purchase_order");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -173,6 +177,7 @@ export function PurchaseForm({ id }: { id: string }) {
     api<Order>(`/purchase-orders/${id}`)
       .then((o) => {
         setOrder(o);
+        setCustom(o.custom ?? {});
         setHeader({
           partnerId: o.partnerId,
           partnerRef: o.partnerRef ?? "",
@@ -213,6 +218,7 @@ export function PurchaseForm({ id }: { id: string }) {
     warehouseId: orNull(header.warehouseId),
     note: orNull(header.note),
     contractId: orNull(header.contractId),
+    ...(customDefs.length ? { custom: customPayload(customDefs, custom) } : {}),
     lines: lines
       .filter((x) => x.productId || x.name)
       .map((x) => ({
@@ -580,6 +586,16 @@ export function PurchaseForm({ id }: { id: string }) {
               </select>
             </label>
           </fieldset>
+          <CustomFieldsSection
+            bare
+            model="purchase_order"
+            value={custom}
+            onChange={setCustom}
+            editable={editable}
+            recordId={isNew ? undefined : id}
+            errors={fieldErrors}
+            onSaved={setCustom}
+          />
 
           <h2>{l("Produk", "Products")}</h2>
           <div className="table-wrap">

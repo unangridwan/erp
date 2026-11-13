@@ -7,6 +7,7 @@ import {
   type leadSchema,
   type markLostSchema,
 } from "@erp/shared";
+import { normalizeCustom } from "../customization/custom-values.js";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
@@ -111,6 +112,7 @@ export class LeadService {
       .insert(L)
       .values({
         ...input,
+        custom: await normalizeCustom(tx, "crm_lead", input.custom, null, ctx.companyId),
         companyId: ctx.companyId,
         stageId,
         // Tanpa penugasan eksplisit, lead milik pembuatnya.
@@ -127,6 +129,9 @@ export class LeadService {
     const before = await this.get(tx, id);
     await this.validate(tx, sent);
     const values: Partial<typeof L.$inferInsert> = { ...sent };
+    if (sent.custom !== undefined)
+      values.custom = await normalizeCustom(tx, "crm_lead", sent.custom, before.custom, before.companyId);
+    else delete values.custom;
     if (sent.stageId !== undefined && sent.stageId !== before.stageId) {
       if (before.state === "lost")
         throw new BadRequestException("Pulihkan lead yang kalah sebelum memindah tahap");

@@ -35,6 +35,7 @@ import {
   workCenterSchema,
   type BomNode,
 } from "@erp/shared";
+import { normalizeCustom } from "../customization/custom-values.js";
 import { Decimal } from "decimal.js";
 import { z } from "zod";
 import { AccountingModule } from "../accounting/accounting.module.js";
@@ -401,6 +402,7 @@ export class ManufacturingService {
         datePlanned: input.datePlanned,
         origin: input.origin ?? null,
         note: input.note ?? null,
+        custom: await normalizeCustom(tx, "production_order", input.custom, null, companyId),
         createdBy: currentContext().userId,
       })
       .returning({ id: MO.id });
@@ -508,6 +510,7 @@ export class ManufacturingService {
         unitCost: MO.unitCost,
         materialCost: MO.materialCost,
         conversionCost: MO.conversionCost,
+        custom: MO.custom,
       })
       .from(MO)
       .innerJoin(P, eq(P.id, MO.productId))

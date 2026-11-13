@@ -5,6 +5,7 @@ import { PaymentRunModule } from "./accounting/payment-run.module.js";
 import { LandedCostModule } from "./inventory/landed-cost.module.js";
 import { StockCountModule } from "./inventory/stock-count.module.js";
 import { ManufacturingModule } from "./manufacturing/manufacturing.module.js";
+import { CustomizationModule } from "./customization/customization.module.js";
 import { ActivityController, ActivityService } from "./activity/activity.service.js";
 import { AuthController } from "./auth/auth.controller.js";
 import { AuthGuard } from "./auth/auth.guard.js";
@@ -82,6 +83,7 @@ import { WebhookService } from "./oauth/webhook.service.js";
     LandedCostModule,
     StockCountModule,
     ManufacturingModule,
+    CustomizationModule,
     CrmModule,
     SalesModule,
     InventoryModule,

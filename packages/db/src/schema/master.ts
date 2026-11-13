@@ -86,6 +86,7 @@ export const userPermissionOverrides = pgTable("user_permission_overrides", {
 });
 
 export const partners = pgTable("partners", {
+  custom: jsonb("custom").$type<Record<string, unknown>>().notNull().default({}),
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
   companyId: uuid("company_id").references(() => companies.id),
@@ -184,6 +185,7 @@ export const productCategories = pgTable("product_categories", {
 });
 
 export const products = pgTable("products", {
+  custom: jsonb("custom").$type<Record<string, unknown>>().notNull().default({}),
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
   companyId: uuid("company_id").references(() => companies.id),

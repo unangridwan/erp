@@ -1,5 +1,6 @@
 import { Decimal } from "decimal.js";
 import { z } from "zod";
+import { customValuesInput } from "./custom-fields.js";
 
 export const PRODUCTION_STATE_LABEL: Record<string, [string, string]> = {
   draft: ["Draft", "Draft"],
@@ -72,6 +73,8 @@ export const bomSchema = z
 export type BomInput = z.infer<typeof bomSchema>;
 
 export const productionOrderSchema = z.object({
+  /** Nilai field kustom `{ kunci: nilai }` (divalidasi API terhadap definisi). */
+  custom: customValuesInput.optional(),
   productId: z.string().uuid(),
   /** Kosong = BOM aktif produk (normal) pertama. */
   bomId: z.string().uuid().nullish(),
