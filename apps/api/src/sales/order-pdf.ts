@@ -16,6 +16,8 @@ export interface OrderPdfData {
   amountUntaxed: string;
   amountTotal: string;
   note: string | null;
+  /** Field kustom yang ditandai tampil di PDF. */
+  extra?: { label: string; value: string }[];
 }
 
 const fmt = (v: string, digits = 2) =>
@@ -58,6 +60,7 @@ export function renderOrderPdf(data: OrderPdfData): Promise<Buffer> {
       ["Penjual", data.salesperson],
       ["Ref. pelanggan", data.clientOrderRef],
       ["Mata uang", data.currencyCode],
+      ...(data.extra ?? []).map((e): [string, string] => [e.label, e.value]),
     ];
     let y = 110;
     for (const [label, value] of meta) {

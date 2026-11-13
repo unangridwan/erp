@@ -1,4 +1,5 @@
 import {
+  jsonb,
   boolean,
   date,
   numeric,
@@ -63,6 +64,7 @@ export const stockLots = pgTable("stock_lots", {
 });
 
 export const stockPickings = pgTable("stock_pickings", {
+  custom: jsonb("custom").$type<Record<string, unknown>>().notNull().default({}),
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
   companyId: uuid("company_id").notNull(),

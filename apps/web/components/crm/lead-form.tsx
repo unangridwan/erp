@@ -1,5 +1,6 @@
 "use client";
 
+import { CustomFieldsSection, customPayload, useCustomFields, type CustomValues } from "../custom-fields";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
@@ -16,6 +17,7 @@ import { ask } from "../feedback";
 
 interface Lead {
   id: string;
+  custom?: CustomValues;
   leadType: "lead" | "opportunity";
   name: string;
   partnerId: string | null;
@@ -88,6 +90,8 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
   const [lostForm, setLostForm] = useState<{ reasonId: string; note: string } | null>(null);
   const [convertForm, setConvertForm] = useState<{ partner: string; partnerId: string } | null>(null);
   const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [custom, setCustom] = useState<CustomValues>({});
+  const customDefs = useCustomFields("crm_lead");
   const stages = useOptions<{ id: string; name: string; isWon: boolean }>("/crm-stages");
   const reasons = useOptions<{ id: string; name: string }>("/lost-reasons");
   const users = useOptions<{ id: string; name: string }>("/users/options");
@@ -99,6 +103,7 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
       .then((x) => {
         setLead(x);
         setValues(toValues(x));
+        setCustom(x.custom ?? {});
       })
       .catch((e: Error) => setError(e.message));
     if (can(me.permissions, "sales.read"))
@@ -143,6 +148,7 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
     // Probabilitas tidak dikirim saat tahap berubah agar mengikuti probabilitas tahap baru.
     if (!isNew && lead && values.stageId !== (lead.stageId ?? "")) delete body.probability;
     if (isNew) body.leadType = leadType;
+    if (customDefs.length) body.custom = customPayload(customDefs, custom);
     return body;
   }
 
@@ -480,6 +486,14 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
               />
             </label>
           </fieldset>
+          <CustomFieldsSection
+            bare
+            model="crm_lead"
+            value={custom}
+            onChange={setCustom}
+            editable={editable}
+            errors={fieldErrors}
+          />
 
           {lead && leadType === "opportunity" && Number(lead.expectedRevenue) > 0 && (
             <p className="muted">

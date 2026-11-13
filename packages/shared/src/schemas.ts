@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { customValuesInput } from "./custom-fields.js";
 import { contractTypeCode } from "./contract-types.js";
 import { isValidPlate, normalizePlate } from "./fleet.js";
 import { ALL_PERMISSION_CODES } from "./rbac.js";
@@ -384,6 +385,8 @@ export const accountingSettingsSchema = z.object({
 });
 
 export const journalEntrySchema = z.object({
+  /** Nilai field kustom `{ kunci: nilai }` (divalidasi API terhadap definisi). */
+  custom: customValuesInput.optional(),
   journalId: z.string().uuid().optional(),
   date: z.string().date(),
   /** Jurnal akrual: pembalik bertanggal ini dibuat & diposting saat entri diposting. */
@@ -406,6 +409,8 @@ export const journalEntrySchema = z.object({
 export const INVOICE_TYPES = ["out_invoice", "out_refund", "in_invoice", "in_refund"] as const;
 
 export const invoiceSchema = z.object({
+  /** Nilai field kustom `{ kunci: nilai }` (divalidasi API terhadap definisi). */
+  custom: customValuesInput.optional(),
   moveType: z.enum(INVOICE_TYPES),
   journalId: z.string().uuid().optional(),
   partnerId: z.string().uuid(),
@@ -638,6 +643,8 @@ export const pricelistSchema = z.object({
 });
 
 export const leadSchema = z.object({
+  /** Nilai field kustom `{ kunci: nilai }` (divalidasi API terhadap definisi). */
+  custom: customValuesInput.optional(),
   leadType: z.enum(["lead", "opportunity"]).default("opportunity"),
   name: z.string().trim().min(1).max(200),
   partnerId: z.string().uuid().nullish(),
@@ -685,6 +692,8 @@ export const activitySchema = z.object({
 });
 
 export const saleOrderSchema = z.object({
+  /** Nilai field kustom `{ kunci: nilai }` (divalidasi API terhadap definisi). */
+  custom: customValuesInput.optional(),
   partnerId: z.string().uuid(),
   dateOrder: z.string().date(),
   validityDate: z.string().date().nullish(),
@@ -768,6 +777,8 @@ const lotInput = z
   .refine((l) => l.lotId || l.lotName, "Pilih atau isi nomor lot/serial");
 
 export const pickingSchema = z.object({
+  /** Nilai field kustom `{ kunci: nilai }` (divalidasi API terhadap definisi). */
+  custom: customValuesInput.optional(),
   pickingType: z.enum(["incoming", "outgoing", "internal"]),
   warehouseId: z.string().uuid().optional(),
   partnerId: optionalUuid,
@@ -858,6 +869,8 @@ export const productSupplierSchema = z.object({
 });
 
 export const purchaseOrderSchema = z.object({
+  /** Nilai field kustom `{ kunci: nilai }` (divalidasi API terhadap definisi). */
+  custom: customValuesInput.optional(),
   partnerId: z.string().uuid(),
   partnerRef: z.string().trim().max(100).nullish(),
   dateOrder: z.string().date(),
@@ -979,6 +992,8 @@ export const RELIGION_VALUES = [
 export const MARITAL_STATUS_VALUES = ["single", "married", "divorced", "widowed"] as const;
 
 export const employeeSchema = z.object({
+  /** Nilai field kustom `{ kunci: nilai }` (divalidasi API terhadap definisi). */
+  custom: customValuesInput.optional(),
   employeeNumber: z.string().trim().max(30).nullish(),
   name: z.string().trim().min(1).max(200),
   departmentId: optionalUuid,

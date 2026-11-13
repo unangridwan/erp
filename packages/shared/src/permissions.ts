@@ -65,6 +65,8 @@ export const PERMISSIONS = [
   "approval.manage",
   /** Aplikasi terhubung: klien login (OIDC), akun layanan API, webhook. */
   "integration.manage",
+  /** Field kustom (dan nanti aturan otomatis) di Pengaturan › Kustomisasi. */
+  "customization.manage",
   "settings.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];

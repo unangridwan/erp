@@ -168,6 +168,7 @@ export class MovesController {
           autoPost: m.autoPost,
           recurringId: m.recurringId,
           deferralSourceMoveId: m.deferralSourceMoveId,
+          custom: m.custom,
         })
         .from(m)
         .leftJoin(schema.partners, eq(schema.partners.id, m.partnerId))

@@ -469,6 +469,7 @@ const ServiceTypesController = createCrudController({
 
 const VehiclesController = createCrudController({
   path: "fleet-vehicles",
+  customModel: "fleet_vehicle",
   model: "fleet_vehicle",
   table: schema.fleetVehicles,
   schema: fleetVehicleSchema,

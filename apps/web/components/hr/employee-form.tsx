@@ -1,5 +1,6 @@
 "use client";
 
+import { CustomFieldsSection, customPayload, useCustomFields, type CustomValues } from "../custom-fields";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
@@ -202,11 +203,15 @@ export function EmployeeForm({ id }: { id: string }) {
     loadMeta();
   }, [id, isNew, loadMeta]);
 
+  const customDefs = useCustomFields("employee");
+  const customOf = (v: Values) => customPayload(customDefs, (v.custom ?? {}) as CustomValues);
+  const customChanged = JSON.stringify(customOf(values)) !== JSON.stringify(customOf(original));
   const dirty = useMemo(
     () =>
       pendingPhoto !== null ||
+      customChanged ||
       [...SAVED_FIELDS.map((f) => f.name), "tags"].some((k) => !same(values[k], original[k])),
-    [values, original, pendingPhoto],
+    [values, original, pendingPhoto, customChanged],
   );
 
   // Peringatan saat meninggalkan halaman (tutup tab / klik menu) dengan perubahan yang belum disimpan; Ctrl+S simpan.
@@ -231,6 +236,7 @@ export function EmployeeForm({ id }: { id: string }) {
     try {
       if (isNew) {
         const body: Values = { ...toPayload(SAVED_FIELDS, values, true), tags: values.tags ?? [] };
+        if (customDefs.length) body.custom = customOf(values);
         // Tanggal masuk = tanggal mulai kontrak kerja (diinput di tab Kontrak kerja).
         const missing: Record<string, string> = {};
         if (!newContract.dateStart) missing["contract.dateStart"] = l("Wajib diisi", "Required");
@@ -271,6 +277,7 @@ export function EmployeeForm({ id }: { id: string }) {
       const changed = SAVED_FIELDS.filter((f) => !same(values[f.name], original[f.name]));
       const body: Values = toPayload(changed, values, false);
       if (!same(values.tags, original.tags)) body.tags = values.tags ?? [];
+      if (customChanged) body.custom = customOf(values);
       if (Object.keys(body).length) {
         const row = await api<Values>(`/employees/${id}`, { method: "PATCH", body });
         setValues(row);
@@ -790,6 +797,16 @@ export function EmployeeForm({ id }: { id: string }) {
                     </section>
                   )}
                 </div>
+              )}
+              {tab === "work" && (
+                <CustomFieldsSection
+                  bare
+                  model="employee"
+                  value={(values.custom ?? {}) as CustomValues}
+                  onChange={(c) => set("custom", c)}
+                  editable={editable}
+                  errors={fieldErrors}
+                />
               )}
             </fieldset>
 

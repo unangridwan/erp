@@ -8,6 +8,7 @@ import {
   type stockAdjustmentSchema,
   type validatePickingSchema,
 } from "@erp/shared";
+import { normalizeCustom } from "../customization/custom-values.js";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
@@ -198,8 +199,12 @@ export class StockService {
   }
 
   /** Transfer manual dari form. */
-  async createManual(tx: Db, input: PickingInput) {
+  async createManual(tx: Db, input: PickingInput, existingCustom?: Record<string, unknown>) {
     const companyId = currentContext().companyId;
+    const custom =
+      input.custom === undefined && existingCustom
+        ? existingCustom
+        : await normalizeCustom(tx, "stock_picking", input.custom, existingCustom ?? null, companyId);
     const warehouseId = input.warehouseId ?? (await this.defaultWarehouse(tx, companyId)).id;
     if (input.partnerId) await assertPartner(tx, companyId, input.partnerId);
     const picking = await this.createPicking(tx, {
@@ -216,7 +221,9 @@ export class StockService {
       moves: input.moves,
     });
     if (!picking) throw fieldError("moves", "Produk jasa tidak memiliki stok");
-    return picking;
+    if (Object.keys(custom).length)
+      await tx.update(schema.stockPickings).set({ custom }).where(eq(schema.stockPickings.id, picking.id));
+    return { ...picking, custom };
   }
 
   /** Ganti isi transfer draft. */
@@ -227,7 +234,11 @@ export class StockService {
       throw new BadRequestException("Transfer dari pesanan diubah lewat pesanannya");
     await tx.delete(schema.stockPickings).where(eq(schema.stockPickings.id, id));
     // Nomor lama dipertahankan agar tidak terjadi celah penomoran.
-    const created = await this.createManual(tx, { ...input, pickingType: picking.pickingType });
+    const created = await this.createManual(
+      tx,
+      { ...input, pickingType: picking.pickingType },
+      picking.custom,
+    );
     await tx
       .update(schema.stockPickings)
       .set({ name: picking.name })

@@ -117,6 +117,7 @@ export function OrderList({ kind }: { kind: OrderKind }) {
       {list.error && <p className="error">{list.error}</p>}
       {!list.loading || list.rows.length ? (
         <DataTable
+          customModel="sale_order"
           rows={rows}
           columns={columns}
           storageKey={`sale-orders.${kind}`}

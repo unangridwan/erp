@@ -1,5 +1,6 @@
 "use client";
 
+import { CustomFieldsSection, customPayload, useCustomFields, type CustomValues } from "../custom-fields";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
@@ -45,6 +46,7 @@ interface OrderLine {
 }
 interface Order {
   id: string;
+  custom?: CustomValues;
   name: string;
   state: "draft" | "sent" | "sale" | "cancel";
   partnerId: string;
@@ -151,6 +153,8 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
   // Field yang belum diubah user pada penawaran baru mengikuti bawaan pelanggan.
   const [touched, setTouched] = useState<Set<Defaultable>>(new Set());
   const [lines, setLines] = useState<FormLine[]>([emptyLine()]);
+  const [custom, setCustom] = useState<CustomValues>({});
+  const customDefs = useCustomFields("sale_order");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -176,6 +180,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
     api<Order>(`/sale-orders/${props.id}`)
       .then((o) => {
         setOrder(o);
+        setCustom(o.custom ?? {});
         setHeader({
           partnerId: o.partnerId,
           dateOrder: o.dateOrder,
@@ -225,6 +230,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
       note: orNull(header.note),
       branchId: orNull(header.branchId),
       warehouseId: header.warehouseId || undefined,
+      ...(customDefs.length ? { custom: customPayload(customDefs, custom) } : {}),
       lines: lines
         .filter((x) => x.productId || x.name)
         .map((x) => ({
@@ -657,6 +663,16 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
               </p>
             )}
           </fieldset>
+          <CustomFieldsSection
+            bare
+            model="sale_order"
+            value={custom}
+            onChange={setCustom}
+            editable={editable}
+            recordId={isNew ? undefined : props.id}
+            errors={fieldErrors}
+            onSaved={setCustom}
+          />
 
           <h2>{l("Baris pesanan", "Order lines")}</h2>
           <div className="table-wrap">

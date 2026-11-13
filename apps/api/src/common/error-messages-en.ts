@@ -1225,4 +1225,27 @@ export const MESSAGES_EN: Record<string, string> = {
   // ---- MRP ----
   "Hasil MRP tidak ditemukan": "MRP run not found",
   "Pilih minimal satu usulan": "Select at least one proposal",
+  // ---- Field kustom ----
+  "Model field kustom tidak dikenal": "Unknown custom field model",
+  "Field kustom tidak ditemukan": "Custom field not found",
+  "Field kustom tidak dikenal": "Unknown custom field",
+  "Format field kustom tidak valid": "Invalid custom field format",
+  "Kunci sudah dipakai di data ini": "This key is already used for this record type",
+  "Tipe tidak bisa diubah karena sudah ada data yang mengisinya":
+    "The type cannot be changed because records already have a value",
+  "Wajib diisi": "Required",
+  "Isi minimal satu pilihan": "Add at least one option",
+  "Nilai pilihan tidak boleh ganda": "Option values must be unique",
+  "Pilih jenis data yang dirujuk": "Choose the referenced record type",
+  "Rujukan tidak bisa diberi nilai bawaan": "A reference cannot have a default value",
+  "Maksimal {} karakter": "At most {0} characters",
+  "Harus berupa angka": "Must be a number",
+  "Harus ya atau tidak": "Must be yes or no",
+  "Pilihan tidak dikenal": "Unknown option",
+  "Pilihan tidak dikenal: {}": "Unknown option: {0}",
+  "URL harus diawali http(s)://": "The URL must start with http(s)://",
+  "Email tidak valid": "Invalid email",
+  "Rujukan tidak valid": "Invalid reference",
+  "Huruf kecil, angka, garis bawah; diawali huruf (maks. 40)":
+    "Lowercase letters, digits, underscores; starts with a letter (max. 40)",
 };

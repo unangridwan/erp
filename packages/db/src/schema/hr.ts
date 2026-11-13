@@ -77,6 +77,7 @@ export const jobPositions = pgTable("job_positions", {
 });
 
 export const employees = pgTable("employees", {
+  custom: jsonb("custom").$type<Record<string, unknown>>().notNull().default({}),
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
   companyId: uuid("company_id").notNull(),

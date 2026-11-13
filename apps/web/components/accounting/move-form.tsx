@@ -1,5 +1,6 @@
 "use client";
 
+import { CustomFieldsSection, customPayload, useCustomFields, type CustomValues } from "../custom-fields";
 import { computeInvoice } from "@erp/shared";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -45,6 +46,7 @@ interface MoveLine {
 }
 interface Move {
   id: string;
+  custom?: CustomValues;
   name: string | null;
   moveType: string;
   state: string;
@@ -152,6 +154,9 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
     autoReverseDate: "",
   });
   const [invoiceLines, setInvoiceLines] = useState<InvoiceLine[]>([emptyInvoiceLine()]);
+  const [custom, setCustom] = useState<CustomValues>({});
+  const customDefs = useCustomFields("account_move");
+  const customBody = () => (customDefs.length ? { custom: customPayload(customDefs, custom) } : {});
   const [entryLines, setEntryLines] = useState<EntryLine[]>([emptyEntryLine(), emptyEntryLine()]);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -163,6 +168,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
     api<Move>(`/moves/${id}`)
       .then((m) => {
         setMove(m);
+        setCustom(m.custom ?? {});
         setHeader({
           partnerId: m.partnerId ?? "",
           date: m.date,
@@ -252,6 +258,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
         ref: orNull(header.ref),
         narration: orNull(header.narration),
         autoReverseDate: orNull(header.autoReverseDate),
+        ...customBody(),
         lines: entryLines
           .filter((x) => x.accountId)
           .map((x) => ({
@@ -275,6 +282,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
       currencyCode: header.currencyCode || undefined,
       ref: orNull(header.ref),
       narration: orNull(header.narration),
+      ...customBody(),
       lines: invoiceLines.map((x) => ({
         productId: orNull(x.productId),
         accountId: orNull(x.accountId),
@@ -487,6 +495,17 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
               )}
             </p>
           )}
+
+          <CustomFieldsSection
+            bare
+            model="account_move"
+            value={custom}
+            onChange={setCustom}
+            editable={editable}
+            recordId={isNew ? undefined : id}
+            errors={fieldErrors}
+            onSaved={setCustom}
+          />
 
           <h2>{isEntry ? l("Baris jurnal", "Journal items") : l("Baris", "Lines")}</h2>
           <div className="table-wrap">

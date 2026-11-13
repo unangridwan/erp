@@ -1,3 +1,4 @@
+import type { CustomFieldModel } from "@erp/shared";
 import { allowedFor, CORETAX_UOM_CODES, TRX_CODES as CORETAX_TRX_CODES } from "@erp/shared";
 import { L, type Text } from "./i18n";
 
@@ -49,6 +50,8 @@ export interface Resource {
   createPermission?: string;
   /** Data tidak bisa dihapus (cukup dinonaktifkan). */
   noDelete?: boolean;
+  /** Model field kustom (Pengaturan › Field Kustom) yang ditampilkan di form & daftar. */
+  customModel?: CustomFieldModel;
   /** Tampilan kartu (kanban) — menjadi tampilan bawaan seperti di Odoo. */
   kanban?: {
     title: string;
@@ -172,6 +175,7 @@ const TAX_KINDS: [string, Text][] = [
 export const RESOURCES: Resource[] = [
   {
     path: "partners",
+    customModel: "partner",
     kanban: { title: "name", lines: ["city", "email", "phone"] },
     model: "partner",
     title: L("Kontak", "Contacts"),
@@ -265,6 +269,7 @@ export const RESOURCES: Resource[] = [
   },
   {
     path: "products",
+    customModel: "product",
     kanban: { title: "name", lines: ["sku", "salePrice"], tag: "productType" },
     model: "product",
     title: L("Produk", "Products"),
@@ -679,6 +684,7 @@ export const RESOURCES: Resource[] = [
   },
   {
     path: "fleet-vehicles",
+    customModel: "fleet_vehicle",
     model: "fleet_vehicle",
     title: L("Kendaraan", "Vehicles"),
     singular: L("Kendaraan", "Vehicle"),
@@ -1720,6 +1726,7 @@ export const MARITAL_OPTIONS: [string, Text][] = [
 RESOURCES.push(
   {
     path: "employees",
+    customModel: "employee",
     kanban: {
       title: "name",
       lines: ["jobName", "workEmail", "workPhone"],
