@@ -1248,4 +1248,11 @@ export const MESSAGES_EN: Record<string, string> = {
   "Rujukan tidak valid": "Invalid reference",
   "Huruf kecil, angka, garis bawah; diawali huruf (maks. 40)":
     "Lowercase letters, digits, underscores; starts with a letter (max. 40)",
+  // ---- Dashboard BI ----
+  "Dashboard tidak ditemukan": "Dashboard not found",
+  "Kirim salah satu: dashboardId, builtin, atau widgets":
+    "Send exactly one of: dashboardId, builtin, or widgets",
+  "Kirim salah satu: builtin atau dashboardId": "Send exactly one of: builtin or dashboardId",
+  "Id widget ganda": "Duplicate widget id",
+  "Judul widget wajib diisi": "Widget title is required",
 };

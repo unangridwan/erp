@@ -1,0 +1,957 @@
+import {
+  aliasedTable,
+  and,
+  asc,
+  eq,
+  gte,
+  inArray,
+  lte,
+  ne,
+  schema,
+  sql,
+  type Db,
+  type PgColumn,
+} from "@erp/db";
+import { formatCustomValue, type CustomFieldModel } from "@erp/shared";
+import { loadCustomDefs } from "../customization/custom-values.js";
+import type { Column, Ctx, Dataset } from "../hr/data-transfer/core.js";
+
+type Row = Record<string, unknown>;
+type Query = Record<string, string | undefined>;
+
+const month = (d: unknown) => (d ? (d instanceof Date ? d.toISOString() : String(d)).slice(0, 7) : "");
+const day = (d: unknown) => (d ? (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10) : "");
+const n = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number(v));
+const DATE_FILTERS: NonNullable<Dataset["filters"]> = [
+  { key: "from", label: "Dari tanggal", type: "date" },
+  { key: "to", label: "Sampai tanggal", type: "date" },
+];
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+const range = (col: PgColumn, q: Query) =>
+  and(
+    q.from && ISO.test(q.from) ? gte(col, q.from) : undefined,
+    q.to && ISO.test(q.to) ? lte(col, q.to) : undefined,
+  );
+const rangeTs = (col: PgColumn, q: Query) =>
+  and(
+    q.from && ISO.test(q.from) ? sql`${col} >= ${q.from}::date` : undefined,
+    q.to && ISO.test(q.to) ? sql`${col} < (${q.to}::date + 1)` : undefined,
+  );
+
+/** Kolom field kustom model (tampil di laporan), angka tetap angka agar bisa dijumlah. */
+async function customColumns(tx: Db, model: CustomFieldModel, ctx: Ctx): Promise<Column[]> {
+  const defs = await loadCustomDefs(tx, model, { companyId: ctx.companyId, activeOnly: true });
+  return defs.map((d) => ({
+    key: `custom.${d.key}`,
+    header: d.label,
+    group: "Field kustom",
+    numeric: d.fieldType === "number" || d.fieldType === "money",
+  }));
+}
+async function customValues(tx: Db, model: CustomFieldModel, ctx: Ctx) {
+  const defs = await loadCustomDefs(tx, model, { companyId: ctx.companyId, activeOnly: true });
+  return (custom: unknown) => {
+    const c = (custom ?? {}) as Record<string, unknown>;
+    return Object.fromEntries(
+      defs.map((d) => [
+        `custom.${d.key}`,
+        d.fieldType === "number" || d.fieldType === "money" ? n(c[d.key]) : formatCustomValue(d, c[d.key]),
+      ]),
+    );
+  };
+}
+
+const col = (key: string, header: string, group: string, numeric = false): Column => ({
+  key,
+  header,
+  group,
+  numeric,
+});
+
+const SO_STATE: Record<string, string> = {
+  draft: "Penawaran",
+  sent: "Terkirim",
+  sale: "Pesanan",
+  cancel: "Batal",
+};
+const PO_STATE: Record<string, string> = {
+  draft: "RFQ",
+  sent: "RFQ terkirim",
+  to_approve: "Menunggu persetujuan",
+  purchase: "Pesanan",
+  cancel: "Batal",
+};
+const MOVE_TYPE: Record<string, string> = {
+  out_invoice: "Faktur pelanggan",
+  out_refund: "Nota kredit pelanggan",
+  in_invoice: "Tagihan pemasok",
+  in_refund: "Nota kredit pemasok",
+  entry: "Jurnal umum",
+};
+const PAYMENT_STATE: Record<string, string> = {
+  not_paid: "Belum dibayar",
+  partial: "Sebagian",
+  paid: "Lunas",
+  in_payment: "Dalam pembayaran",
+  reversed: "Dibalik",
+};
+const MO_STATE: Record<string, string> = {
+  draft: "Draft",
+  confirmed: "Dikonfirmasi",
+  in_progress: "Berjalan",
+  done: "Selesai",
+  cancel: "Batal",
+};
+
+/** Hari lewat jatuh tempo → kelompok umur. */
+const agingBucket = (days: number | null, residual: number) => {
+  if (!residual) return "Lunas";
+  // Diberi nomor urut agar pengelompokan & grafik tersusun dari yang belum jatuh tempo ke yang terlama.
+  if (days === null || days <= 0) return "1. Belum jatuh tempo";
+  if (days <= 30) return "2. 1-30 hari";
+  if (days <= 60) return "3. 31-60 hari";
+  if (days <= 90) return "4. 61-90 hari";
+  return "5. > 90 hari";
+};
+
+const O = schema.saleOrders;
+const OL = schema.saleOrderLines;
+const P = schema.partners;
+const U = schema.users;
+const PR = schema.products;
+const PC = schema.productCategories;
+
+function saleOrders(): Dataset {
+  return {
+    key: "sales_orders",
+    label: "Pesanan penjualan",
+    description: "Penawaran & pesanan penjualan: pelanggan, salesperson, status, nilai.",
+    app: "sales",
+    read: "sales.read",
+    admin: "sales.manage",
+    filters: DATE_FILTERS,
+    async columns(tx, ctx) {
+      return [
+        col("name", "Nomor", "Pesanan"),
+        col("dateOrder", "Tanggal", "Pesanan"),
+        col("month", "Bulan", "Pesanan"),
+        col("partner", "Pelanggan", "Pesanan"),
+        col("salesperson", "Salesperson", "Pesanan"),
+        col("team", "Tim penjualan", "Pesanan"),
+        col("state", "Status", "Pesanan"),
+        col("invoiceStatus", "Status tagih", "Pesanan"),
+        col("amountUntaxed", "Total sebelum pajak", "Nilai", true),
+        col("amountTax", "Pajak", "Nilai", true),
+        col("amountTotal", "Total", "Nilai", true),
+        col("currency", "Mata uang", "Nilai"),
+        ...(await customColumns(tx, "sale_order", ctx)),
+      ];
+    },
+    async rows(tx, ctx, q) {
+      const custom = await customValues(tx, "sale_order", ctx);
+      const rows = await tx
+        .select({ o: O, partner: P.name, user: U.name, team: schema.salesTeams.name })
+        .from(O)
+        .innerJoin(P, eq(P.id, O.partnerId))
+        .leftJoin(U, eq(U.id, O.userId))
+        .leftJoin(schema.salesTeams, eq(schema.salesTeams.id, O.teamId))
+        .where(and(eq(O.companyId, ctx.companyId), range(O.dateOrder, q)))
+        .orderBy(asc(O.dateOrder));
+      return rows.map(({ o, partner, user, team }) => ({
+        name: o.name,
+        dateOrder: o.dateOrder,
+        month: month(o.dateOrder),
+        partner,
+        salesperson: user ?? "",
+        team: team ?? "",
+        state: SO_STATE[o.state] ?? o.state,
+        invoiceStatus: { no: "Tidak ada", to_invoice: "Perlu ditagih", invoiced: "Sudah ditagih" }[
+          o.invoiceStatus as string
+        ],
+        amountUntaxed: n(o.amountUntaxed),
+        amountTax: n(o.amountTax),
+        amountTotal: n(o.amountTotal),
+        currency: o.currencyCode,
+        ...custom(o.custom),
+      }));
+    },
+  };
+}
+
+function saleLines(): Dataset {
+  return {
+    key: "sales_lines",
+    label: "Baris penjualan (produk)",
+    description: "Baris pesanan penjualan terkonfirmasi: produk, kategori, kuantitas, nilai per pelanggan.",
+    app: "sales",
+    read: "sales.read",
+    admin: "sales.manage",
+    filters: DATE_FILTERS,
+    columns: () => [
+      col("order", "Nomor pesanan", "Pesanan"),
+      col("dateOrder", "Tanggal", "Pesanan"),
+      col("month", "Bulan", "Pesanan"),
+      col("partner", "Pelanggan", "Pesanan"),
+      col("salesperson", "Salesperson", "Pesanan"),
+      col("sku", "SKU", "Produk"),
+      col("product", "Produk", "Produk"),
+      col("category", "Kategori", "Produk"),
+      col("quantity", "Kuantitas", "Nilai", true),
+      col("priceUnit", "Harga satuan", "Nilai", true),
+      col("subtotal", "Subtotal", "Nilai", true),
+    ],
+    async rows(tx, ctx, q) {
+      const rows = await tx
+        .select({
+          order: O.name,
+          dateOrder: O.dateOrder,
+          partner: P.name,
+          user: U.name,
+          sku: PR.sku,
+          product: PR.name,
+          category: PC.name,
+          name: OL.name,
+          quantity: OL.quantity,
+          priceUnit: OL.priceUnit,
+          subtotal: OL.priceSubtotal,
+        })
+        .from(OL)
+        .innerJoin(O, eq(O.id, OL.orderId))
+        .innerJoin(P, eq(P.id, O.partnerId))
+        .leftJoin(U, eq(U.id, O.userId))
+        .leftJoin(PR, eq(PR.id, OL.productId))
+        .leftJoin(PC, eq(PC.id, PR.categoryId))
+        .where(
+          and(
+            eq(O.companyId, ctx.companyId),
+            eq(O.state, "sale"),
+            eq(OL.isDownpayment, false),
+            range(O.dateOrder, q),
+          ),
+        )
+        .orderBy(asc(O.dateOrder));
+      return rows.map((r) => ({
+        order: r.order,
+        dateOrder: r.dateOrder,
+        month: month(r.dateOrder),
+        partner: r.partner,
+        salesperson: r.user ?? "",
+        sku: r.sku ?? "",
+        product: r.product ?? r.name,
+        category: r.category ?? "",
+        quantity: n(r.quantity),
+        priceUnit: n(r.priceUnit),
+        subtotal: n(r.subtotal),
+      }));
+    },
+  };
+}
+
+function crmLeads(): Dataset {
+  const L = schema.crmLeads;
+  return {
+    key: "crm_leads",
+    label: "Lead & peluang CRM",
+    description: "Lead dan peluang: tahap, salesperson, nilai harapan, probabilitas, status.",
+    app: "crm",
+    read: "crm.read",
+    admin: "crm.manage",
+    filters: DATE_FILTERS,
+    async columns(tx, ctx) {
+      return [
+        col("name", "Judul", "Lead"),
+        col("leadType", "Jenis", "Lead"),
+        col("created", "Tanggal dibuat", "Lead"),
+        col("month", "Bulan dibuat", "Lead"),
+        col("partner", "Pelanggan", "Lead"),
+        col("source", "Sumber", "Lead"),
+        col("stage", "Tahap", "Lead"),
+        col("salesperson", "Salesperson", "Lead"),
+        col("team", "Tim penjualan", "Lead"),
+        col("state", "Status", "Lead"),
+        col("expectedClose", "Perkiraan tutup", "Lead"),
+        col("expectedRevenue", "Nilai harapan", "Nilai", true),
+        col("probability", "Probabilitas (%)", "Nilai", true),
+        col("weighted", "Nilai tertimbang", "Nilai", true),
+        ...(await customColumns(tx, "crm_lead", ctx)),
+      ];
+    },
+    async rows(tx, ctx, q) {
+      const custom = await customValues(tx, "crm_lead", ctx);
+      const rows = await tx
+        .select({
+          l: L,
+          partner: P.name,
+          user: U.name,
+          stage: schema.crmStages.name,
+          team: schema.salesTeams.name,
+        })
+        .from(L)
+        .leftJoin(P, eq(P.id, L.partnerId))
+        .leftJoin(U, eq(U.id, L.userId))
+        .leftJoin(schema.crmStages, eq(schema.crmStages.id, L.stageId))
+        .leftJoin(schema.salesTeams, eq(schema.salesTeams.id, L.teamId))
+        .where(and(eq(L.companyId, ctx.companyId), rangeTs(L.createdAt, q)))
+        .orderBy(asc(L.createdAt));
+      return rows.map(({ l, partner, user, stage, team }) => {
+        const revenue = n(l.expectedRevenue) ?? 0;
+        const prob = n(l.probability) ?? 0;
+        return {
+          name: l.name,
+          leadType: l.leadType === "lead" ? "Lead" : "Peluang",
+          created: day(l.createdAt),
+          month: month(l.createdAt),
+          partner: partner ?? l.partnerName ?? "",
+          source: l.source ?? "",
+          stage: stage ?? "",
+          salesperson: user ?? "",
+          team: team ?? "",
+          state: { open: "Terbuka", won: "Menang", lost: "Kalah" }[l.state as string] ?? l.state,
+          expectedClose: l.expectedClose ?? "",
+          expectedRevenue: revenue,
+          probability: prob,
+          weighted: Math.round(revenue * prob) / 100,
+          ...custom(l.custom),
+        };
+      });
+    },
+  };
+}
+
+const M = schema.accountMoves;
+const ML = schema.accountMoveLines;
+const A = schema.accounts;
+
+function invoices(): Dataset {
+  return {
+    key: "invoices",
+    label: "Faktur & tagihan",
+    description:
+      "Faktur pelanggan, tagihan pemasok, dan nota kredit terposting: sisa, jatuh tempo, umur piutang/utang.",
+    app: "accounting",
+    read: "accounting.read",
+    admin: "accounting.manage",
+    filters: [
+      ...DATE_FILTERS,
+      {
+        key: "kind",
+        label: "Jenis",
+        type: "select",
+        options: [
+          ["customer", "Pelanggan"],
+          ["vendor", "Pemasok"],
+        ],
+      },
+    ],
+    async columns(tx, ctx) {
+      return [
+        col("name", "Nomor", "Dokumen"),
+        col("moveType", "Jenis", "Dokumen"),
+        col("side", "Pelanggan/pemasok", "Dokumen"),
+        col("date", "Tanggal", "Dokumen"),
+        col("month", "Bulan", "Dokumen"),
+        col("dueDate", "Jatuh tempo", "Dokumen"),
+        col("partner", "Partner", "Dokumen"),
+        col("paymentState", "Status bayar", "Dokumen"),
+        col("overdueDays", "Hari lewat jatuh tempo", "Umur", true),
+        col("aging", "Kelompok umur", "Umur"),
+        col("amountUntaxed", "Total sebelum pajak", "Nilai", true),
+        col("amountTax", "Pajak", "Nilai", true),
+        col("amountTotal", "Total", "Nilai", true),
+        col("amountResidual", "Sisa", "Nilai", true),
+        col("currency", "Mata uang", "Nilai"),
+        ...(await customColumns(tx, "account_move", ctx)),
+      ];
+    },
+    async rows(tx, ctx, q) {
+      const custom = await customValues(tx, "account_move", ctx);
+      const types =
+        q.kind === "customer"
+          ? (["out_invoice", "out_refund"] as const)
+          : q.kind === "vendor"
+            ? (["in_invoice", "in_refund"] as const)
+            : (["out_invoice", "out_refund", "in_invoice", "in_refund"] as const);
+      const rows = await tx
+        .select({ m: M, partner: P.name })
+        .from(M)
+        .leftJoin(P, eq(P.id, M.partnerId))
+        .where(
+          and(
+            eq(M.companyId, ctx.companyId),
+            eq(M.state, "posted"),
+            inArray(M.moveType, [...types]),
+            range(M.date, q),
+          ),
+        )
+        .orderBy(asc(M.date));
+      const today = new Date().toISOString().slice(0, 10);
+      return rows.map(({ m, partner }) => {
+        const sign = m.moveType.endsWith("refund") ? -1 : 1;
+        const residual = (n(m.amountResidual) ?? 0) * sign;
+        const overdue =
+          m.dueDate && residual
+            ? Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${m.dueDate}T00:00:00Z`)) / 864e5)
+            : null;
+        return {
+          name: m.name,
+          moveType: MOVE_TYPE[m.moveType] ?? m.moveType,
+          side: m.moveType.startsWith("out") ? "Pelanggan" : "Pemasok",
+          date: m.date,
+          month: month(m.date),
+          dueDate: m.dueDate ?? "",
+          partner: partner ?? "",
+          paymentState: PAYMENT_STATE[m.paymentState as string] ?? m.paymentState,
+          overdueDays: overdue !== null && overdue > 0 ? overdue : 0,
+          aging: agingBucket(overdue, residual),
+          amountUntaxed: (n(m.amountUntaxed) ?? 0) * sign,
+          amountTax: (n(m.amountTax) ?? 0) * sign,
+          amountTotal: (n(m.amountTotal) ?? 0) * sign,
+          amountResidual: residual,
+          currency: m.currencyCode,
+          ...custom(m.custom),
+        };
+      });
+    },
+  };
+}
+
+const ACCOUNT_TYPE: Record<string, string> = {
+  asset_receivable: "Piutang",
+  asset_cash: "Kas & bank",
+  asset_current: "Aset lancar",
+  asset_non_current: "Aset tidak lancar",
+  asset_prepayments: "Biaya dibayar di muka",
+  asset_fixed: "Aset tetap",
+  liability_payable: "Utang usaha",
+  liability_credit_card: "Kartu kredit",
+  liability_current: "Liabilitas jangka pendek",
+  liability_non_current: "Liabilitas jangka panjang",
+  equity: "Ekuitas",
+  equity_unaffected: "Laba tahun berjalan",
+  income: "Pendapatan",
+  income_other: "Pendapatan lain",
+  expense: "Beban",
+  expense_depreciation: "Beban penyusutan",
+  expense_direct_cost: "Harga pokok",
+  off_balance: "Di luar neraca",
+};
+/** Kelompok laba rugi: pendapatan positif, beban negatif (nilai = kredit − debit). */
+const plGroup = (type: string) =>
+  type.startsWith("income") ? "Pendapatan" : type.startsWith("expense") ? "Beban" : "Neraca";
+
+function journalItems(): Dataset {
+  const CC = schema.costCenters;
+  const PFC = schema.profitCenters;
+  return {
+    key: "journal_items",
+    label: "Item jurnal (buku besar)",
+    description:
+      "Baris jurnal terposting per akun: debit, kredit, saldo, nilai laba rugi, cost/profit center, cabang.",
+    app: "accounting",
+    read: "accounting.read",
+    admin: "accounting.manage",
+    filters: DATE_FILTERS,
+    columns: () => [
+      col("date", "Tanggal", "Jurnal"),
+      col("month", "Bulan", "Jurnal"),
+      col("move", "Nomor entri", "Jurnal"),
+      col("accountCode", "Kode akun", "Akun"),
+      col("account", "Akun", "Akun"),
+      col("accountType", "Jenis akun", "Akun"),
+      col("plGroup", "Kelompok laba rugi", "Akun"),
+      col("partner", "Partner", "Jurnal"),
+      col("label", "Keterangan", "Jurnal"),
+      col("costCenter", "Cost center", "Dimensi"),
+      col("profitCenter", "Profit center", "Dimensi"),
+      col("branch", "Cabang", "Dimensi"),
+      col("debit", "Debit", "Nilai", true),
+      col("credit", "Kredit", "Nilai", true),
+      col("balance", "Saldo (debit − kredit)", "Nilai", true),
+      col("plAmount", "Nilai laba rugi (kredit − debit)", "Nilai", true),
+    ],
+    async rows(tx, ctx, q) {
+      const rows = await tx
+        .select({
+          date: M.date,
+          move: M.name,
+          code: A.code,
+          account: A.name,
+          type: A.accountType,
+          partner: P.name,
+          label: ML.name,
+          cc: CC.name,
+          pc: PFC.name,
+          branch: schema.branches.name,
+          debit: ML.debit,
+          credit: ML.credit,
+        })
+        .from(ML)
+        .innerJoin(M, eq(M.id, ML.moveId))
+        .innerJoin(A, eq(A.id, ML.accountId))
+        .leftJoin(P, eq(P.id, ML.partnerId))
+        .leftJoin(CC, eq(CC.id, ML.costCenterId))
+        .leftJoin(PFC, eq(PFC.id, ML.profitCenterId))
+        .leftJoin(schema.branches, eq(schema.branches.id, ML.branchId))
+        .where(and(eq(M.companyId, ctx.companyId), eq(M.state, "posted"), range(M.date, q)))
+        .orderBy(asc(M.date), asc(A.code));
+      return rows.map((r) => {
+        const debit = n(r.debit) ?? 0;
+        const credit = n(r.credit) ?? 0;
+        const group = plGroup(r.type);
+        return {
+          date: r.date,
+          month: month(r.date),
+          move: r.move ?? "",
+          accountCode: r.code,
+          account: r.account,
+          accountType: ACCOUNT_TYPE[r.type] ?? r.type,
+          plGroup: group,
+          partner: r.partner ?? "",
+          label: r.label ?? "",
+          costCenter: r.cc ?? "",
+          profitCenter: r.pc ?? "",
+          branch: r.branch ?? "",
+          debit,
+          credit,
+          balance: Math.round((debit - credit) * 100) / 100,
+          plAmount: group === "Neraca" ? 0 : Math.round((credit - debit) * 100) / 100,
+        };
+      });
+    },
+  };
+}
+
+const PO = schema.purchaseOrders;
+const POL = schema.purchaseOrderLines;
+
+function purchaseOrders(): Dataset {
+  return {
+    key: "purchase_orders",
+    label: "Pesanan pembelian",
+    description: "RFQ & pesanan pembelian: pemasok, status, nilai, tanggal rencana.",
+    app: "purchase",
+    read: "purchase.read",
+    admin: "purchase.manage",
+    filters: DATE_FILTERS,
+    async columns(tx, ctx) {
+      return [
+        col("name", "Nomor", "Pesanan"),
+        col("dateOrder", "Tanggal", "Pesanan"),
+        col("month", "Bulan", "Pesanan"),
+        col("datePlanned", "Tanggal rencana terima", "Pesanan"),
+        col("partner", "Pemasok", "Pesanan"),
+        col("buyer", "Pembeli", "Pesanan"),
+        col("state", "Status", "Pesanan"),
+        col("amountUntaxed", "Total sebelum pajak", "Nilai", true),
+        col("amountTotal", "Total", "Nilai", true),
+        col("currency", "Mata uang", "Nilai"),
+        ...(await customColumns(tx, "purchase_order", ctx)),
+      ];
+    },
+    async rows(tx, ctx, q) {
+      const custom = await customValues(tx, "purchase_order", ctx);
+      const rows = await tx
+        .select({ o: PO, partner: P.name, user: U.name })
+        .from(PO)
+        .innerJoin(P, eq(P.id, PO.partnerId))
+        .leftJoin(U, eq(U.id, PO.userId))
+        .where(and(eq(PO.companyId, ctx.companyId), range(PO.dateOrder, q)))
+        .orderBy(asc(PO.dateOrder));
+      return rows.map(({ o, partner, user }) => ({
+        name: o.name,
+        dateOrder: o.dateOrder,
+        month: month(o.dateOrder),
+        datePlanned: o.datePlanned ?? "",
+        partner,
+        buyer: user ?? "",
+        state: PO_STATE[o.state] ?? o.state,
+        amountUntaxed: n(o.amountUntaxed),
+        amountTotal: n(o.amountTotal),
+        currency: o.currencyCode,
+        ...custom(o.custom),
+      }));
+    },
+  };
+}
+
+function purchaseLines(): Dataset {
+  return {
+    key: "purchase_lines",
+    label: "Baris pembelian (produk)",
+    description: "Baris pesanan pembelian terkonfirmasi: produk, pemasok, kuantitas, nilai.",
+    app: "purchase",
+    read: "purchase.read",
+    admin: "purchase.manage",
+    filters: DATE_FILTERS,
+    columns: () => [
+      col("order", "Nomor pesanan", "Pesanan"),
+      col("dateOrder", "Tanggal", "Pesanan"),
+      col("month", "Bulan", "Pesanan"),
+      col("partner", "Pemasok", "Pesanan"),
+      col("sku", "SKU", "Produk"),
+      col("product", "Produk", "Produk"),
+      col("category", "Kategori", "Produk"),
+      col("quantity", "Kuantitas", "Nilai", true),
+      col("priceUnit", "Harga satuan", "Nilai", true),
+      col("subtotal", "Subtotal", "Nilai", true),
+    ],
+    async rows(tx, ctx, q) {
+      const rows = await tx
+        .select({
+          order: PO.name,
+          dateOrder: PO.dateOrder,
+          partner: P.name,
+          sku: PR.sku,
+          product: PR.name,
+          category: PC.name,
+          name: POL.name,
+          quantity: POL.quantity,
+          priceUnit: POL.priceUnit,
+          subtotal: POL.priceSubtotal,
+        })
+        .from(POL)
+        .innerJoin(PO, eq(PO.id, POL.orderId))
+        .innerJoin(P, eq(P.id, PO.partnerId))
+        .leftJoin(PR, eq(PR.id, POL.productId))
+        .leftJoin(PC, eq(PC.id, PR.categoryId))
+        .where(and(eq(PO.companyId, ctx.companyId), eq(PO.state, "purchase"), range(PO.dateOrder, q)))
+        .orderBy(asc(PO.dateOrder));
+      return rows.map((r) => ({
+        order: r.order,
+        dateOrder: r.dateOrder,
+        month: month(r.dateOrder),
+        partner: r.partner,
+        sku: r.sku ?? "",
+        product: r.product ?? r.name,
+        category: r.category ?? "",
+        quantity: n(r.quantity),
+        priceUnit: n(r.priceUnit),
+        subtotal: n(r.subtotal),
+      }));
+    },
+  };
+}
+
+function stockQuants(): Dataset {
+  const Q = schema.stockQuants;
+  const L = schema.stockLocations;
+  const W = schema.warehouses;
+  return {
+    key: "stock_quants",
+    label: "Stok per lokasi",
+    description:
+      "Stok tersedia per produk & lokasi internal: kuantitas, nilai (biaya rata-rata lapisan), minimum.",
+    app: "inventory",
+    read: "inventory.read",
+    admin: "inventory.manage",
+    columns: () => [
+      col("sku", "SKU", "Produk"),
+      col("product", "Produk", "Produk"),
+      col("category", "Kategori", "Produk"),
+      col("warehouse", "Gudang", "Lokasi"),
+      col("location", "Lokasi", "Lokasi"),
+      col("quantity", "Kuantitas", "Nilai", true),
+      col("unitCost", "Biaya satuan", "Nilai", true),
+      col("value", "Nilai stok", "Nilai", true),
+      col("minQty", "Minimum (aturan reorder)", "Reorder", true),
+      col("belowMin", "Di bawah minimum", "Reorder"),
+    ],
+    async rows(tx, ctx) {
+      const rows = await tx
+        .select({
+          productId: Q.productId,
+          sku: PR.sku,
+          product: PR.name,
+          cost: PR.cost,
+          category: PC.name,
+          warehouseId: L.warehouseId,
+          warehouse: W.name,
+          location: L.completeName,
+          quantity: sql<string>`sum(${Q.quantity})`,
+        })
+        .from(Q)
+        .innerJoin(L, eq(L.id, Q.locationId))
+        .innerJoin(PR, eq(PR.id, Q.productId))
+        .leftJoin(PC, eq(PC.id, PR.categoryId))
+        .leftJoin(W, eq(W.id, L.warehouseId))
+        .where(and(eq(Q.companyId, ctx.companyId), eq(L.usage, "internal")))
+        .groupBy(Q.productId, PR.sku, PR.name, PR.cost, PC.name, L.warehouseId, W.name, L.completeName)
+        .orderBy(asc(PR.sku));
+      const V = schema.stockValuationLayers;
+      const layers = await tx
+        .select({
+          productId: V.productId,
+          qty: sql<string>`sum(${V.remainingQty})`,
+          value: sql<string>`sum(${V.remainingValue})`,
+        })
+        .from(V)
+        .where(eq(V.companyId, ctx.companyId))
+        .groupBy(V.productId);
+      const unit = new Map(
+        layers.map((l) => [l.productId, Number(l.qty) ? Number(l.value) / Number(l.qty) : null]),
+      );
+      const R = schema.stockReorderRules;
+      const rules = await tx
+        .select({ productId: R.productId, warehouseId: R.warehouseId, minQty: R.minQty })
+        .from(R)
+        .where(and(eq(R.companyId, ctx.companyId), eq(R.active, true)));
+      const min = new Map(rules.map((r) => [`${r.productId}:${r.warehouseId}`, Number(r.minQty)]));
+      // Total per produk × gudang untuk pembanding minimum.
+      const perWh = new Map<string, number>();
+      for (const r of rows) {
+        const k = `${r.productId}:${r.warehouseId}`;
+        perWh.set(k, (perWh.get(k) ?? 0) + Number(r.quantity));
+      }
+      return rows.map((r) => {
+        const qty = Number(r.quantity);
+        const cost = unit.get(r.productId) ?? Number(r.cost ?? 0);
+        const m = min.get(`${r.productId}:${r.warehouseId}`);
+        return {
+          sku: r.sku ?? "",
+          product: r.product,
+          category: r.category ?? "",
+          warehouse: r.warehouse ?? "",
+          location: r.location,
+          quantity: qty,
+          unitCost: Math.round(cost * 100) / 100,
+          value: Math.round(qty * cost * 100) / 100,
+          minQty: m ?? null,
+          belowMin:
+            m !== undefined && (perWh.get(`${r.productId}:${r.warehouseId}`) ?? 0) < m ? "Ya" : "Tidak",
+        };
+      });
+    },
+  };
+}
+
+function stockMoves(): Dataset {
+  const SM = schema.stockMoves;
+  const SP = schema.stockPickings;
+  const src = aliasedTable(schema.stockLocations, "src");
+  const dst = aliasedTable(schema.stockLocations, "dst");
+  return {
+    key: "stock_moves",
+    label: "Pergerakan stok",
+    description:
+      "Pergerakan stok selesai: masuk, keluar, internal, penyesuaian, produksi — kuantitas & nilai.",
+    app: "inventory",
+    read: "inventory.read",
+    admin: "inventory.manage",
+    filters: DATE_FILTERS,
+    columns: () => [
+      col("date", "Tanggal", "Pergerakan"),
+      col("month", "Bulan", "Pergerakan"),
+      col("reference", "Referensi", "Pergerakan"),
+      col("kind", "Jenis", "Pergerakan"),
+      col("sku", "SKU", "Produk"),
+      col("product", "Produk", "Produk"),
+      col("category", "Kategori", "Produk"),
+      col("from", "Dari", "Lokasi"),
+      col("to", "Ke", "Lokasi"),
+      col("quantity", "Kuantitas", "Nilai", true),
+      col("value", "Nilai", "Nilai", true),
+    ],
+    async rows(tx, ctx, q) {
+      const rows = await tx
+        .select({
+          date: SM.date,
+          reference: SM.reference,
+          pickingType: SP.pickingType,
+          isInventory: SM.isInventory,
+          production: SM.productionOrderId,
+          sku: PR.sku,
+          product: PR.name,
+          category: PC.name,
+          from: src.completeName,
+          fromUsage: src.usage,
+          to: dst.completeName,
+          toUsage: dst.usage,
+          qty: SM.quantityDone,
+          value: SM.value,
+        })
+        .from(SM)
+        .innerJoin(PR, eq(PR.id, SM.productId))
+        .leftJoin(PC, eq(PC.id, PR.categoryId))
+        .leftJoin(SP, eq(SP.id, SM.pickingId))
+        .innerJoin(src, eq(src.id, SM.locationId))
+        .innerJoin(dst, eq(dst.id, SM.locationDestId))
+        .where(and(eq(SM.companyId, ctx.companyId), eq(SM.state, "done"), rangeTs(SM.date, q)))
+        .orderBy(asc(SM.date));
+      const KIND: Record<string, string> = {
+        incoming: "Penerimaan",
+        outgoing: "Pengiriman",
+        internal: "Transfer internal",
+        dropship: "Dropship",
+      };
+      return rows.map((r) => ({
+        date: day(r.date),
+        month: month(r.date),
+        reference: r.reference ?? "",
+        kind: r.production
+          ? "Produksi"
+          : r.isInventory
+            ? "Penyesuaian"
+            : r.pickingType
+              ? (KIND[r.pickingType] ?? r.pickingType)
+              : r.toUsage === "internal"
+                ? "Masuk"
+                : "Keluar",
+        sku: r.sku ?? "",
+        product: r.product,
+        category: r.category ?? "",
+        from: r.from,
+        to: r.to,
+        quantity: n(r.qty),
+        value: n(r.value),
+      }));
+    },
+  };
+}
+
+function productionOrders(): Dataset {
+  const MO = schema.productionOrders;
+  return {
+    key: "production_orders",
+    label: "Order produksi",
+    description: "Order produksi: produk, kuantitas, status, biaya bahan & konversi, biaya per unit.",
+    app: "mrp",
+    read: "mrp.read",
+    admin: "mrp.manage",
+    filters: DATE_FILTERS,
+    async columns(tx, ctx) {
+      return [
+        col("name", "Nomor", "Order"),
+        col("datePlanned", "Tanggal rencana", "Order"),
+        col("month", "Bulan", "Order"),
+        col("dateDone", "Tanggal selesai", "Order"),
+        col("sku", "SKU", "Produk"),
+        col("product", "Produk", "Produk"),
+        col("state", "Status", "Order"),
+        col("quantity", "Kuantitas rencana", "Nilai", true),
+        col("qtyProduced", "Kuantitas hasil", "Nilai", true),
+        col("materialCost", "Biaya bahan", "Biaya", true),
+        col("conversionCost", "Biaya konversi", "Biaya", true),
+        col("totalCost", "Total biaya", "Biaya", true),
+        col("unitCost", "Biaya per unit", "Biaya", true),
+        ...(await customColumns(tx, "production_order", ctx)),
+      ];
+    },
+    async rows(tx, ctx, q) {
+      const custom = await customValues(tx, "production_order", ctx);
+      const rows = await tx
+        .select({ o: MO, sku: PR.sku, product: PR.name })
+        .from(MO)
+        .innerJoin(PR, eq(PR.id, MO.productId))
+        .where(and(eq(MO.companyId, ctx.companyId), range(MO.datePlanned, q)))
+        .orderBy(asc(MO.datePlanned));
+      return rows.map(({ o, sku, product }) => ({
+        name: o.name,
+        datePlanned: o.datePlanned,
+        month: month(o.datePlanned),
+        dateDone: day(o.dateDone),
+        sku: sku ?? "",
+        product,
+        state: MO_STATE[o.state] ?? o.state,
+        quantity: n(o.quantity),
+        qtyProduced: n(o.qtyProduced),
+        materialCost: n(o.materialCost),
+        conversionCost: n(o.conversionCost),
+        totalCost: (n(o.materialCost) ?? 0) + (n(o.conversionCost) ?? 0),
+        unitCost: n(o.unitCost),
+        ...custom(o.custom),
+      }));
+    },
+  };
+}
+
+function payslipHistory(): Dataset {
+  const S = schema.payslips;
+  const RUN = schema.payrollRuns;
+  const E = schema.employees;
+  return {
+    key: "payslips_history",
+    label: "Riwayat biaya gaji",
+    description:
+      "Slip gaji terposting semua periode: bruto, neto, BPJS, biaya perusahaan per karyawan & departemen.",
+    app: "payroll",
+    read: "payroll.read",
+    admin: "payroll.manage",
+    filters: DATE_FILTERS,
+    columns: () => [
+      col("period", "Periode", "Payroll"),
+      col("month", "Bulan", "Payroll"),
+      col("run", "Payroll", "Payroll"),
+      col("employeeNumber", "No. karyawan", "Karyawan"),
+      col("employee", "Nama", "Karyawan"),
+      col("department", "Departemen", "Karyawan"),
+      col("gross", "Penghasilan bruto", "Nilai", true),
+      col("employeeBpjs", "BPJS karyawan", "Nilai", true),
+      col("employerBpjs", "BPJS perusahaan", "Nilai", true),
+      col("net", "Gaji bersih", "Nilai", true),
+      col("employerCost", "Biaya perusahaan (bruto + BPJS)", "Nilai", true),
+    ],
+    async rows(tx, ctx, q) {
+      const rows = await tx
+        .select({
+          period: RUN.periodStart,
+          run: RUN.name,
+          number: E.employeeNumber,
+          employee: E.name,
+          department: schema.departments.name,
+          gross: S.gross,
+          employeeBpjs: S.employeeBpjs,
+          employerBpjs: S.employerBpjs,
+          net: S.net,
+        })
+        .from(S)
+        .innerJoin(RUN, eq(RUN.id, S.runId))
+        .innerJoin(E, eq(E.id, S.employeeId))
+        .leftJoin(schema.departments, eq(schema.departments.id, E.departmentId))
+        .where(
+          and(
+            eq(S.companyId, ctx.companyId),
+            inArray(RUN.state, ["done", "paid"]),
+            ne(RUN.kind, "correction"),
+            range(RUN.periodStart, q),
+          ),
+        )
+        .orderBy(asc(RUN.periodStart), asc(E.name));
+      return rows.map((r) => {
+        const gross = n(r.gross) ?? 0;
+        const employer = n(r.employerBpjs) ?? 0;
+        return {
+          period: r.period,
+          month: month(r.period),
+          run: r.run,
+          employeeNumber: r.number,
+          employee: r.employee,
+          department: r.department ?? "",
+          gross,
+          employeeBpjs: n(r.employeeBpjs),
+          employerBpjs: employer,
+          net: n(r.net),
+          employerCost: Math.round((gross + employer) * 100) / 100,
+        };
+      });
+    },
+  };
+}
+
+/** Dataset laporan bisnis (hanya baca) — dipakai pembuat laporan & dashboard, bukan impor/ekspor SDM. */
+export function businessDatasets(): Dataset[] {
+  return [
+    saleOrders(),
+    saleLines(),
+    crmLeads(),
+    invoices(),
+    journalItems(),
+    purchaseOrders(),
+    purchaseLines(),
+    stockQuants(),
+    stockMoves(),
+    productionOrders(),
+    payslipHistory(),
+  ];
+}
+
+export type { Row };

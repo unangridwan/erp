@@ -306,7 +306,7 @@ export const APPS: App[] = [
       ]),
       group("Laporan", "Reporting", [
         link("Dashboard SDM", "HR Dashboard", "/hr/dashboard", "hr.read"),
-        link("Pembuat Laporan", "Report Builder", "/hr/reports", "hr.read"),
+        link("Pembuat Laporan", "Report Builder", "/bi/reports", "hr.read"),
         link("Analitik SDM", "HR Analytics", "/hr/analytics", "hr.read"),
         link("Struktur Organisasi", "Org Chart", "/hr/org-chart", "hr.read"),
         link("Pengingat", "Reminders", "/hr/reminders", "hr.read"),
@@ -357,13 +357,23 @@ export const APPS: App[] = [
       link("Pinjaman Karyawan", "Employee Loans", "/payroll/loans", "payroll.read"),
       link("Biaya Tenaga Kerja", "Labour Cost", "/payroll/cost", "payroll.read"),
       link("Kenaikan Gaji", "Salary Review", "/payroll/compensation", "payroll.read"),
-      link("Pembuat Laporan", "Report Builder", "/hr/reports", "payroll.read"),
+      link("Pembuat Laporan", "Report Builder", "/bi/reports", "payroll.read"),
       group("Konfigurasi", "Configuration", [
         link("Komponen Gaji", "Salary Rules", "/salary-components", "payroll.read"),
         link("Paket Benefit", "Benefit Plans", "/payroll/benefits", "payroll.read"),
         link("Impor & Ekspor Data", "Data Import & Export", "/payroll/data", "payroll.read"),
         link("Pengaturan Payroll", "Settings", "/payroll/settings", "payroll.manage"),
       ]),
+    ],
+  },
+  {
+    id: "bi",
+    name: L("Laporan & Dashboard", "Reports & Dashboards"),
+    home: "/bi",
+    prefixes: ["/bi"],
+    menu: [
+      link("Dashboard", "Dashboards", "/bi", ""),
+      link("Pembuat Laporan", "Report Builder", "/bi/reports", ""),
     ],
   },
   {

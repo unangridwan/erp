@@ -47,7 +47,7 @@ import { parse } from "../common/zod.js";
 import { CONFIG, type AppConfig } from "../config.js";
 import { RowError } from "../hr/data-transfer/core.js";
 import { DataTransferModule } from "../hr/data-transfer/data-transfer.module.js";
-import { DatasetRegistry } from "../hr/data-transfer/registry.js";
+import { ReportDatasets } from "./report-datasets.js";
 import { HrModule } from "../hr/hr.module.js";
 import { ScheduleService } from "../hr/schedule.service.js";
 
@@ -67,7 +67,7 @@ const CONTENT_TYPE: Record<Format, string> = {
 /** Menjalankan & merender laporan kustom atas dataset HR/Payroll dengan hak user di konteks aktif. */
 @Injectable()
 export class ReportsService {
-  constructor(@Inject(DatasetRegistry) readonly registry: DatasetRegistry) {}
+  constructor(@Inject(ReportDatasets) readonly registry: ReportDatasets) {}
 
   /** Dataset yang bisa dipakai user + kolom yang boleh ia lihat. */
   async datasets(tx: Db) {
@@ -613,6 +613,7 @@ class ReportsController {
 @Module({
   imports: [HrModule, DataTransferModule],
   controllers: [ReportsController],
-  providers: [ReportsService, ReportScheduler],
+  providers: [ReportsService, ReportScheduler, ReportDatasets],
+  exports: [ReportsService, ReportDatasets],
 })
 export class ReportsModule {}

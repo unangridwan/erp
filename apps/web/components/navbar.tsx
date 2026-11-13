@@ -98,7 +98,7 @@ export function Navbar({ me, app }: { me: Me; app: App | null }) {
       {app && (
         <Link href={app.home} className="nav-app">
           <AppIcon id={app.id} size={22} />
-          {tx(app.name)}
+          <span className="nav-app-name">{tx(app.name)}</span>
         </Link>
       )}
       {menu.length > 0 && (

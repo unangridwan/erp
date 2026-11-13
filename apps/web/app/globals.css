@@ -748,6 +748,11 @@ label.check {
   font-weight: 500;
   padding: 0 10px 0 4px;
   white-space: nowrap;
+  min-width: 0;
+}
+.nav-app-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .nav-menu {
   display: flex;
@@ -3484,4 +3489,161 @@ dialog.palette {
 }
 dialog .field-section {
   margin: 20px 0 12px;
+}
+
+/* Dashboard BI */
+.dash-period {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+.dash-widget {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dash-widget.span-1 {
+  grid-column: span 1;
+}
+.dash-widget.span-2 {
+  grid-column: span 2;
+}
+.dash-widget.span-3 {
+  grid-column: span 3;
+}
+.dash-widget.span-4 {
+  grid-column: span 4;
+}
+.dash-widget > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dash-widget > header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.dash-widget > header input {
+  flex: 1;
+  min-width: 0;
+}
+.dash-widget-tools {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.dash-widget-tools button {
+  padding: 2px 8px;
+}
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.kpi-value {
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+.kpi-change {
+  font-size: 12px;
+  color: var(--muted);
+}
+.kpi-change.up {
+  color: var(--ok);
+}
+.kpi-change.down {
+  color: var(--danger);
+}
+.widget-table {
+  max-height: 320px;
+  overflow: auto;
+}
+.skeleton-block {
+  height: 64px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--hover), var(--border), var(--hover));
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s infinite linear;
+}
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+.dash-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.dash-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.dash-card-main {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.dash-card-main > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.dash-card .pin {
+  font-size: 18px;
+  line-height: 1;
+}
+.dash-card .pin.on {
+  color: var(--warn);
+}
+.home-dashboards .dash-grid {
+  margin-top: 8px;
+}
+@media (max-width: 900px) {
+  .dash-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dash-widget.span-3,
+  .dash-widget.span-4 {
+    grid-column: span 2;
+  }
+}
+@media (max-width: 560px) {
+  .dash-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dash-widget[class*="span-"] {
+    grid-column: span 1;
+  }
 }

@@ -74,3 +74,4 @@ export * from "./barcode.js";
 export * from "./manufacturing.js";
 export * from "./mrp.js";
 export * from "./custom-fields.js";
+export * from "./dashboard.js";

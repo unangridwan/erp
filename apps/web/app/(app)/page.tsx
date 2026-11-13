@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppIcon } from "../../components/app-icon";
 import { openCommandPalette } from "../../components/command-palette";
+import { PinnedDashboards } from "../../components/bi/pinned-dashboards";
 import { useMe } from "../../components/me-context";
 import { api } from "../../lib/api";
 import { rememberApp, visibleApps } from "../../lib/apps";
@@ -55,6 +56,8 @@ export default function Home() {
           <kbd>Ctrl K</kbd>
         </button>
       </header>
+
+      <PinnedDashboards />
 
       <div className="home-cards">
         <section className="home-card">

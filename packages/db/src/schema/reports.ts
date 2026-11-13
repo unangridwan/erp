@@ -51,3 +51,28 @@ export const reportDeliveries = pgTable("report_deliveries", {
   error: text("error"),
   manual: boolean("manual").notNull().default(false),
 });
+
+/** Dashboard BI kustom: widget KPI/grafik/tabel dari laporan tersimpan atau konfigurasi dataset. */
+export const dashboards = pgTable("dashboards", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  ownerId: uuid("owner_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  visibility: text("visibility", { enum: ["private", "shared"] })
+    .notNull()
+    .default("private"),
+  widgets: jsonb("widgets").$type<Record<string, unknown>[]>().notNull().default([]),
+  ...audit,
+});
+
+/** Dashboard yang disematkan di Beranda (ref = id atau "builtin:<kunci>"). */
+export const dashboardPins = pgTable("dashboard_pins", {
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  ref: text("ref").notNull(),
+  sequence: integer("sequence").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
