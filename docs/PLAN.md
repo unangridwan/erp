@@ -515,6 +515,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] P2 pembelian & gudang lanjutan, bagian 1 — landed cost (migrasi 0068): pembagian per baris biaya
   (nilai/kuantitas/berat/volume/rata), porsi barang terjual ke HPP, naik ke lapisan FIFO & biaya rata-rata, dari
   tagihan jasa, pembatalan. Berikutnya: kontrak pembelian, lalu stock opname + barcode + lacak serial
+- [x] P2 pembelian & gudang lanjutan, bagian 2 — kontrak pembelian / blanket order (migrasi 0069): harga tetap,
+  komitmen kuantitas per produk + plafon nilai, persetujuan kontrak, PO dari kontrak & harga kontrak otomatis,
+  realisasi, PO melebihi sisa/plafon/masa kontrak wajib disetujui. Berikutnya: stock opname + barcode + lacak serial
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

@@ -48,6 +48,9 @@ export const purchaseOrders = pgTable("purchase_orders", {
   icSaleOrderId: uuid("ic_sale_order_id"),
   /** PO dropship: barang dikirim pemasok langsung ke pelanggan SO ini. */
   dropshipSaleOrderId: uuid("dropship_sale_order_id"),
+  /** Kontrak pembelian yang dirujuk & peringatan saat konfirmasi (melebihi sisa/plafon, berakhir). */
+  contractId: uuid("contract_id"),
+  contractWarning: text("contract_warning"),
   createdBy: uuid("created_by"),
   ...audit,
 });
@@ -70,5 +73,54 @@ export const purchaseOrderLines = pgTable("purchase_order_lines", {
   uomRatio: numeric("uom_ratio", { precision: 18, scale: 6 }).notNull().default("1"),
   /** Baris SO yang dipenuhi lewat dropship. */
   saleLineId: uuid("sale_line_id"),
+  /** Baris kontrak pembelian yang memasok harga & mengurangi sisa komitmen. */
+  contractLineId: uuid("contract_line_id"),
   createdAt: audit.createdAt,
+});
+
+export const PURCHASE_CONTRACT_STATES = [
+  "draft",
+  "in_approval",
+  "active",
+  "closed",
+  "cancel",
+  "refused",
+] as const;
+
+/** Kontrak pembelian (blanket order): harga tetap + kuantitas komitmen per produk + plafon nilai opsional. */
+export const purchaseContracts = pgTable("purchase_contracts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  partnerId: uuid("partner_id").notNull(),
+  partnerRef: text("partner_ref"),
+  dateStart: date("date_start").notNull(),
+  dateEnd: date("date_end").notNull(),
+  currencyCode: text("currency_code").notNull(),
+  paymentTermId: uuid("payment_term_id"),
+  valueLimit: numeric("value_limit", { precision: 20, scale: 2 }),
+  state: text("state", { enum: PURCHASE_CONTRACT_STATES }).notNull().default("draft"),
+  approvalRequestId: uuid("approval_request_id"),
+  note: text("note"),
+  createdBy: uuid("created_by"),
+  activatedAt: timestamp("activated_at", { withTimezone: true }),
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+  ...audit,
+});
+
+export const purchaseContractLines = pgTable("purchase_contract_lines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  contractId: uuid("contract_id").notNull(),
+  sequence: integer("sequence").notNull().default(0),
+  productId: uuid("product_id").notNull(),
+  name: text("name").notNull(),
+  quantity: numeric("quantity", { precision: 18, scale: 4 }).notNull(),
+  uomId: uuid("uom_id"),
+  uomRatio: numeric("uom_ratio", { precision: 18, scale: 6 }).notNull().default("1"),
+  priceUnit: numeric("price_unit", { precision: 20, scale: 4 }).notNull(),
+  discount: numeric("discount", { precision: 7, scale: 4 }).notNull().default("0"),
+  taxIds: uuid("tax_ids").array().notNull().default([]),
+  minOrderQty: numeric("min_order_qty", { precision: 18, scale: 4 }),
 });

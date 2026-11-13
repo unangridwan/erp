@@ -868,13 +868,16 @@ export const purchaseOrderSchema = z.object({
   branchId: z.string().uuid().nullish(),
   businessUnitId: z.string().uuid().nullish(),
   costCenterId: z.string().uuid().nullish(),
+  /** Kontrak pembelian (blanket order) yang dirujuk; harga kosong diisi harga kontrak. */
+  contractId: z.string().uuid().nullish(),
   lines: z
     .array(
       z.object({
         productId: z.string().uuid().nullish(),
         name: z.string().trim().max(500).optional(),
         quantity: qty.default("1"),
-        /** Kosong = harga pemasok / biaya produk. */
+        contractLineId: z.string().uuid().nullish(),
+        /** Kosong = harga kontrak / harga pemasok / biaya produk. */
         priceUnit: decimalString(4).nullish(),
         discount: nonNegative(4).default("0"),
         taxIds: z.array(z.string().uuid()).optional(),

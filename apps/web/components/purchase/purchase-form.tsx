@@ -43,6 +43,7 @@ interface Line {
   uomId: string | null;
   uomName: string | null;
   qtyBilled: string;
+  contractLineId: string | null;
 }
 interface Order {
   id: string;
@@ -64,6 +65,10 @@ interface Order {
   billStatus: string;
   receiptStatus: string;
   approvedAt: string | null;
+  contractId: string | null;
+  contract: { id: string; name: string } | null;
+  /** Peringatan kontrak (melebihi sisa/plafon, di luar masa kontrak). */
+  contractWarnings: string[];
   /** Tahap persetujuan (bila menunggu persetujuan). */
   approval: {
     step: number;
@@ -85,7 +90,14 @@ interface Order {
   }[];
 }
 interface Preview {
-  lines: { priceUnit: string; taxIds: string[]; priceSubtotal: string; uomId: string | null }[];
+  lines: {
+    priceUnit: string;
+    taxIds: string[];
+    priceSubtotal: string;
+    uomId: string | null;
+    contractLineId: string | null;
+  }[];
+  contractId: string | null;
   taxes: { taxId: string; name: string; amount: string }[];
   amountUntaxed: string;
   amountTotal: string;
@@ -100,6 +112,8 @@ interface FormLine {
   taxIds: string[] | null;
   /** Kosong = satuan beli produk. */
   uomId: string;
+  /** Baris kontrak pembelian (dipertahankan saat menyimpan ulang). */
+  contractLineId: string;
 }
 
 const emptyLine = (): FormLine => ({
@@ -110,8 +124,16 @@ const emptyLine = (): FormLine => ({
   discount: "0",
   taxIds: null,
   uomId: "",
+  contractLineId: "",
 });
 const num = (v: string) => String(Number(v));
+interface ContractOption {
+  id: string;
+  name: string;
+  dateStart: string;
+  dateEnd: string;
+  valid: boolean;
+}
 const orNull = (v: string) => (v === "" ? null : v);
 
 export function PurchaseForm({ id }: { id: string }) {
@@ -130,7 +152,9 @@ export function PurchaseForm({ id }: { id: string }) {
     currencyCode: "",
     warehouseId: "",
     note: "",
+    contractId: "",
   });
+  const [contracts, setContracts] = useState<ContractOption[]>([]);
   const [lines, setLines] = useState<FormLine[]>([emptyLine()]);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -158,6 +182,7 @@ export function PurchaseForm({ id }: { id: string }) {
           currencyCode: o.currencyCode,
           warehouseId: o.warehouseId ?? "",
           note: o.note ?? "",
+          contractId: o.contractId ?? "",
         });
         setLines(
           o.lines.map((x) => ({
@@ -168,6 +193,7 @@ export function PurchaseForm({ id }: { id: string }) {
             discount: num(x.discount),
             taxIds: x.taxIds,
             uomId: x.uomId ?? "",
+            contractLineId: x.contractLineId ?? "",
           })),
         );
       })
@@ -186,6 +212,7 @@ export function PurchaseForm({ id }: { id: string }) {
     currencyCode: header.currencyCode || undefined,
     warehouseId: orNull(header.warehouseId),
     note: orNull(header.note),
+    contractId: orNull(header.contractId),
     lines: lines
       .filter((x) => x.productId || x.name)
       .map((x) => ({
@@ -196,6 +223,7 @@ export function PurchaseForm({ id }: { id: string }) {
         discount: x.discount || "0",
         taxIds: x.taxIds ?? undefined,
         uomId: orNull(x.uomId),
+        contractLineId: header.contractId ? orNull(x.contractLineId) : null,
       })),
   });
 
@@ -214,6 +242,16 @@ export function PurchaseForm({ id }: { id: string }) {
     }, 300);
     return () => clearTimeout(timer);
   }, [body, editable]);
+
+  // Kontrak pembelian aktif milik pemasok terpilih.
+  useEffect(() => {
+    if (!editable || !header.partnerId) return setContracts([]);
+    api<ContractOption[]>(
+      `/purchase-contracts/lookup?partnerId=${header.partnerId}&date=${header.dateOrder || today()}`,
+    )
+      .then(setContracts)
+      .catch(() => setContracts([]));
+  }, [editable, header.partnerId, header.dateOrder]);
 
   async function run(fn: () => Promise<void>) {
     setBusy(true);
@@ -378,6 +416,37 @@ export function PurchaseForm({ id }: { id: string }) {
               )}
             </p>
           )}
+          {(order?.contract || (editable && preview?.contractId)) && (
+            <p className="muted">
+              {l("Kontrak pembelian", "Purchase contract")}:{" "}
+              {order?.contract ? (
+                <Link href={`/purchase/contracts/${order.contract.id}`}>{order.contract.name}</Link>
+              ) : (
+                (contracts.find((c) => c.id === preview?.contractId)?.name ?? "—")
+              )}
+              {editable &&
+                !header.contractId &&
+                preview?.contractId &&
+                ` — ${l("harga kontrak dipakai otomatis", "contract prices applied automatically")}`}
+            </p>
+          )}
+          {order && order.contractWarnings.length > 0 && order.state !== "cancel" && (
+            <div className="error" role="alert">
+              <strong>
+                {order.state === "purchase"
+                  ? l("Dikonfirmasi di luar kontrak:", "Confirmed outside the contract:")
+                  : l(
+                      "Di luar kontrak — konfirmasi PO ini butuh persetujuan:",
+                      "Outside the contract — confirming this PO requires approval:",
+                    )}
+              </strong>
+              <ul>
+                {order.contractWarnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {order?.state === "to_approve" && (
             <div className="notice">
               {order.approval && order.approval.levels > 0 ? (
@@ -469,6 +538,33 @@ export function PurchaseForm({ id }: { id: string }) {
               </select>
               {err("currencyCode")}
             </label>
+            {(contracts.length > 0 || header.contractId) && (
+              <label className="field">
+                <span>{l("Kontrak pembelian", "Purchase contract")}</span>
+                <select
+                  value={header.contractId}
+                  onChange={(e) => {
+                    const contractId = e.target.value;
+                    setHeader((h) => ({ ...h, contractId }));
+                    setLines((ls) => ls.map((x) => ({ ...x, contractLineId: "", priceUnit: "" })));
+                  }}
+                >
+                  <option value="">
+                    {l("Otomatis (bila hanya satu kontrak aktif)", "Automatic (if one active contract)")}
+                  </option>
+                  {contracts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.dateStart} – {c.dateEnd})
+                      {c.valid ? "" : ` · ${l("di luar masa", "out of period")}`}
+                    </option>
+                  ))}
+                  {header.contractId && !contracts.some((c) => c.id === header.contractId) && (
+                    <option value={header.contractId}>{order?.contract?.name ?? header.contractId}</option>
+                  )}
+                </select>
+                {err("contractId")}
+              </label>
+            )}
             <label className="field">
               <span>{l("Diterima di gudang", "Deliver to")}</span>
               <select
@@ -547,6 +643,7 @@ export function PurchaseForm({ id }: { id: string }) {
                               name: product?.name ?? x.name,
                               priceUnit: "",
                               uomId: "",
+                              contractLineId: "",
                             });
                           }}
                         >
@@ -591,6 +688,9 @@ export function PurchaseForm({ id }: { id: string }) {
                           value={x.priceUnit}
                           onChange={(e) => setLine(i, { priceUnit: e.target.value })}
                         />
+                        {p?.contractLineId && (
+                          <small className="badge">{l("harga kontrak", "contract price")}</small>
+                        )}
                         {err(`lines.${i}.priceUnit`)}
                       </td>
                       <td>

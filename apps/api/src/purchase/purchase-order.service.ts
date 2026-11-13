@@ -49,6 +49,7 @@ import { assertNotTemplate } from "../master/variant.service.js";
 import { renderOrderPdf } from "../sales/order-pdf.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { NotificationService } from "../notifications/notification.service.js";
+import { orderContractWarnings, resolveContract } from "./contract-check.js";
 import {
   actsForAny,
   limitsFor,
@@ -234,6 +235,12 @@ export class PurchaseOrderService implements OnModuleInit {
       .innerJoin(OL, eq(OL.id, schema.accountMoveLines.purchaseLineId))
       .where(eq(OL.orderId, id))
       .orderBy(asc(schema.accountMoves.date));
+    const [contract] = order.contractId
+      ? await tx
+          .select({ id: schema.purchaseContracts.id, name: schema.purchaseContracts.name })
+          .from(schema.purchaseContracts)
+          .where(eq(schema.purchaseContracts.id, order.contractId))
+      : [];
     return {
       ...order,
       ...extra,
@@ -241,6 +248,13 @@ export class PurchaseOrderService implements OnModuleInit {
       taxes,
       pickings,
       bills,
+      contract: contract ?? null,
+      contractWarnings:
+        order.state === "draft" || order.state === "sent" || order.state === "to_approve"
+          ? await orderContractWarnings(tx, order)
+          : order.contractWarning
+            ? order.contractWarning.split("\n")
+            : [],
       approval: await this.approvalInfo(tx, order),
     };
   }
@@ -424,6 +438,23 @@ export class PurchaseOrderService implements OnModuleInit {
                 ? undefined
                 : Number(legacy);
       if (!withinLimit(limit, amount.toFixed(2))) levels = -1;
+    }
+    // PO yang melebihi sisa/plafon kontrak atau di luar masa kontrak wajib disetujui.
+    const contractIssues = await orderContractWarnings(tx, order);
+    if (order.contractId) {
+      await tx
+        .update(O)
+        .set({ contractWarning: contractIssues.length ? contractIssues.join("\n") : null })
+        .where(eq(O.id, id));
+      if (contractIssues.length) {
+        await this.activity.log(tx, {
+          resModel: "purchase_order",
+          resId: id,
+          action: "update",
+          message: `Di luar kontrak: ${contractIssues.join("; ")}`.slice(0, 1000),
+        });
+        if (levels === 0) levels = -1;
+      }
     }
     if (levels !== 0) {
       await tx
@@ -1022,8 +1053,6 @@ export class PurchaseOrderService implements OnModuleInit {
     const companyId = ctx.companyId;
     const books = await loadBooks(tx, companyId);
     const partner = await assertPartner(tx, companyId, input.partnerId);
-    const paymentTermId = input.paymentTermId === undefined ? partner.paymentTermId : input.paymentTermId;
-    if (paymentTermId) await assertPaymentTerm(tx, paymentTermId);
     const userId = input.userId === undefined ? ctx.userId : input.userId;
     if (userId) await assertCompanyUser(tx, userId);
     const warehouseId = input.warehouseId ?? (await this.stock.defaultWarehouse(tx, companyId)).id;
@@ -1031,12 +1060,26 @@ export class PurchaseOrderService implements OnModuleInit {
     await assertDimensions(tx, companyId, [
       { businessUnitId: input.businessUnitId, branchId: input.branchId, costCenterId: input.costCenterId },
     ]);
-    const currencyCode = input.currencyCode ?? books.currencyCode;
+    const found = await resolveContract(tx, {
+      companyId,
+      partnerId: partner.id,
+      currencyCode: input.currencyCode,
+      dateOrder: input.dateOrder,
+      contractId: input.contractId,
+    });
+    const currencyCode = input.currencyCode ?? found?.contract.currencyCode ?? books.currencyCode;
+    if (found && !found.explicit && found.contract.currencyCode !== currencyCode) found.lines = [];
     const [currency] = await tx
       .select()
       .from(schema.currencies)
       .where(eq(schema.currencies.code, currencyCode));
     if (!currency) throw fieldError("currencyCode", "Mata uang tidak dikenal");
+    let usedContract = false;
+    const paymentTermId =
+      input.paymentTermId === undefined
+        ? ((found?.explicit ? found.contract.paymentTermId : null) ?? partner.paymentTermId)
+        : input.paymentTermId;
+    if (paymentTermId) await assertPaymentTerm(tx, paymentTermId);
 
     const productIds = [...new Set(input.lines.flatMap((l) => (l.productId ? [l.productId] : [])))];
     const products = productIds.length
@@ -1070,10 +1113,32 @@ export class PurchaseOrderService implements OnModuleInit {
       if (product) assertNotTemplate(product, `lines.${i}.productId`);
       const name = l.name || product?.name;
       if (!name) throw fieldError(`lines.${i}.name`, "Isi deskripsi atau pilih produk");
-      // Satuan baris: input → satuan beli produk → satuan produk.
-      const uomId = product ? (l.uomId ?? product.purchaseUomId ?? product.uomId) : (l.uomId ?? null);
+      // Baris kontrak: dipilih langsung, atau produk yang sama di kontrak (kontrak dipilih / harga kosong).
+      let contractLine = l.contractLineId
+        ? found?.lines.find((c) => c.id === l.contractLineId)
+        : product && (found?.explicit || l.priceUnit == null)
+          ? found?.lines.find((c) => c.productId === product.id)
+          : undefined;
+      if (l.contractLineId && !contractLine)
+        throw fieldError(`lines.${i}.contractLineId`, "Baris kontrak tidak ada di kontrak PO ini");
+      if (contractLine && product && contractLine.productId !== product.id)
+        throw fieldError(`lines.${i}.productId`, "Produk berbeda dengan baris kontrak");
+      if (contractLine && !product) contractLine = undefined;
+      // Satuan baris: input → satuan kontrak → satuan beli produk → satuan produk.
+      const uomId = product
+        ? (l.uomId ?? contractLine?.uomId ?? product.purchaseUomId ?? product.uomId)
+        : (l.uomId ?? null);
       const ratio = product ? await uomRatio(tx, product.uomId, uomId, `lines.${i}.uomId`) : d(1);
       let priceUnit = l.priceUnit;
+      let discount = l.discount;
+      let lineTaxIds = l.taxIds;
+      if (priceUnit == null && contractLine) {
+        // Harga kontrak per satuan baris kontrak → per satuan baris PO.
+        priceUnit = d(contractLine.priceUnit).div(contractLine.uomRatio).times(ratio).toFixed(4);
+        discount = contractLine.discount;
+        lineTaxIds = lineTaxIds ?? (contractLine.taxIds.length ? contractLine.taxIds : undefined);
+      }
+      if (contractLine) usedContract = true;
       if (priceUnit == null) {
         if (!product) throw fieldError(`lines.${i}.priceUnit`, "Isi harga satuan");
         // Harga pemasok & biaya produk berlaku per satuan produk.
@@ -1099,12 +1164,13 @@ export class PurchaseOrderService implements OnModuleInit {
         name,
         quantity: l.quantity,
         priceUnit: d(priceUnit).toFixed(4),
-        discount: l.discount,
-        taxIds: l.taxIds ?? defaultTaxIds,
+        discount,
+        taxIds: lineTaxIds ?? defaultTaxIds,
         priceSubtotal: "0",
         datePlanned: l.datePlanned ?? input.datePlanned ?? null,
         uomId,
         uomRatio: ratio.toFixed(6),
+        contractLineId: contractLine?.id ?? null,
       });
     }
     const rules = await this.taxRules(
@@ -1134,6 +1200,7 @@ export class PurchaseOrderService implements OnModuleInit {
         branchId: input.branchId ?? null,
         businessUnitId: input.businessUnitId ?? null,
         costCenterId: input.costCenterId ?? null,
+        contractId: found && (found.explicit || usedContract) ? found.contract.id : null,
         amountUntaxed: d(result.amountUntaxed).toFixed(2),
         amountTax: d(result.amountTax).toFixed(2),
         amountTotal: d(result.amountTotal).toFixed(2),

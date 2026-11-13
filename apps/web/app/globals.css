@@ -3444,3 +3444,11 @@ dialog.palette {
   gap: 0.25rem;
   align-items: center;
 }
+.contract-usage {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.contract-usage .meter {
+  min-width: 90px;
+}
