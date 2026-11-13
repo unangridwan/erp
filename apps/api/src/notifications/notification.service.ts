@@ -17,9 +17,17 @@ export interface NotificationInput {
  */
 @Injectable()
 export class NotificationService {
-  async notify(tx: Db, userIds: (string | null | undefined)[], input: NotificationInput) {
+  async notify(
+    tx: Db,
+    userIds: (string | null | undefined)[],
+    input: NotificationInput,
+    /** Aturan otomatis: pemilik aturan juga boleh menerima notifikasinya sendiri. */
+    opts: { includeSelf?: boolean } = {},
+  ) {
     const ctx = currentContext();
-    const targets = [...new Set(userIds.filter((u): u is string => !!u && u !== ctx.userId))];
+    const targets = [
+      ...new Set(userIds.filter((u): u is string => !!u && (opts.includeSelf || u !== ctx.userId))),
+    ];
     if (!targets.length) return;
     // Email dikirim job pengirim setelah transaksi selesai (outbox) untuk pengguna aktif yang mengizinkan email.
     const emailable = new Set(

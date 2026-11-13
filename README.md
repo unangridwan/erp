@@ -346,6 +346,25 @@ nilainya; untuk menyembunyikan saja, nonaktifkan.
   atur lebar & urutan, pilih periode (bulan ini … 12 bulan terakhir, rentang kustom), bagikan ke perusahaan, duplikat
   dashboard bawaan, dan **sematkan ke Beranda** (angka KPI tampil di Beranda).
 
+**Aturan otomatis (migrasi 0075).** Pengaturan › **Aturan Otomatis** (hak `customization.manage`) menjalankan aksi
+tanpa kode untuk 10 jenis data yang sama dengan field kustom (kontak, produk, karyawan, kendaraan, lead, SO, PO,
+faktur/jurnal, transfer stok, order produksi). Editor bertahap:
+
+1. **Kapan** — data dibuat; data diubah (opsional "hanya saat syarat baru terpenuhi", mis. status berubah menjadi
+   Pesanan); berdasarkan tanggal (kolom tanggal ± N hari, mis. 3 hari sebelum jatuh tempo; sekali per data); terjadwal
+   (harian/mingguan/bulanan pada jam tertentu).
+2. **Jika** — syarat per kolom (sama dengan, lebih dari, berisi, salah satu dari, kosong, …), termasuk field kustom.
+3. **Lakukan** — notifikasi (pengguna, peran, penanggung jawab, pembuat) & email (kontak data atau alamat tertentu)
+   dengan isian `{{kolom}}`, `{{link}}`, `{{rule}}`; ubah field kustom / penanggung jawab; buat aktivitas; ajukan
+   permintaan persetujuan (kategori + nominal dari kolom); panggil **webhook** (POST JSON, header
+   `X-ERP-Signature: t=<unix>,v1=HMAC-SHA256(rahasia, t + "." + body)`, rahasia tampil sekali).
+
+Perubahan data dicatat trigger database ke antrean dan diproses job setiap 30 detik (`AUTOMATION_SCHEDULER=off` untuk
+mematikan), dengan hak pemilik aturan (pengubah terakhir). Tiap aksi berjalan terpisah: aksi yang gagal dibatalkan
+tanpa menggagalkan aksi lain. Perubahan oleh aturan bisa memicu aturan lain maksimal 3 tingkat (mencegah perulangan).
+Tombol **Jalankan sekarang** menguji aturan pada satu data (atau semua data untuk pemicu tanggal/jadwal), dan **log
+eksekusi** mencatat status serta hasil setiap aksi.
+
 ### CRM & Penjualan (Fase 2)
 
 | Endpoint                                                                                      | Keterangan                                                                     |

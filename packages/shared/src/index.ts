@@ -75,3 +75,4 @@ export * from "./manufacturing.js";
 export * from "./mrp.js";
 export * from "./custom-fields.js";
 export * from "./dashboard.js";
+export * from "./automation.js";

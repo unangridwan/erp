@@ -3647,3 +3647,58 @@ dialog .field-section {
     grid-column: span 1;
   }
 }
+
+/* ---- Aturan otomatis ---- */
+.automation-step h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+}
+.automation-step .step-no {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 14px;
+}
+.automation-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 6px 0;
+}
+.automation-row > select,
+.automation-row > input {
+  min-width: 0;
+  flex: 1 1 160px;
+}
+.automation-row .grow {
+  flex: 1;
+}
+.automation-action {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 8px 0;
+}
+.automation-action .field.wide {
+  grid-column: 1 / -1;
+}
+.automation-step code.chip {
+  display: inline-block;
+  margin: 2px 4px 2px 0;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--hover);
+}
+pre.secret {
+  font-family: ui-monospace, monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 6px 0 0;
+}
