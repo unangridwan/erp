@@ -20,6 +20,7 @@ import { CrmModule } from "./crm/crm.module.js";
 import { SalesModule } from "./sales/sales.module.js";
 import { InventoryModule } from "./inventory/inventory.module.js";
 import { PurchaseModule } from "./purchase/purchase.module.js";
+import { PurchaseContractModule } from "./purchase/purchase-contract.module.js";
 import { IntercompanyModule } from "./intercompany/intercompany.module.js";
 import { PortalModule } from "./portal/portal.module.js";
 import { ApprovalRequestModule } from "./hr/approval-request.module.js";
@@ -81,6 +82,7 @@ import { WebhookService } from "./oauth/webhook.service.js";
     SalesModule,
     InventoryModule,
     PurchaseModule,
+    PurchaseContractModule,
     IntercompanyModule,
     PortalModule,
     HrModule,

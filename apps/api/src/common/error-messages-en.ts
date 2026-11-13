@@ -1135,4 +1135,25 @@ export const MESSAGES_EN: Record<string, string> = {
   "Total jurnal tidak boleh nol": "The entry total cannot be zero",
   "Isi debit atau kredit, bukan keduanya": "Fill in debit or credit, not both",
   "Angka tidak valid (maks. 2 desimal, tidak negatif)": "Invalid number (max. 2 decimals, not negative)",
+  // ---- Kontrak pembelian ----
+  "Baris kontrak tidak ada di kontrak PO ini": "The contract line is not in this PO's contract",
+  "Baris kontrak tidak ditemukan": "Contract line not found",
+  "Hanya kontrak aktif yang bisa ditutup": "Only active contracts can be closed",
+  "Hanya kontrak batal atau ditolak yang bisa dikembalikan ke draft":
+    "Only cancelled or refused contracts can be reset to draft",
+  "Hanya kontrak draft atau yang menunggu persetujuan yang bisa dibatalkan":
+    "Only draft contracts or contracts awaiting approval can be cancelled",
+  "Hanya kontrak draft yang bisa diubah": "Only draft contracts can be edited",
+  "Hanya kontrak draft, batal, atau ditolak yang bisa dihapus":
+    "Only draft, cancelled or refused contracts can be deleted",
+  "Kontrak belum aktif atau sudah ditutup": "The contract is not active or already closed",
+  "Kontrak pembelian belum aktif atau sudah ditutup": "The purchase contract is not active or already closed",
+  "Kontrak pembelian milik pemasok lain": "The purchase contract belongs to another vendor",
+  "Kontrak pembelian tidak ditemukan": "Purchase contract not found",
+  "Kontrak sudah diajukan": "The contract has already been submitted",
+  "Kontrak sudah dipakai PO; batalkan saja": "The contract is already used by a PO; cancel it instead",
+  "Mata uang PO harus sama dengan mata uang kontrak": "The PO currency must match the contract currency",
+  "Produk berbeda dengan baris kontrak": "The product differs from the contract line",
+  "Produk ganda dalam kontrak": "Duplicate product in the contract",
+  "Pilih minimal satu baris": "Select at least one line",
 };

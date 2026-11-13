@@ -282,6 +282,15 @@ persediaan, porsi ke HPP (barang yang sudah keluar), dan biaya per unit baru. Po
 (FIFO) dan biaya rata-rata, lalu membuat jurnal Dr Persediaan + Dr HPP / Cr akun lawan. Landed cost bisa dibuat dari
 tagihan jasa (`POST /landed-costs/from-bill/:billId`) dan dibatalkan selama barangnya belum keluar lagi.
 
+**Kontrak pembelian / blanket order (migrasi 0069).** Pembelian › **Kontrak Pembelian** mencatat kontrak harga tetap
+dengan pemasok: periode berlaku, produk + harga + diskon + pajak, **kuantitas komitmen per produk**, minimal pesan, dan
+**plafon nilai** opsional. Kontrak diajukan lewat mesin persetujuan (kategori "Kontrak Pembelian", nominal = nilai
+komitmen atau plafon) dan aktif setelah disetujui. Tombol **Buat PO** membuat RFQ dari sisa kontrak; PO manual ke pemasok
+yang punya tepat satu kontrak aktif otomatis memakai harga kontrak (atau pilih kontraknya di form PO). Realisasi
+(kuantitas & nilai) dihitung dari PO terkonfirmasi/menunggu persetujuan; PO yang **melebihi sisa, plafon, di bawah
+minimal pesan, atau di luar masa kontrak** ditandai peringatan dan konfirmasinya **wajib disetujui**. Kontrak aktif yang
+lewat tanggal berakhir tampil "Berakhir"; kontrak bisa ditutup kapan saja.
+
 ### CRM & Penjualan (Fase 2)
 
 | Endpoint                                                                                      | Keterangan                                                                     |
