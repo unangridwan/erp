@@ -65,6 +65,15 @@ const ICONS: Record<string, React.ReactNode> = {
       <circle cx="42" cy="42" r="4" fill="#f0a033" />
     </>
   ),
+  manufacturing: (
+    <>
+      <path d="M8 52V30l12 8v-8l12 8v-8l12 8V14h10v38z" fill="#875a7b" />
+      <rect x="14" y="42" width="6" height="6" rx="1" fill="#f0a033" />
+      <rect x="26" y="42" width="6" height="6" rx="1" fill="#f0a033" />
+      <rect x="38" y="42" width="6" height="6" rx="1" fill="#f0a033" />
+      <circle cx="49" cy="9" r="4" fill="#1ab7a6" />
+    </>
+  ),
   fleet: (
     <>
       <path d="M12 30l6-12h28l6 12z" fill="#1ab7a6" />

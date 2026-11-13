@@ -367,6 +367,27 @@ export const APPS: App[] = [
     ],
   },
   {
+    id: "manufacturing",
+    name: L("Manufaktur", "Manufacturing"),
+    home: "/manufacturing/orders",
+    prefixes: ["/manufacturing", "/work-centers"],
+    menu: [
+      group("Operasi", "Operations", [
+        link("Order Produksi", "Production Orders", "/manufacturing/orders", "mrp.read"),
+      ]),
+      group("Produk", "Products", [
+        link("Bill of Materials", "Bills of Materials", "/manufacturing/boms", "mrp.read"),
+        PRODUCTS,
+      ]),
+      group("Laporan", "Reporting", [
+        link("Biaya Produksi", "Production Costs", "/manufacturing/reports", "mrp.read"),
+      ]),
+      group("Konfigurasi", "Configuration", [
+        link("Stasiun Kerja", "Work Centers", "/work-centers", "mrp.read"),
+      ]),
+    ],
+  },
+  {
     id: "fleet",
     name: L("Armada", "Fleet"),
     home: "/fleet-vehicles",

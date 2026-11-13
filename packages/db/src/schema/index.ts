@@ -4,6 +4,7 @@ export * from "./security.js";
 export * from "./accounting.js";
 export * from "./sales.js";
 export * from "./inventory.js";
+export * from "./manufacturing.js";
 export * from "./purchase.js";
 export * from "./hr.js";
 export * from "./tax.js";

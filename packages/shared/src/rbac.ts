@@ -363,6 +363,23 @@ export const PERMISSION_CATALOG: readonly ModuleDef[] = [
     specials: [],
   },
   {
+    key: "mrp",
+    label: ["Manufaktur", "Manufacturing"],
+    features: [
+      f("orders", "Order produksi", "Production orders", ["/production-orders"], ["/manufacturing/orders"]),
+      f("boms", "Bill of materials", "Bills of materials", ["/boms"], ["/manufacturing/boms"]),
+      f("workcenters", "Stasiun kerja", "Work centers", ["/work-centers"], ["/manufacturing/work-centers"]),
+      f(
+        "reports",
+        "Laporan biaya produksi",
+        "Production cost report",
+        ["/manufacturing/reports"],
+        ["/manufacturing/reports"],
+      ),
+    ],
+    specials: [],
+  },
+  {
     key: "fleet",
     label: ["Armada", "Fleet"],
     features: [
@@ -702,6 +719,15 @@ export const ROLE_TEMPLATES: readonly {
     name: ["Petugas Pajak", "Tax officer"],
     description: ["Faktur pajak, bukti potong, rekap PPN", "Tax invoices, withholding, VAT recap"],
     permissions: ["tax.manage", "accounting.read", "partner.read", "company.read"],
+  },
+  {
+    code: "production_manager",
+    name: ["Manajer Produksi", "Production manager"],
+    description: [
+      "Manufaktur penuh: BOM, stasiun kerja, order produksi",
+      "Full manufacturing: BOMs, work centers, production orders",
+    ],
+    permissions: ["mrp.manage", "inventory.read", "product.read", "company.read"],
   },
   {
     code: "fleet_manager",

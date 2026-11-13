@@ -46,6 +46,10 @@ export const PERMISSIONS = [
   "fleet.write",
   /** Master & pengaturan armada, membuat tagihan vendor dari servis. */
   "fleet.manage",
+  "mrp.read",
+  "mrp.write",
+  /** Stasiun kerja, BOM, membatalkan/menyelesaikan order produksi (posting nilai persediaan). */
+  "mrp.manage",
   "consolidation.read",
   /** Bagan akun grup, pemetaan akun, proses & finalisasi konsolidasi. */
   "consolidation.manage",

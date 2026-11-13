@@ -58,7 +58,7 @@ export interface LinkedDocument {
 export type ValidateHook = (tx: Db, picking: Picking) => Promise<LinkedDocument | null>;
 
 /** Pergerakan yang siap diterapkan beserta rincian lot. */
-interface DoneMove {
+export interface DoneMove {
   move: Move;
   product: Product;
   lots: { lotId: string; quantity: Decimal }[];
@@ -628,6 +628,92 @@ export class StockService {
    * Terapkan pergerakan selesai: quant per lokasi/lot, lapisan valuasi (barang stok yang keluar/masuk lokasi
    * internal), lalu satu jurnal persediaan untuk semuanya. Mengembalikan id jurnal (atau null).
    */
+  /**
+   * Pergerakan produksi (bahan → lokasi Produksi, barang jadi Produksi → gudang): buat stock move siap lalu proses
+   * (quant, lot, lapisan valuasi, jurnal dengan akun WIP). Mengembalikan move yang selesai beserta jurnalnya.
+   */
+  async moveForProduction(
+    tx: Db,
+    companyId: string,
+    lines: {
+      productId: string;
+      quantity: Decimal;
+      locationId: string;
+      locationDestId: string;
+      priceUnit?: string | null;
+      lots: { lotId: string; quantity: Decimal }[];
+      productionOrderId: string;
+    }[],
+    ctx: { ref: string; date: Date; branchId: string | null },
+  ) {
+    const products = await this.products(
+      tx,
+      lines.map((l) => l.productId),
+    );
+    const done: DoneMove[] = [];
+    for (const l of lines) {
+      if (l.quantity.lte(0)) continue;
+      const product = products.get(l.productId)!;
+      const [move] = await tx
+        .insert(schema.stockMoves)
+        .values({
+          companyId,
+          productId: l.productId,
+          name: `${ctx.ref}: ${product.name}`,
+          quantity: l.quantity.toFixed(4),
+          quantityDone: l.quantity.toFixed(4),
+          locationId: l.locationId,
+          locationDestId: l.locationDestId,
+          state: "ready",
+          priceUnit: l.priceUnit ?? null,
+          reference: ctx.ref,
+          productionOrderId: l.productionOrderId,
+        })
+        .returning();
+      done.push({ move: move!, product, lots: l.lots });
+    }
+    const accountMoveId = done.length
+      ? await this.processMoves(tx, companyId, done, { ...ctx, partnerId: null })
+      : null;
+    const moves = done.length
+      ? await tx
+          .select()
+          .from(schema.stockMoves)
+          .where(
+            inArray(
+              schema.stockMoves.id,
+              done.map((x) => x.move.id),
+            ),
+          )
+      : [];
+    return { moves, accountMoveId };
+  }
+
+  /** Stok per lot di lokasi (untuk memilih lot bahan produksi: kedaluwarsa lalu tertua dulu). */
+  async availableLots(tx: Db, locationId: string, productId: string) {
+    return tx
+      .select({ lotId: schema.stockQuants.lotId, quantity: schema.stockQuants.quantity })
+      .from(schema.stockQuants)
+      .innerJoin(schema.stockLots, eq(schema.stockLots.id, schema.stockQuants.lotId))
+      .where(
+        and(
+          eq(schema.stockQuants.locationId, locationId),
+          eq(schema.stockQuants.productId, productId),
+          sql`${schema.stockQuants.quantity} > 0`,
+        ),
+      )
+      .orderBy(sql`${schema.stockLots.expirationDate} asc nulls last`, asc(schema.stockLots.createdAt));
+  }
+
+  /** Total stok produk di lokasi (semua lot). */
+  async onHand(tx: Db, locationId: string, productId: string) {
+    const [row] = await tx
+      .select({ q: sql<string>`coalesce(sum(${schema.stockQuants.quantity}), 0)::text` })
+      .from(schema.stockQuants)
+      .where(and(eq(schema.stockQuants.locationId, locationId), eq(schema.stockQuants.productId, productId)));
+    return d(row?.q ?? "0");
+  }
+
   private async processMoves(
     tx: Db,
     companyId: string,
@@ -701,7 +787,9 @@ export class StockService {
               ? s.stockInputAccountId
               : usage === "customer"
                 ? s.cogsAccountId
-                : s.stockAdjustmentAccountId;
+                : usage === "production"
+                  ? s.wipAccountId
+                  : s.stockAdjustmentAccountId;
           if (!id || !s.stockValuationAccountId)
             throw new BadRequestException("Akun persediaan belum diatur di pengaturan akuntansi");
           return id;

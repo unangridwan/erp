@@ -304,6 +304,17 @@ produk menambah kuantitas dikerjakan, scan serial/lot menambah baris lot (peneri
 menampilkan riwayat lengkap nomor itu: penerimaan dari pemasok, perpindahan, opname, pengiriman ke pelanggan, dan posisi
 stok sekarang.
 
+**Manufaktur ringan (migrasi 0071).** Aplikasi **Manufaktur**: **Stasiun Kerja** (tarif tenaga kerja + overhead per jam,
+kapasitas), **Bill of Materials** (komponen dengan satuan, operasi/rute per stasiun kerja dengan menit standar, BOM
+**kit/phantom** yang langsung diurai ke komponennya, deteksi BOM berputar, estimasi biaya per unit), dan **Order
+Produksi**: komponen & operasi dihitung dari BOM × jumlah (multi-level), stok bahan tersedia/kurang ditampilkan,
+operasi dimulai/diselesaikan dengan menit aktual, lalu _Produksi_ mencatat hasil (boleh sebagian, konsumsi bahan bisa
+diubah, lot/serial hasil wajib untuk produk ber-lot/serial; lot bahan dipilih otomatis kedaluwarsa/tertua dulu).
+Pembukuan lewat akun **Barang Dalam Proses** (1-1450): bahan keluar Dr WIP / Cr Persediaan (nilai FIFO/rata-rata
+aktual), biaya konversi (menit × tarif) Dr WIP / Cr **Biaya Konversi Produksi Dibebankan** (5-1300), barang jadi masuk
+Dr Persediaan / Cr WIP sebesar total biaya sehingga WIP per order kembali nol. Laporan **Biaya Produksi** per produk
+(bahan, konversi, biaya per unit). Hak akses `mrp.read/write/manage` dan peran bawaan "Manajer Produksi".
+
 ### CRM & Penjualan (Fase 2)
 
 | Endpoint                                                                                      | Keterangan                                                                     |

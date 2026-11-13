@@ -86,9 +86,14 @@ export class AccountingController {
     const sent = (key: string) => body !== null && typeof body === "object" && key in body;
     return this.tenantDb.run(async (tx) => {
       const companyId = currentContext().companyId;
-      const accounts = (["deferredRevenueAccountId", "deferredExpenseAccountId"] as const).filter(
-        (k) => sent(k) && input[k],
-      );
+      const accounts = (
+        [
+          "deferredRevenueAccountId",
+          "deferredExpenseAccountId",
+          "wipAccountId",
+          "productionAbsorptionAccountId",
+        ] as const
+      ).filter((k) => sent(k) && input[k]);
       await assertCompanyAccounts(
         tx,
         companyId,
@@ -103,6 +108,10 @@ export class AccountingController {
             : {}),
           ...(sent("deferredExpenseAccountId")
             ? { deferredExpenseAccountId: input.deferredExpenseAccountId ?? null }
+            : {}),
+          ...(sent("wipAccountId") ? { wipAccountId: input.wipAccountId ?? null } : {}),
+          ...(sent("productionAbsorptionAccountId")
+            ? { productionAbsorptionAccountId: input.productionAbsorptionAccountId ?? null }
             : {}),
           ...(input.costCenterRequired !== undefined ? { costCenterRequired: input.costCenterRequired } : {}),
           ...(sent("purchaseApprovalAmount")
