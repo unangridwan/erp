@@ -51,7 +51,7 @@ interface ImportResult {
 const presetSchema = z.object({
   name: z.string().trim().min(1).max(100),
   columns: z.array(z.string().min(1).max(100)).min(1).max(300),
-  filters: z.record(z.string().max(200)).default({}),
+  filters: z.record(z.string(), z.string().max(200)).default({}),
   shared: z.boolean().default(false),
 });
 

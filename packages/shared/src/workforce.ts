@@ -131,8 +131,8 @@ export const manpowerBudgetLineSchema = z.object({
   departmentId: z.string().uuid().nullish(),
   jobId: z.string().uuid().nullish(),
   month: z.number().int().min(1).max(12),
-  headcount: amount.default(0),
-  cost: amount.default(0),
+  headcount: amount.prefault(0),
+  cost: amount.prefault(0),
   note: z.string().trim().max(300).nullish(),
 });
 export const manpowerBudgetSchema = z.object({

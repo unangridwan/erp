@@ -1,13 +1,22 @@
 import ExcelJS from "exceljs";
-import { z, type AnyZodObject, type ZodTypeAny } from "zod";
+import { z, type ZodType } from "zod";
+
+export type AnyZodObject = z.ZodObject<z.ZodRawShape>;
+type ZodTypeAny = ZodType;
 
 /** Ambil tipe dasar dari skema zod (melewati optional/nullable/default/transform). */
 function baseType(schema: ZodTypeAny): ZodTypeAny {
   let current = schema;
   for (;;) {
-    if (current instanceof z.ZodOptional || current instanceof z.ZodNullable) current = current.unwrap();
-    else if (current instanceof z.ZodDefault) current = current._def.innerType;
-    else if (current instanceof z.ZodEffects) current = current.innerType();
+    if (
+      current instanceof z.ZodOptional ||
+      current instanceof z.ZodNullable ||
+      current instanceof z.ZodDefault ||
+      current instanceof z.ZodPrefault
+    )
+      current = current.unwrap() as ZodTypeAny;
+    // Transform/preprocess di zod 4 berupa pipa: tipe masukan ada di sisi `in`.
+    else if (current instanceof z.ZodPipe) current = current.def.in as ZodTypeAny;
     else return current;
   }
 }
@@ -21,7 +30,7 @@ const FALSE = new Set(["false", "0", "tidak", "t", "no", "n"]);
  */
 export function coerceCsvRow(schema: AnyZodObject, row: Record<string, string>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const [key, field] of Object.entries(schema.shape as Record<string, ZodTypeAny>)) {
+  for (const [key, field] of Object.entries(schema.shape as unknown as Record<string, ZodTypeAny>)) {
     const raw = row[key]?.trim();
     if (raw === undefined || raw === "") continue;
     const type = baseType(field);

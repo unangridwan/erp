@@ -109,7 +109,7 @@ export const compensationCycleSchema = z
     name: z.string().trim().min(1, "Nama wajib diisi").max(120),
     effectiveDate: z.string().date(),
     budgetKind: z.enum(["percent", "amount"]).default("percent"),
-    budgetValue: money.default(0),
+    budgetValue: money.prefault(0),
     departmentId: optionalUuid,
     gradeId: optionalUuid,
     note: z.string().trim().max(1000).nullish(),

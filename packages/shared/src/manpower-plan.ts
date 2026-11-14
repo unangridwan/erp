@@ -126,8 +126,8 @@ export const manpowerPlanLineSchema = z
     quantity: z.coerce.number().int().min(0).max(10000),
     startMonth: month.default(1),
     endMonth: month.nullish(),
-    monthlyWage: amount.default(0),
-    monthlyAllowance: amount.default(0),
+    monthlyWage: amount.prefault(0),
+    monthlyAllowance: amount.prefault(0),
     reason: z.string().trim().max(300).nullish(),
     replacesEmployeeId: z.string().uuid().nullish(),
   })

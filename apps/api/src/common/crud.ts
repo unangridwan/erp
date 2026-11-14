@@ -41,12 +41,11 @@ import {
 } from "@erp/shared";
 import type { Response } from "express";
 import { z } from "zod";
-import type { AnyZodObject } from "zod";
 import { ActivityService, registerActivityModel } from "../activity/activity.service.js";
 import { RequirePermission } from "../auth/decorators.js";
 import { TenantDb } from "./database.js";
 import { currentContext } from "./request-context.js";
-import { coerceCsvRow, exportColumns, parseXlsx, toXlsx } from "./csv-import.js";
+import { coerceCsvRow, exportColumns, parseXlsx, toXlsx, type AnyZodObject } from "./csv-import.js";
 import { parse } from "./zod.js";
 import {
   customFromImportRow,
@@ -278,13 +277,17 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
       const parsed = rows.map((raw, i) => {
         const id = raw.id?.trim() || undefined;
         const schema = id ? opts.schema.partial() : opts.schema;
-        const result = schema.safeParse(coerceCsvRow(opts.schema, raw));
+        const row = coerceCsvRow(opts.schema, raw);
+        const result = schema.safeParse(row);
         if (!result.success) {
           for (const issue of result.error.issues) {
             errors.push({ row: i + 2, path: issue.path.join("."), message: issue.message });
           }
         }
-        return { id, raw, values: result.success ? (result.data as Record<string, unknown>) : {} };
+        const data = result.success ? (result.data as Record<string, unknown>) : {};
+        // Pembaruan: kolom yang kosong di berkas tidak boleh diisi nilai bawaan skema.
+        const values = id ? Object.fromEntries(Object.entries(data).filter(([k]) => k in row)) : data;
+        return { id, raw, values };
       });
       if (errors.length)
         throw new BadRequestException({ message: "Impor dibatalkan: ada baris tidak valid", errors });
@@ -376,7 +379,7 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
     @Post()
     @RequirePermission(opts.write)
     create(@Body() body: unknown) {
-      const values = parse(opts.schema, body);
+      const values = parse(opts.schema, body) as Record<string, unknown>;
       if (opts.perCompany) values.companyId ??= currentContext().companyId;
       assertCompanyAllowed(values);
       return this.tenantDb.run(async (tx) => {
@@ -401,7 +404,7 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
     @Patch(":id")
     @RequirePermission(opts.write)
     update(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
-      const values = parse(opts.schema.partial().strip(), body);
+      const values = parse(opts.schema.partial().strip(), body) as Record<string, unknown>;
       // Field yang tidak dikirim tidak diubah (default zod tidak boleh menimpa nilai lama).
       // Data per-perusahaan tidak boleh dipindah ke perusahaan lain.
       const sent = Object.fromEntries(
