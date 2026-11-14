@@ -60,6 +60,8 @@ export interface Principal {
   /** Perusahaan aktif (header X-Company-Id atau default); hak efektif dihitung untuk perusahaan ini. */
   companyId: string | undefined;
   permissions: string[];
+  /** Hak efektif per perusahaan yang boleh diakses (peran bisa berlaku di sebagian perusahaan saja). */
+  permissionsByCompany: Record<string, string[]>;
   companies: { id: string; code: string; name: string; isDefault: boolean }[];
   /** Aplikasi terhubung pemilik token akun layanan (oauth_clients.id). */
   clientId?: string;
@@ -426,6 +428,9 @@ export class AuthService {
         platformAdmin: user.platformAdmin,
         companyId,
         permissions: companyId ? effectivePermissions(grants, companyId) : [],
+        permissionsByCompany: Object.fromEntries(
+          companies.map((c) => [c.id, effectivePermissions(grants, c.id)]),
+        ),
         companies,
         ...(claims.typ === "service" && claims.cid ? { clientId: claims.cid } : {}),
       };

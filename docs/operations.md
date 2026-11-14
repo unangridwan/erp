@@ -121,6 +121,9 @@ terakhir yang terarsip. Server hasil pemulihan menonaktifkan `archive_mode` samp
   alamat publik: loopback, jaringan privat, link-local (metadata cloud), dan nama host internal ditolak saat disimpan
   **dan** saat koneksi dibuat (aman dari DNS rebinding); redirect tidak diikuti; produksi wajib `https`. Untuk
   pengembangan lokal set `ALLOW_PRIVATE_WEBHOOKS=true` — **jangan** di produksi.
+- Data lintas perusahaan (mis. kontak, karyawan, entri jurnal, laporan gabungan) hanya terlihat dari perusahaan
+  tempat pengguna punya hak baca atas data itu. Akses ke perusahaan saja tidak cukup: peran yang berlaku hanya di PT A
+  tidak membuka data PT B.
 - Riwayat perubahan data (`/activity/:model/:id`) hanya bisa dibaca oleh yang berhak membaca data itu. PIN kiosk
   absensi terkunci 15 menit setelah 5 percobaan salah; endpoint publik verifikasi kontrak & push mesin absensi dibatasi
   per IP.

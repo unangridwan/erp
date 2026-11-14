@@ -44,7 +44,7 @@ import { z } from "zod";
 import { ActivityService, registerActivityModel } from "../activity/activity.service.js";
 import { RequirePermission } from "../auth/decorators.js";
 import { TenantDb } from "./database.js";
-import { currentContext } from "./request-context.js";
+import { companiesWith, currentContext } from "./request-context.js";
 import { coerceCsvRow, exportColumns, parseXlsx, toXlsx, type AnyZodObject } from "./csv-import.js";
 import { parse } from "./zod.js";
 import {
@@ -154,12 +154,19 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
     const ctx = currentContext();
     if (opts.companyColumn && opts.perCompany) return eq(opts.companyColumn, ctx.companyId);
     if (!opts.companyColumn || ctx.permissions.includes(ALL_PERMISSIONS)) return undefined;
-    return or(isNull(opts.companyColumn), inArray(opts.companyColumn, ctx.companyIds));
+    // Baris perusahaan lain hanya terlihat bila pemanggil juga punya hak baca resource ini di perusahaan itu.
+    const readable = companiesWith(opts.read, `/${opts.path}`);
+    return readable.length
+      ? or(isNull(opts.companyColumn), inArray(opts.companyColumn, readable))
+      : isNull(opts.companyColumn);
   };
 
   const assertCompanyAllowed = (values: Record<string, unknown>) => {
     const companyId = values.companyId;
-    if (typeof companyId === "string" && !currentContext().companyIds.includes(companyId)) {
+    if (
+      typeof companyId === "string" &&
+      !companiesWith(opts.write, `/${opts.path}`, "POST").includes(companyId)
+    ) {
       throw new NotFoundException("Perusahaan tidak ditemukan");
     }
   };

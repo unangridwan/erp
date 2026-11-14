@@ -60,6 +60,7 @@ export class AuthGuard implements CanActivate {
       companyIds,
       companyId,
       permissions: principal.permissions,
+      permissionsByCompany: principal.permissionsByCompany,
     });
 
     const required = this.reflector.getAllAndOverride<Permission | undefined>(REQUIRED_PERMISSION, targets);
