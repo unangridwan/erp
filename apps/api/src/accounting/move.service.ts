@@ -18,7 +18,7 @@ import {
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
-import { currentContext } from "../common/request-context.js";
+import { companiesWith, currentContext } from "../common/request-context.js";
 import { FxService } from "../master/fx.controller.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import {
@@ -87,6 +87,13 @@ const sideOf = (balance: Decimal, decimals: number) => ({
   debit: balance.gt(0) ? balance.toFixed(decimals) : "0",
   credit: balance.lt(0) ? balance.abs().toFixed(decimals) : "0",
 });
+
+/** Perusahaan tempat pemanggil boleh membaca entri akuntansi (akses perusahaan saja tidak cukup). */
+const readableCompanies = () => {
+  // Perusahaan aktif selalu ikut: endpoint pemanggil (termasuk faktur penjualan/tagihan pembelian yang memakai entri
+  // yang sama) sudah diperiksa haknya di perusahaan aktif oleh guard.
+  return [...new Set([currentContext().companyId, ...companiesWith("accounting.read", "/moves")])];
+};
 
 @Injectable()
 export class MoveService {
@@ -548,10 +555,7 @@ export class MoveService {
       .select()
       .from(schema.accountMoves)
       .where(
-        and(
-          eq(schema.accountMoves.id, id),
-          inArray(schema.accountMoves.companyId, currentContext().companyIds),
-        ),
+        and(eq(schema.accountMoves.id, id), inArray(schema.accountMoves.companyId, readableCompanies())),
       );
     if (!move) throw new NotFoundException("Entri tidak ditemukan");
     const lines = await tx
@@ -568,12 +572,7 @@ export class MoveService {
     const [move] = await tx
       .select()
       .from(schema.accountMoves)
-      .where(
-        and(
-          eq(schema.accountMoves.id, id),
-          inArray(schema.accountMoves.companyId, currentContext().companyIds),
-        ),
-      )
+      .where(and(eq(schema.accountMoves.id, id), inArray(schema.accountMoves.companyId, readableCompanies())))
       .for("update");
     if (!move) throw new NotFoundException("Entri tidak ditemukan");
     if (move.state !== "draft")

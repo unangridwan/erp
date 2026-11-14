@@ -9,7 +9,7 @@ import {
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import { z } from "zod";
-import { currentContext } from "../common/request-context.js";
+import { companiesWith, currentContext } from "../common/request-context.js";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -445,9 +445,10 @@ export class ReportService {
   private async scope(tx: Db, q: ReportQuery): Promise<Scope> {
     const ctx = currentContext();
     const companyIds = q.companyIds ?? [ctx.companyId];
+    // Laporan gabungan: wajib punya hak baca akuntansi di setiap perusahaan yang diminta, bukan sekadar akses.
+    const readable = new Set([ctx.companyId, ...companiesWith("accounting.read", "/reports")]);
     for (const id of companyIds) {
-      if (!ctx.companyIds.includes(id))
-        throw new BadRequestException("Tidak punya akses ke salah satu perusahaan");
+      if (!readable.has(id)) throw new BadRequestException("Tidak punya akses ke salah satu perusahaan");
     }
     const companies = await tx
       .select({ id: schema.companies.id, month: schema.companies.fiscalYearStartMonth })

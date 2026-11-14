@@ -88,6 +88,43 @@ describe.skipIf(!hasDb)("RBAC", () => {
     expect(access.find((x) => x.company.id === companyB)!.permissions).toEqual([]);
   });
 
+  it("data lintas perusahaan hanya terlihat di perusahaan tempat pengguna punya hak baca", async () => {
+    const role = (
+      await a
+        .post("/roles", {
+          code: "mitra_a",
+          name: "Mitra A",
+          permissions: ["partner.write", "accounting.read"],
+        })
+        .expect(201)
+    ).body;
+    const cici = await createUser("Cici", "cici@example.com");
+    await a.put(`/users/${cici}/roles`, { roles: [{ roleId: role.id, companyId: companyA }] }).expect(200);
+    await a.post("/partners", { name: "Pelanggan Bersama" }).expect(201);
+    await a.post("/partners", { name: "Pelanggan PT A", companyId: companyA }).expect(201);
+    const privateB = (await a.post("/partners", { name: "Pelanggan PT B", companyId: companyB }).expect(201))
+      .body.id as string;
+
+    const inA = await login("cici@example.com", companyA);
+    const names = (await inA.get("/partners?limit=200").expect(200)).body.items.map(
+      (p: { name: string }) => p.name,
+    );
+    expect(names).toEqual(expect.arrayContaining(["Pelanggan Bersama", "Pelanggan PT A"]));
+    expect(names).not.toContain("Pelanggan PT B");
+    await inA.get(`/partners/${privateB}`).expect(404);
+    await inA.patch(`/partners/${privateB}`, { name: "Diubah" }).expect(404);
+    // Membuat data untuk perusahaan lain juga butuh hak tulis di sana.
+    await inA.post("/partners", { name: "Titipan", companyId: companyB }).expect(404);
+    await inA.get(`/reports/trial-balance?dateTo=2026-12-31&companyIds=${companyA}`).expect(200);
+    await inA.get(`/reports/trial-balance?dateTo=2026-12-31&companyIds=${companyA},${companyB}`).expect(400);
+
+    // Admin (semua hak) tetap melihat semuanya.
+    const all = (await a.get("/partners?limit=200").expect(200)).body.items.map(
+      (p: { name: string }) => p.name,
+    );
+    expect(all).toContain("Pelanggan PT B");
+  });
+
   it("hak khusus per akun: cabut satu fitur, tambah satu fitur tanpa modul", async () => {
     const hr = (await a.get("/roles").expect(200)).body.find((r: { code: string }) => r.code === "hr_staff");
     const dewi = await createUser("Dewi", "dewi@example.com", [hr.id]);
