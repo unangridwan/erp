@@ -384,6 +384,21 @@ templat Manajer Maintenance & Teknisi):
   biaya (suku cadang, jasa, tenaga kerja) per peralatan. Peralatan & permintaan mendukung field kustom dan aturan
   otomatis.
 
+**Inspeksi mutu / QM (migrasi 0077).** Aplikasi baru **Mutu** (hak `quality.read|write|manage`, templat peran
+Pemeriksa Mutu):
+
+- **Titik kontrol**: periksa saat **penerimaan dari pemasok** atau saat **hasil produksi** selesai, untuk produk,
+  kategori, dan/atau pemasok tertentu (yang paling spesifik dipakai). Sampel semua / persen / jumlah tetap. Butir
+  pemeriksaan lulus/gagal atau **ukur** dengan batas min–maks + satuan, bisa **wajib foto**, plus instruksi.
+- Barang yang terkena titik kontrol otomatis dipindah ke lokasi **Karantina** gudang (dibuat otomatis) dan tidak ikut
+  dicadangkan sampai diputuskan. Panel pemeriksaan tampil di transfer penerimaan & order produksi.
+- **Keputusan**: **terima** (semua butir lulus) atau **terima bersyarat** → pindah ke gudang; **retur ke pemasok** →
+  transfer retur dibuat & divalidasi otomatis (alur nota kredit pembelian berlaku bila sudah ditagih); **scrap** →
+  barang keluar dengan jurnal ke akun selisih persediaan. Keputusan selain terima membuat **NCR** (ketidaksesuaian)
+  berisi butir yang gagal; NCR mencatat akar masalah, tindakan perbaikan, penanggung jawab, dan hanya bisa ditutup bila
+  tindakan perbaikan terisi.
+- **Laporan mutu**: jumlah pemeriksaan, lulus/gagal/bersyarat, dan **tingkat cacat** per pemasok & per produk.
+
 ### CRM & Penjualan (Fase 2)
 
 | Endpoint                                                                                      | Keterangan                                                                     |

@@ -1,5 +1,6 @@
 "use client";
 
+import { QualityChecksPanel } from "../quality/quality-ui";
 import { CustomFieldsSection, customPayload, useCustomFields, type CustomValues } from "../custom-fields";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -911,6 +912,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
           )}
         </form>
       </div>
+      {picking && picking.state === "done" && <QualityChecksPanel pickingId={picking.id} />}
       {picking && <Chatter model="stock_picking" id={picking.id} version={version} labels={{}} />}
     </div>
   );

@@ -452,6 +452,17 @@ export const PERMISSION_CATALOG: readonly ModuleDef[] = [
     specials: [],
   },
   {
+    key: "quality",
+    label: ["Mutu", "Quality"],
+    features: [
+      f("checks", "Pemeriksaan mutu", "Quality checks", ["/quality-checks"], ["/quality/checks"]),
+      f("alerts", "Ketidaksesuaian (NCR)", "Non-conformances", ["/quality-alerts"], ["/quality/alerts"]),
+      f("points", "Titik kontrol", "Control points", ["/quality-points"], ["/quality/points"]),
+      f("reports", "Laporan mutu", "Quality reports", ["/quality/reports"], ["/quality/reports"]),
+    ],
+    specials: [],
+  },
+  {
     key: "consolidation",
     label: ["Konsolidasi", "Consolidation"],
     features: [
@@ -786,6 +797,12 @@ export const ROLE_TEMPLATES: readonly {
       "Equipment, plans and maintenance requests",
     ],
     permissions: ["maintenance.manage", "inventory.read", "product.read", "partner.read", "company.read"],
+  },
+  {
+    code: "quality_inspector",
+    name: ["Pemeriksa Mutu", "Quality inspector"],
+    description: ["Pemeriksaan mutu & NCR", "Quality checks & non-conformances"],
+    permissions: ["quality.write", "inventory.read", "product.read", "partner.read", "company.read"],
   },
   {
     code: "technician",

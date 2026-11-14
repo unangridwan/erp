@@ -771,6 +771,7 @@ export class ManufacturingService {
       ],
       ctx,
     );
+    for (const hook of this.stock.producedHooks) for (const m of finished.moves) await hook(tx, order, m);
     // Sisa pembulatan biaya per unit (4 desimal) diselesaikan ke WIP via biaya konversi agar WIP nol.
     const finishedValue = d(finished.moves[0]?.value);
     const residual = material.plus(conversion).minus(finishedValue);

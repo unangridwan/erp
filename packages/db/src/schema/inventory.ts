@@ -48,6 +48,8 @@ export const warehouses = pgTable("warehouses", {
   branchId: uuid("branch_id"),
   viewLocationId: uuid("view_location_id").notNull(),
   lotStockId: uuid("lot_stock_id").notNull(),
+  /** Lokasi karantina (inspeksi mutu), dibuat saat pertama dibutuhkan. */
+  quarantineLocationId: uuid("quarantine_location_id"),
   active: boolean("active").notNull().default(true),
   ...audit,
 });

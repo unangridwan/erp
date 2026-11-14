@@ -69,6 +69,14 @@ export interface DoneMove {
 export class StockService {
   /** Kait pasca-validasi transfer (didaftarkan modul penjualan/pembelian). */
   readonly validateHooks: ValidateHook[] = [];
+  /** Kait setelah barang transfer dipindahkan, sebelum stok dicadangkan (mis. karantina inspeksi mutu). */
+  readonly movedHooks: ((tx: Db, picking: Picking, done: DoneMove[]) => Promise<void>)[] = [];
+  /** Kait setelah barang jadi produksi masuk gudang (didaftarkan modul mutu). */
+  readonly producedHooks: ((
+    tx: Db,
+    order: { id: string; name: string; companyId: string; warehouseId: string },
+    move: Move,
+  ) => Promise<void>)[] = [];
 
   constructor(
     @Inject(SequenceService) private readonly sequences: SequenceService,
@@ -478,6 +486,7 @@ export class StockService {
       action: "update",
       message: backorderId ? "Divalidasi sebagian; sisa dibuat sebagai backorder" : "Divalidasi",
     });
+    for (const hook of this.movedHooks) await hook(tx, { ...picking, state: "done" }, done);
     // Stok yang baru masuk dicadangkan untuk transfer yang menunggu.
     await this.reserveWaiting(tx, picking.companyId, [...new Set(done.map((x) => x.product.id))]);
     const documents: LinkedDocument[] = [];
@@ -631,6 +640,55 @@ export class StockService {
       partnerId: null,
     });
     return { moves: done.length };
+  }
+
+  /** Pindah stok antar lokasi internal (mis. karantina ↔ gudang); tanpa jurnal karena nilai tidak berubah. */
+  async moveInternal(
+    tx: Db,
+    companyId: string,
+    lines: {
+      productId: string;
+      quantity: string;
+      locationId: string;
+      locationDestId: string;
+      lots: { lotId: string; quantity: string }[];
+    }[],
+    ctx: { ref: string; date?: Date },
+  ) {
+    const products = await this.products(
+      tx,
+      lines.map((l) => l.productId),
+    );
+    const done: DoneMove[] = [];
+    for (const l of lines) {
+      const product = products.get(l.productId)!;
+      const [move] = await tx
+        .insert(schema.stockMoves)
+        .values({
+          companyId,
+          productId: l.productId,
+          name: `${ctx.ref}: ${product.name}`,
+          quantity: d(l.quantity).toFixed(4),
+          quantityDone: d(l.quantity).toFixed(4),
+          locationId: l.locationId,
+          locationDestId: l.locationDestId,
+          state: "ready",
+          reference: ctx.ref,
+        })
+        .returning();
+      done.push({
+        move: move!,
+        product,
+        lots: l.lots.map((x) => ({ lotId: x.lotId, quantity: d(x.quantity) })),
+      });
+    }
+    if (done.length)
+      await this.processMoves(tx, companyId, done, {
+        ref: ctx.ref,
+        date: ctx.date ?? new Date(),
+        branchId: null,
+        partnerId: null,
+      });
   }
 
   /**
