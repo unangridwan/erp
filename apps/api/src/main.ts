@@ -20,6 +20,8 @@ app.useBodyParser("urlencoded", { limit: "1mb", extended: false });
 if (process.env.TRUST_PROXY)
   app.set("trust proxy", process.env.TRUST_PROXY === "true" ? true : process.env.TRUST_PROXY);
 app.disable("x-powered-by");
+// Express 5 memakai parser query sederhana; pertahankan bentuk bertingkat/array (`a[]=1`, `f[k]=v`) seperti sebelumnya.
+app.set("query parser", "extended");
 app.enableCors({
   origin: config.webOrigin.split(",").map((o) => o.trim()),
   credentials: false,

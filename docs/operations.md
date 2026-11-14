@@ -126,8 +126,8 @@ terakhir yang terarsip. Server hasil pemulihan menonaktifkan `archive_mode` samp
   per IP.
 - Web mengirim `Content-Security-Policy` (skrip & koneksi hanya ke asal sendiri + `NEXT_PUBLIC_API_URL`) dan HSTS di
   produksi. Bila API dipindah domain, build ulang web dengan `NEXT_PUBLIC_API_URL` yang baru.
-- Dependensi: `pnpm audit --prod` dijalankan di CI. Sisa yang butuh upgrade mayor (dijadwalkan terpisah): zod 3 → 4
-  (DoS memori pada koleksi sangat besar — dibatasi `BODY_LIMIT` 10 MB), NestJS 10 → 11, uuid bawaan exceljs.
+- Dependensi: `pnpm audit --prod` dijalankan di CI (saat ini tanpa kerentanan yang diketahui; zod 4, NestJS 11 /
+  Express 5).
 - Rate limit login/refresh/undangan/SSO disimpan di Redis bila `REDIS_URL` di-set (berlaku lintas instance); tanpa
   Redis berbasis memori per instance (pakai sticky session bila menjalankan lebih dari satu instance).
 - Pengguna dapat melihat & mencabut sesi login di **Pengaturan → Keamanan**.

@@ -15,6 +15,7 @@ import {
   Put,
   Query,
   Res,
+  Req,
 } from "@nestjs/common";
 import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, ne, schema, sql, type Db } from "@erp/db";
 import {
@@ -33,7 +34,7 @@ import {
   type SettlementKind,
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import type { z } from "zod";
 import { fieldError } from "../accounting/context.js";
 import { ActivityService } from "../activity/activity.service.js";
@@ -483,14 +484,12 @@ class JobOffersController {
     return this.tenantDb.run((tx) => this.offers.submitApproval(tx, id));
   }
 
-  @Post("job-offers/:id/:action(send|accept|decline|cancel)")
+  // Express 5 tidak mendukung pola regex di path; tiap aksi didaftarkan sebagai path tetap.
+  @Post(["job-offers/:id/send", "job-offers/:id/accept", "job-offers/:id/decline", "job-offers/:id/cancel"])
   @HttpCode(200)
   @RequirePermission("hr.manage")
-  transition(
-    @Param("id", ParseUUIDPipe) id: string,
-    @Param("action") action: "send" | "accept" | "decline" | "cancel",
-    @Body() body: unknown,
-  ) {
+  transition(@Param("id", ParseUUIDPipe) id: string, @Req() req: Request, @Body() body: unknown) {
+    const action = req.path.split("/").pop() as "send" | "accept" | "decline" | "cancel";
     const input = parse(offerResponseSchema, body ?? {});
     return this.tenantDb.run((tx) => this.offers.transition(tx, id, action, input.note ?? null));
   }

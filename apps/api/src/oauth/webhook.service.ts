@@ -83,11 +83,17 @@ export class WebhookService implements OnApplicationBootstrap, OnApplicationShut
       (await this.ownerDb.select({ id: schema.tenants.id }).from(schema.tenants)).map((t) => t.id);
     let sent = 0;
     for (const tenantId of tenants) {
-      const jobs = await this.claim(tenantId);
-      for (const job of jobs) {
-        const result = await this.send(job.url, job.secret, job.event, job.id, job.body);
-        await this.tenantDb.runAs(tenantId, (tx) => this.record(tx, job, result));
-        if (result.ok) sent++;
+      // Kegagalan satu tenant (mis. secret tidak bisa didekripsi) tidak boleh menghentikan webhook tenant lain.
+      try {
+        const jobs = await this.claim(tenantId);
+        for (const job of jobs) {
+          const result = await this.send(job.url, job.secret, job.event, job.id, job.body);
+          await this.tenantDb.runAs(tenantId, (tx) => this.record(tx, job, result));
+          if (result.ok) sent++;
+        }
+      } catch (e) {
+        this.logger.error(`Webhook tenant ${tenantId} gagal: ${e instanceof Error ? e.message : String(e)}`);
+        reportError(e, { job: "webhook", tenantId });
       }
     }
     return sent;
