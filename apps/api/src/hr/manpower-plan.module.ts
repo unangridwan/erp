@@ -17,6 +17,7 @@ import {
   Query,
   Res,
 } from "@nestjs/common";
+import { salaryVisible } from "./privacy.js";
 import { and, asc, eq, inArray, isNull, ne, or, schema, sql, type Db } from "@erp/db";
 import {
   DEFAULT_BPJS,
@@ -121,7 +122,7 @@ class ManpowerPlanController implements OnModuleInit {
             )
         : [];
       const openings = await this.openingStats(tx, lines);
-      const showCost = can("payroll.read");
+      const showCost = salaryVisible();
       const rows = departments.map((dept) => {
         const plan = plans.find((p) => p.departmentId === dept.id);
         if (!plan)
@@ -587,7 +588,7 @@ class ManpowerPlanController implements OnModuleInit {
       tx,
       rows.map((r) => r.line),
     );
-    const showCost = can("payroll.read");
+    const showCost = salaryVisible();
     const [request] = plan.approvalRequestId
       ? await tx
           .select({ id: REQ.id, number: REQ.number, state: REQ.state })
@@ -772,7 +773,7 @@ class ManpowerPlanController implements OnModuleInit {
       if (found.length !== replaced.length)
         throw new BadRequestException("Karyawan yang diganti tidak ditemukan");
     }
-    const showCost = trusted || can("payroll.read");
+    const showCost = trusted || salaryVisible();
     // Baris lama dipertahankan (id tetap) bila jabatan & jenisnya sama, agar FPK & lowongan tetap terhubung.
     const unused = [...old];
     const values = lines.map((l, i) => {

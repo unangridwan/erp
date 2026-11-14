@@ -29,7 +29,6 @@ import {
   employeeSchema,
   gradePosition,
   gradeWageStatus,
-  hasPermission,
   probationDecisionSchema,
   applyGradeBaseWageSchema,
   newEmployeeContractSchema,
@@ -66,7 +65,13 @@ import { ATTENDANCE_COLUMNS, AttendanceService } from "./attendance.service.js";
 import { ApprovalService, beginApproval, type ApprovalModel } from "./approval.service.js";
 import { NotificationService } from "../notifications/notification.service.js";
 import { ChecklistService } from "./checklist.service.js";
-import { filledPersonalFields, logPersonalDataAccess } from "./privacy.js";
+import {
+  assertSalaryEditable,
+  filledPersonalFields,
+  hideSalary,
+  logPersonalDataAccess,
+  personalVisible,
+} from "./privacy.js";
 import { ContractDocumentService } from "./contract-document.service.js";
 import { renderOfferPdf } from "./letters-pdf.js";
 import {
@@ -620,8 +625,8 @@ class EmployeesController {
   get(@Param("id", ParseUUIDPipe) id: string) {
     return this.tenantDb.run(async (tx) => {
       const employee = await this.employees.find(tx, id);
-      // Data pribadi terbuka penuh hanya untuk hr.manage; aksesnya dicatat (UU PDP).
-      if (hasPermission(currentContext().permissions, "hr.manage"))
+      // Data pribadi terbuka penuh hanya untuk pemegang hak data pribadi; aksesnya dicatat (UU PDP).
+      if (personalVisible())
         await logPersonalDataAccess(tx, {
           employeeId: employee.id,
           employeeUserId: employee.userId,
@@ -692,19 +697,23 @@ class EmployeesController {
         goals: stats?.goals ?? 0,
         hoursThisMonth: stats?.hours ?? "0",
         hasPhoto: stats?.has_photo ?? false,
+        // Kontrak (jenis, masa berlaku) terlihat oleh semua pembaca SDM; nominalnya hanya untuk pemegang hak gaji.
         contract: contract
-          ? {
-              id: contract.id,
-              name: contract.name,
-              contractType: contract.contractType,
-              wage: contract.wage,
-              wageType: contract.wageType,
-              taxMethod: contract.taxMethod,
-              dateStart: contract.dateStart,
-              dateEnd: contract.dateEnd,
-              fixedAllowance,
-              components,
-            }
+          ? hideSalary(
+              {
+                id: contract.id,
+                name: contract.name,
+                contractType: contract.contractType,
+                wage: contract.wage as string | null,
+                wageType: contract.wageType,
+                taxMethod: contract.taxMethod,
+                dateStart: contract.dateStart,
+                dateEnd: contract.dateEnd,
+                fixedAllowance: fixedAllowance as string | null,
+                components,
+              },
+              ["wage", "fixedAllowance", "components"],
+            )
           : null,
         account: user
           ? { status: "linked" as const, userId: user.id, name: user.name, email: user.email }
@@ -818,6 +827,9 @@ class EmployeesController {
 const C = schema.contracts;
 
 /** Kontrak kerja (PKWT/PKWTT) beserta tunjangan tetap/tidak tetap bulanan. */
+/** Kolom kontrak yang memuat nominal (isi dokumen kontrak juga menyebut gaji). */
+const CONTRACT_SALARY_KEYS = ["wage", "gradeBaseWage", "body"] as const;
+
 @Controller("contracts")
 class ContractsController {
   constructor(
@@ -829,7 +841,7 @@ class ContractsController {
   ) {}
 
   @Get()
-  @RequirePermission("hr.manage")
+  @RequirePermission("hr.read")
   async list(@Query("employeeId") employeeId?: string, @Query("state") state?: string) {
     const items = await this.tenantDb.run((tx) =>
       tx
@@ -846,21 +858,30 @@ class ContractsController {
         .orderBy(desc(C.dateStart)),
     );
     return {
-      items: items.map((r) => ({ ...r.contract, employeeName: r.employeeName })),
+      items: items.map((r) =>
+        hideSalary({ ...r.contract, employeeName: r.employeeName }, CONTRACT_SALARY_KEYS),
+      ),
       total: items.length,
     };
   }
 
   @Get(":id")
-  @RequirePermission("hr.manage")
+  @RequirePermission("hr.read")
   get(@Param("id", ParseUUIDPipe) id: string) {
-    return this.tenantDb.run((tx) => this.load(tx, id));
+    return this.tenantDb.run(async (tx) => {
+      const contract = await this.load(tx, id);
+      return hideSalary(contract as typeof contract & { allowances: unknown[] }, [
+        ...CONTRACT_SALARY_KEYS,
+        "allowances",
+      ]);
+    });
   }
 
   @Post()
   @RequirePermission("hr.manage")
   create(@Body() body: unknown) {
     const input = parse(contractSchema, body);
+    assertSalaryEditable();
     return this.tenantDb.run(async (tx) => this.load(tx, await this.contracts.create(tx, input)));
   }
 
@@ -869,6 +890,7 @@ class ContractsController {
   @RequirePermission("hr.manage")
   update(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
     const input = parse(contractSchema, body);
+    assertSalaryEditable();
     return this.tenantDb.run(async (tx) => {
       const contract = await this.find(tx, id);
       if (contract.state !== "draft" && contract.state !== "running")
@@ -917,7 +939,8 @@ class ContractsController {
         resModel: "employee",
         resId: contract.employeeId,
         action: "comment",
-        message: `Kontrak ${contract.name} diubah (gaji pokok ${new Decimal(pay.wage).toFixed(0)})`,
+        // Nominal tidak dicatat: riwayat karyawan terbaca oleh pembaca SDM tanpa hak gaji.
+        message: `Kontrak ${contract.name} diubah`,
       });
       return this.load(tx, id);
     });

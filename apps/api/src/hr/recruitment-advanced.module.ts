@@ -17,6 +17,7 @@ import {
   Res,
   Req,
 } from "@nestjs/common";
+import { assertSalaryVisible, hideSalary } from "./privacy.js";
 import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, ne, schema, sql, type Db } from "@erp/db";
 import {
   DEFAULT_OFFER_TEMPLATE,
@@ -467,7 +468,10 @@ class JobOffersController {
   @Get("applicants/:id/offers")
   @RequirePermission("hr.read")
   list(@Param("id", ParseUUIDPipe) id: string) {
-    return this.tenantDb.run((tx) => this.offers.list(tx, id));
+    // Penawaran memuat gaji yang ditawarkan (juga di isi surat): nominalnya hanya untuk pemegang hak gaji.
+    return this.tenantDb.run(async (tx) =>
+      (await this.offers.list(tx, id)).map((o) => hideSalary(o, ["wage", "benefits", "body"])),
+    );
   }
 
   @Post("applicants/:id/offers")
@@ -497,6 +501,7 @@ class JobOffersController {
   @Get("job-offers/:id/pdf")
   @RequirePermission("hr.read")
   async pdf(@Param("id", ParseUUIDPipe) id: string, @Res() res: Response) {
+    assertSalaryVisible();
     const file = await this.tenantDb.run(async (tx) => {
       const offer = await this.offers.find(tx, id);
       return {

@@ -47,12 +47,14 @@ interface Overview {
     id: string;
     name: string;
     contractType: string;
-    wage: string;
+    /** Nominal `null` + `salaryHidden` bila pengguna tidak punya hak Gaji & kompensasi. */
+    wage: string | null;
+    salaryHidden?: boolean;
     wageType: "monthly" | "daily" | "piece";
     taxMethod: "gross" | "gross_up";
     dateStart: string;
     dateEnd: string | null;
-    fixedAllowance: string;
+    fixedAllowance: string | null;
     components: {
       name: string;
       amount: string;
@@ -705,13 +707,26 @@ export function EmployeeForm({ id }: { id: string }) {
                             ? formatDate(overview.contract.dateEnd, locale)
                             : l("tidak terbatas", "open-ended")}
                         </ReadRow>
-                        <ReadRow label={l("Gaji dasar", "Base wage")}>
-                          {money(overview.contract.wage, locale)} /{" "}
-                          {l(...(WAGE_TYPE[overview.contract.wageType] ?? ["bulan", "month"]))}
-                        </ReadRow>
-                        <ReadRow label={l("Tunjangan tetap", "Fixed allowances")}>
-                          {money(overview.contract.fixedAllowance, locale)}
-                        </ReadRow>
+                        {overview.contract.salaryHidden ? (
+                          <ReadRow label={l("Gaji & tunjangan", "Wage & allowances")}>
+                            <span className="muted">
+                              {l(
+                                "Disembunyikan — butuh hak “Gaji & kompensasi karyawan”",
+                                "Hidden — requires the “Employee salary & compensation” permission",
+                              )}
+                            </span>
+                          </ReadRow>
+                        ) : (
+                          <>
+                            <ReadRow label={l("Gaji dasar", "Base wage")}>
+                              {money(overview.contract.wage, locale)} /{" "}
+                              {l(...(WAGE_TYPE[overview.contract.wageType] ?? ["bulan", "month"]))}
+                            </ReadRow>
+                            <ReadRow label={l("Tunjangan tetap", "Fixed allowances")}>
+                              {money(overview.contract.fixedAllowance, locale)}
+                            </ReadRow>
+                          </>
+                        )}
                         {overview.contract.components.length > 0 && (
                           <ReadRow label={l("Komponen gaji", "Pay components")}>
                             <ul className="plain-list">

@@ -5,8 +5,9 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { personalEditable, personalVisible } from "./privacy.js";
 import { and, asc, count, eq, ilike, or, schema, sql, type Db, type SQL } from "@erp/db";
-import { hasPermission, LIST_LOAD_LIMIT, type employeeSchema } from "@erp/shared";
+import { LIST_LOAD_LIMIT, type employeeSchema } from "@erp/shared";
 import { normalizeCustom } from "../customization/custom-values.js";
 import type { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
@@ -38,8 +39,8 @@ export class EmployeeService {
     @Inject(ActivityService) private readonly activity: ActivityService,
   ) {}
 
-  /** Buka data sensitif hanya untuk pemegang hr.manage (atau karyawan itu sendiri); lainnya tersamar. */
-  reveal(employee: Employee, full = hasPermission(currentContext().permissions, "hr.manage")) {
+  /** Buka data sensitif hanya untuk pemegang hak data pribadi (atau karyawan itu sendiri); lainnya tersamar. */
+  reveal(employee: Employee, full = personalVisible()) {
     const {
       nikEnc,
       npwpEnc,
@@ -254,11 +255,12 @@ export class EmployeeService {
     if (!id || custom !== undefined)
       values.custom = await normalizeCustom(tx, "employee", custom, id ? existingCustom : null, companyId);
     if (employeeNumber && id) values.employeeNumber = employeeNumber;
-    const canManage = hasPermission(currentContext().permissions, "hr.manage");
+    const canManage = personalEditable();
     for (const [field, column] of Object.entries(SENSITIVE)) {
       const value = { nik, npwp, bankAccount, kkNo }[field as keyof typeof SENSITIVE];
       if (value === undefined || (typeof value === "string" && value.startsWith(MASK))) continue;
-      if (!canManage) throw new ForbiddenException("Butuh permission hr.manage untuk mengubah data pribadi");
+      if (!canManage)
+        throw new ForbiddenException("Butuh hak Data pribadi sensitif untuk mengubah data pribadi");
       values[column] = value ? encrypt(value, this.config.encryptionKey) : null;
     }
     if (input.departmentId) {

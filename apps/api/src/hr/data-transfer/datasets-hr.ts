@@ -186,7 +186,7 @@ async function employeeInput(row: Row, ctx: Ctx, lookups: Lookups) {
     const v = get(row, f);
     if (!v) continue;
     if (SENSITIVE.has(f) && !ctx.manage)
-      throw new RowError(f, "Kolom data pribadi hanya bisa diimpor pemegang hr.manage");
+      throw new RowError(f, "Kolom data pribadi hanya bisa diimpor pemegang hak Data pribadi sensitif");
     input[f] = v;
   }
   for (const f of ENUM_FIELDS) if (get(row, f)) input[f] = code(f, f, get(row, f));
@@ -546,7 +546,7 @@ function familyDataset(svc: HrServices): Dataset {
     async importRow(tx, row, ctx, lookups) {
       const employee = await lookups.employee("employeeNumber", get(row, "employeeNumber"));
       if (get(row, "nik") && !ctx.manage)
-        throw new RowError("nik", "Kolom data pribadi hanya bisa diimpor pemegang hr.manage");
+        throw new RowError("nik", "Kolom data pribadi hanya bisa diimpor pemegang hak Data pribadi sensitif");
       const input = validate(employeeFamilySchema, {
         relation: get(row, "relation") && code("relation", "relation", get(row, "relation")),
         name: get(row, "name"),

@@ -1,4 +1,6 @@
 import { and, eq, inArray, isNull, lt, or, schema, sql, type Db } from "@erp/db";
+import { ForbiddenException } from "@nestjs/common";
+import { canEditPersonal, canEditSalary, canViewPersonal, canViewSalary } from "@erp/shared";
 import { currentContext } from "../common/request-context.js";
 
 const AP = schema.applicants;
@@ -100,4 +102,33 @@ export async function runApplicantRetention(tx: Db, companyId: string, months: n
     tx,
     due.map((d) => d.id),
   );
+}
+
+/** Pemanggil boleh melihat nominal gaji & kompensasi karyawan. */
+export const salaryVisible = () => canViewSalary(currentContext().permissions);
+/** Pemanggil boleh mengubah nominal gaji (kontrak, tunjangan). */
+export const salaryEditable = () => canEditSalary(currentContext().permissions);
+/** Pemanggil boleh melihat data pribadi sensitif (NIK, NPWP, KK, rekening) tanpa disamarkan. */
+export const personalVisible = () => canViewPersonal(currentContext().permissions);
+export const personalEditable = () => canEditPersonal(currentContext().permissions);
+
+/** Tolak bila pemanggil tidak punya hak melihat gaji (untuk dokumen/laporan yang seluruh isinya nominal). */
+export function assertSalaryVisible() {
+  if (!salaryVisible()) throw new ForbiddenException("Butuh hak Gaji & kompensasi untuk melihat data ini");
+}
+
+/** Tolak perubahan nominal gaji (kontrak, tunjangan) oleh pemanggil tanpa hak ubah gaji. */
+export function assertSalaryEditable() {
+  if (!salaryEditable()) throw new ForbiddenException("Butuh hak Gaji & kompensasi untuk mengubah gaji");
+}
+
+/**
+ * Sembunyikan nominal gaji dari sebuah baris bagi pemanggil tanpa hak gaji: kunci yang disebut menjadi `null` dan
+ * baris ditandai `salaryHidden` agar tampilan bisa menjelaskan mengapa kosong.
+ */
+export function hideSalary<T extends Record<string, unknown>>(row: T, keys: readonly (keyof T)[]): T {
+  if (salaryVisible()) return row;
+  const out: Record<string, unknown> = { ...row, salaryHidden: true };
+  for (const k of keys) out[k as string] = Array.isArray(row[k]) ? [] : null;
+  return out as T;
 }

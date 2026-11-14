@@ -16,6 +16,7 @@ import {
   Req,
   Res,
 } from "@nestjs/common";
+import { hideSalary, personalVisible } from "./privacy.js";
 import { and, asc, desc, eq, inArray, schema, sql, type Db } from "@erp/db";
 import {
   employeeEducationSchema,
@@ -24,7 +25,6 @@ import {
   employeeMovementSchema,
   employeePhotoSchema,
   employeeWarningSchema,
-  hasPermission,
   highestEducation,
   profileCompleteness,
   suggestedPtkp,
@@ -55,7 +55,6 @@ const MV = schema.employeeMovements;
 const WR = schema.employeeWarnings;
 const today = () => new Date().toISOString().slice(0, 10);
 const companyId = () => currentContext().companyId;
-const canManage = () => hasPermission(currentContext().permissions, "hr.manage");
 
 type Family = typeof FA.$inferSelect;
 
@@ -130,7 +129,7 @@ class EmployeePhotoController {
 // ---- Keluarga, pendidikan, pengalaman kerja ----
 
 /** Keluarga: NIK anggota keluarga dienkripsi; tersamar untuk selain hr.manage. */
-function shapeFamily(employees: EmployeeService, row: Family, full = canManage()) {
+function shapeFamily(employees: EmployeeService, row: Family, full = personalVisible()) {
   const { nikEnc, ...rest } = row;
   return { ...rest, nik: nikEnc ? employees.open(nikEnc, full) : null };
 }
@@ -515,10 +514,12 @@ class MovementsController {
         rows.map((r) => ({ ...r.movement, employeeName: r.employeeName, employeeNumber: r.employeeNumber })),
       );
       return Promise.all(
-        named.map(async (m) => ({
-          ...m,
-          approval: { required, request: await this.gate.summary(tx, m.approvalRequestId) },
-        })),
+        named.map(async (m) =>
+          hideSalary(
+            { ...m, approval: { required, request: await this.gate.summary(tx, m.approvalRequestId) } },
+            ["newWage", "oldWage"],
+          ),
+        ),
       );
     });
   }
@@ -528,13 +529,16 @@ class MovementsController {
   get(@Param("id", ParseUUIDPipe) id: string) {
     return this.tenantDb.run(async (tx) => {
       const m = await this.find(tx, id);
-      return {
-        ...(await this.withNames(tx, [m]))[0],
-        approval: {
-          required: await this.gate.enabled(tx, m.companyId, "movement"),
-          request: await this.gate.summary(tx, m.approvalRequestId),
+      return hideSalary(
+        {
+          ...(await this.withNames(tx, [m]))[0]!,
+          approval: {
+            required: await this.gate.enabled(tx, m.companyId, "movement"),
+            request: await this.gate.summary(tx, m.approvalRequestId),
+          },
         },
-      };
+        ["newWage", "oldWage"],
+      );
     });
   }
 

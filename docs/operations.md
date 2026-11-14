@@ -124,6 +124,10 @@ terakhir yang terarsip. Server hasil pemulihan menonaktifkan `archive_mode` samp
 - Data lintas perusahaan (mis. kontak, karyawan, entri jurnal, laporan gabungan) hanya terlihat dari perusahaan
   tempat pengguna punya hak baca atas data itu. Akses ke perusahaan saja tidak cukup: peran yang berlaku hanya di PT A
   tidak membuka data PT B.
+- Gaji dan data pribadi adalah hak tersendiri di matriks peran (SDM › "Gaji & kompensasi karyawan", "Data pribadi
+  sensitif"). Hak lihat/ubah SDM **tidak** membukanya: tanpa hak gaji, kontrak tetap terlihat (jenis, masa berlaku)
+  tetapi nominal gaji, tunjangan, isi/PDF kontrak, gaji di penawaran & mutasi disembunyikan; tanpa hak data pribadi
+  NIK/NPWP/KK/rekening tersamar. Hak kelola SDM mencakup keduanya; pengguna Payroll selalu melihat gaji.
 - Riwayat perubahan data (`/activity/:model/:id`) hanya bisa dibaca oleh yang berhak membaca data itu. PIN kiosk
   absensi terkunci 15 menit setelah 5 percobaan salah; endpoint publik verifikasi kontrak & push mesin absensi dibatasi
   per IP.

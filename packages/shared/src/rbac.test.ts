@@ -3,6 +3,9 @@ import {
   ALL_PERMISSION_CODES,
   allowedFor,
   canDelegate,
+  canEditSalary,
+  canViewPersonal,
+  canViewSalary,
   deniedLevels,
   effectivePermissions,
   featureForPath,
@@ -90,6 +93,49 @@ describe("effectivePermissions", () => {
       A,
     );
     expect(p).toContain("sales.all");
+  });
+});
+
+describe("data sensitif (gaji & data pribadi)", () => {
+  const perms = (roles: string[], overrides: { permission: string; effect: "grant" | "deny" }[] = []) =>
+    effectivePermissions(
+      {
+        roles: [{ permissions: roles, companyId: null }],
+        overrides: overrides.map((o) => ({ ...o, companyId: null })),
+      },
+      A,
+    );
+
+  it("hak lihat/ubah SDM tidak membuka gaji maupun data pribadi; hak kelola membukanya", () => {
+    for (const role of ["hr.read", "hr.write"]) {
+      const p = perms([role]);
+      expect(p).toContain("hr.employees.read");
+      expect(canViewSalary(p), role).toBe(false);
+      expect(canViewPersonal(p), role).toBe(false);
+    }
+    const manager = perms(["hr.manage"]);
+    expect(canViewSalary(manager)).toBe(true);
+    expect(canEditSalary(manager)).toBe(true);
+    expect(canViewPersonal(manager)).toBe(true);
+  });
+
+  it("bisa diberikan sendiri, dicabut per akun, dan ikut hak Payroll", () => {
+    const staff = perms(["hr.write", "hr.salary.read"]);
+    expect(canViewSalary(staff)).toBe(true);
+    expect(canEditSalary(staff)).toBe(false);
+    expect(canViewPersonal(staff)).toBe(false);
+    expect(canViewPersonal(perms(["hr.read"], [{ permission: "hr.personal.read", effect: "grant" }]))).toBe(
+      true,
+    );
+
+    const denied = perms(["hr.manage"], [{ permission: "hr.salary.read", effect: "deny" }]);
+    expect(canViewSalary(denied)).toBe(false);
+    expect(denied).toContain("hr.employees.manage");
+
+    expect(canViewSalary(perms(["payroll.read", "hr.read"]))).toBe(true);
+    expect(canViewSalary(["*"])).toBe(true);
+    expect(ALL_PERMISSION_CODES.has("hr.salary.read")).toBe(true);
+    expect(ALL_PERMISSION_CODES.has("hr.personal.write")).toBe(true);
   });
 });
 

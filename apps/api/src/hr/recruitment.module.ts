@@ -46,7 +46,7 @@ import { parse } from "../common/zod.js";
 import { CONFIG, type AppConfig } from "../config.js";
 import { reportError } from "../common/error-reporting.js";
 import { SequenceService } from "../sequences/sequence.service.js";
-import { anonymizeApplicants, runApplicantRetention } from "./privacy.js";
+import { anonymizeApplicants, hideSalary, runApplicantRetention } from "./privacy.js";
 import { ChecklistService } from "./checklist.service.js";
 import { EmployeeService } from "./employee.service.js";
 import { HrModule } from "./hr.module.js";
@@ -477,7 +477,11 @@ class ApplicantsController {
         )
         .orderBy(desc(AP.createdAt))
         .then((rows) =>
-          rows.map((r) => ({ ...r.applicant, openingName: r.openingName, nextInterview: r.nextInterview })),
+          rows.map((r) =>
+            hideSalary({ ...r.applicant, openingName: r.openingName, nextInterview: r.nextInterview }, [
+              "expectedWage",
+            ]),
+          ),
         ),
     );
   }
@@ -485,7 +489,7 @@ class ApplicantsController {
   @Get(":id")
   @RequirePermission("hr.read")
   get(@Param("id", ParseUUIDPipe) id: string) {
-    return this.tenantDb.run((tx) => this.load(tx, id));
+    return this.tenantDb.run(async (tx) => hideSalary(await this.load(tx, id), ["expectedWage"]));
   }
 
   @Post()
