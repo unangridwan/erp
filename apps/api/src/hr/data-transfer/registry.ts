@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { personalVisible } from "../privacy.js";
 import { and, desc, eq, inArray, schema, type Db } from "@erp/db";
 import { hasPermission, type Permission } from "@erp/shared";
 import { z } from "zod";
@@ -73,7 +74,7 @@ export class DatasetRegistry {
       throw new BadRequestException("Payroll tidak ditemukan");
     return {
       companyId,
-      manage: can(d.app === "payroll" ? "payroll.write" : "hr.manage"),
+      manage: d.app === "payroll" ? can("payroll.write") : personalVisible(),
       timeZone: await this.schedules.timezone(tx, companyId),
       runId,
     };

@@ -1321,4 +1321,10 @@ export const MESSAGES_EN: Record<string, string> = {
   "URL tidak boleh memuat nama pengguna/sandi": "URL must not contain a username or password",
   "URL harus https": "URL must be https",
   "URL mengarah ke alamat internal": "URL points to an internal address",
+  "Butuh hak Data pribadi sensitif untuk mengubah data pribadi":
+    "The Sensitive personal data permission is required to change personal data",
+  "Butuh hak Gaji & kompensasi untuk melihat data ini":
+    "The Salary & compensation permission is required to view this data",
+  "Butuh hak Gaji & kompensasi untuk mengubah gaji":
+    "The Salary & compensation permission is required to change salaries",
 };

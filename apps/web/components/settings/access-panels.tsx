@@ -10,7 +10,7 @@ export interface CatalogModule {
   key: string;
   label: Text2;
   levels: AccessLevel[];
-  features: { key: string; label: Text2 }[];
+  features: { key: string; label: Text2; restricted?: boolean }[];
   specials: { code: string; label: Text2 }[];
 }
 export interface RoleTemplate {
@@ -182,7 +182,17 @@ export function PermissionMatrix({
                 <tbody>
                   {m.features.map((f) => (
                     <tr key={f.key}>
-                      <td>{l(...f.label)}</td>
+                      <td>
+                        {l(...f.label)}
+                        {f.restricted && (
+                          <small className="muted" style={{ display: "block" }}>
+                            {l(
+                              "Data sensitif: tidak ikut hak lihat/ubah modul, hanya hak kelola atau dicentang di sini",
+                              "Sensitive data: not included in module view/edit, only manage or ticked here",
+                            )}
+                          </small>
+                        )}
+                      </td>
                       {m.levels.map((lv) => (
                         <td key={lv} className="num">
                           {box(`${m.key}.${f.key}.${lv}`)}

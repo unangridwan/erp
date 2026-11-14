@@ -16,6 +16,7 @@ import {
   Req,
   Res,
 } from "@nestjs/common";
+import { assertSalaryVisible } from "./privacy.js";
 import { RateLimiter } from "../common/rate-limiter.js";
 import { and, asc, desc, eq, inArray, ne, or, schema, sql, type Db } from "@erp/db";
 import {
@@ -167,6 +168,7 @@ class ContractDocumentController {
   @Get(":id/document")
   @RequirePermission("hr.manage")
   get(@Param("id", ParseUUIDPipe) id: string) {
+    assertSalaryVisible();
     return this.tenantDb.run(async (tx) => this.docs.summary(tx, await this.contracts.find(tx, id)));
   }
 
@@ -183,6 +185,7 @@ class ContractDocumentController {
   @Get(":id/pdf")
   @RequirePermission("hr.manage")
   async pdf(@Param("id", ParseUUIDPipe) id: string, @Query() query: unknown, @Res() res: Response) {
+    assertSalaryVisible();
     const { mode } = parse(pdfQuery, query);
     sendPdf(
       res,

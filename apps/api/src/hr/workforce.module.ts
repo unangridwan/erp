@@ -11,6 +11,7 @@ import {
   Query,
   Res,
 } from "@nestjs/common";
+import { salaryVisible } from "./privacy.js";
 import { and, asc, eq, inArray, schema, sql, type Db } from "@erp/db";
 import {
   ageBand,
@@ -18,7 +19,6 @@ import {
   compaRatio,
   countBy,
   genderPayGap,
-  hasPermission,
   highestEducation,
   manpowerBudgetSchema,
   median,
@@ -60,7 +60,6 @@ const GENDER_LABEL: Record<string, string> = { male: "Laki-laki", female: "Perem
 /** Angka impor: "1500000", "1500000.5" (sel Excel) atau format Indonesia "1.500.000,50". */
 const num = (v: string) =>
   !v ? 0 : /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : Number(v.replace(/[.\s]/g, "").replace(",", "."));
-const can = (p: string) => hasPermission(currentContext().permissions, p);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const monthEnd = (year: number, m: number) => iso(new Date(Date.UTC(year, m, 0)));
 
@@ -221,7 +220,7 @@ class WorkforceController {
     const { year, format } = parse(yearQuery, query);
     const data = await this.tenantDb.run(async (tx) => {
       const companyId = currentContext().companyId;
-      const showCost = can("payroll.read");
+      const showCost = salaryVisible();
       const today = iso(new Date());
       const departments = await tx
         .select({ id: schema.departments.id, name: schema.departments.name })
@@ -568,7 +567,7 @@ class WorkforceController {
         above: number;
       }[];
     } = null;
-    if (can("payroll.read")) {
+    if (salaryVisible()) {
       const paid = active
         .map((e) => ({ ...e, wage: Number(contractOf.get(e.id)?.wage ?? NaN) }))
         .filter((e) => Number.isFinite(e.wage) && e.wage > 0);
@@ -655,7 +654,7 @@ class WorkforceController {
       .leftJoin(schema.jobPositions, eq(schema.jobPositions.id, MB.jobId))
       .where(and(eq(MB.companyId, currentContext().companyId), eq(MB.year, year)))
       .orderBy(asc(schema.departments.name), asc(schema.jobPositions.name), asc(MB.month));
-    const showCost = can("payroll.read");
+    const showCost = salaryVisible();
     return rows.map((r) => ({
       ...r.budget,
       cost: showCost ? r.budget.cost : null,
@@ -694,7 +693,7 @@ class WorkforceController {
       if (found.length !== jobIds.length) throw fieldError("lines", "Jabatan tidak ditemukan");
     }
     // Pengguna tanpa payroll.read tidak melihat biaya: biaya lama dipertahankan.
-    const keepCost = !can("payroll.read");
+    const keepCost = !salaryVisible();
     const old = keepCost
       ? await tx
           .select()

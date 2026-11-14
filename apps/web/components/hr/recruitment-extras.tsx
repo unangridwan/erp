@@ -80,7 +80,7 @@ interface Offer {
   approval?: ApprovalInfo;
   id: string;
   number: string | null;
-  wage: string;
+  wage: string | null;
   benefits: string | null;
   contractType: string;
   contractEnd: string | null;
@@ -173,7 +173,18 @@ export function OffersPanel({
               {offers.map((o) => (
                 <tr key={o.id}>
                   <td>{o.number}</td>
-                  <td className="num">{money(o.wage, locale)}</td>
+                  <td className="num">
+                    {o.wage === null ? (
+                      <span
+                        className="muted"
+                        title={l("Butuh hak Gaji & kompensasi", "Requires salary permission")}
+                      >
+                        {l("disembunyikan", "hidden")}
+                      </span>
+                    ) : (
+                      money(o.wage, locale)
+                    )}
+                  </td>
                   <td>{formatDate(o.startDate, locale)}</td>
                   <td>{formatDate(o.validUntil, locale)}</td>
                   <td>

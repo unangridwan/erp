@@ -49,6 +49,11 @@ export interface FeatureDef {
   /** Awalan path API (`/moves`) & halaman web (`/accounting/entries`) milik fitur ini. */
   api: readonly string[];
   web: readonly string[];
+  /**
+   * Fitur data sensitif (tanpa path): tidak ikut diberikan oleh hak lihat/ubah tingkat modul — hanya oleh hak kelola
+   * modul atau bila dicentang sendiri. Dicek di kode lewat `canViewSalary` dkk., bukan lewat path.
+   */
+  restricted?: true;
 }
 
 export interface ModuleDef {
@@ -336,6 +341,19 @@ export const PERMISSION_CATALOG: readonly ModuleDef[] = [
         ["/salary-grades", "/hr/wage-scale"],
       ),
       f("data", "Impor & ekspor data SDM", "HR data import & export", ["/data-transfer"], ["/hr/data"]),
+      {
+        ...f("salary", "Gaji & kompensasi karyawan", "Employee salary & compensation", []),
+        restricted: true,
+      },
+      {
+        ...f(
+          "personal",
+          "Data pribadi sensitif (NIK, NPWP, KK, rekening)",
+          "Sensitive personal data (ID, tax ID, bank account)",
+          [],
+        ),
+        restricted: true,
+      },
     ],
     specials: [],
   },
@@ -556,9 +574,11 @@ function expand(code: string): string[] {
   const levels = grantedLevels(p.level).filter((l) => moduleLevels(p.module).includes(l));
   if (p.feature) return levels.map((l) => `${p.module}.${p.feature}.${l}`);
   const mod = MODULES.get(p.module);
+  // Data sensitif hanya ikut hak kelola modul; hak lihat/ubah modul tidak membukanya.
+  const features = (mod?.features ?? []).filter((ft) => !ft.restricted || p.level === "manage");
   return [
     ...levels.map((l) => `${p.module}.${l}`),
-    ...(mod?.features ?? []).flatMap((ft) => levels.map((l) => `${p.module}.${ft.key}.${l}`)),
+    ...features.flatMap((ft) => levels.map((l) => `${p.module}.${ft.key}.${l}`)),
   ];
 }
 
@@ -597,6 +617,19 @@ export function effectivePermissions(grants: AccessGrants, companyId: string): s
     for (const c of denyExpand(o.permission)) out.delete(c);
   return [...out].sort();
 }
+
+const holds = (perms: readonly string[], ...codes: string[]) =>
+  perms.includes(ALL_PERMISSIONS) || codes.some((c) => perms.includes(c));
+
+/** Boleh melihat nominal gaji & kompensasi karyawan (hak gaji SDM, atau pengguna Payroll). */
+export const canViewSalary = (perms: readonly string[]) =>
+  holds(perms, "hr.salary.read", "payroll.read", "payroll.runs.read");
+/** Boleh mengubah nominal gaji (kontrak, tunjangan). */
+export const canEditSalary = (perms: readonly string[]) => holds(perms, "hr.salary.write", "payroll.manage");
+/** Boleh melihat data pribadi sensitif (NIK, NPWP, KK, rekening) tanpa disamarkan. */
+export const canViewPersonal = (perms: readonly string[]) => holds(perms, "hr.personal.read");
+/** Boleh mengubah data pribadi sensitif. */
+export const canEditPersonal = (perms: readonly string[]) => holds(perms, "hr.personal.write");
 
 /** Fitur pemilik sebuah path (awalan terpanjang) di modul tertentu. */
 export function featureForPath(moduleKey: string, path: string, side: "api" | "web" = "api") {

@@ -26,7 +26,7 @@ import { currentContext } from "../../common/request-context.js";
 import { parse } from "../../common/zod.js";
 import { PayrollModule } from "../../payroll/payroll.module.js";
 import { HrModule } from "../hr.module.js";
-import { logPersonalDataAccess, type PersonalField } from "../privacy.js";
+import { logPersonalDataAccess, personalVisible, type PersonalField } from "../privacy.js";
 import { Lookups, RowError, type Column, type Ctx, type Dataset, type Outcome, type Row } from "./core.js";
 import { DatasetRegistry } from "./registry.js";
 
@@ -131,9 +131,9 @@ class DataTransferController {
       const cols = (
         await d.columns(
           tx,
-          ctx ?? { companyId: currentContext().companyId, manage: can("hr.manage"), timeZone: "UTC" },
+          ctx ?? { companyId: currentContext().companyId, manage: personalVisible(), timeZone: "UTC" },
         )
-      ).filter((c) => !c.sensitive || (ctx?.manage ?? can("hr.manage")));
+      ).filter((c) => !c.sensitive || (ctx?.manage ?? personalVisible()));
       return { columns: cols, refs: await this.referenceSheet(tx) };
     });
     const example = Object.fromEntries(columns.map((c) => [c.key, c.example ?? ""]));
