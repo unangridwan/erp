@@ -17,6 +17,7 @@ import {
   Req,
   Res,
 } from "@nestjs/common";
+import { RateLimiter } from "../common/rate-limiter.js";
 import { and, asc, desc, eq, gte, isNotNull, isNull, lte, ne, schema, sql, type Db } from "@erp/db";
 import {
   attendanceSchema,
@@ -1586,6 +1587,7 @@ class PortalController {
     ApprovalEngineService,
     ApprovalGateService,
     AttendanceService,
+    RateLimiter,
     ScheduleService,
     ChecklistService,
     HistoryService,

@@ -31,6 +31,7 @@ import { ActivityService } from "../activity/activity.service.js";
 import { RequirePermission } from "../auth/decorators.js";
 import { encrypt } from "../common/crypto.js";
 import { TenantDb } from "../common/database.js";
+import { assertPublicUrl } from "../common/safe-fetch.js";
 import { fieldError } from "../accounting/context.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
@@ -295,6 +296,7 @@ export class AutomationController {
   private async validate(tx: Db, input: AutomationRuleInput) {
     const model = input.model;
     if (!MODEL_TABLES[model]) throw fieldError("model", "Model tidak dikenal");
+    for (const a of input.actions) if (a.type === "webhook") assertPublicUrl(a.url);
     const fields = await this.fields(tx, model);
     const byKey = new Map(fields.map((f) => [f.key, f]));
     input.conditions.forEach((c, i) => {

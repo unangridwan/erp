@@ -27,6 +27,7 @@ import { decrypt } from "../common/crypto.js";
 import { OWNER_DB, TenantDb } from "../common/database.js";
 import { reportError } from "../common/error-reporting.js";
 import { Mailer } from "../common/mailer.js";
+import { safeFetch } from "../common/safe-fetch.js";
 import { runWithContext, type RequestContext } from "../common/request-context.js";
 import { CONFIG, type AppConfig } from "../config.js";
 import { normalizeCustom } from "../customization/custom-values.js";
@@ -557,7 +558,7 @@ export class AutomationEngine implements OnApplicationBootstrap, OnApplicationSh
             occurredAt: new Date().toISOString(),
           });
           const ts = Math.floor(Date.now() / 1000);
-          const res = await fetch(action.url, {
+          const res = await safeFetch(action.url, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -565,7 +566,7 @@ export class AutomationEngine implements OnApplicationBootstrap, OnApplicationSh
               "X-ERP-Signature": signWebhook(secret, ts, body),
             },
             body,
-            signal: AbortSignal.timeout(WEBHOOK_TIMEOUT),
+            timeoutMs: WEBHOOK_TIMEOUT,
           });
           if (!res.ok) return { type: action.type, ok: false, detail: `HTTP ${res.status}` };
           return { type: action.type, ok: true, detail: `HTTP ${res.status}` };

@@ -1316,4 +1316,9 @@ export const MESSAGES_EN: Record<string, string> = {
   "Batas maksimum lebih kecil dari minimum": "The maximum is lower than the minimum",
   "Isi nama butir pemeriksaan": "Enter the check item name",
   "Tambahkan minimal satu butir pemeriksaan": "Add at least one check item",
+  "Tidak punya akses ke riwayat data ini": "You do not have access to this record's history",
+  "URL harus http atau https": "URL must be http or https",
+  "URL tidak boleh memuat nama pengguna/sandi": "URL must not contain a username or password",
+  "URL harus https": "URL must be https",
+  "URL mengarah ke alamat internal": "URL points to an internal address",
 };

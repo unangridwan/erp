@@ -189,7 +189,7 @@ describe.skipIf(!hasDb)("Fase 0 lanjutan: sesi, 2FA, undangan, CSV, kurs, wilaya
         app
           .get(TenantDb)
           .runAs(tenantB, (tx) => tx.insert(schema.products).values({ sku: "X", name: "X", uomId: uomA.id })),
-      ).rejects.toMatchObject({ code: "23503", constraint_name: "products_uom_id_fkey" });
+      ).rejects.toMatchObject({ cause: { code: "23503", constraint_name: "products_uom_id_fkey" } });
     });
   });
 

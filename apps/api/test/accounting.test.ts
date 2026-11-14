@@ -155,7 +155,7 @@ describe.skipIf(!hasDb)("Fase 1: akuntansi inti", () => {
               .set({ debit: "1" })
               .where(eq(schema.accountMoveLines.moveId, invoiceId)),
           ),
-      ).rejects.toMatchObject({ code: "23514" });
+      ).rejects.toMatchObject({ cause: { code: "23514" } });
     });
 
     it("pembayaran sebagian lalu pelunasan", async () => {

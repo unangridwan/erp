@@ -21,6 +21,7 @@ import { assertRefsVisible } from "../common/crud.js";
 import { encrypt, randomToken, sha256 } from "../common/crypto.js";
 import { OWNER_DB, TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
+import { assertPublicUrl } from "../common/safe-fetch.js";
 import { parse } from "../common/zod.js";
 import { CONFIG, type AppConfig } from "../config.js";
 import { AccessService } from "../users/access.controller.js";
@@ -64,6 +65,7 @@ export class ConnectedAppsController {
   @RequirePermission("integration.manage")
   create(@Body() body: unknown) {
     const input = parse(connectedAppSchema, body);
+    if (input.webhookUrl) assertPublicUrl(input.webhookUrl);
     const ctx = currentContext();
     return this.tenantDb.run(async (tx) => {
       await this.assertRoles(tx, input.allowedRoleIds);
@@ -128,6 +130,7 @@ export class ConnectedAppsController {
   @RequirePermission("integration.manage")
   update(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
     const input = parse(connectedAppSchema.omit({ serviceRoleIds: true }).partial(), body);
+    if (input.webhookUrl) assertPublicUrl(input.webhookUrl);
     return this.tenantDb.run(async (tx) => {
       const before = await this.find(tx, id);
       if (input.allowedRoleIds) await this.assertRoles(tx, input.allowedRoleIds);

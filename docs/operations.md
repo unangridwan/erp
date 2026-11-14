@@ -117,6 +117,17 @@ terakhir yang terarsip. Server hasil pemulihan menonaktifkan `archive_mode` samp
   dibuka. Rotasi kunci belum otomatis.
 - Header keamanan API: `nosniff`, `X-Frame-Options: DENY`, CSP `default-src 'none'`, `Cache-Control: no-store`,
   HSTS (produksi). Web: `nosniff`, `DENY`, `Referrer-Policy`, `Permissions-Policy`.
+- URL yang diisi tenant (webhook aplikasi terhubung, webhook aturan otomatis, issuer SSO OpenID) hanya boleh menuju
+  alamat publik: loopback, jaringan privat, link-local (metadata cloud), dan nama host internal ditolak saat disimpan
+  **dan** saat koneksi dibuat (aman dari DNS rebinding); redirect tidak diikuti; produksi wajib `https`. Untuk
+  pengembangan lokal set `ALLOW_PRIVATE_WEBHOOKS=true` — **jangan** di produksi.
+- Riwayat perubahan data (`/activity/:model/:id`) hanya bisa dibaca oleh yang berhak membaca data itu. PIN kiosk
+  absensi terkunci 15 menit setelah 5 percobaan salah; endpoint publik verifikasi kontrak & push mesin absensi dibatasi
+  per IP.
+- Web mengirim `Content-Security-Policy` (skrip & koneksi hanya ke asal sendiri + `NEXT_PUBLIC_API_URL`) dan HSTS di
+  produksi. Bila API dipindah domain, build ulang web dengan `NEXT_PUBLIC_API_URL` yang baru.
+- Dependensi: `pnpm audit --prod` dijalankan di CI. Sisa yang butuh upgrade mayor (dijadwalkan terpisah): zod 3 → 4
+  (DoS memori pada koleksi sangat besar — dibatasi `BODY_LIMIT` 10 MB), NestJS 10 → 11, uuid bawaan exceljs.
 - Rate limit login/refresh/undangan/SSO disimpan di Redis bila `REDIS_URL` di-set (berlaku lintas instance); tanpa
   Redis berbasis memori per instance (pakai sticky session bila menjalankan lebih dari satu instance).
 - Pengguna dapat melihat & mencabut sesi login di **Pengaturan → Keamanan**.

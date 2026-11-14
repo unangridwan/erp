@@ -42,7 +42,7 @@ import {
 import type { Response } from "express";
 import { z } from "zod";
 import type { AnyZodObject } from "zod";
-import { ActivityService } from "../activity/activity.service.js";
+import { ActivityService, registerActivityModel } from "../activity/activity.service.js";
 import { RequirePermission } from "../auth/decorators.js";
 import { TenantDb } from "./database.js";
 import { currentContext } from "./request-context.js";
@@ -147,6 +147,7 @@ export const importBody = z
  */
 export function createCrudController<T extends Table>(opts: CrudOptions<T>): Type<unknown> {
   const table = opts.table as unknown as Table & Record<string, PgColumn>;
+  registerActivityModel(opts.model, opts.read);
   const hasActive = "active" in table;
   const hasUpdatedAt = "updatedAt" in table;
 
