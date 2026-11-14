@@ -16,6 +16,7 @@ import { CONFIG, type AppConfig } from "../config.js";
 import { decrypt, encrypt } from "../common/crypto.js";
 import { OWNER_DB, TenantDb } from "../common/database.js";
 import { RateLimiter } from "../common/rate-limiter.js";
+import { assertPublicUrl, guardedAgentFor, safeFetch } from "../common/safe-fetch.js";
 import { currentContext } from "../common/request-context.js";
 import { UsersService } from "../users/users.service.js";
 import { AuthService, type ClientMeta, type Session } from "./auth.service.js";
@@ -136,6 +137,7 @@ export class SsoService {
     }
     if (input.autoProvision && !input.defaultRoleId)
       throw new BadRequestException("Pilih peran bawaan untuk user yang dibuat otomatis");
+    if (input.protocol === "oidc") assertPublicUrl(input.issuer);
     const common = {
       label: input.label,
       protocol: input.protocol,
@@ -243,7 +245,7 @@ export class SsoService {
     if (sso.protocol !== "oidc") throw new BadRequestException("Permintaan SSO tidak valid");
     const { doc, jwks } = await this.discover(sso.issuer!);
 
-    const res = await fetch(doc.token_endpoint, {
+    const res = await safeFetch(doc.token_endpoint, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
       body: new URLSearchParams({
@@ -255,8 +257,8 @@ export class SsoService {
           ? { client_secret: decrypt(sso.clientSecretEnc, this.config.encryptionKey) }
           : {}),
         code_verifier: state.verifier,
-      }),
-      signal: AbortSignal.timeout(10_000),
+      }).toString(),
+      timeoutMs: 10_000,
     });
     const tokens = (await res.json().catch(() => ({}))) as { id_token?: string; error?: string };
     if (!res.ok || !tokens.id_token)
@@ -484,9 +486,7 @@ export class SsoService {
     if (cached && Date.now() - cached.at < 3_600_000) return cached;
     let doc: Discovery;
     try {
-      const res = await fetch(`${issuer}/.well-known/openid-configuration`, {
-        signal: AbortSignal.timeout(10_000),
-      });
+      const res = await safeFetch(`${issuer}/.well-known/openid-configuration`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       doc = (await res.json()) as Discovery;
     } catch (e) {
@@ -494,7 +494,14 @@ export class SsoService {
     }
     if (!doc.authorization_endpoint || !doc.token_endpoint || !doc.jwks_uri)
       throw new BadRequestException("Dokumen discovery OpenID tidak lengkap");
-    const entry = { at: Date.now(), doc, jwks: createRemoteJWKSet(new URL(doc.jwks_uri)) };
+    // Endpoint dari dokumen discovery ikut diperiksa: dokumen itu dikendalikan pihak luar.
+    assertPublicUrl(doc.token_endpoint);
+    const jwksUrl = assertPublicUrl(doc.jwks_uri);
+    const entry = {
+      at: Date.now(),
+      doc,
+      jwks: createRemoteJWKSet(jwksUrl, { agent: guardedAgentFor(jwksUrl) }),
+    };
     this.discovery.set(issuer, entry);
     return entry;
   }

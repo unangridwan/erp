@@ -40,6 +40,7 @@ import { Public, RequirePermission } from "../auth/decorators.js";
 import { createCrudController } from "../common/crud.js";
 import { OWNER_DB, TenantDb } from "../common/database.js";
 import { reportError } from "../common/error-reporting.js";
+import { RateLimiter } from "../common/rate-limiter.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { CONFIG, type AppConfig } from "../config.js";
@@ -245,12 +246,14 @@ class DevicePushController {
   constructor(
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(AttendanceService) private readonly attendance: AttendanceService,
+    @Inject(RateLimiter) private readonly limiter: RateLimiter,
   ) {}
 
   @Post("push")
   @Public()
   @HttpCode(200)
-  push(@Headers("x-device-key") key: string | undefined, @Body() body: unknown) {
+  async push(@Headers("x-device-key") key: string | undefined, @Body() body: unknown, @Req() req: Request) {
+    await this.limiter.consume(`device-push:${req.ip ?? "unknown"}`, 600, 15 * 60_000);
     const { tenantId, deviceId, secret } = this.attendance.parseDeviceKey(key);
     const input = parse(devicePushSchema, body);
     return this.tenantDb.runAs(tenantId, (tx) =>
@@ -424,7 +427,7 @@ export class AutoCheckoutScheduler implements OnApplicationBootstrap, OnApplicat
     ShiftRequestsController,
     PortalSchedulesController,
   ],
-  providers: [ActivityService, AutoCheckoutScheduler],
+  providers: [ActivityService, AutoCheckoutScheduler, RateLimiter],
   exports: [AutoCheckoutScheduler],
 })
 export class AttendanceAdvancedModule {}

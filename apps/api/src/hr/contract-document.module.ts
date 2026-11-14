@@ -16,6 +16,7 @@ import {
   Req,
   Res,
 } from "@nestjs/common";
+import { RateLimiter } from "../common/rate-limiter.js";
 import { and, asc, desc, eq, inArray, ne, or, schema, sql, type Db } from "@erp/db";
 import {
   CONTRACT_PLACEHOLDERS,
@@ -397,11 +398,15 @@ function maskName(name: string) {
 /** Verifikasi keaslian kontrak dari kode di PDF (tanpa login; tanpa gaji, NIK, atau isi kontrak). */
 @Controller("public/contracts")
 class ContractVerifyController {
-  constructor(@Inject(OWNER_DB) private readonly db: Db) {}
+  constructor(
+    @Inject(OWNER_DB) private readonly db: Db,
+    @Inject(RateLimiter) private readonly limiter: RateLimiter,
+  ) {}
 
   @Public()
   @Get("verify/:code")
-  async verify(@Param("code") code: string) {
+  async verify(@Param("code") code: string, @Req() req: Request) {
+    await this.limiter.consume(`contract-verify:${req.ip ?? "unknown"}`, 30, 15 * 60_000);
     if (!/^[A-Z0-9]{6,20}$/.test(code.toUpperCase()))
       throw new NotFoundException("Kode verifikasi tidak dikenal");
     const [row] = await this.db
@@ -466,5 +471,6 @@ class ContractVerifyController {
     MyContractsController,
     ContractVerifyController,
   ],
+  providers: [RateLimiter],
 })
 export class ContractDocumentModule {}

@@ -10,6 +10,7 @@ import { createHmac, randomUUID } from "node:crypto";
 import { decrypt } from "../common/crypto.js";
 import { OWNER_DB, TenantDb } from "../common/database.js";
 import { reportError } from "../common/error-reporting.js";
+import { safeFetch } from "../common/safe-fetch.js";
 import { CONFIG, type AppConfig } from "../config.js";
 import { departmentRecord, employeeRecord } from "./integration-data.js";
 
@@ -198,7 +199,7 @@ export class WebhookService implements OnApplicationBootstrap, OnApplicationShut
   ): Promise<SendResult> {
     const timestamp = Math.floor(Date.now() / 1000);
     try {
-      const res = await fetch(url, {
+      const res = await safeFetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -208,10 +209,8 @@ export class WebhookService implements OnApplicationBootstrap, OnApplicationShut
           "X-ERP-Signature": signWebhook(secret, timestamp, body),
         },
         body,
-        redirect: "manual",
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        timeoutMs: TIMEOUT_MS,
       });
-      await res.body?.cancel().catch(() => undefined);
       return res.ok
         ? { ok: true, status: res.status, error: null }
         : { ok: false, status: res.status, error: `HTTP ${res.status}` };

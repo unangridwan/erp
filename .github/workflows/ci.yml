@@ -34,6 +34,9 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Kerentanan dependensi produksi: terlihat di log CI tanpa memblokir merge (advisori baru bisa muncul kapan saja).
+      - run: pnpm audit --prod --audit-level high
+        continue-on-error: true
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck

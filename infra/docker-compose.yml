@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: erp
       POSTGRES_DB: erp
     # Port 5433 di host agar tidak bentrok dengan PostgreSQL yang mungkin sudah terpasang (umum di Windows).
-    ports: ["5433:5432"]
+    ports: ["127.0.0.1:5433:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -17,9 +17,9 @@ services:
       retries: 10
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    ports: ["127.0.0.1:6379:6379"]
   mailpit:
     image: axllent/mailpit:v1.21
-    ports: ["1025:1025", "8025:8025"]
+    ports: ["127.0.0.1:1025:1025", "127.0.0.1:8025:8025"]
 volumes:
   pgdata:

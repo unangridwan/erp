@@ -6,6 +6,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
+import { RateLimiter } from "../common/rate-limiter.js";
 import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, schema, sql, type Db } from "@erp/db";
 import {
   autoCheckoutTime,
@@ -88,6 +89,7 @@ export class AttendanceService {
     @Inject(ApprovalService) private readonly approvals: ApprovalService,
     @Inject(WorkCalendarService) private readonly calendar: WorkCalendarService,
     @Inject(OvertimeService) private readonly overtimes: OvertimeService,
+    @Inject(RateLimiter) private readonly limiter: RateLimiter,
   ) {}
 
   async settings(tx: Db, companyId: string) {
@@ -253,9 +255,15 @@ export class AttendanceService {
     input: { code: string; pin: string; photo?: { type: string; data: string } | null },
     ip?: string,
   ) {
-    const employee = await this.byCode(tx, currentContext().companyId, input.code);
+    // PIN pendek: batasi percobaan per karyawan & per perangkat agar tidak bisa ditebak dari akun kiosk.
+    const companyId = currentContext().companyId;
+    const pinKey = `kiosk-pin:${companyId}:${input.code.toLowerCase()}`;
+    await this.limiter.consume(`kiosk-ip:${ip ?? "unknown"}`, 300, 15 * 60_000);
+    await this.limiter.consume(pinKey, 5, 15 * 60_000);
+    const employee = await this.byCode(tx, companyId, input.code);
     if (!employee?.attendancePinHash || !(await verifyPassword(input.pin, employee.attendancePinHash)))
       throw new BadRequestException("Kode badge atau PIN salah");
+    await this.limiter.reset(pinKey);
     const result = await this.punch(tx, employee, new Date(), { source: "kiosk", photo: input.photo, ip });
     return {
       action: result.action,
