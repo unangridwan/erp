@@ -539,7 +539,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   aturan, savepoint per aksi, batas rantai 3 tingkat, uji coba & log eksekusi. Paket P4 selesai
 - [x] P5 bagian 1 — maintenance aset (migrasi 0076): peralatan + meter, rencana preventif per hari/meter (job harian,
   sekali per siklus), permintaan preventif/korektif + laporan kerusakan dari portal, suku cadang dari stok (jurnal beban
-  + cost center), tagihan jasa vendor, laporan MTBF/MTTR/ketersediaan/kepatuhan/biaya. Berikutnya: inspeksi mutu (QM)
+  + cost center), tagihan jasa vendor, laporan MTBF/MTTR/ketersediaan/kepatuhan/biaya
+- [x] P5 bagian 2 — inspeksi mutu (migrasi 0077): titik kontrol penerimaan/produksi per produk/kategori/pemasok,
+  sampling, butir lulus-gagal/ukur min–maks/wajib foto, karantina otomatis, keputusan terima/bersyarat/retur/scrap,
+  NCR, laporan tingkat cacat per pemasok & produk. Paket P5 selesai
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

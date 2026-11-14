@@ -1297,4 +1297,23 @@ export const MESSAGES_EN: Record<string, string> = {
   "Biaya jasa vendor harus lebih dari 0": "Vendor service cost must be greater than 0",
   "Peralatan ini tidak memakai meter": "This equipment does not use a meter",
   "Meter tidak boleh mundur (sekarang {})": "The meter cannot go backwards (currently {0})",
+  // Mutu
+  "Pemeriksaan mutu tidak ditemukan": "Quality check not found",
+  "Pemeriksaan sudah diputuskan": "The check has already been decided",
+  "Lengkapi semua butir pemeriksaan dulu": "Complete every check item first",
+  "Akun selisih persediaan belum diatur di pengaturan akuntansi":
+    "The stock adjustment account is not set in the accounting settings",
+  "Catatan ketidaksesuaian tidak ditemukan": "Non-conformance not found",
+  "Pemasok hanya untuk titik kontrol penerimaan": "A supplier only applies to receipt control points",
+  "Isi nilai sampel": "Enter the sample value",
+  "Jumlah hasil tidak sesuai butir pemeriksaan": "The number of results does not match the check items",
+  "Butir pemeriksaan tidak ditemukan": "Check item not found",
+  "Foto maksimal 2 MB": "Photos are limited to 2 MB",
+  "Pemeriksaan tidak lulus; pilih terima bersyarat, retur, atau scrap":
+    "The check failed; choose conditional acceptance, return, or scrap",
+  "Retur hanya untuk barang dari penerimaan pemasok": "Returns only apply to goods received from a supplier",
+  "Isi tindakan perbaikan sebelum menutup NCR": "Enter the corrective action before closing the NCR",
+  "Batas maksimum lebih kecil dari minimum": "The maximum is lower than the minimum",
+  "Isi nama butir pemeriksaan": "Enter the check item name",
+  "Tambahkan minimal satu butir pemeriksaan": "Add at least one check item",
 };

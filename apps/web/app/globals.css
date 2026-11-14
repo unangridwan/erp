@@ -3702,3 +3702,13 @@ pre.secret {
   word-break: break-all;
   margin: 6px 0 0;
 }
+
+/* ---- Mutu ---- */
+img.qc-photo {
+  max-width: 96px;
+  max-height: 72px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  margin: 2px 4px 2px 0;
+  vertical-align: middle;
+}

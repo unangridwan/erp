@@ -55,6 +55,11 @@ export const PERMISSIONS = [
   "maintenance.write",
   /** Peralatan, rencana perawatan, tim, pengaturan, tagihan vendor perawatan. */
   "maintenance.manage",
+  "quality.read",
+  /** Mengisi hasil pemeriksaan mutu, memutuskan terima/retur/scrap, menangani NCR. */
+  "quality.write",
+  /** Titik kontrol mutu & pengaturan. */
+  "quality.manage",
   "consolidation.read",
   /** Bagan akun grup, pemetaan akun, proses & finalisasi konsolidasi. */
   "consolidation.manage",

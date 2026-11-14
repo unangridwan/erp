@@ -12,18 +12,18 @@ distribusi). Cakupannya setara Odoo Community/Enterprise tanpa manufaktur, ditam
 konsolidasi grup yang lebih dalam. ERP ini **belum** pengganti SAP untuk korporasi manufaktur, multinasional, atau
 bervolume transaksi sangat besar.
 
-| Area                                | Cakupan dibanding SAP | Catatan singkat                                                     |
-| ----------------------------------- | :-------------------: | ------------------------------------------------------------------- |
-| Keuangan (FI)                       |         ±90%          | Inti lengkap + kredit, dunning, akrual, arus kas, payment run       |
-| Controlling (CO)                    |         ±60%          | Cost/profit center, laporan, alokasi biaya; product costing belum   |
-| Konsolidasi grup                    |         ±85%          | Kuat: eliminasi IC, goodwill, NCI, CTA, segmen                      |
-| Penjualan (SD) & CRM                |         ±60%          | Alur lengkap; pricing & kontrak sederhana                           |
-| Pembelian (MM)                      |         ±70%          | RFQ–PO–3-way match, landed cost, kontrak pembelian                  |
-| Persediaan & gudang (IM/EWM)        |         ±60%          | Multi gudang, lot/serial + lacak, opname, barcode; bin belum        |
-| Manufaktur, QM, Maintenance, Proyek |         ±35%          | BOM, rute, order produksi, HPP produksi, MRP, maintenance; QM belum |
-| SDM & Payroll (HCM/SuccessFactors)  |         ±85%          | Sangat lengkap untuk aturan Indonesia                               |
-| Pajak Indonesia                     |   **lebih unggul**    | SAP perlu add-on partner lokal                                      |
-| Platform (keamanan, integrasi, BI)  |         ±65%          | RBAC & persetujuan kuat; field kustom, dashboard, aturan otomatis   |
+| Area                                | Cakupan dibanding SAP | Catatan singkat                                                   |
+| ----------------------------------- | :-------------------: | ----------------------------------------------------------------- |
+| Keuangan (FI)                       |         ±90%          | Inti lengkap + kredit, dunning, akrual, arus kas, payment run     |
+| Controlling (CO)                    |         ±60%          | Cost/profit center, laporan, alokasi biaya; product costing belum |
+| Konsolidasi grup                    |         ±85%          | Kuat: eliminasi IC, goodwill, NCI, CTA, segmen                    |
+| Penjualan (SD) & CRM                |         ±60%          | Alur lengkap; pricing & kontrak sederhana                         |
+| Pembelian (MM)                      |         ±70%          | RFQ–PO–3-way match, landed cost, kontrak pembelian                |
+| Persediaan & gudang (IM/EWM)        |         ±60%          | Multi gudang, lot/serial + lacak, opname, barcode; bin belum      |
+| Manufaktur, QM, Maintenance, Proyek |         ±45%          | BOM, MRP, HPP produksi, maintenance, inspeksi mutu; proyek belum  |
+| SDM & Payroll (HCM/SuccessFactors)  |         ±85%          | Sangat lengkap untuk aturan Indonesia                             |
+| Pajak Indonesia                     |   **lebih unggul**    | SAP perlu add-on partner lokal                                    |
+| Platform (keamanan, integrasi, BI)  |         ±65%          | RBAC & persetujuan kuat; field kustom, dashboard, aturan otomatis |
 
 **Keunggulan utama dibanding SAP:**
 
@@ -36,7 +36,7 @@ bervolume transaksi sangat besar.
 
 **Celah terbesar:**
 
-1. Belum ada **QM (inspeksi mutu) dan project system**.
+1. Belum ada **project system (PS)** dan transportasi (TM).
 2. **Controlling** baru dasar: cost center, profit center, dan alokasi biaya periodik sudah ada; product costing dan
    profitabilitas (CO-PA) belum.
 3. **Kontrol keuangan operasional**: blokir pengiriman saat batas kredit terlampaui (batas kredit peringatan, dunning, akrual/deferral, jurnal berulang, arus kas, dan payment run sudah ada).
@@ -117,22 +117,22 @@ bervolume transaksi sangat besar.
 
 ### 2.6 Persediaan & gudang (SAP IM / EWM)
 
-| Fitur SAP                                  | Status | Di ERP ini                                   |
-| ------------------------------------------ | :----: | -------------------------------------------- |
-| Multi gudang & lokasi, transfer internal   |   ✅   | Gudang, Lokasi, Transfer                     |
-| Valuasi FIFO / rata-rata, kartu stok       |   ✅   | Valuasi, Kartu stok                          |
-| Lot & nomor serial, varian produk, satuan  |   ✅   | Lot/serial, konversi satuan, varian          |
-| Penyesuaian / stock opname                 |   ✅   | Sesi opname/cycle count, persetujuan selisih |
-| Bin, putaway, picking wave, packing        |   ❌   | —                                            |
-| Barcode / pemindai (RF)                    |   ✅   | Scan di transfer & opname, label Code 128    |
-| Kedaluwarsa (FEFO), karantina, QM inspeksi |   ❌   | —                                            |
+| Fitur SAP                                  | Status | Di ERP ini                                                               |
+| ------------------------------------------ | :----: | ------------------------------------------------------------------------ |
+| Multi gudang & lokasi, transfer internal   |   ✅   | Gudang, Lokasi, Transfer                                                 |
+| Valuasi FIFO / rata-rata, kartu stok       |   ✅   | Valuasi, Kartu stok                                                      |
+| Lot & nomor serial, varian produk, satuan  |   ✅   | Lot/serial, konversi satuan, varian                                      |
+| Penyesuaian / stock opname                 |   ✅   | Sesi opname/cycle count, persetujuan selisih                             |
+| Bin, putaway, picking wave, packing        |   ❌   | —                                                                        |
+| Barcode / pemindai (RF)                    |   ✅   | Scan di transfer & opname, label Code 128                                |
+| Kedaluwarsa (FEFO), karantina, QM inspeksi |   🟡   | Karantina & inspeksi mutu ✅; tanggal kedaluwarsa lot ada, FEFO sebagian |
 
 ### 2.7 Manufaktur, mutu, maintenance, proyek, transportasi
 
 | Modul SAP                           | Status | Catatan                                                 |
 | ----------------------------------- | :----: | ------------------------------------------------------- |
 | PP / MRP (BOM, routing, work order) |   🟡   | Manufaktur › BOM, Stasiun Kerja, Order Produksi, MRP    |
-| QM (inspeksi mutu)                  |   ❌   | —                                                       |
+| QM (inspeksi mutu)                  |   ✅   | Mutu: titik kontrol, karantina, retur/scrap, NCR, cacat |
 | PM / EAM (maintenance aset)         |   ✅   | Maintenance: peralatan, preventif hari/meter, MTBF/MTTR |
 | PS (project system)                 |   ❌   | Integrasi aplikasi proyek luar sudah dihapus            |
 | TM (transportasi)                   |   ❌   | —                                                       |
@@ -193,7 +193,7 @@ Urutan berdasarkan dampak untuk target pasar (grup usaha menengah Indonesia).
 |    P2     | Pembelian & gudang lanjutan (✅) | Landed cost ✅, kontrak pembelian ✅, barcode ✅, cycle count ✅; evaluasi pemasok, FEFO | Picking, lot/serial, penyesuaian      |
 |    P3     | Manufaktur ringan (✅)           | BOM, work order, konsumsi bahan & hasil produksi, MRP sederhana, HPP produksi            | Persediaan, valuasi, reorder          |
 |    P4     | Platform (✅ selesai)            | Custom field ✅, dashboard BI ✅, laporan semua modul ✅, aturan otomatis ✅             | Pembuat laporan, mesin persetujuan    |
-|    P5     | Maintenance & mutu               | Maintenance aset umum ✅, inspeksi mutu saat terima/produksi                             | Modul armada, aset tetap              |
+|    P5     | Maintenance & mutu (✅ selesai)  | Maintenance aset umum ✅, inspeksi mutu saat terima/produksi ✅                          | Modul armada, aset tetap              |
 
 ## 4. Kesimpulan
 

@@ -419,6 +419,24 @@ export const APPS: App[] = [
     ],
   },
   {
+    id: "quality",
+    name: L("Mutu", "Quality"),
+    home: "/quality/checks",
+    prefixes: ["/quality"],
+    menu: [
+      group("Mutu", "Quality", [
+        link("Pemeriksaan", "Quality Checks", "/quality/checks", "quality.read"),
+        link("Ketidaksesuaian (NCR)", "Non-conformances", "/quality/alerts", "quality.read"),
+      ]),
+      group("Laporan", "Reporting", [
+        link("Mutu Pemasok & Produk", "Supplier & Product Quality", "/quality/reports", "quality.read"),
+      ]),
+      group("Konfigurasi", "Configuration", [
+        link("Titik Kontrol", "Control Points", "/quality/points", "quality.read"),
+      ]),
+    ],
+  },
+  {
     id: "fleet",
     name: L("Armada", "Fleet"),
     home: "/fleet-vehicles",

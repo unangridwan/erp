@@ -1,5 +1,6 @@
 "use client";
 
+import { QualityChecksPanel } from "../../../../../components/quality/quality-ui";
 import {
   CustomFieldsSection,
   customPayload,
@@ -585,6 +586,7 @@ function OrderForm({ id }: { id: string }) {
           </div>
         </>
       )}
+      {doc?.state === "done" && <QualityChecksPanel productionOrderId={doc.id} />}
     </div>
   );
 }

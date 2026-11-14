@@ -91,6 +91,15 @@ const ICONS: Record<string, React.ReactNode> = {
       <rect x="46" y="40" width="10" height="16" rx="2" fill="#f0a033" />
     </>
   ),
+  quality: (
+    <>
+      <rect x="12" y="8" width="34" height="44" rx="5" fill="#e8e1f0" />
+      <rect x="18" y="16" width="20" height="4" rx="2" fill="#875a7b" />
+      <rect x="18" y="25" width="16" height="4" rx="2" fill="#875a7b" />
+      <circle cx="42" cy="44" r="12" fill="#1ab7a6" />
+      <path d="M36 44l4 4 8-8" stroke="#fff" strokeWidth="3.5" fill="none" strokeLinecap="round" />
+    </>
+  ),
   fleet: (
     <>
       <path d="M12 30l6-12h28l6 12z" fill="#1ab7a6" />
