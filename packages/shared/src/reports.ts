@@ -46,7 +46,7 @@ const columnKey = z.string().trim().min(1).max(100);
 export const reportConfigSchema = z.object({
   columns: z.array(columnKey).max(100).default([]),
   /** Filter bawaan dataset (mis. departmentId, from, to, runId = id payroll atau "latest"). */
-  filters: z.record(z.string().max(200)).default({}),
+  filters: z.record(z.string(), z.string().max(200)).default({}),
   conditions: z
     .array(
       z.object({

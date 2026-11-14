@@ -134,7 +134,7 @@ export const equipmentSchema = z.object({
   state: z.enum(["operational", "down", "retired"]).default("operational"),
   criticality: z.enum(["low", "medium", "high"]).default("medium"),
   note: text(2000),
-  custom: z.record(z.unknown()).optional(),
+  custom: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const meterReadingSchema = z.object({
@@ -186,7 +186,7 @@ export const maintenanceRequestSchema = z.object({
     .array(z.object({ label: z.string().trim().min(1).max(200), done: z.boolean().default(false) }))
     .max(50)
     .optional(),
-  custom: z.record(z.unknown()).optional(),
+  custom: z.record(z.string(), z.unknown()).optional(),
 });
 
 /** Laporan kerusakan dari portal (siapa pun yang login). */

@@ -33,7 +33,7 @@ import { RequirePermission } from "../auth/decorators.js";
 import { createCrudController } from "../common/crud.js";
 import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
-import { parse } from "../common/zod.js";
+import { parse, parsePartial } from "../common/zod.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { createWarehouse } from "./setup.js";
 import { StockQueryService, type PickingQuery } from "./stock-query.service.js";
@@ -83,7 +83,7 @@ class WarehousesController {
   @Patch(":id")
   @RequirePermission("inventory.manage")
   update(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
-    const input = parse(warehouseSchema.omit({ code: true }).partial().strip(), body);
+    const input = parsePartial(warehouseSchema.omit({ code: true }), body);
     return this.tenantDb.run(async (tx) => {
       const wh = await this.find(tx, id);
       if (input.branchId) await assertDimensions(tx, wh.companyId, [{ branchId: input.branchId }]);

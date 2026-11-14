@@ -22,7 +22,7 @@ import { encrypt, randomToken, sha256 } from "../common/crypto.js";
 import { OWNER_DB, TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
 import { assertPublicUrl } from "../common/safe-fetch.js";
-import { parse } from "../common/zod.js";
+import { parse, parsePartial } from "../common/zod.js";
 import { CONFIG, type AppConfig } from "../config.js";
 import { AccessService } from "../users/access.controller.js";
 import { departmentPage, employeePage } from "./integration-data.js";
@@ -129,7 +129,7 @@ export class ConnectedAppsController {
   @Patch("connected-apps/:id")
   @RequirePermission("integration.manage")
   update(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
-    const input = parse(connectedAppSchema.omit({ serviceRoleIds: true }).partial(), body);
+    const input = parsePartial(connectedAppSchema.omit({ serviceRoleIds: true }), body);
     if (input.webhookUrl) assertPublicUrl(input.webhookUrl);
     return this.tenantDb.run(async (tx) => {
       const before = await this.find(tx, id);

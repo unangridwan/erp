@@ -108,10 +108,10 @@ export const benefitPlanSchema = z
     providerId: z.string().uuid().nullish(),
     policyNo: z.string().trim().max(100).nullish(),
     calc: z.enum(["fixed", "percent_wage"]).default("fixed"),
-    employerAmount: money.default(0),
-    employeeAmount: money.default(0),
+    employerAmount: money.prefault(0),
+    employeeAmount: money.prefault(0),
     wageCap: money.nullish(),
-    dependentAmount: money.default(0),
+    dependentAmount: money.prefault(0),
     dependentPayer: z.enum(["employer", "employee"]).default("employer"),
     /** Porsi perusahaan menambah penghasilan bruto PPh 21 (natura); bawaan: ya, kecuali DPLK. */
     taxable: z.boolean().optional(),

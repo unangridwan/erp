@@ -75,12 +75,10 @@ export type ConnectedAppInput = z.infer<typeof connectedAppSchema>;
 export const oauthAuthorizeSchema = z.object({
   clientId: z.string().min(1).max(200),
   redirectUri: z.string().min(1).max(500),
-  responseType: z.literal("code", { errorMap: () => ({ message: "response_type harus code" }) }),
+  responseType: z.literal("code", "response_type harus code"),
   scope: z.string().max(200).default("openid"),
   state: z.string().max(500).optional(),
   nonce: z.string().max(500).optional(),
   codeChallenge: z.string().regex(/^[A-Za-z0-9_-]{43,128}$/, "code_challenge (PKCE) wajib"),
-  codeChallengeMethod: z.literal("S256", {
-    errorMap: () => ({ message: "code_challenge_method harus S256" }),
-  }),
+  codeChallengeMethod: z.literal("S256", "code_challenge_method harus S256"),
 });

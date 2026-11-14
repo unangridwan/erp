@@ -375,7 +375,7 @@ export const contractDocumentSchema = z.object({
 /** Tanda tangan digital: gambar PNG (base64, boleh data URL) dari kanvas, wajib persetujuan isi. */
 export const contractSignSchema = z.object({
   image: z.string().min(100, "Tanda tangan kosong").max(700_000, "Gambar tanda tangan terlalu besar"),
-  agree: z.literal(true, { errorMap: () => ({ message: "Centang persetujuan isi kontrak" }) }),
+  agree: z.literal(true, "Centang persetujuan isi kontrak"),
   /** HR: karyawan menandatangani langsung di perangkat HR. */
   inPerson: z.boolean().default(false),
 });
@@ -402,7 +402,7 @@ export const newEmployeeContractSchema = z
     wage: z.preprocess(
       (v) => (v === "" ? null : v),
       z.coerce
-        .number({ invalid_type_error: "Upah harus berupa angka" })
+        .number("Upah harus berupa angka")
         .positive("Upah harus lebih dari 0")
         .transform((v) => v.toFixed(2))
         .nullish(),
@@ -415,7 +415,7 @@ export const newEmployeeContractSchema = z
         z.object({
           componentId: z.string().uuid(),
           amount: z.coerce
-            .number({ invalid_type_error: "Nilai harus berupa angka" })
+            .number("Nilai harus berupa angka")
             .min(0, "Tidak boleh negatif")
             .transform((v) => v.toFixed(2)),
         }),
