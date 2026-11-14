@@ -17,6 +17,7 @@ import {
 import { MyAttendance } from "../../../components/hr/attendance-extras";
 import { MyContracts } from "../../../components/hr/contract-document";
 import { MyVehiclesPanel } from "../../../components/fleet/fleet-panels";
+import { MyBreakdownPanel } from "../../../components/maintenance/maintenance-panels";
 import { BenefitEnrollments } from "../../../components/payroll/benefits-panel";
 import { TeamCompensation } from "../../../components/payroll/team-compensation";
 import { MyManpowerPlans } from "../../../components/hr/manpower-plan";
@@ -277,6 +278,7 @@ export default function MyPortalPage() {
       <FeedbackInbox />
       <WhosOffPanel />
       <MyVehiclesPanel />
+      <MyBreakdownPanel />
       <MyChecklistTasks />
       <MyOvertime />
       <MyAttendance />

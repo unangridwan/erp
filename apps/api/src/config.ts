@@ -40,6 +40,7 @@ export interface AppConfig {
   notifyEmail: { scheduler: boolean };
   /** Aturan otomatis (event tiap 30 dtk, tanggal & jadwal). */
   automation: { scheduler: boolean };
+  maintenance: { scheduler: boolean };
   /** Token untuk GET /metrics (Prometheus); kosong = endpoint dimatikan. */
   metricsToken: string | null;
   logFormat: "json" | "pretty" | "off";
@@ -100,6 +101,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     automation: {
       scheduler: env.AUTOMATION_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
+    },
+    maintenance: {
+      scheduler: env.MAINTENANCE_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
     },
     metricsToken: env.METRICS_TOKEN || null,
     logFormat: (env.LOG_FORMAT as "json" | "pretty" | "off" | undefined) ?? (env.VITEST ? "off" : "pretty"),

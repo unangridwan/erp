@@ -76,3 +76,4 @@ export * from "./mrp.js";
 export * from "./custom-fields.js";
 export * from "./dashboard.js";
 export * from "./automation.js";
+export * from "./maintenance.js";

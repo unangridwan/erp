@@ -28,6 +28,12 @@ export const CUSTOM_FIELD_MODELS = {
     read: "mrp.read",
     write: "mrp.write",
   },
+  equipment: { label: ["Peralatan", "Equipment"], read: "maintenance.read", write: "maintenance.manage" },
+  maintenance_request: {
+    label: ["Permintaan perawatan", "Maintenance request"],
+    read: "maintenance.read",
+    write: "maintenance.write",
+  },
 } as const satisfies Record<string, { label: [string, string]; read: string; write: string }>;
 export type CustomFieldModel = keyof typeof CUSTOM_FIELD_MODELS;
 export const CUSTOM_FIELD_MODEL_KEYS = Object.keys(CUSTOM_FIELD_MODELS) as [

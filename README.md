@@ -365,6 +365,25 @@ tanpa menggagalkan aksi lain. Perubahan oleh aturan bisa memicu aturan lain maks
 Tombol **Jalankan sekarang** menguji aturan pada satu data (atau semua data untuk pemicu tanggal/jadwal), dan **log
 eksekusi** mencatat status serta hasil setiap aksi.
 
+**Maintenance aset (migrasi 0076).** Aplikasi baru **Maintenance** (hak `maintenance.read|write|manage`, peran
+templat Manajer Maintenance & Teknisi):
+
+- **Peralatan** (mesin, alat, gedung; bisa terhubung aset tetap, stasiun kerja, cost center, cabang/unit bisnis),
+  meter pemakaian (jam/km/siklus, tidak boleh mundur), status Beroperasi/Rusak/Tidak dipakai, riwayat perawatan.
+- **Rencana perawatan** preventif per N hari dan/atau per N meter, dengan toleransi hari dan checklist tugas. Job harian
+  (`MAINTENANCE_SCHEDULER=off` untuk mematikan) membuat permintaan preventif sekali per siklus dan memberi tahu tim;
+  tombol **Buat dari rencana jatuh tempo** menjalankannya sekarang.
+- **Permintaan perawatan** (preventif/korektif): jadwal, tim & teknisi, prioritas, Mulai → Selesai, checklist, catatan
+  hasil, jam kerja. Karyawan melapor kerusakan dari **Portal Saya** (mesin otomatis Rusak, downtime dihitung sejak
+  laporan, pelapor diberi tahu saat selesai).
+- **Biaya**: suku cadang dikeluarkan dari stok saat selesai (nilai FIFO/rata-rata, jurnal Dr beban perawatan + cost
+  center peralatan / Cr persediaan), jasa vendor → **tagihan vendor** draft sekali, plus biaya tenaga kerja internal.
+  Akun beban bawaan 6-8000 Beban Pemeliharaan dan Perbaikan (dibuat otomatis) dan lokasi suku cadang diatur di
+  Maintenance › Pengaturan.
+- **Laporan Keandalan & Biaya**: kerusakan, downtime, MTBF, MTTR, ketersediaan, kepatuhan preventif tepat waktu, dan
+  biaya (suku cadang, jasa, tenaga kerja) per peralatan. Peralatan & permintaan mendukung field kustom dan aturan
+  otomatis.
+
 ### CRM & Penjualan (Fase 2)
 
 | Endpoint                                                                                      | Keterangan                                                                     |
