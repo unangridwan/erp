@@ -36,6 +36,8 @@ export const CUSTOM_TABLES: Record<CustomFieldModel, Table> = {
   account_move: schema.accountMoves,
   stock_picking: schema.stockPickings,
   production_order: schema.productionOrders,
+  equipment: schema.equipment,
+  maintenance_request: schema.maintenanceRequests,
 };
 
 const REF_TABLES: Record<CustomRefModel, { table: PgTable; id: PgColumn; name: PgColumn }> = {

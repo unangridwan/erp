@@ -537,6 +537,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   berdasarkan tanggal (± hari, sekali per data), terjadwal; syarat per kolom termasuk field kustom; aksi notifikasi,
   email, ubah field, aktivitas, permintaan persetujuan, webhook ber-HMAC; outbox trigger DB + job 30 detik, hak pemilik
   aturan, savepoint per aksi, batas rantai 3 tingkat, uji coba & log eksekusi. Paket P4 selesai
+- [x] P5 bagian 1 — maintenance aset (migrasi 0076): peralatan + meter, rencana preventif per hari/meter (job harian,
+  sekali per siklus), permintaan preventif/korektif + laporan kerusakan dari portal, suku cadang dari stok (jurnal beban
+  + cost center), tagihan jasa vendor, laporan MTBF/MTTR/ketersediaan/kepatuhan/biaya. Berikutnya: inspeksi mutu (QM)
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

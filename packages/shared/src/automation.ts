@@ -222,6 +222,50 @@ export const AUTOMATION_FIELDS: Record<CustomFieldModel, AutomationField[]> = {
     f("unit_cost", "Biaya per unit", "Unit cost", "number"),
     CREATED,
   ],
+  equipment: [
+    f("code", "Kode", "Code"),
+    f("name", "Nama", "Name"),
+    f("category", "Kategori", "Category"),
+    f("state", "Status", "Status", "select", [
+      o("operational", "Beroperasi", "Operational"),
+      o("down", "Rusak", "Down"),
+      o("retired", "Tidak dipakai", "Retired"),
+    ]),
+    f("criticality", "Kritikalitas", "Criticality", "select", [
+      o("low", "Rendah", "Low"),
+      o("medium", "Sedang", "Medium"),
+      o("high", "Tinggi", "High"),
+    ]),
+    f("meter", "Meter", "Meter", "number"),
+    f("warranty_until", "Garansi s.d.", "Warranty until", "date"),
+    f("technician_user_id", "Teknisi", "Technician", "user"),
+    CREATED,
+  ],
+  maintenance_request: [
+    f("name", "Nomor", "Number"),
+    f("title", "Judul", "Title"),
+    f("kind", "Jenis", "Type", "select", [
+      o("preventive", "Preventif", "Preventive"),
+      o("corrective", "Korektif", "Corrective"),
+    ]),
+    f("state", "Status", "Status", "select", [
+      o("new", "Baru", "New"),
+      o("scheduled", "Terjadwal", "Scheduled"),
+      o("in_progress", "Dikerjakan", "In progress"),
+      o("done", "Selesai", "Done"),
+      o("cancelled", "Batal", "Cancelled"),
+    ]),
+    f("priority", "Prioritas", "Priority", "select", [
+      o("low", "Rendah", "Low"),
+      o("normal", "Normal", "Normal"),
+      o("high", "Tinggi", "High"),
+      o("urgent", "Mendesak", "Urgent"),
+    ]),
+    f("scheduled_date", "Tanggal jadwal", "Scheduled date", "date"),
+    f("downtime_hours", "Downtime (jam)", "Downtime (hours)", "number"),
+    f("technician_user_id", "Teknisi", "Technician", "user"),
+    CREATED,
+  ],
 };
 
 /** Kolom pengguna penanggung jawab per model (penerima "penanggung jawab"). */
@@ -232,6 +276,8 @@ export const RESPONSIBLE_FIELD: Partial<Record<CustomFieldModel, string>> = {
   crm_lead: "user_id",
   sale_order: "user_id",
   purchase_order: "user_id",
+  equipment: "technician_user_id",
+  maintenance_request: "technician_user_id",
 };
 /** Kolom partner per model (penerima email "partner"). */
 export const PARTNER_FIELD: Partial<Record<CustomFieldModel, string>> = {

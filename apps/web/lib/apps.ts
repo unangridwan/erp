@@ -399,6 +399,26 @@ export const APPS: App[] = [
     ],
   },
   {
+    id: "maintenance",
+    name: L("Maintenance", "Maintenance"),
+    home: "/maintenance/requests",
+    prefixes: ["/maintenance", "/equipment", "/maintenance-plans", "/maintenance-teams"],
+    menu: [
+      group("Perawatan", "Maintenance", [
+        link("Permintaan", "Requests", "/maintenance/requests", "maintenance.read"),
+        link("Peralatan", "Equipment", "/equipment", "maintenance.read"),
+        link("Rencana Perawatan", "Maintenance Plans", "/maintenance-plans", "maintenance.read"),
+      ]),
+      group("Laporan", "Reporting", [
+        link("Keandalan & Biaya", "Reliability & Cost", "/maintenance/reports", "maintenance.read"),
+      ]),
+      group("Konfigurasi", "Configuration", [
+        link("Tim Perawatan", "Maintenance Teams", "/maintenance-teams", "maintenance.read"),
+        link("Pengaturan", "Settings", "/maintenance/settings", "maintenance.manage"),
+      ]),
+    ],
+  },
+  {
     id: "fleet",
     name: L("Armada", "Fleet"),
     home: "/fleet-vehicles",

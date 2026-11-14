@@ -54,6 +54,8 @@ export const MODEL_TABLES: Record<CustomFieldModel, string> = {
   account_move: "account_moves",
   stock_picking: "stock_pickings",
   production_order: "production_orders",
+  equipment: "equipment",
+  maintenance_request: "maintenance_requests",
 };
 /** Halaman web data (untuk tautan di notifikasi/email). */
 export const MODEL_LINKS: Record<CustomFieldModel, string> = {
@@ -67,6 +69,8 @@ export const MODEL_LINKS: Record<CustomFieldModel, string> = {
   account_move: "/accounting/moves/",
   stock_picking: "/inventory/pickings/",
   production_order: "/manufacturing/orders/",
+  equipment: "/equipment/",
+  maintenance_request: "/maintenance/requests/",
 };
 /** Ekspresi label data (konstanta, bukan masukan pengguna). */
 const LABEL_SQL: Record<CustomFieldModel, string> = {
@@ -80,6 +84,8 @@ const LABEL_SQL: Record<CustomFieldModel, string> = {
   account_move: "coalesce(t.name, '(draft)')",
   stock_picking: "t.name",
   production_order: "t.name",
+  equipment: "t.code || ' ' || t.name",
+  maintenance_request: "t.name || ' ' || t.title",
 };
 const BATCH = 200;
 const SCAN_LIMIT = 1000;

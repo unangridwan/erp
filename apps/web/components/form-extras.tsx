@@ -18,6 +18,7 @@ import {
   VehicleExtras,
 } from "./fleet/fleet-panels";
 import { GradeBaseWagePanel } from "./hr/grade-wage-panel";
+import { EquipmentPanel, PlanTasksPanel, TeamMembersPanel } from "./maintenance/maintenance-panels";
 import { OffboardingPanel } from "./hr/offboarding-panel";
 import {
   EducationPanel,
@@ -620,6 +621,9 @@ export function FormExtras({ path, id }: { path: string; id: string }) {
   if (path === "fleet-vehicles") return <VehicleExtras id={id} />;
   if (path === "fleet-contracts") return <ContractActions id={id} />;
   if (path === "fleet-services") return <ServiceBillPanel id={id} />;
+  if (path === "equipment") return <EquipmentPanel id={id} />;
+  if (path === "maintenance-plans") return <PlanTasksPanel id={id} />;
+  if (path === "maintenance-teams") return <TeamMembersPanel id={id} />;
   if (path === "expense-categories") return <ExpenseLimitsPanel id={id} />;
   if (path === "salary-grades") return <GradeBaseWagePanel id={id} />;
   return null;

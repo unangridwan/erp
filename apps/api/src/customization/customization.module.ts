@@ -46,6 +46,8 @@ const MODEL_PATHS: Record<CustomFieldModel, string> = {
   account_move: "/moves",
   stock_picking: "/pickings",
   production_order: "/production-orders",
+  equipment: "/equipment",
+  maintenance_request: "/maintenance-requests",
 };
 
 const isModel = (m: string): m is CustomFieldModel => m in CUSTOM_FIELD_MODELS;

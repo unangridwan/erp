@@ -633,6 +633,99 @@ export class StockService {
     return { moves: done.length };
   }
 
+  /**
+   * Pemakaian barang (mis. suku cadang perawatan): keluar dari lokasi internal ke lokasi virtual `inventory`, dinilai
+   * FIFO/rata-rata, dengan jurnal Dr akun beban (+ cost center) / Cr persediaan. Mengembalikan nilai & jurnal.
+   */
+  async consume(
+    tx: Db,
+    companyId: string,
+    lines: {
+      productId: string;
+      quantity: string;
+      locationId: string;
+      lotName?: string | null;
+      path: string;
+    }[],
+    ctx: {
+      ref: string;
+      date: Date;
+      expenseAccountId: string;
+      costCenterId: string | null;
+      branchId: string | null;
+    },
+  ) {
+    const inventory = await virtualLocation(tx, companyId, "inventory");
+    const products = await this.products(
+      tx,
+      lines.map((l) => l.productId),
+    );
+    const done: DoneMove[] = [];
+    for (const l of lines) {
+      const product = products.get(l.productId);
+      if (
+        !product ||
+        (product.companyId && product.companyId !== companyId) ||
+        product.productType === "service"
+      )
+        throw fieldError(`${l.path}.productId`, "Produk stok tidak ditemukan");
+      const location = await this.location(tx, l.locationId, companyId);
+      if (location.usage !== "internal")
+        throw fieldError(`${l.path}.locationId`, "Pilih lokasi stok internal");
+      const qty = d(l.quantity);
+      let lots: { lotId: string; quantity: Decimal }[] = [];
+      if (product.tracking !== "none") {
+        if (!l.lotName) throw fieldError(`${l.path}.lotName`, "Produk ini wajib lot/serial");
+        const [lot] = await tx
+          .select({ id: schema.stockLots.id })
+          .from(schema.stockLots)
+          .where(and(eq(schema.stockLots.productId, product.id), eq(schema.stockLots.name, l.lotName)));
+        if (!lot) throw fieldError(`${l.path}.lotName`, "Lot tidak ditemukan untuk produk ini");
+        lots = [{ lotId: lot.id, quantity: qty }];
+      }
+      if (product.productType === "storable") {
+        const available = await this.quantOf(tx, location.id, product.id, lots[0]?.lotId ?? null);
+        if (available.lt(qty))
+          throw fieldError(
+            `${l.path}.quantity`,
+            `Stok ${product.name} di lokasi ini hanya ${available.toFixed()}`,
+          );
+      }
+      const [move] = await tx
+        .insert(schema.stockMoves)
+        .values({
+          companyId,
+          productId: product.id,
+          name: `${ctx.ref}: ${product.name}`,
+          quantity: qty.toFixed(4),
+          quantityDone: qty.toFixed(4),
+          locationId: location.id,
+          locationDestId: inventory.id,
+          state: "ready",
+          reference: ctx.ref,
+        })
+        .returning();
+      done.push({ move: move!, product, lots });
+    }
+    if (!done.length)
+      return { accountMoveId: null, moves: [] as { productId: string; value: string | null }[] };
+    const accountMoveId = await this.processMoves(tx, companyId, done, { ...ctx, partnerId: null });
+    const moves = await tx
+      .select({
+        id: schema.stockMoves.id,
+        productId: schema.stockMoves.productId,
+        value: schema.stockMoves.value,
+      })
+      .from(schema.stockMoves)
+      .where(
+        inArray(
+          schema.stockMoves.id,
+          done.map((x) => x.move.id),
+        ),
+      );
+    return { accountMoveId, moves };
+  }
+
   // ---- Inti: stok & valuasi ----
 
   /**
@@ -729,7 +822,15 @@ export class StockService {
     tx: Db,
     companyId: string,
     done: DoneMove[],
-    ctx: { ref: string; date: Date; branchId: string | null; partnerId: string | null },
+    ctx: {
+      ref: string;
+      date: Date;
+      branchId: string | null;
+      partnerId: string | null;
+      /** Akun lawan pengganti untuk lokasi virtual `inventory` (mis. beban perawatan) beserta cost center-nya. */
+      expenseAccountId?: string;
+      costCenterId?: string | null;
+    },
   ): Promise<string | null> {
     const locations = new Map<string, Location>();
     const loc = async (id: string) => {
@@ -744,6 +845,7 @@ export class StockService {
       credit: Decimal;
       name: string;
       partnerId: string | null;
+      costCenterId?: string | null;
     }[] = [];
     const layerIds: string[] = [];
 
@@ -800,7 +902,9 @@ export class StockService {
                 ? s.cogsAccountId
                 : usage === "production"
                   ? s.wipAccountId
-                  : s.stockAdjustmentAccountId;
+                  : usage === "inventory" && ctx.expenseAccountId
+                    ? ctx.expenseAccountId
+                    : s.stockAdjustmentAccountId;
           if (!id || !s.stockValuationAccountId)
             throw new BadRequestException("Akun persediaan belum diatur di pengaturan akuntansi");
           return id;
@@ -871,6 +975,7 @@ export class StockService {
               credit: d(0),
               name: `${product.name} (${qty.toFixed(0)})`,
               partnerId: dest.usage === "supplier" ? ctx.partnerId : null,
+              costCenterId: dest.usage === "inventory" ? ctx.costCenterId : undefined,
             },
             {
               accountId: s.stockValuationAccountId!,
@@ -911,6 +1016,7 @@ export class StockService {
           credit: l.credit.toFixed(2),
           partnerId: l.partnerId,
           branchId: ctx.branchId,
+          ...(l.costCenterId ? { costCenterId: l.costCenterId } : {}),
         })),
       },
       companyId,

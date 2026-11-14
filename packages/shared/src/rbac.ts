@@ -422,6 +422,36 @@ export const PERMISSION_CATALOG: readonly ModuleDef[] = [
     specials: [],
   },
   {
+    key: "maintenance",
+    label: ["Maintenance", "Maintenance"],
+    features: [
+      f(
+        "requests",
+        "Permintaan perawatan",
+        "Maintenance requests",
+        ["/maintenance-requests"],
+        ["/maintenance/requests"],
+      ),
+      f("equipment", "Peralatan & meter", "Equipment & meters", ["/equipment"]),
+      f("plans", "Rencana perawatan", "Maintenance plans", ["/maintenance-plans"]),
+      f(
+        "reports",
+        "Laporan perawatan",
+        "Maintenance reports",
+        ["/maintenance/reports"],
+        ["/maintenance/reports"],
+      ),
+      f(
+        "config",
+        "Tim & pengaturan",
+        "Teams & settings",
+        ["/maintenance-teams", "/maintenance/settings"],
+        ["/maintenance-teams", "/maintenance/settings"],
+      ),
+    ],
+    specials: [],
+  },
+  {
     key: "consolidation",
     label: ["Konsolidasi", "Consolidation"],
     features: [
@@ -747,6 +777,21 @@ export const ROLE_TEMPLATES: readonly {
     name: ["Fleet Manager", "Fleet manager"],
     description: ["Armada penuh", "Full fleet management"],
     permissions: ["fleet.manage", "hr.read", "partner.read", "company.read"],
+  },
+  {
+    code: "maintenance_manager",
+    name: ["Manajer Maintenance", "Maintenance manager"],
+    description: [
+      "Peralatan, rencana, dan permintaan perawatan",
+      "Equipment, plans and maintenance requests",
+    ],
+    permissions: ["maintenance.manage", "inventory.read", "product.read", "partner.read", "company.read"],
+  },
+  {
+    code: "technician",
+    name: ["Teknisi", "Technician"],
+    description: ["Mengerjakan permintaan perawatan", "Works maintenance requests"],
+    permissions: ["maintenance.write", "product.read", "company.read"],
   },
   {
     code: "auditor",

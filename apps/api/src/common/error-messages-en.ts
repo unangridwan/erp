@@ -1272,4 +1272,29 @@ export const MESSAGES_EN: Record<string, string> = {
   "Pilih penerima": "Pick recipients",
   "URL tidak valid": "Invalid URL",
   "Tambahkan minimal satu aksi": "Add at least one action",
+  // Maintenance
+  "Stok {} di lokasi ini hanya {}": "Only {1} of {0} in stock at this location",
+  "Peralatan sudah punya riwayat perawatan; ubah status menjadi Tidak dipakai":
+    "The equipment has maintenance history; set its status to Retired instead",
+  "Permintaan perawatan tidak ditemukan": "Maintenance request not found",
+  "Permintaan yang selesai/batal tidak dapat diubah": "Done or cancelled requests cannot be changed",
+  "Vendor/biaya jasa sudah ditagihkan dan tidak dapat diubah":
+    "The vendor/service cost is already billed and cannot change",
+  "Permintaan ini tidak bisa dimulai": "This request cannot be started",
+  "Permintaan sudah selesai/batal": "The request is already done or cancelled",
+  "Permintaan selesai tidak dapat dibatalkan": "A done request cannot be cancelled",
+  "Permintaan yang sudah ditagihkan tidak dapat dibatalkan": "A billed request cannot be cancelled",
+  "Suku cadang permintaan selesai/batal tidak dapat diubah":
+    "Spare parts of a done or cancelled request cannot change",
+  "Tagihan untuk permintaan ini sudah dibuat": "A bill for this request already exists",
+  "Permintaan batal tidak dapat ditagihkan": "A cancelled request cannot be billed",
+  "Membuat tagihan memerlukan hak akuntansi (tulis)": "Creating a bill requires accounting write access",
+  "Peralatan tidak ditemukan": "Equipment not found",
+  "Isi interval hari atau interval meter": "Enter a day interval or a meter interval",
+  "Peralatan sudah tidak dipakai": "The equipment is retired",
+  "Waktu selesai sebelum waktu mulai": "Finish time is before start time",
+  "Pilih lokasi stok suku cadang": "Choose a stock location for spare parts",
+  "Biaya jasa vendor harus lebih dari 0": "Vendor service cost must be greater than 0",
+  "Peralatan ini tidak memakai meter": "This equipment does not use a meter",
+  "Meter tidak boleh mundur (sekarang {})": "The meter cannot go backwards (currently {0})",
 };

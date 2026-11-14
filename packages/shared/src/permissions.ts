@@ -50,6 +50,11 @@ export const PERMISSIONS = [
   "mrp.write",
   /** Stasiun kerja, BOM, membatalkan/menyelesaikan order produksi (posting nilai persediaan). */
   "mrp.manage",
+  "maintenance.read",
+  /** Mengerjakan permintaan perawatan (jadwal, mulai, selesai, suku cadang). */
+  "maintenance.write",
+  /** Peralatan, rencana perawatan, tim, pengaturan, tagihan vendor perawatan. */
+  "maintenance.manage",
   "consolidation.read",
   /** Bagan akun grup, pemetaan akun, proses & finalisasi konsolidasi. */
   "consolidation.manage",
