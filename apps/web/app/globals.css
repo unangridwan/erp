@@ -3715,3 +3715,23 @@ img.qc-photo {
 .crm-funnel li {
   grid-template-columns: 120px 1fr 44px 52px;
 }
+.ticket-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0;
+}
+.ticket-message {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.ticket-message.ticket-internal {
+  background: color-mix(in srgb, #f0a033 12%, transparent);
+}
+.ticket-message.ticket-customer {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.portal-header {
+  flex-wrap: wrap;
+}

@@ -412,6 +412,18 @@ export const APPS: App[] = [
     ],
   },
   {
+    id: "support",
+    name: L("Layanan", "Helpdesk"),
+    home: "/support/tickets",
+    prefixes: ["/support"],
+    menu: [
+      link("Tiket", "Tickets", "/support/tickets", "support.read"),
+      link("Basis Pengetahuan", "Knowledge Base", "/support/articles", "support.read"),
+      link("Laporan", "Reporting", "/support/reports", "support.read"),
+      link("Pengaturan", "Settings", "/support/settings", "support.read"),
+    ],
+  },
+  {
     id: "maintenance",
     name: L("Maintenance", "Maintenance"),
     home: "/maintenance/requests",

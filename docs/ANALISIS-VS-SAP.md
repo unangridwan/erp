@@ -95,7 +95,7 @@ bervolume transaksi sangat besar.
 | Duplikat lead, corong & kecepatan pipeline       |   ✅   | CRM › Lead, Corong & Kecepatan                  |
 | Forecast, kuota penjualan, wilayah               |   ✅   | CRM › Forecast, Kuota & Pencapaian, Wilayah     |
 | Kampanye, web-to-lead, skor & penugasan lead     |   ✅   | CRM › Kampanye, Formulir Web, Skor & Penugasan  |
-| Tiket layanan & SLA                              |   ❌   | Direncanakan (CRM bagian 4)                     |
+| Tiket layanan, SLA & eskalasi, basis pengetahuan |   ✅   | Layanan (Helpdesk) + portal pelanggan           |
 | Penawaran → SO → kirim → faktur                  |   ✅   | Penjualan + Persediaan + Akuntansi              |
 | Daftar harga & diskon                            |   🟡   | Pricelist; tanpa condition technique bertingkat |
 | Komisi sales                                     |   ✅   | Rencana komisi                                  |

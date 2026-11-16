@@ -91,6 +91,18 @@ const ICONS: Record<string, React.ReactNode> = {
       <rect x="46" y="40" width="10" height="16" rx="2" fill="#f0a033" />
     </>
   ),
+  support: (
+    <>
+      <path
+        d="M10 14h36a4 4 0 0 1 4 4v20a4 4 0 0 1-4 4H26l-10 8v-8h-6a4 4 0 0 1-4-4V18a4 4 0 0 1 4-4z"
+        fill="#875a7b"
+      />
+      <rect x="16" y="22" width="24" height="4" rx="2" fill="#e8e1f0" />
+      <rect x="16" y="30" width="16" height="4" rx="2" fill="#e8e1f0" />
+      <circle cx="48" cy="44" r="10" fill="#1ab7a6" />
+      <path d="M48 38v6l4 3" stroke="#fff" strokeWidth="3" fill="none" strokeLinecap="round" />
+    </>
+  ),
   quality: (
     <>
       <rect x="12" y="8" width="34" height="44" rx="5" fill="#e8e1f0" />

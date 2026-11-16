@@ -26,6 +26,7 @@ const ACTIVITY_READ = new Map<string, Permission>([
   ["compensation_cycle", "payroll.read"],
   ["connected_app", "integration.manage"],
   ["crm_lead", "crm.read"],
+  ["support_ticket", "support.read"],
   ["custom_field", "customization.manage"],
   ["employee", "hr.read"],
   ["hiring_request", "hr.read"],

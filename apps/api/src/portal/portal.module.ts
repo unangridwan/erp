@@ -15,5 +15,6 @@ import { PortalService } from "./portal.service.js";
   imports: [SalesModule],
   controllers: [PortalAuthController, PortalController, PortalAdminController],
   providers: [ActivityService, RateLimiter, PortalService, PortalGuard],
+  exports: [PortalService, PortalGuard],
 })
 export class PortalModule {}

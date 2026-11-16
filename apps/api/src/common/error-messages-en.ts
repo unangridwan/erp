@@ -1360,4 +1360,13 @@ export const MESSAGES_EN: Record<string, string> = {
   "Field wajib harus termasuk field yang ditampilkan": "Required fields must be among the displayed fields",
   "Formulir harus meminta email atau telepon": "The form must ask for an email or phone",
   "Isi email atau telepon": "Enter an email or phone",
+  "Kunci email masuk tidak dikenal": "Unknown inbound email key",
+  "Tiket tidak ditemukan": "Ticket not found",
+  "Tiket sudah ditutup; buat tiket baru untuk masalah lain":
+    "The ticket is closed; create a new ticket for another issue",
+  "Penilaian hanya untuk tiket yang sudah selesai": "Only resolved tickets can be rated",
+  "Antrean tidak ditemukan": "Queue not found",
+  "Alamat pengirim tidak valid": "Invalid sender address",
+  "Target penyelesaian tidak boleh lebih cepat dari respons pertama":
+    "The resolution target cannot be shorter than the first response target",
 };

@@ -16,3 +16,4 @@ export * from "./customization.js";
 export * from "./automation.js";
 export * from "./maintenance.js";
 export * from "./quality.js";
+export * from "./support.js";
