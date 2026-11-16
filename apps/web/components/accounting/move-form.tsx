@@ -10,6 +10,7 @@ import { formatDate, money, today } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
 import { can, MOVE_TYPE_LABEL } from "../../lib/resources";
 import { Chatter } from "../chatter";
+import { RelatedDocuments } from "../related-documents";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
 import { PaymentBadge, StateBadge } from "./badges";
@@ -933,6 +934,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
         {move?.state === "posted" && move.lines.some((x) => x.deferralAccountId) && (
           <DeferralSchedule moveId={move.id} version={version} />
         )}
+        {move && <RelatedDocuments model="account_move" id={move.id} version={version} />}
       </div>
       {move && <Chatter model="account_move" id={move.id} version={version} labels={{}} />}
     </div>

@@ -14,6 +14,7 @@ import { api, ApiError } from "../../../../../lib/api";
 import { formatDate, money, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { RelatedDocuments } from "../../../../../components/related-documents";
 
 interface ScheduleLine {
   id: string;
@@ -391,6 +392,7 @@ export default function AssetPage() {
           </div>
         </section>
       )}
+      {id && id !== "new" && <RelatedDocuments model="asset" id={id} />}
     </div>
   );
 }

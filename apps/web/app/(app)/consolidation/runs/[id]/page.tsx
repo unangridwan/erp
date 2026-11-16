@@ -10,6 +10,11 @@ import { formatDate, money } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
 import { ask } from "../../../../../components/feedback";
+import {
+  DrillAmount,
+  DrilldownPanel,
+  type DrilldownRequest,
+} from "../../../../../components/drilldown-panel";
 
 interface Entity {
   companyId: string;
@@ -155,6 +160,7 @@ export default function ConsolidationRunPage() {
   const me = useMe();
   const { l, locale } = useI18n();
   const [run, setRun] = useState<Run | null>(null);
+  const [drill, setDrill] = useState<DrilldownRequest | null>(null);
   const [tab, setTab] = useState<Tab>("report");
   const [report, setReport] = useState<Report | null>(null);
   const [ws, setWs] = useState<Worksheet | null>(null);
@@ -711,7 +717,24 @@ export default function ConsolidationRunPage() {
                   </td>
                   {ws.columns.map((c) => (
                     <td key={c.companyId} className="num">
-                      {r.byCompany[c.companyId] ? m(r.byCompany[c.companyId]!) : ""}
+                      {r.byCompany[c.companyId] ? (
+                        <DrillAmount
+                          value={m(r.byCompany[c.companyId]!)}
+                          onDrill={() =>
+                            setDrill({
+                              title: `${r.code} ${r.name} · ${c.name} (${l("mata uang perusahaan", "company currency")})`,
+                              params: {
+                                companyIds: c.companyId,
+                                groupAccountId: r.groupAccountId,
+                                dateTo: run.dateTo,
+                                basis: "cumulative",
+                              },
+                            })
+                          }
+                        />
+                      ) : (
+                        ""
+                      )}
                     </td>
                   ))}
                   <td className="num">{m(r.total)}</td>
@@ -933,6 +956,7 @@ export default function ConsolidationRunPage() {
           )}
         </div>
       )}
+      <DrilldownPanel request={drill} onClose={() => setDrill(null)} />
     </>
   );
 }

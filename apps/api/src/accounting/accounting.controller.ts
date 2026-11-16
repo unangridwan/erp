@@ -35,7 +35,7 @@ import { installChart } from "./chart-template.js";
 import { MoveService } from "./move.service.js";
 import { PaymentService } from "./payment.service.js";
 import { ReconcileService } from "./reconcile.service.js";
-import { reportQuery, ReportService } from "./reports.service.js";
+import { drilldownQuery, reportQuery, ReportService } from "./reports.service.js";
 
 const moveListQuery = z.object({
   type: z.enum(["entry", ...INVOICE_TYPES]).optional(),
@@ -359,6 +359,13 @@ export class ReportsController {
   @RequirePermission("accounting.read")
   cashFlow(@Query() query: unknown) {
     return this.tenantDb.run((tx) => this.reports.cashFlow(tx, parse(reportQuery, query)));
+  }
+
+  /** Rincian item jurnal penyusun angka laporan (panel drilldown). */
+  @Get("drilldown")
+  @RequirePermission("accounting.read")
+  drilldown(@Query() query: unknown) {
+    return this.tenantDb.run((tx) => this.reports.drilldown(tx, parse(drilldownQuery, query)));
   }
 
   @Get("branch-clearing")

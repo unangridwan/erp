@@ -12,6 +12,7 @@ import { formatDate, money } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
 import { RUN_STATE } from "../../../../../components/accounting/payment-run-state";
+import { RelatedDocuments } from "../../../../../components/related-documents";
 
 interface Bank {
   id: string;
@@ -393,6 +394,7 @@ export default function PaymentRunPage() {
           </tbody>
         </table>
       </div>
+      {id && id !== "new" && <RelatedDocuments model="payment_run" id={id} />}
     </div>
   );
 }

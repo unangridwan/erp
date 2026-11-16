@@ -1369,4 +1369,5 @@ export const MESSAGES_EN: Record<string, string> = {
   "Alamat pengirim tidak valid": "Invalid sender address",
   "Target penyelesaian tidak boleh lebih cepat dari respons pertama":
     "The resolution target cannot be shorter than the first response target",
+  "Dokumen tidak ditemukan": "Document not found",
 };

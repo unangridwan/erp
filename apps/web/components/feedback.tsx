@@ -178,6 +178,7 @@ export function Modal({
   children,
   footer,
   wide,
+  side,
 }: {
   open: boolean;
   title: ReactNode;
@@ -185,6 +186,8 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  /** Panel samping kanan setinggi layar (drilldown). */
+  side?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -196,7 +199,7 @@ export function Modal({
   return (
     <dialog
       ref={ref}
-      className={`modal${wide ? " wide" : ""}`}
+      className={`modal${wide ? " wide" : ""}${side ? " side" : ""}`}
       onCancel={(e) => {
         e.preventDefault();
         onClose();

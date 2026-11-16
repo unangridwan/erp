@@ -13,6 +13,7 @@ import { api, ApiError } from "../../../../../lib/api";
 import { money } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { RelatedDocuments } from "../../../../../components/related-documents";
 
 interface Part {
   productId: string;
@@ -712,6 +713,7 @@ export default function MaintenanceRequestPage() {
           )}
         </p>
       )}
+      {params.id && params.id !== "new" && <RelatedDocuments model="maintenance_request" id={params.id} />}
     </>
   );
 }

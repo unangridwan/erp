@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { DrillAmount, DrilldownPanel, type DrilldownRequest } from "../../../../components/drilldown-panel";
 import { api } from "../../../../lib/api";
 import { money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
@@ -19,6 +20,9 @@ export default function VatReportPage() {
   const [period, setPeriod] = useState(today().slice(0, 7));
   const [report, setReport] = useState<VatReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [drill, setDrill] = useState<DrilldownRequest | null>(null);
+  const vatDrill = (use: "sale" | "purchase", title: string) => () =>
+    setDrill({ title, path: "/tax/vat-report/drilldown", params: { year, month, use } });
   const [year, month] = period.split("-").map(Number) as [number, number];
 
   useEffect(() => {
@@ -121,11 +125,21 @@ export default function VatReportPage() {
                 <tbody>
                   <tr>
                     <td>{l("PPN keluaran di buku besar", "Output VAT in ledger")}</td>
-                    <td className="num">{money(report.ledger.outputVat, locale)}</td>
+                    <td className="num">
+                      <DrillAmount
+                        value={money(report.ledger.outputVat, locale)}
+                        onDrill={vatDrill("sale", l("PPN keluaran di buku besar", "Output VAT in ledger"))}
+                      />
+                    </td>
                   </tr>
                   <tr>
                     <td>{l("PPN masukan di buku besar", "Input VAT in ledger")}</td>
-                    <td className="num">{money(report.ledger.inputVat, locale)}</td>
+                    <td className="num">
+                      <DrillAmount
+                        value={money(report.ledger.inputVat, locale)}
+                        onDrill={vatDrill("purchase", l("PPN masukan di buku besar", "Input VAT in ledger"))}
+                      />
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -139,6 +153,7 @@ export default function VatReportPage() {
           </div>
         </>
       )}
+      <DrilldownPanel request={drill} onClose={() => setDrill(null)} />
     </>
   );
 }

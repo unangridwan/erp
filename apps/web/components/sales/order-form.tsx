@@ -22,6 +22,7 @@ import { download } from "../accounting/download";
 import { useOptions, type ProductOption, type TaxOption, type UomOption } from "../accounting/use-options";
 import { UomPick } from "../uom-pick";
 import { Chatter } from "../chatter";
+import { RelatedDocuments } from "../related-documents";
 import { ActivitiesPanel } from "../crm/activities-panel";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
@@ -1011,6 +1012,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
             onChange={() => setVersion((v) => v + 1)}
           />
         )}
+        {order && <RelatedDocuments model="sale_order" id={order.id} version={version} />}
       </div>
       {order && <Chatter model="sale_order" id={order.id} version={version} labels={{}} />}
     </div>

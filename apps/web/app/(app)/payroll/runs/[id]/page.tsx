@@ -19,6 +19,7 @@ import { can, PAYROLL_STATE_LABEL } from "../../../../../lib/resources";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../../components/data-table";
 import { useTableView } from "../../../../../lib/use-table-view";
 import { ask } from "../../../../../components/feedback";
+import { RelatedDocuments } from "../../../../../components/related-documents";
 
 interface Run {
   id: string;
@@ -619,6 +620,7 @@ export default function PayrollRunPage() {
         </table>
       </div>
       <TablePager view={table} />
+      {id && id !== "new" && <RelatedDocuments model="payroll_run" id={id} />}
     </div>
   );
 }

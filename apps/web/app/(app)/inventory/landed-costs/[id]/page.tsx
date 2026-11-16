@@ -12,6 +12,7 @@ import { api, ApiError } from "../../../../../lib/api";
 import { money, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { RelatedDocuments } from "../../../../../components/related-documents";
 
 interface Line {
   name: string;
@@ -388,6 +389,7 @@ function LandedCostForm() {
           </p>
         </div>
       )}
+      {id && id !== "new" && <RelatedDocuments model="landed_cost" id={id} />}
     </div>
   );
 }
