@@ -1341,4 +1341,10 @@ export const MESSAGES_EN: Record<string, string> = {
     "Set the customer on the opportunity before creating a quotation",
   "Tambahkan produk pada peluang sebelum membuat penawaran":
     "Add products to the opportunity before creating a quotation",
+  "Periode harus berformat YYYY-MM atau YYYY-Qn": "The period must be in YYYY-MM or YYYY-Qn format",
+  "Hanya pemimpin tim atau pengelola CRM yang boleh menyesuaikan forecast":
+    "Only a team leader or CRM manager may adjust the forecast",
+  "Wilayah tidak ditemukan": "Territory not found",
+  "Bulan harus berformat YYYY-MM": "The month must be in YYYY-MM format",
+  "Isi salesperson atau tim, salah satu": "Set either a salesperson or a team, not both",
 };

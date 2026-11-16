@@ -3,7 +3,12 @@
 import { CustomFieldsSection, customPayload, useCustomFields, type CustomValues } from "../custom-fields";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LEAD_STATUS_LABEL, LEAD_STATUS_VALUES } from "@erp/shared";
+import {
+  FORECAST_CATEGORY_LABEL,
+  FORECAST_CATEGORY_VALUES,
+  LEAD_STATUS_LABEL,
+  LEAD_STATUS_VALUES,
+} from "@erp/shared";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../lib/api";
 import { formatDate, money } from "../../lib/format";
@@ -57,6 +62,8 @@ interface Lead {
   city: string | null;
   province: string | null;
   nextStep: string | null;
+  forecastCategory: string | null;
+  territoryId: string | null;
   contactId: string | null;
   partnerDisplay?: string | null;
   contactDisplay?: string | null;
@@ -100,6 +107,8 @@ const FIELDS = [
   "city",
   "province",
   "nextStep",
+  "forecastCategory",
+  "territoryId",
 ] as const;
 type Values = Record<(typeof FIELDS)[number], string>;
 
@@ -141,6 +150,7 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
   const reasons = useOptions<{ id: string; name: string }>("/lost-reasons");
   const users = useOptions<{ id: string; name: string }>("/users/options");
   const teams = useOptions<{ id: string; name: string }>("/sales-teams");
+  const territories = useOptions<{ id: string; name: string }>("/crm/territories");
 
   useEffect(() => {
     if (isNew) return;
@@ -597,6 +607,36 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
                 onChange={(e) => set({ expectedClose: e.target.value })}
               />
             </label>
+            {leadType === "opportunity" && (
+              <label className="field">
+                <span>{l("Kategori forecast", "Forecast category")}</span>
+                <select
+                  value={values.forecastCategory}
+                  onChange={(e) => set({ forecastCategory: e.target.value })}
+                >
+                  <option value="">{l("Ikut tahap", "From stage")}</option>
+                  {FORECAST_CATEGORY_VALUES.map((v) => (
+                    <option key={v} value={v}>
+                      {l(...FORECAST_CATEGORY_LABEL[v]!)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {territories.length > 0 && (
+              <label className="field">
+                <span>{l("Wilayah", "Territory")}</span>
+                <select value={values.territoryId} onChange={(e) => set({ territoryId: e.target.value })}>
+                  <option value="">{isNew ? l("Otomatis dari aturan", "Automatic from rules") : "—"}</option>
+                  {territories.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                {err("territoryId")}
+              </label>
+            )}
             <label className="field">
               <span>{l("Prioritas", "Priority")}</span>
               <select value={values.priority} onChange={(e) => set({ priority: e.target.value })}>

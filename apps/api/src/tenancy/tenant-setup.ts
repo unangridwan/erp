@@ -124,6 +124,13 @@ export async function seedTenant(tx: Db, companyName: string): Promise<SeedResul
       sequence: (i + 1) * 10,
       probability: String(probability),
       isWon,
+      // Makin dekat ke penutupan makin pasti (sama dengan aturan migrasi 0079).
+      forecastCategory:
+        isWon || probability < 50
+          ? ("pipeline" as const)
+          : probability < 75
+            ? ("best_case" as const)
+            : ("commit" as const),
     })),
   );
   await tx.insert(schema.crmLostReasons).values(DEFAULT_LOST_REASONS.map((name) => ({ name })));

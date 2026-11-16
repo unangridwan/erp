@@ -20,12 +20,15 @@ import {
   contactRolesSchema,
   convertLeadSchema,
   crmStageSchema,
+  forecastAdjustmentSchema,
   leadProductsSchema,
   leadSchema,
   lostReasonSchema,
   markLostSchema,
   mergeLeadsSchema,
+  quotasSchema,
   salesTeamSchema,
+  territorySchema,
 } from "@erp/shared";
 import { z } from "zod";
 import { ActivityService } from "../activity/activity.service.js";
@@ -35,6 +38,7 @@ import { TenantDb } from "../common/database.js";
 import { parse } from "../common/zod.js";
 import { ScheduleService } from "./activity-schedule.service.js";
 import { assertCompanyUser, assertUsers } from "./checks.js";
+import { ForecastService } from "./forecast.service.js";
 import { LeadService, type LeadQuery } from "./lead.service.js";
 import { SalesCloudService } from "./sales-cloud.service.js";
 
@@ -238,6 +242,82 @@ class AccountsController {
   }
 }
 
+const TerritoriesController = createCrudController({
+  path: "crm/territories",
+  model: "crm_territory",
+  table: schema.crmTerritories,
+  schema: territorySchema,
+  read: "crm.read",
+  write: "crm.manage",
+  searchColumns: [schema.crmTerritories.name],
+  orderBy: schema.crmTerritories.sequence,
+  companyColumn: schema.crmTerritories.companyId,
+  perCompany: true,
+  beforeSave: async (tx, values) => {
+    if (typeof values.managerId === "string") await assertCompanyUser(tx, values.managerId, "managerId");
+    if (Array.isArray(values.memberIds)) await assertUsers(tx, values.memberIds as string[], "memberIds");
+  },
+});
+
+const yearSchema = z.coerce.number().int().min(2000).max(2100).default(new Date().getUTCFullYear());
+
+/** Forecast, kuota penjualan, dan penerapan aturan wilayah. */
+@Controller("crm")
+class ForecastController {
+  constructor(
+    @Inject(TenantDb) private readonly tenantDb: TenantDb,
+    @Inject(ForecastService) private readonly forecasts: ForecastService,
+  ) {}
+
+  @Get("forecast")
+  @RequirePermission("crm.read")
+  forecast(@Query("period") period?: string) {
+    const key = parse(z.string().min(7).max(7), period);
+    return this.tenantDb.run((tx) => this.forecasts.forecast(tx, key));
+  }
+
+  @Get("forecast/attainment")
+  @RequirePermission("crm.read")
+  attainment(@Query("year") year?: string) {
+    const y = parse(yearSchema, year);
+    return this.tenantDb.run((tx) => this.forecasts.attainment(tx, y));
+  }
+
+  @Put("forecast/adjustments")
+  @RequirePermission("crm.write")
+  adjust(@Body() body: unknown) {
+    const input = parse(forecastAdjustmentSchema, body);
+    return this.tenantDb.run((tx) => this.forecasts.adjust(tx, input));
+  }
+
+  @Get("quotas")
+  @RequirePermission("crm.read")
+  quotas(@Query("year") year?: string) {
+    const y = parse(yearSchema, year);
+    return this.tenantDb.run((tx) => this.forecasts.quotas(tx, y));
+  }
+
+  @Put("quotas")
+  @RequirePermission("crm.manage")
+  saveQuotas(@Body() body: unknown) {
+    const input = parse(quotasSchema, body);
+    return this.tenantDb.run((tx) => this.forecasts.saveQuotas(tx, input));
+  }
+
+  @Get("territory-report")
+  @RequirePermission("crm.read")
+  territoryReport() {
+    return this.tenantDb.run((tx) => this.forecasts.territoryReport(tx));
+  }
+
+  @Post("territory-assign")
+  @HttpCode(200)
+  @RequirePermission("crm.manage")
+  assign() {
+    return this.tenantDb.run((tx) => this.forecasts.assignTerritories(tx));
+  }
+}
+
 const doneSchema = z.object({ feedback: z.string().trim().max(2000).nullish() });
 
 /** Aktivitas terjadwal (telepon, rapat, email, to-do). Permission diperiksa per jenis dokumen. */
@@ -295,9 +375,11 @@ class ScheduledActivitiesController {
     SalesTeamsController,
     LeadsController,
     AccountsController,
+    ForecastController,
+    TerritoriesController,
     ScheduledActivitiesController,
   ],
-  providers: [ActivityService, LeadService, SalesCloudService, ScheduleService],
+  providers: [ActivityService, ForecastService, LeadService, SalesCloudService, ScheduleService],
   exports: [LeadService],
 })
 export class CrmModule {}

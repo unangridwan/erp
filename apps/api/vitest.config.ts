@@ -10,6 +10,7 @@ export default defineConfig({
       ALLOW_PRIVATE_WEBHOOKS: "true",
     },
     setupFiles: ["./test/setup-env.ts"],
+    globalSetup: ["./test/global-setup.ts"],
     // Test e2e berbagi satu database; jalankan file secara berurutan.
     fileParallelism: false,
   },

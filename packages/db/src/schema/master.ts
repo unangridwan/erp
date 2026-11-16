@@ -122,6 +122,7 @@ export const partners = pgTable("partners", {
   jobTitle: text("job_title"),
   accountRating: text("account_rating", { enum: ["hot", "warm", "cold"] }),
   doNotContact: boolean("do_not_contact").notNull().default(false),
+  territoryId: uuid("territory_id"),
   active: boolean("active").notNull().default(true),
   ...audit,
 });

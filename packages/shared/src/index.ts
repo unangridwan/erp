@@ -79,3 +79,4 @@ export * from "./automation.js";
 export * from "./maintenance.js";
 export * from "./quality.js";
 export * from "./crm.js";
+export * from "./crm-forecast.js";

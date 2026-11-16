@@ -14,6 +14,7 @@ import { ActivityService } from "../activity/activity.service.js";
 import { assertDimensions, assertPartner, fieldError } from "../accounting/context.js";
 import { currentContext } from "../common/request-context.js";
 import { assertCompanyUser, assertTeam, ownedScope } from "./checks.js";
+import { resolveTerritory } from "./territory.js";
 
 export type LeadInput = z.infer<typeof leadSchema>;
 type Lead = typeof schema.crmLeads.$inferSelect;
@@ -120,6 +121,7 @@ export class LeadService {
         probability: input.probability ?? stage?.probability ?? "10",
         // Peluang yang dibuat langsung dianggap sudah terkualifikasi.
         leadStatus: input.leadType === "opportunity" ? "qualified" : input.leadStatus,
+        territoryId: input.territoryId ?? (await this.territoryFor(tx, ctx.companyId, input)),
       })
       .returning();
     if (lead!.leadType === "opportunity") await this.track(tx, lead!, null);
@@ -310,6 +312,7 @@ export class LeadService {
           annualRevenue: lead.annualRevenue,
           jobTitle: accountKind === "person" ? lead.title : null,
           salespersonId: lead.userId,
+          territoryId: lead.territoryId ?? (await this.territoryFor(tx, lead.companyId, lead)),
         })
         .returning({ id: schema.partners.id });
       partnerId = partner!.id;
@@ -323,6 +326,9 @@ export class LeadService {
       accountKind = (await assertPartner(tx, lead.companyId, partnerId)).kind;
     }
 
+    // Wilayah peluang & kontak mengikuti akun; tanpa akun, dari aturan wilayah atas data lead.
+    const territoryId =
+      lead.territoryId ?? (await this.territoryFor(tx, lead.companyId, { ...lead, partnerId }));
     let contactId = lead.contactId;
     if (input.contact === "existing") {
       if (!input.contactId) throw fieldError("contactId", "Pilih kontak");
@@ -353,6 +359,7 @@ export class LeadService {
               email: lead.email,
               phone: lead.phone,
               jobTitle: lead.title,
+              territoryId,
             })
             .returning({ id: schema.partners.id });
           contactId = contact!.id;
@@ -375,6 +382,7 @@ export class LeadService {
         name: input.opportunityName ?? lead.name,
         partnerId,
         contactId,
+        territoryId,
         convertedAt: new Date(),
         stageId: stage?.id ?? null,
         probability: lead.stageId ? lead.probability : (stage?.probability ?? lead.probability),
@@ -465,6 +473,28 @@ export class LeadService {
     return row!;
   }
 
+  /** Wilayah dari akun (bila sudah ditetapkan) atau dari aturan wilayah atas provinsi/kota/industri. */
+  private async territoryFor(
+    tx: Db,
+    companyId: string,
+    subject: {
+      partnerId?: string | null;
+      province?: string | null;
+      city?: string | null;
+      industry?: string | null;
+    },
+  ) {
+    if (subject.partnerId) {
+      const [partner] = await tx
+        .select()
+        .from(schema.partners)
+        .where(eq(schema.partners.id, subject.partnerId));
+      if (partner?.territoryId) return partner.territoryId;
+      if (partner) return (await resolveTerritory(tx, companyId, partner))?.id ?? null;
+    }
+    return (await resolveTerritory(tx, companyId, subject))?.id ?? null;
+  }
+
   /** Catat perpindahan tahap/status untuk laporan kecepatan pipeline. */
   private async track(tx: Db, lead: Lead, fromStageId: string | null) {
     await tx.insert(schema.crmStageHistory).values({
@@ -491,6 +521,13 @@ export class LeadService {
     const companyId = currentContext().companyId;
     if (input.partnerId) await assertPartner(tx, companyId, input.partnerId);
     if (input.contactId) await assertPartner(tx, companyId, input.contactId, "contactId");
+    if (input.territoryId) {
+      const [t] = await tx
+        .select({ companyId: schema.crmTerritories.companyId })
+        .from(schema.crmTerritories)
+        .where(eq(schema.crmTerritories.id, input.territoryId));
+      if (!t || t.companyId !== companyId) throw fieldError("territoryId", "Wilayah tidak ditemukan");
+    }
     if (input.stageId) await this.stage(tx, input.stageId);
     if (input.userId) await assertCompanyUser(tx, input.userId);
     if (input.teamId) await assertTeam(tx, input.teamId);

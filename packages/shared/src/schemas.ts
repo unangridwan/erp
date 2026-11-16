@@ -4,6 +4,7 @@ import { contractTypeCode } from "./contract-types.js";
 import { isValidPlate, normalizePlate } from "./fleet.js";
 import { ALL_PERMISSION_CODES } from "./rbac.js";
 import { ACCOUNT_RATING_VALUES, LEAD_STATUS_VALUES } from "./crm.js";
+import { FORECAST_CATEGORY_VALUES } from "./crm-forecast.js";
 import { CONSOLIDATION_METHODS, ENTITY_TYPES } from "./group.js";
 
 const optionalText = z
@@ -187,6 +188,7 @@ export const partnerSchema = z.object({
   jobTitle: optionalText,
   accountRating: z.enum(ACCOUNT_RATING_VALUES).nullish(),
   doNotContact: z.boolean().default(false),
+  territoryId: optionalUuid,
   active: z.boolean().default(true),
 });
 
@@ -588,6 +590,7 @@ export const crmStageSchema = z.object({
   probability: z.coerce.number().min(0).max(100).default(10).transform(String),
   isWon: z.boolean().default(false),
   fold: z.boolean().default(false),
+  forecastCategory: z.enum(FORECAST_CATEGORY_VALUES).default("pipeline"),
 });
 
 export const lostReasonSchema = z.object({
@@ -688,6 +691,10 @@ export const leadSchema = z.object({
   nextStep: z.string().trim().max(300).nullish(),
   /** Kontak utama (partner perorangan). */
   contactId: z.string().uuid().nullish(),
+  /** Kosong = ikut kategori tahap. */
+  forecastCategory: z.enum(FORECAST_CATEGORY_VALUES).nullish(),
+  /** Kosong saat membuat = dicocokkan otomatis dari aturan wilayah. */
+  territoryId: z.string().uuid().nullish(),
 });
 
 export const markLostSchema = z.object({

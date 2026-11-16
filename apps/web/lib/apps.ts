@@ -73,6 +73,11 @@ export const APPS: App[] = [
         link("Analisis Pipeline", "Pipeline Analysis", "/crm/reports", "crm.read"),
         link("Corong & Kecepatan", "Funnel & Velocity", "/crm/funnel", "crm.read"),
       ]),
+      group("Forecast", "Forecast", [
+        link("Forecast", "Forecast", "/crm/forecast", "crm.read"),
+        link("Kuota & Pencapaian", "Quotas & Attainment", "/crm/quotas", "crm.read"),
+        link("Wilayah", "Territories", "/crm/territories", "crm.read"),
+      ]),
       group("Konfigurasi", "Configuration", [
         link("Tahap Pipeline", "Stages", "/crm-stages", "crm.read"),
         link("Alasan Kalah", "Lost Reasons", "/lost-reasons", "crm.read"),
