@@ -93,7 +93,8 @@ bervolume transaksi sangat besar.
 | Lead, pipeline, aktivitas, alasan kalah          |   ✅   | CRM                                             |
 | Akun & kontak 360°, peran kontak, produk peluang |   ✅   | CRM › Akun, Kontak, Peluang                     |
 | Duplikat lead, corong & kecepatan pipeline       |   ✅   | CRM › Lead, Corong & Kecepatan                  |
-| Forecast, kuota, wilayah, kampanye, tiket/SLA    |   ❌   | Direncanakan (CRM bagian 2–4)                   |
+| Forecast, kuota penjualan, wilayah               |   ✅   | CRM › Forecast, Kuota & Pencapaian, Wilayah     |
+| Kampanye, web-to-lead, tiket/SLA                 |   ❌   | Direncanakan (CRM bagian 3–4)                   |
 | Penawaran → SO → kirim → faktur                  |   ✅   | Penjualan + Persediaan + Akuntansi              |
 | Daftar harga & diskon                            |   🟡   | Pricelist; tanpa condition technique bertingkat |
 | Komisi sales                                     |   ✅   | Rencana komisi                                  |

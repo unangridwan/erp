@@ -405,6 +405,12 @@ CRM memisahkan **Lead** (status baru → dihubungi → terkualifikasi/tidak laya
 akun (perusahaan), kontak di bawah akun itu, dan peluang dengan kontak utama; riwayat tahap dicatat otomatis. Menu:
 CRM › Lead, Peluang, Akun, Kontak, Corong & Kecepatan (migrasi 0078).
 
+**Forecast, kuota & wilayah** (migrasi 0079): tiap tahap punya kategori forecast (pipeline / best case / commit) yang
+bisa ditimpa per peluang. Forecast satu bulan atau kuartal = peluang menang pada periode itu (closed) + peluang terbuka
+yang perkiraan closing-nya di periode itu, dibandingkan kuota bulanan. Pemimpin tim atau pengelola CRM dapat mengisi
+forecast manajer per salesperson. Wilayah mencocokkan lead dan akun dari provinsi, kota, atau industri; lead tanpa
+penanggung jawab dibagi bergiliran ke anggota wilayah.
+
 | Endpoint                                                                                      | Keterangan                                                                     |
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | `/crm-stages`, `/lost-reasons`, `/sales-teams`, `/payment-terms`, `/pricelists`               | Konfigurasi (tahap pipeline, alasan kalah, tim, termin, daftar harga + aturan) |
@@ -414,6 +420,9 @@ CRM › Lead, Peluang, Akun, Kontak, Corong & Kecepatan (migrasi 0078).
 | `PUT /leads/:id/products`, `PUT /leads/:id/contact-roles`                                     | Produk peluang (nilai harapan = total) dan peran kontak (satu kontak utama)    |
 | `GET /leads/reports/funnel`, `GET /leads/reports/velocity` (`from`, `to`)                     | Corong lead → peluang → menang; lama per tahap, siklus penjualan, win rate     |
 | `GET /crm/accounts?kind=company\|person`, `GET /crm/accounts/:id`                             | Akun & kontak; tampilan 360° (peluang, pesanan, faktur sesuai hak, aktivitas)  |
+| `GET /crm/forecast?period=YYYY-MM\|YYYY-Qn`, `PUT /crm/forecast/adjustments`                  | Forecast per salesperson/tim vs kuota (closed, commit, best case, pipeline)    |
+| `GET/PUT /crm/quotas?year=`, `GET /crm/forecast/attainment?year=`                             | Kuota bulanan per salesperson/tim; pencapaian setahun                          |
+| `/crm/territories`, `POST /crm/territory-assign`, `GET /crm/territory-report`                 | Wilayah (aturan provinsi/kota/industri, anggota), penerapan & ringkasan        |
 | `POST /sale-orders/from-lead/:leadId`                                                         | Penawaran draft berisi produk peluang                                          |
 | `GET/POST /activities`, `GET /activities/mine`, `PATCH/DELETE /activities/:id`, `POST …/done` | Aktivitas terjadwal pada lead, pesanan, atau kontak                            |
 | `GET/POST /sale-orders`, `GET/PUT/DELETE /sale-orders/:id`, `POST /sale-orders/compute`       | Penawaran/pesanan; `compute` = pratinjau harga daftar harga, pajak, total      |

@@ -15,6 +15,7 @@ import { audit, tenantId } from "./core.js";
 // FK di database berbentuk komposit (tenant_id, id); di sini cukup dideklarasikan kolomnya.
 
 export const LEAD_SOURCES = ["website", "referral", "event", "ads", "social", "cold_call", "other"] as const;
+export const FORECAST_CATEGORIES = ["pipeline", "best_case", "commit", "omitted"] as const;
 export const LEAD_STATUSES = ["new", "contacted", "qualified", "unqualified"] as const;
 export const CONTACT_ROLES = [
   "decision_maker",
@@ -35,7 +36,50 @@ export const crmStages = pgTable("crm_stages", {
   probability: numeric("probability", { precision: 5, scale: 2 }).notNull().default("10"),
   isWon: boolean("is_won").notNull().default(false),
   fold: boolean("fold").notNull().default(false),
+  forecastCategory: text("forecast_category", { enum: FORECAST_CATEGORIES }).notNull().default("pipeline"),
   ...audit,
+});
+
+export interface TerritoryRules {
+  provinces?: string[];
+  cities?: string[];
+  industries?: string[];
+}
+
+export const crmTerritories = pgTable("crm_territories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  sequence: integer("sequence").notNull().default(10),
+  rules: jsonb("rules").$type<TerritoryRules>().notNull().default({}),
+  managerId: uuid("manager_id"),
+  memberIds: uuid("member_ids").array().notNull().default([]),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const crmQuotas = pgTable("crm_quotas", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  userId: uuid("user_id"),
+  teamId: uuid("team_id"),
+  periodStart: date("period_start").notNull(),
+  amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
+  ...audit,
+});
+
+export const crmForecastAdjustments = pgTable("crm_forecast_adjustments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  periodStart: date("period_start").notNull(),
+  amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
+  note: text("note"),
+  adjustedBy: uuid("adjusted_by"),
+  updatedAt: audit.updatedAt,
 });
 
 export const crmLostReasons = pgTable("crm_lost_reasons", {
@@ -136,6 +180,8 @@ export const crmLeads = pgTable("crm_leads", {
   nextStep: text("next_step"),
   contactId: uuid("contact_id"),
   convertedAt: timestamp("converted_at", { withTimezone: true }),
+  forecastCategory: text("forecast_category", { enum: FORECAST_CATEGORIES }),
+  territoryId: uuid("territory_id"),
   ...audit,
 });
 

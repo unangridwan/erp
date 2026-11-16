@@ -546,8 +546,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] CRM bagian 1 — Sales Cloud inti (migrasi 0078): status & profil lead, deteksi duplikat + gabung, konversi lead →
   akun + kontak + peluang, produk per peluang (nilai otomatis, penawaran sekali klik), peran kontak, riwayat tahap,
   akun/kontak 360°, laporan corong & kecepatan pipeline
-- [ ] CRM bagian 2 — forecast, kuota & wilayah (0079); bagian 3 — kampanye, web-to-lead, skor & penugasan lead (0080);
-  bagian 4 — tiket layanan & SLA (0081)
+- [x] CRM bagian 2 — forecast, kuota & wilayah (migrasi 0079): kategori forecast per tahap/peluang, kuota bulanan per
+  salesperson & tim, forecast bulan/kuartal vs kuota + forecast manajer, pencapaian setahun, wilayah penjualan dengan
+  aturan provinsi/kota/industri dan penugasan lead bergiliran
+- [ ] CRM bagian 3 — kampanye, web-to-lead, skor & penugasan lead (0080); bagian 4 — tiket layanan & SLA (0081)
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

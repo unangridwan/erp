@@ -229,6 +229,13 @@ export const RESOURCES: Resource[] = [
         ],
       },
       { name: "doNotContact", label: L("Jangan dihubungi", "Do not contact"), type: "boolean" },
+      {
+        name: "territoryId",
+        label: L("Wilayah penjualan", "Sales territory"),
+        type: "ref",
+        resource: "crm/territories",
+        display: "name",
+      },
       { name: "street", label: L("Alamat", "Street"), type: "text" },
       { name: "city", label: L("Kota", "City"), type: "text" },
       {
@@ -1664,6 +1671,17 @@ RESOURCES.push(
       name(),
       { name: "sequence", label: L("Urutan", "Sequence"), type: "number" },
       { name: "probability", label: L("Probabilitas %", "Probability %"), type: "number" },
+      {
+        name: "forecastCategory",
+        label: L("Kategori forecast", "Forecast category"),
+        type: "select",
+        options: [
+          ["pipeline", L("Pipeline", "Pipeline")],
+          ["best_case", L("Best case", "Best case")],
+          ["commit", L("Commit", "Commit")],
+          ["omitted", L("Tidak dihitung", "Omitted")],
+        ],
+      },
       { name: "isWon", label: L("Tahap menang", "Won stage"), type: "boolean" },
       { name: "fold", label: L("Dilipat di kanban", "Folded in kanban"), type: "boolean" },
     ],
