@@ -118,8 +118,11 @@ export class LeadService {
         // Tanpa penugasan eksplisit, lead milik pembuatnya.
         userId: input.userId === undefined ? ctx.userId : input.userId,
         probability: input.probability ?? stage?.probability ?? "10",
+        // Peluang yang dibuat langsung dianggap sudah terkualifikasi.
+        leadStatus: input.leadType === "opportunity" ? "qualified" : input.leadStatus,
       })
       .returning();
+    if (lead!.leadType === "opportunity") await this.track(tx, lead!, null);
     await this.activity.log(tx, { resModel: "crm_lead", resId: lead!.id, action: "create" });
     return lead!;
   }
@@ -132,6 +135,8 @@ export class LeadService {
     if (sent.custom !== undefined)
       values.custom = await normalizeCustom(tx, "crm_lead", sent.custom, before.custom, before.companyId);
     else delete values.custom;
+    // Nilai peluang yang punya baris produk selalu = jumlah produknya.
+    if (sent.expectedRevenue !== undefined && (await this.hasProducts(tx, id))) delete values.expectedRevenue;
     if (sent.stageId !== undefined && sent.stageId !== before.stageId) {
       if (before.state === "lost")
         throw new BadRequestException("Pulihkan lead yang kalah sebelum memindah tahap");
@@ -146,6 +151,8 @@ export class LeadService {
       .set({ ...values, updatedAt: sql`now()` })
       .where(eq(L.id, id))
       .returning();
+    if (row!.leadType === "opportunity" && (row!.stageId !== before.stageId || row!.state !== before.state))
+      await this.track(tx, row!, before.stageId);
     const changes = Object.fromEntries(
       Object.entries(values)
         .filter(([k, v]) => String(before[k as keyof Lead] ?? "") !== String(v ?? ""))
@@ -259,6 +266,7 @@ export class LeadService {
       })
       .where(eq(L.id, id))
       .returning();
+    if (row!.leadType === "opportunity") await this.track(tx, row!, lead.stageId);
     await this.activity.log(tx, {
       resModel: "crm_lead",
       resId: id,
@@ -268,23 +276,40 @@ export class LeadService {
     return row!;
   }
 
-  /** Konversi lead menjadi peluang, sekaligus menautkan/membuat pelanggan. */
+  /**
+   * Konversi lead menjadi peluang: menautkan/membuat akun (pelanggan), kontak di bawah akun itu, dan mencatat
+   * kontak sebagai kontak utama peluang.
+   */
   async convert(tx: Db, id: string, input: z.infer<typeof convertLeadSchema>) {
     const lead = await this.get(tx, id);
     if (lead.state !== "open") throw new BadRequestException("Hanya lead terbuka yang bisa dikonversi");
+    if (lead.leadType !== "lead") throw new BadRequestException("Lead ini sudah menjadi peluang");
     let partnerId = lead.partnerId;
+    let accountKind: "company" | "person" | null = null;
     if (input.partner === "existing") {
       if (!input.partnerId) throw fieldError("partnerId", "Pilih pelanggan");
-      partnerId = (await assertPartner(tx, lead.companyId, input.partnerId)).id;
+      const partner = await assertPartner(tx, lead.companyId, input.partnerId);
+      partnerId = partner.id;
+      accountKind = partner.kind;
     } else if (input.partner === "create" && !partnerId) {
+      accountKind = lead.partnerName ? "company" : "person";
       const [partner] = await tx
         .insert(schema.partners)
         .values({
           name: lead.partnerName || lead.contactName || lead.name,
-          kind: lead.partnerName ? "company" : "person",
+          kind: accountKind,
           isCustomer: true,
           email: lead.email,
           phone: lead.phone,
+          street: lead.street,
+          city: lead.city,
+          province: lead.province,
+          industry: lead.industry,
+          website: lead.website,
+          employeeCount: lead.employeeCount,
+          annualRevenue: lead.annualRevenue,
+          jobTitle: accountKind === "person" ? lead.title : null,
+          salespersonId: lead.userId,
         })
         .returning({ id: schema.partners.id });
       partnerId = partner!.id;
@@ -294,19 +319,75 @@ export class LeadService {
         action: "create",
         message: `Dibuat dari lead "${lead.name}"`,
       });
+    } else if (partnerId) {
+      accountKind = (await assertPartner(tx, lead.companyId, partnerId)).kind;
     }
+
+    let contactId = lead.contactId;
+    if (input.contact === "existing") {
+      if (!input.contactId) throw fieldError("contactId", "Pilih kontak");
+      contactId = (await assertPartner(tx, lead.companyId, input.contactId, "contactId")).id;
+    } else if (input.contact === "create" && !contactId && partnerId) {
+      if (accountKind === "person") contactId = partnerId;
+      else if (lead.contactName) {
+        // Kontak yang sama (nama + akun) tidak dibuat dua kali.
+        const [existing] = await tx
+          .select({ id: schema.partners.id })
+          .from(schema.partners)
+          .where(
+            and(
+              eq(schema.partners.parentId, partnerId),
+              sql`lower(${schema.partners.name}) = lower(${lead.contactName})`,
+            ),
+          )
+          .limit(1);
+        if (existing) contactId = existing.id;
+        else {
+          const [contact] = await tx
+            .insert(schema.partners)
+            .values({
+              name: lead.contactName,
+              kind: "person",
+              parentId: partnerId,
+              isCustomer: true,
+              email: lead.email,
+              phone: lead.phone,
+              jobTitle: lead.title,
+            })
+            .returning({ id: schema.partners.id });
+          contactId = contact!.id;
+          await this.activity.log(tx, {
+            resModel: "partner",
+            resId: contactId,
+            action: "create",
+            message: `Kontak dibuat dari lead "${lead.name}"`,
+          });
+        }
+      }
+    }
+
     const stage = lead.stageId ? await this.stage(tx, lead.stageId) : await this.firstStage(tx);
     const [row] = await tx
       .update(L)
       .set({
         leadType: "opportunity",
+        leadStatus: "qualified",
+        name: input.opportunityName ?? lead.name,
         partnerId,
+        contactId,
+        convertedAt: new Date(),
         stageId: stage?.id ?? null,
         probability: lead.stageId ? lead.probability : (stage?.probability ?? lead.probability),
         updatedAt: sql`now()`,
       })
       .where(eq(L.id, id))
       .returning();
+    if (contactId)
+      await tx
+        .insert(schema.crmContactRoles)
+        .values({ leadId: id, partnerId: contactId, role: "decision_maker", isPrimary: true })
+        .onConflictDoNothing();
+    await this.track(tx, row!, null);
     await this.activity.log(tx, {
       resModel: "crm_lead",
       resId: id,
@@ -379,13 +460,37 @@ export class LeadService {
       .set({ ...values, closedAt: new Date(), updatedAt: sql`now()` })
       .where(eq(L.id, lead.id))
       .returning();
+    await this.track(tx, row!, lead.stageId);
     await this.activity.log(tx, { resModel: "crm_lead", resId: lead.id, action: "update", message });
     return row!;
+  }
+
+  /** Catat perpindahan tahap/status untuk laporan kecepatan pipeline. */
+  private async track(tx: Db, lead: Lead, fromStageId: string | null) {
+    await tx.insert(schema.crmStageHistory).values({
+      leadId: lead.id,
+      fromStageId,
+      toStageId: lead.stageId,
+      state: lead.state,
+      expectedRevenue: lead.expectedRevenue,
+      probability: lead.probability,
+      userId: currentContext().userId,
+    });
+  }
+
+  private async hasProducts(tx: Db, leadId: string) {
+    const [row] = await tx
+      .select({ id: schema.crmLeadProducts.id })
+      .from(schema.crmLeadProducts)
+      .where(eq(schema.crmLeadProducts.leadId, leadId))
+      .limit(1);
+    return Boolean(row);
   }
 
   private async validate(tx: Db, input: Partial<LeadInput>) {
     const companyId = currentContext().companyId;
     if (input.partnerId) await assertPartner(tx, companyId, input.partnerId);
+    if (input.contactId) await assertPartner(tx, companyId, input.contactId, "contactId");
     if (input.stageId) await this.stage(tx, input.stageId);
     if (input.userId) await assertCompanyUser(tx, input.userId);
     if (input.teamId) await assertTeam(tx, input.teamId);

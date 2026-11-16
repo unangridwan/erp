@@ -2,7 +2,8 @@
 
 import { CustomFieldsSection, customPayload, useCustomFields, type CustomValues } from "../custom-fields";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { LEAD_STATUS_LABEL, LEAD_STATUS_VALUES } from "@erp/shared";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../lib/api";
 import { formatDate, money } from "../../lib/format";
@@ -14,6 +15,15 @@ import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
 import { ActivitiesPanel } from "./activities-panel";
 import { ask } from "../feedback";
+import {
+  ContactRolesPanel,
+  DuplicatesPanel,
+  ProductsPanel,
+  StageHistoryPanel,
+  type LeadContactRole,
+  type LeadProduct,
+  type StageHistoryRow,
+} from "./opportunity-panels";
 
 interface Lead {
   id: string;
@@ -37,6 +47,23 @@ interface Lead {
   lostReasonId: string | null;
   lostNote: string | null;
   description: string | null;
+  leadStatus: string;
+  title: string | null;
+  industry: string | null;
+  website: string | null;
+  employeeCount: number | null;
+  annualRevenue: string | null;
+  street: string | null;
+  city: string | null;
+  province: string | null;
+  nextStep: string | null;
+  contactId: string | null;
+  partnerDisplay?: string | null;
+  contactDisplay?: string | null;
+  products?: LeadProduct[];
+  contactRoles?: LeadContactRole[];
+  stageHistory?: StageHistoryRow[];
+  stageDays?: { stageId: string; stageName: string; days: number }[];
 }
 interface OrderRow {
   id: string;
@@ -63,6 +90,16 @@ const FIELDS = [
   "expectedClose",
   "priority",
   "description",
+  "leadStatus",
+  "title",
+  "industry",
+  "website",
+  "employeeCount",
+  "annualRevenue",
+  "street",
+  "city",
+  "province",
+  "nextStep",
 ] as const;
 type Values = Record<(typeof FIELDS)[number], string>;
 
@@ -71,7 +108,9 @@ const toValues = (lead: Partial<Lead>): Values =>
     FIELDS.map((f) => {
       const v = lead[f as keyof Lead];
       // Buang nol desimal dari kolom numeric (10.00 → 10).
-      if (f === "expectedRevenue" || f === "probability") return [f, v == null ? "" : String(Number(v))];
+      if (f === "leadStatus") return [f, v == null ? "new" : String(v)];
+      if (f === "expectedRevenue" || f === "probability" || f === "annualRevenue")
+        return [f, v == null ? "" : String(Number(v))];
       return [f, v == null ? "" : String(v)];
     }),
   ) as Values;
@@ -82,13 +121,19 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
   const { l, tx, locale } = useI18n();
   const isNew = id === "new";
   const [lead, setLead] = useState<Lead | null>(null);
-  const [values, setValues] = useState<Values>(toValues({ priority: 0 }));
+  const presetPartner = useSearchParams().get("partnerId");
+  const [values, setValues] = useState<Values>(toValues({ priority: 0, partnerId: presetPartner }));
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [lostForm, setLostForm] = useState<{ reasonId: string; note: string } | null>(null);
-  const [convertForm, setConvertForm] = useState<{ partner: string; partnerId: string } | null>(null);
+  const [convertForm, setConvertForm] = useState<{
+    partner: string;
+    partnerId: string;
+    contact: string;
+    opportunityName: string;
+  } | null>(null);
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [custom, setCustom] = useState<CustomValues>({});
   const customDefs = useCustomFields("crm_lead");
@@ -136,7 +181,11 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
     for (const f of FIELDS) {
       const v = values[f];
       if (f === "priority") body[f] = Number(v || 0);
-      else if (f === "expectedRevenue") body[f] = v || "0";
+      else if (f === "leadStatus") body[f] = v || "new";
+      else if (f === "employeeCount") {
+        if (v !== "") body[f] = Number(v);
+        else if (!isNew) body[f] = null;
+      } else if (f === "expectedRevenue") body[f] = v || "0";
       else if (f === "probability") {
         // Probabilitas kosong = ikut tahap.
         if (v !== "" && (isNew || v !== String(Number(lead?.probability)))) body[f] = Number(v);
@@ -180,6 +229,12 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
   const open = !lead || lead.state === "open";
   const quotationHref =
     lead && lead.partnerId ? `/sales/orders/new?leadId=${lead.id}&partnerId=${lead.partnerId}` : null;
+  const hasProducts = (lead?.products?.length ?? 0) > 0;
+  const quote = () =>
+    run(async () => {
+      const order = await api<{ id: string }>(`/sale-orders/from-lead/${id}`, { method: "POST", body: {} });
+      router.push(`/sales/orders/${order.id}`);
+    });
 
   return (
     <div className="form-layout">
@@ -191,6 +246,11 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
             <span className="badge">
               {leadType === "lead" ? l("Lead", "Lead") : l("Peluang", "Opportunity")}
             </span>
+            {lead?.partnerId && (
+              <Link className="button" href={`/crm/accounts/${lead.partnerId}`}>
+                {l("Akun 360°", "Account 360°")}
+              </Link>
+            )}
             {editable && (
               <button className="primary" disabled={busy}>
                 {l("Simpan", "Save")}
@@ -204,6 +264,8 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
                   setConvertForm({
                     partner: lead.partnerId ? "existing" : "create",
                     partnerId: lead.partnerId ?? "",
+                    contact: "create",
+                    opportunityName: lead.name,
                   })
                 }
               >
@@ -212,11 +274,17 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
             )}
             {lead && editable && open && leadType === "opportunity" && (
               <>
-                {quotationHref && can(me.permissions, "sales.write") && (
-                  <Link className="button" href={quotationHref}>
-                    {l("Penawaran baru", "New quotation")}
-                  </Link>
-                )}
+                {quotationHref &&
+                  can(me.permissions, "sales.write") &&
+                  (hasProducts ? (
+                    <button type="button" disabled={busy} onClick={quote}>
+                      {l("Buat penawaran", "Create quotation")}
+                    </button>
+                  ) : (
+                    <Link className="button" href={quotationHref}>
+                      {l("Penawaran baru", "New quotation")}
+                    </Link>
+                  ))}
                 <button type="button" className="primary" disabled={busy} onClick={() => action("won")}>
                   {l("Tandai menang", "Mark won")}
                 </button>
@@ -246,7 +314,7 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
                   run(async () => {
                     if (!(await ask(l("Hapus lead ini?", "Delete this lead?")))) return;
                     await api(`/leads/${id}`, { method: "DELETE" });
-                    router.replace(leadType === "lead" ? "/crm/leads" : "/crm/pipeline");
+                    router.replace(leadType === "lead" ? "/crm/leads" : "/crm/opportunities");
                   })
                 }
               >
@@ -256,8 +324,32 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
           </header>
           {error && <p className="error">{error}</p>}
 
+          {lead && open && (
+            <DuplicatesPanel
+              leadId={lead.id}
+              version={version}
+              editable={editable}
+              onChanged={() => setVersion((v) => v + 1)}
+              onLinkPartner={
+                lead.partnerId
+                  ? undefined
+                  : (partnerId) =>
+                      run(async () => {
+                        await api(`/leads/${id}`, { method: "PATCH", body: { partnerId } });
+                        setVersion((v) => v + 1);
+                      })
+              }
+            />
+          )}
           {convertForm && (
             <div className="inline-panel">
+              <label className="field">
+                <span>{l("Nama peluang", "Opportunity name")}</span>
+                <input
+                  value={convertForm.opportunityName}
+                  onChange={(e) => setConvertForm({ ...convertForm, opportunityName: e.target.value })}
+                />
+              </label>
               <label className="field">
                 <span>{l("Pelanggan", "Customer")}</span>
                 <select
@@ -265,12 +357,12 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
                   onChange={(e) => setConvertForm({ ...convertForm, partner: e.target.value })}
                 >
                   <option value="create">
-                    {l("Buat pelanggan baru dari lead", "Create a new customer from lead")}
+                    {l("Buat akun baru dari lead", "Create a new account from lead")}
                   </option>
                   <option value="existing">
-                    {l("Tautkan ke pelanggan yang ada", "Link to an existing customer")}
+                    {l("Tautkan ke akun yang ada", "Link to an existing account")}
                   </option>
-                  <option value="none">{l("Tanpa pelanggan", "No customer")}</option>
+                  <option value="none">{l("Tanpa akun", "No account")}</option>
                 </select>
               </label>
               {convertForm.partner === "existing" && (
@@ -285,6 +377,23 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
                   />
                 </label>
               )}
+              {convertForm.partner !== "none" && (
+                <label className="field">
+                  <span>{l("Kontak", "Contact")}</span>
+                  <select
+                    value={convertForm.contact}
+                    onChange={(e) => setConvertForm({ ...convertForm, contact: e.target.value })}
+                  >
+                    <option value="create">
+                      {l(
+                        "Buat kontak dari nama kontak lead",
+                        "Create a contact from the lead's contact name",
+                      )}
+                    </option>
+                    <option value="none">{l("Tanpa kontak", "No contact")}</option>
+                  </select>
+                </label>
+              )}
               <button
                 type="button"
                 className="primary"
@@ -293,6 +402,8 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
                   action("convert", {
                     partner: convertForm.partner,
                     partnerId: convertForm.partnerId || undefined,
+                    contact: convertForm.partner === "none" ? "none" : convertForm.contact,
+                    opportunityName: convertForm.opportunityName || undefined,
                   })
                 }
               >
@@ -358,7 +469,7 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
               {err("name")}
             </label>
             <label className="field">
-              <span>{l("Pelanggan", "Customer")}</span>
+              <span>{l("Akun / pelanggan", "Account / customer")}</span>
               <RefSelect
                 name="partnerId"
                 resource="partners"
@@ -387,6 +498,22 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
               <span>{l("Telepon", "Phone")}</span>
               <input value={values.phone} onChange={(e) => set({ phone: e.target.value })} />
             </label>
+            <label className="field">
+              <span>{l("Jabatan kontak", "Contact job title")}</span>
+              <input value={values.title} onChange={(e) => set({ title: e.target.value })} />
+            </label>
+            {leadType === "lead" && (
+              <label className="field">
+                <span>{l("Status lead", "Lead status")}</span>
+                <select value={values.leadStatus} onChange={(e) => set({ leadStatus: e.target.value })}>
+                  {LEAD_STATUS_VALUES.map((v) => (
+                    <option key={v} value={v}>
+                      {l(...LEAD_STATUS_LABEL[v]!)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="field">
               <span>{l("Sumber", "Source")}</span>
               <select value={values.source} onChange={(e) => set({ source: e.target.value })}>
@@ -445,6 +572,8 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
                 className="num"
                 inputMode="decimal"
                 value={values.expectedRevenue}
+                disabled={hasProducts}
+                title={hasProducts ? l("Dihitung dari produk", "Computed from products") : undefined}
                 onChange={(e) => set({ expectedRevenue: e.target.value })}
               />
               {err("expectedRevenue")}
@@ -477,6 +606,58 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
                 <option value="3">★★★</option>
               </select>
             </label>
+            <label className="field" style={{ gridColumn: "1 / -1" }}>
+              <span>{l("Langkah berikut", "Next step")}</span>
+              <input
+                value={values.nextStep}
+                placeholder={l("mis. Kirim proposal, jadwalkan demo", "e.g. Send proposal, schedule demo")}
+                onChange={(e) => set({ nextStep: e.target.value })}
+              />
+            </label>
+            {!values.partnerId && (
+              <>
+                <label className="field">
+                  <span>{l("Industri", "Industry")}</span>
+                  <input value={values.industry} onChange={(e) => set({ industry: e.target.value })} />
+                </label>
+                <label className="field">
+                  <span>{l("Situs web", "Website")}</span>
+                  <input value={values.website} onChange={(e) => set({ website: e.target.value })} />
+                </label>
+                <label className="field">
+                  <span>{l("Jumlah karyawan", "Employees")}</span>
+                  <input
+                    className="num"
+                    inputMode="numeric"
+                    value={values.employeeCount}
+                    onChange={(e) => set({ employeeCount: e.target.value })}
+                  />
+                  {err("employeeCount")}
+                </label>
+                <label className="field">
+                  <span>{l("Omzet tahunan", "Annual revenue")}</span>
+                  <input
+                    className="num"
+                    inputMode="decimal"
+                    value={values.annualRevenue}
+                    onChange={(e) => set({ annualRevenue: e.target.value })}
+                  />
+                  {err("annualRevenue")}
+                </label>
+                <label className="field">
+                  <span>{l("Alamat", "Street")}</span>
+                  <input value={values.street} onChange={(e) => set({ street: e.target.value })} />
+                </label>
+                <label className="field">
+                  <span>{l("Kota", "City")}</span>
+                  <input value={values.city} onChange={(e) => set({ city: e.target.value })} />
+                </label>
+                <label className="field">
+                  <span>{l("Provinsi", "Province")}</span>
+                  <input value={values.province} onChange={(e) => set({ province: e.target.value })} />
+                </label>
+              </>
+            )}
             <label className="field" style={{ gridColumn: "1 / -1" }}>
               <span>{l("Catatan", "Notes")}</span>
               <textarea
@@ -528,6 +709,24 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
             </>
           )}
         </form>
+        {lead && leadType === "opportunity" && (
+          <>
+            <ProductsPanel
+              leadId={lead.id}
+              products={lead.products ?? []}
+              editable={editable && open}
+              onSaved={() => setVersion((v) => v + 1)}
+            />
+            <ContactRolesPanel
+              leadId={lead.id}
+              accountId={lead.partnerId}
+              roles={lead.contactRoles ?? []}
+              editable={editable}
+              onSaved={() => setVersion((v) => v + 1)}
+            />
+            <StageHistoryPanel history={lead.stageHistory ?? []} stageDays={lead.stageDays ?? []} />
+          </>
+        )}
         {lead && (
           <ActivitiesPanel
             resModel="crm_lead"

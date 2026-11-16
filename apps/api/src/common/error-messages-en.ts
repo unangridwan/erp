@@ -1327,4 +1327,18 @@ export const MESSAGES_EN: Record<string, string> = {
     "The Salary & compensation permission is required to view this data",
   "Butuh hak Gaji & kompensasi untuk mengubah gaji":
     "The Salary & compensation permission is required to change salaries",
+  "Lead ini sudah menjadi peluang": "This lead is already an opportunity",
+  "Pilih kontak": "Select a contact",
+  "Produk hanya untuk peluang; konversi lead ini dulu":
+    "Products are for opportunities only; convert this lead first",
+  "Peluang sudah ditutup": "The opportunity is already closed",
+  "Lead tidak bisa digabung dengan dirinya sendiri": "A lead cannot be merged with itself",
+  "Lead duplikat tidak ditemukan": "Duplicate lead not found",
+  'Lead "{}" sudah ditutup': 'Lead "{0}" is already closed',
+  "Penawaran hanya bisa dibuat dari peluang yang masih terbuka":
+    "A quotation can only be created from an open opportunity",
+  "Isi pelanggan pada peluang sebelum membuat penawaran":
+    "Set the customer on the opportunity before creating a quotation",
+  "Tambahkan produk pada peluang sebelum membuat penawaran":
+    "Add products to the opportunity before creating a quotation",
 };

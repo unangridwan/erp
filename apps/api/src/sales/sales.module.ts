@@ -23,6 +23,7 @@ import {
   hasPermission,
   paymentTermSchema,
   pricelistSchema,
+  leadQuotationSchema,
   saleOrderSchema,
 } from "@erp/shared";
 import type { Response } from "express";
@@ -213,6 +214,14 @@ class SaleOrdersController {
   create(@Body() body: unknown) {
     const input = parse(saleOrderSchema, body);
     return this.tenantDb.run((tx) => this.orders.create(tx, input));
+  }
+
+  /** Penawaran draft dari peluang CRM: baris diisi dari produk peluang. */
+  @Post("from-lead/:leadId")
+  @RequirePermission("sales.write")
+  fromLead(@Param("leadId", ParseUUIDPipe) leadId: string, @Body() body: unknown) {
+    const input = parse(leadQuotationSchema, body ?? {});
+    return this.tenantDb.run((tx) => this.orders.createFromLead(tx, leadId, input));
   }
 
   @Put(":id")

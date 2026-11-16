@@ -8,16 +8,17 @@ import { can, LEAD_SOURCES, LEAD_STATE_LABEL } from "../../lib/resources";
 import { truncatedNote, useListData } from "../../lib/use-list-data";
 import { DataTable, type DataColumn } from "../data-table";
 import { useMe } from "../me-context";
+import { LEAD_STATUS_LABEL } from "@erp/shared";
 import { Stars, type LeadRow } from "./pipeline";
 
 /**
  * Daftar lead & peluang (tabel): semua lead dimuat sekali; jenis, status, sumber, tahap, dll. difilter di browser
  * tanpa memanggil API lagi.
  */
-export function LeadList() {
+export function LeadList({ type }: { type?: "lead" | "opportunity" }) {
   const me = useMe();
   const { l, tx, locale } = useI18n();
-  const [leadType, setLeadType] = useState("lead");
+  const [leadType, setLeadType] = useState<string>(type ?? "lead");
   const [search, setSearch] = useState("");
   const list = useListData<LeadRow>("/leads", {}, search);
   const rows = useMemo(
@@ -55,7 +56,29 @@ export function LeadList() {
         value: (x) => x.source,
         text: (x) => source(x.source),
       },
-      { key: "stage", label: l("Tahap", "Stage"), type: "enum", value: (x) => x.stageName },
+      {
+        key: "leadStatus",
+        label: l("Status lead", "Lead status"),
+        type: "enum",
+        value: (x) => x.leadStatus,
+        optionLabel: (v) => (LEAD_STATUS_LABEL[v] ? l(...LEAD_STATUS_LABEL[v]!) : v),
+        text: (x) =>
+          LEAD_STATUS_LABEL[x.leadStatus] ? l(...LEAD_STATUS_LABEL[x.leadStatus]!) : x.leadStatus,
+        hidden: type === "opportunity",
+      },
+      {
+        key: "stage",
+        label: l("Tahap", "Stage"),
+        type: "enum",
+        value: (x) => x.stageName,
+        hidden: type === "lead",
+      },
+      {
+        key: "nextStep",
+        label: l("Langkah berikut", "Next step"),
+        value: (x) => x.nextStep,
+        hidden: type !== "opportunity",
+      },
       { key: "user", label: l("Penanggung jawab", "Salesperson"), type: "enum", value: (x) => x.userName },
       {
         key: "priority",
@@ -90,12 +113,18 @@ export function LeadList() {
         render: (x) => <span className={`badge state-${x.state}`}>{tx(LEAD_STATE_LABEL[x.state]!)}</span>,
       },
     ];
-  }, [l, tx, locale]);
+  }, [l, tx, locale, type]);
 
   return (
     <>
       <header className="toolbar">
-        <h1>{l("Lead & Peluang", "Leads & Opportunities")}</h1>
+        <h1>
+          {type === "lead"
+            ? l("Lead", "Leads")
+            : type === "opportunity"
+              ? l("Peluang", "Opportunities")
+              : l("Lead & Peluang", "Leads & Opportunities")}
+        </h1>
         {can(me.permissions, "crm.write") && (
           <Link className="button primary" href={`/crm/leads/new?type=${leadType || "lead"}`}>
             {l("Baru", "New")}
@@ -108,7 +137,7 @@ export function LeadList() {
           customModel="crm_lead"
           rows={rows}
           columns={columns}
-          storageKey="leads"
+          storageKey={type === "opportunity" ? "opportunities" : "leads"}
           rowKey={(x) => x.id}
           rowHref={(x) => `/crm/leads/${x.id}`}
           defaultSort={{ key: "createdAt", dir: "desc" }}
@@ -118,15 +147,17 @@ export function LeadList() {
           searchPlaceholder={l("Cari nama, pelanggan, email…", "Search name, customer, email…")}
           empty={l("Belum ada data.", "No records yet.")}
           tools={
-            <select
-              aria-label={l("Jenis", "Type")}
-              value={leadType}
-              onChange={(e) => setLeadType(e.target.value)}
-            >
-              <option value="lead">{l("Lead", "Leads")}</option>
-              <option value="opportunity">{l("Peluang", "Opportunities")}</option>
-              <option value="">{l("Lead & peluang", "Leads & opportunities")}</option>
-            </select>
+            type ? undefined : (
+              <select
+                aria-label={l("Jenis", "Type")}
+                value={leadType}
+                onChange={(e) => setLeadType(e.target.value)}
+              >
+                <option value="lead">{l("Lead", "Leads")}</option>
+                <option value="opportunity">{l("Peluang", "Opportunities")}</option>
+                <option value="">{l("Lead & peluang", "Leads & opportunities")}</option>
+              </select>
+            )
           }
         />
       ) : (

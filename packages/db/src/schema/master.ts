@@ -115,6 +115,13 @@ export const partners = pgTable("partners", {
   paymentTermId: uuid("payment_term_id"),
   pricelistId: uuid("pricelist_id"),
   salespersonId: uuid("salesperson_id"),
+  industry: text("industry"),
+  website: text("website"),
+  employeeCount: integer("employee_count"),
+  annualRevenue: numeric("annual_revenue", { precision: 20, scale: 2 }),
+  jobTitle: text("job_title"),
+  accountRating: text("account_rating", { enum: ["hot", "warm", "cold"] }),
+  doNotContact: boolean("do_not_contact").notNull().default(false),
   active: boolean("active").notNull().default(true),
   ...audit,
 });
