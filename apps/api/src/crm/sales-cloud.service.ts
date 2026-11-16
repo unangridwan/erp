@@ -11,6 +11,7 @@ import {
   normalizePhone,
   salesCycleDays,
   stageDurations,
+  ticketStats,
   weightedRevenue,
   type contactRolesSchema,
   type leadProductsSchema,
@@ -683,6 +684,33 @@ export class SalesCloudService {
       };
     }
 
+    let support: unknown = null;
+    if (allowedFor(ctx.permissions, "support.read", { path: "/support/tickets" })) {
+      const S = schema.supportTickets;
+      const tickets = await tx
+        .select()
+        .from(S)
+        .where(
+          and(eq(S.companyId, ctx.companyId), or(eq(S.partnerId, partnerId), eq(S.contactId, partnerId))),
+        )
+        .orderBy(desc(S.createdAt))
+        .limit(50);
+      support = {
+        ...ticketStats(tickets),
+        open: tickets.filter((t) => t.status === "new" || t.status === "open" || t.status === "pending")
+          .length,
+        tickets: tickets.map((t) => ({
+          id: t.id,
+          number: t.number,
+          subject: t.subject,
+          status: t.status,
+          priority: t.priority,
+          createdAt: t.createdAt,
+          satisfaction: t.satisfaction,
+        })),
+      };
+    }
+
     return {
       partner: { ...partner, salespersonName: salesperson?.name ?? null },
       parent: parent ?? null,
@@ -714,6 +742,7 @@ export class SalesCloudService {
       activities: activities.map((r) => ({ ...r.a, userName: r.userName })),
       sales,
       invoicing,
+      support,
     };
   }
 

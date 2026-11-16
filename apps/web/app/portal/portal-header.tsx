@@ -14,6 +14,8 @@ export function PortalHeader({ title }: { title?: string }) {
         {l("Portal Pelanggan", "Customer Portal")}
       </Link>
       {title && <span className="muted">{title}</span>}
+      <Link href="/portal/tickets">{l("Tiket bantuan", "Support tickets")}</Link>
+      <Link href="/portal/help">{l("Bantuan", "Help")}</Link>
       <button
         type="button"
         className="link"

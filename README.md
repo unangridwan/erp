@@ -399,6 +399,23 @@ Pemeriksa Mutu):
   tindakan perbaikan terisi.
 - **Laporan mutu**: jumlah pemeriksaan, lulus/gagal/bersyarat, dan **tingkat cacat** per pemasok & per produk.
 
+### Layanan Pelanggan (Helpdesk, CRM bagian 4)
+
+Aplikasi **Layanan** (migrasi 0081): tiket dengan nomor urut, antrean (tim agen) dan pembagian bergiliran, kebijakan
+SLA per prioritas (respons pertama & penyelesaian; tanpa kebijakan berlaku target bawaan), pelanggaran ditandai dan
+dieskalasikan ke agen & pemimpin antrean oleh job tiap 5 menit, tiket selesai ditutup otomatis. Balasan agen dikirim
+ke email pelanggan; catatan internal tidak terlihat pelanggan. Tiket juga masuk dari **portal pelanggan** (buat, balas,
+nilai kepuasan) dan **email masuk** (webhook `POST /public/support/inbound/<kunci>` berisi `{from, subject, text}`;
+balasan dengan nomor tiket di subjek masuk ke tiket itu). Basis pengetahuan tampil di portal (menu Bantuan). Laporan:
+waktu respons/penyelesaian, kepatuhan SLA, kepuasan per agen/antrean/kategori; tiket tampil di Akun 360°.
+
+| Endpoint                                                                                     | Keterangan                                          |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `GET/POST /support/tickets`, `GET/PATCH /support/tickets/:id`, `POST …/:id/messages`         | Tiket; balasan publik (email) atau catatan internal |
+| `/support/teams`, `/support/sla-policies`, `/support/articles`                               | Antrean, kebijakan SLA, basis pengetahuan           |
+| `GET/PUT /support/settings`, `POST /support/settings/inbound-key`, `GET /support/reports`    | Pengaturan, kunci webhook email masuk, laporan      |
+| `GET/POST /portal/tickets`, `POST /portal/tickets/:id/{messages,rating}`, `/portal/articles` | Portal pelanggan: tiket & bantuan                   |
+
 ### CRM & Penjualan (Fase 2)
 
 CRM memisahkan **Lead** (status baru → dihubungi → terkualifikasi/tidak layak) dari **Peluang**. Konversi lead membuat

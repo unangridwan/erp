@@ -552,7 +552,9 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] CRM bagian 3 — marketing (migrasi 0080): kampanye + anggota + ROI, email massal dengan berhenti langganan,
   formulir web-to-lead publik (halaman & cuplikan HTML, honeypot, batas laju), skor lead dari aturan, aturan
   penugasan lead bergiliran, corong per kampanye
-- [ ] CRM bagian 4 — tiket layanan & SLA (0081)
+- [x] CRM bagian 4 — layanan pelanggan (migrasi 0081): tiket, antrean & pembagian bergiliran, kebijakan SLA + eskalasi
+  terjadwal + tutup otomatis, balasan email & catatan internal, tiket dari portal & email masuk, penilaian kepuasan,
+  basis pengetahuan di portal, laporan layanan, tiket di Akun 360°. Modul CRM sekelas Salesforce (4 bagian) selesai
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { ACCOUNT_RATING_LABEL, LEAD_STATUS_LABEL } from "@erp/shared";
+import { ACCOUNT_RATING_LABEL, LEAD_STATUS_LABEL, TICKET_STATUS_LABEL } from "@erp/shared";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
@@ -80,6 +80,20 @@ interface View {
     quotations: number;
     confirmed: number;
     confirmedAmount: string;
+  } | null;
+  support: {
+    open: number;
+    total: number;
+    avgSatisfaction: number | null;
+    tickets: {
+      id: string;
+      number: string;
+      subject: string;
+      status: string;
+      priority: string;
+      createdAt: string;
+      satisfaction: number | null;
+    }[];
   } | null;
   invoicing: {
     invoices: {
@@ -355,6 +369,42 @@ export function Account360({ id }: { id: string }) {
                       <td>{i.dueDate ? formatDate(i.dueDate, locale) : ""}</td>
                       <td className="num">{money(i.amountTotal, locale)}</td>
                       <td className="num">{money(i.amountResidual, locale)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {data.support && (
+        <section className="panel">
+          <h2>
+            {l("Tiket layanan", "Support tickets")} ({data.support.total}
+            {data.support.open ? ` · ${data.support.open} ${l("terbuka", "open")}` : ""})
+          </h2>
+          {data.support.avgSatisfaction !== null && (
+            <p className="muted">
+              {l("Kepuasan rata-rata", "Average satisfaction")}: {data.support.avgSatisfaction} / 5
+            </p>
+          )}
+          {data.support.tickets.length === 0 ? (
+            <p className="muted">—</p>
+          ) : (
+            <div className="table-scroll">
+              <table>
+                <tbody>
+                  {data.support.tickets.map((x) => (
+                    <tr key={x.id}>
+                      <td>
+                        <Link href={`/support/tickets/${x.id}`}>{x.number}</Link>
+                      </td>
+                      <td>{x.subject}</td>
+                      <td>
+                        <span className="badge">{l(...TICKET_STATUS_LABEL[x.status]!)}</span>
+                      </td>
+                      <td>{formatDate(x.createdAt.slice(0, 10), locale)}</td>
                     </tr>
                   ))}
                 </tbody>

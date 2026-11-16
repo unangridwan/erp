@@ -505,6 +505,23 @@ export const PERMISSION_CATALOG: readonly ModuleDef[] = [
     specials: [],
   },
   {
+    key: "support",
+    label: ["Layanan Pelanggan", "Customer Service"],
+    features: [
+      f("tickets", "Tiket", "Tickets", ["/support/tickets"], ["/support/tickets"]),
+      f("knowledge", "Basis pengetahuan", "Knowledge base", ["/support/articles"], ["/support/articles"]),
+      f("reports", "Laporan layanan", "Service reports", ["/support/reports"], ["/support/reports"]),
+      f(
+        "config",
+        "Antrean, SLA & pengaturan",
+        "Queues, SLA & settings",
+        ["/support/teams", "/support/sla-policies", "/support/settings"],
+        ["/support/teams", "/support/sla-policies", "/support/settings"],
+      ),
+    ],
+    specials: [],
+  },
+  {
     key: "quality",
     label: ["Mutu", "Quality"],
     features: [
@@ -865,6 +882,18 @@ export const ROLE_TEMPLATES: readonly {
       "Equipment, plans and maintenance requests",
     ],
     permissions: ["maintenance.manage", "inventory.read", "product.read", "partner.read", "company.read"],
+  },
+  {
+    code: "support_agent",
+    name: ["Agen Layanan", "Service agent"],
+    description: ["Menangani tiket pelanggan", "Handles customer tickets"],
+    permissions: ["support.write", "partner.read", "crm.read", "company.read"],
+  },
+  {
+    code: "support_manager",
+    name: ["Manajer Layanan", "Service manager"],
+    description: ["Antrean, SLA, basis pengetahuan, dan tiket", "Queues, SLA, knowledge base and tickets"],
+    permissions: ["support.manage", "partner.read", "crm.read", "company.read"],
   },
   {
     code: "quality_inspector",

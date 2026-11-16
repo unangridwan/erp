@@ -55,6 +55,11 @@ export const PERMISSIONS = [
   "maintenance.write",
   /** Peralatan, rencana perawatan, tim, pengaturan, tagihan vendor perawatan. */
   "maintenance.manage",
+  "support.read",
+  /** Menangani tiket: membalas, mengubah status/penanggung jawab, mencatat catatan internal. */
+  "support.write",
+  /** Antrean, kebijakan SLA, basis pengetahuan, pengaturan email masuk. */
+  "support.manage",
   "quality.read",
   /** Mengisi hasil pemeriksaan mutu, memutuskan terima/retur/scrap, menangani NCR. */
   "quality.write",
