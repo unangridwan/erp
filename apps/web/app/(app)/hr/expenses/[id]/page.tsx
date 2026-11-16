@@ -12,6 +12,7 @@ import { formatDate, money, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can, EXPENSE_STATE_LABEL } from "../../../../../lib/resources";
 import { ask } from "../../../../../components/feedback";
+import { RelatedDocuments } from "../../../../../components/related-documents";
 
 interface Claim {
   id: string;
@@ -281,6 +282,7 @@ export default function ExpenseClaimPage() {
           )}
         </p>
       )}
+      {id && id !== "new" && <RelatedDocuments model="expense_claim" id={id} />}
     </div>
   );
 }

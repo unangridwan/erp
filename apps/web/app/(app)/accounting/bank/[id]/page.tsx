@@ -10,6 +10,7 @@ import { formatDate, money } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
 import { ask } from "../../../../../components/feedback";
+import { RelatedDocuments } from "../../../../../components/related-documents";
 
 interface StatementLine {
   id: string;
@@ -115,6 +116,7 @@ export default function StatementPage() {
           </tbody>
         </table>
       </div>
+      {id && id !== "new" && <RelatedDocuments model="bank_statement" id={id} />}
     </>
   );
 }

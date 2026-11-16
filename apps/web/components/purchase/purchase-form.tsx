@@ -25,6 +25,7 @@ import {
   type UomOption,
 } from "../accounting/use-options";
 import { Chatter } from "../chatter";
+import { RelatedDocuments } from "../related-documents";
 import { UomPick } from "../uom-pick";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
@@ -861,6 +862,7 @@ export function PurchaseForm({ id }: { id: string }) {
             </>
           )}
         </form>
+        {order && <RelatedDocuments model="purchase_order" id={order.id} version={version} />}
       </div>
       {order && <Chatter model="purchase_order" id={order.id} version={version} labels={{}} />}
     </div>

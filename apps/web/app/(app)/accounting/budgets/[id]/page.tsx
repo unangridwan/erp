@@ -6,6 +6,11 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { download } from "../../../../../components/accounting/download";
 import { useOptions, type AccountOption } from "../../../../../components/accounting/use-options";
+import {
+  DrillAmount,
+  DrilldownPanel,
+  type DrilldownRequest,
+} from "../../../../../components/drilldown-panel";
 import { useMe } from "../../../../../components/me-context";
 import { api, ApiError } from "../../../../../lib/api";
 import { money } from "../../../../../lib/format";
@@ -25,6 +30,9 @@ interface Report {
     code: string;
     name: string;
     kind: string;
+    accountId: string;
+    businessUnitId: string | null;
+    branchId: string | null;
     costCenterId: string | null;
     budget: string;
     actual: string;
@@ -59,12 +67,15 @@ export default function BudgetPage() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [version, setVersion] = useState(0);
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [drill, setDrill] = useState<DrilldownRequest | null>(null);
   const [source, setSource] = useState<"manual" | "manpower">("manual");
   const editable = can(me.permissions, "accounting.write") && source === "manual";
 
   useEffect(() => {
     if (isNew) return;
     api<{
+      companyId: string;
       name: string;
       dateFrom: string;
       dateTo: string;
@@ -73,6 +84,7 @@ export default function BudgetPage() {
     }>(`/budgets/${id}`)
       .then((b) => {
         setHeader({ name: b.name, dateFrom: b.dateFrom, dateTo: b.dateTo });
+        setCompanyId(b.companyId);
         setSource(b.source);
         setLines(b.lines.map((x) => ({ ...x, amount: String(Number(x.amount)) })));
       })
@@ -283,7 +295,30 @@ export default function BudgetPage() {
                       {x.costCenterId && <span className="muted"> · {centerName(x.costCenterId)}</span>}
                     </td>
                     <td className="num">{m(x.budget)}</td>
-                    <td className="num">{m(x.actual)}</td>
+                    <td className="num">
+                      <DrillAmount
+                        value={m(x.actual)}
+                        onDrill={
+                          companyId
+                            ? () =>
+                                setDrill({
+                                  title: `${x.code} ${x.name}`,
+                                  params: {
+                                    companyIds: companyId,
+                                    accountId: x.accountId,
+                                    dateFrom: header.dateFrom,
+                                    dateTo: header.dateTo,
+                                    basis: "range",
+                                    excludeClosing: true,
+                                    businessUnitId: x.businessUnitId,
+                                    branchId: x.branchId,
+                                    costCenterId: x.costCenterId,
+                                  },
+                                })
+                            : undefined
+                        }
+                      />
+                    </td>
                     <td
                       className={`num ${(x.kind === "income" ? Number(x.variance) < 0 : Number(x.variance) > 0) ? "error" : ""}`}
                     >
@@ -310,6 +345,7 @@ export default function BudgetPage() {
           </div>
         </section>
       )}
+      <DrilldownPanel request={drill} onClose={() => setDrill(null)} />
     </div>
   );
 }

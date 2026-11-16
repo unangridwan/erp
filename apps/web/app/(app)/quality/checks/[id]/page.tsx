@@ -10,6 +10,7 @@ import { QualityBadge } from "../../../../../components/quality/quality-ui";
 import { api, ApiError, apiRaw } from "../../../../../lib/api";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { RelatedDocuments } from "../../../../../components/related-documents";
 
 interface Result {
   label: string;
@@ -402,6 +403,7 @@ export default function QualityCheckPage() {
           </p>
         )}
       </section>
+      {id && id !== "new" && <RelatedDocuments model="quality_check" id={id} />}
     </>
   );
 }

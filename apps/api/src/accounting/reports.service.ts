@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { eq, inArray, schema, sql, type Db, type SQL } from "@erp/db";
 import {
+  AGING_BUCKETS,
+  AGING_RANGES,
+  agingBucket,
   BALANCE_SHEET_GROUPS,
   cashFlowStatement,
   PROFIT_LOSS_GROUPS,
@@ -30,6 +33,43 @@ export const reportQuery = z.object({
   type: z.enum(["receivable", "payable"]).default("receivable"),
 });
 export type ReportQuery = z.infer<typeof reportQuery>;
+
+const csv = z
+  .string()
+  .optional()
+  .transform((v) => (v ? v.split(",").filter(Boolean) : undefined));
+const flag = z
+  .union([z.boolean(), z.enum(["1", "0", "true", "false"])])
+  .optional()
+  .transform((v) => v === true || v === "1" || v === "true");
+
+/**
+ * Rincian item jurnal penyusun satu angka laporan. Filter sama dengan laporan asal (perusahaan, dimensi) ditambah
+ * akun/jenis akun, partner, jurnal, pajak, dan cara menghitung tanggal (`basis`).
+ */
+export const drilldownQuery = reportQuery.extend({
+  accountIds: csv.pipe(z.array(z.string().uuid()).optional()),
+  accountTypes: csv.pipe(z.array(z.string().max(40)).max(50).optional()),
+  partnerId: z.string().uuid().optional(),
+  /** Item tanpa partner (baris "—" pada laporan umur). */
+  noPartner: flag,
+  journalId: z.string().uuid().optional(),
+  /** Akun perusahaan yang dipetakan ke akun grup konsolidasi. */
+  groupAccountId: z.string().uuid().optional(),
+  /** `range` = dateFrom..dateTo; `cumulative` = s.d. dateTo (akun laba rugi sejak awal tahun fiskal); `opening` = sebelum dateFrom. */
+  basis: z.enum(["range", "cumulative", "opening"]).default("range"),
+  /** Abaikan entri tutup buku (laba rugi, arus kas, anggaran). */
+  excludeClosing: flag,
+  side: z.enum(["debit", "credit"]).optional(),
+  /** Hanya item terbuka (umur piutang/utang) + rentang umurnya. */
+  openOnly: flag,
+  bucket: z.enum(AGING_BUCKETS).optional(),
+  /** Baris pajak PPN keluaran/masukan (laporan PPN). */
+  vatUse: z.enum(["sale", "purchase"]).optional(),
+  limit: z.coerce.number().int().min(1).max(1000).default(200),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+export type DrilldownQuery = z.infer<typeof drilldownQuery>;
 
 interface Scope {
   companyIds: string[];
@@ -296,9 +336,8 @@ export class ReportService {
       left join partners p on p.id = l.partner_id
       where ${s.where} and m.date <= ${q.dateTo} and a.account_type = ${accountType}
         and not l.reconciled and l.amount_residual <> 0`);
-    const BUCKETS = ["current", "d1_30", "d31_60", "d61_90", "over90"] as const;
-    const bucketOf = (days: number) =>
-      days <= 0 ? "current" : days <= 30 ? "d1_30" : days <= 60 ? "d31_60" : days <= 90 ? "d61_90" : "over90";
+    const BUCKETS = AGING_BUCKETS;
+    const bucketOf = agingBucket;
     const partners = new Map<
       string,
       { partnerId: string | null; partner: string; buckets: Record<string, Decimal>; total: Decimal }
@@ -438,6 +477,139 @@ export class ReportService {
       })),
     });
     return { dateFrom: from, dateTo: q.dateTo, ...statement };
+  }
+
+  /**
+   * Drilldown: item jurnal penyusun angka laporan beserta dokumen sumbernya, terpaginasi. Total dihitung atas semua
+   * item (bukan hanya halaman ini) sehingga sama dengan angka di laporan.
+   */
+  async drilldown(tx: Db, q: DrilldownQuery) {
+    const s = await this.scope(tx, q);
+    const from = q.dateFrom ?? s.fyStart;
+    const pl = sql`a.account_type in (${list(PROFIT_LOSS_TYPES)})`;
+    const filters: SQL[] = [s.where];
+    if (q.openOnly) {
+      // Sama dengan laporan umur: sisa saat ini atas item s.d. tanggal laporan.
+      const accountType = q.type === "receivable" ? "asset_receivable" : "liability_payable";
+      filters.push(sql`a.account_type = ${accountType}`, sql`not l.reconciled and l.amount_residual <> 0`);
+      filters.push(sql`m.date <= ${q.dateTo}`);
+      if (q.bucket) {
+        const [lo, hi] = AGING_RANGES[q.bucket];
+        const days = sql`(${q.dateTo}::date - coalesce(m.due_date, m.date))`;
+        if (lo !== null) filters.push(sql`${days} >= ${lo}`);
+        if (hi !== null) filters.push(sql`${days} <= ${hi}`);
+      }
+    } else if (q.basis === "range") {
+      filters.push(sql`m.date between ${from} and ${q.dateTo}`);
+    } else if (q.basis === "cumulative") {
+      filters.push(sql`m.date <= ${q.dateTo}`, sql`(not ${pl} or m.date >= ${s.fyStart})`);
+    } else {
+      filters.push(sql`m.date < ${from}`, sql`(not ${pl} or m.date >= ${s.fyStart})`);
+    }
+    if (q.accountId) filters.push(sql`l.account_id = ${q.accountId}`);
+    if (q.accountIds?.length) filters.push(sql`l.account_id in (${list(q.accountIds)})`);
+    if (q.accountTypes?.length) filters.push(sql`a.account_type in (${list(q.accountTypes)})`);
+    if (q.partnerId) filters.push(sql`l.partner_id = ${q.partnerId}`);
+    if (q.noPartner) filters.push(sql`l.partner_id is null`);
+    if (q.journalId) filters.push(sql`m.journal_id = ${q.journalId}`);
+    if (q.groupAccountId)
+      filters.push(sql`l.account_id in (
+        select map.account_id from consolidation_account_map map where map.group_account_id = ${q.groupAccountId})`);
+    if (q.excludeClosing) filters.push(sql`m.closing_year is null`);
+    if (q.side === "debit") filters.push(sql`l.debit <> 0`);
+    if (q.side === "credit") filters.push(sql`l.credit <> 0`);
+    if (q.vatUse)
+      filters.push(sql`l.tax_line_id in (
+        select t.id from taxes t where t.type_tax_use = ${q.vatUse} and t.tax_kind in ('vat', 'vat_luxury'))`);
+    const where = sql.join(filters, sql` and `);
+    const base = sql`
+      from account_move_lines l
+      join account_moves m on m.id = l.move_id
+      join accounts a on a.id = l.account_id
+      where ${where}`;
+
+    const [totals] = await tx.execute<{
+      count: number;
+      debit: string;
+      credit: string;
+      balance: string;
+      residual: string;
+    }>(sql`
+      select count(*)::int as count, coalesce(sum(l.debit), 0)::text as debit, coalesce(sum(l.credit), 0)::text as credit,
+        coalesce(sum(l.balance), 0)::text as balance, coalesce(sum(l.amount_residual), 0)::text as residual
+      ${base}`);
+    const rows = await tx.execute<{
+      id: string;
+      move_id: string;
+      date: string;
+      due_date: string | null;
+      move_name: string | null;
+      move_type: string;
+      ref: string | null;
+      account_id: string;
+      account_code: string;
+      account_name: string;
+      partner_id: string | null;
+      partner: string | null;
+      label: string | null;
+      debit: string;
+      credit: string;
+      balance: string;
+      residual: string;
+      source_model: string | null;
+      source_id: string | null;
+      source_name: string | null;
+    }>(sql`
+      select l.id, l.move_id, m.date::text as date, m.due_date::text as due_date, m.name as move_name, m.move_type,
+        m.ref, a.id as account_id, a.code as account_code, a.name as account_name, l.partner_id, p.name as partner,
+        l.name as label, l.debit::text as debit, l.credit::text as credit, l.balance::text as balance,
+        l.amount_residual::text as residual, src.source_model, src.source_id, src.source_name
+      ${sql`from account_move_lines l
+      join account_moves m on m.id = l.move_id
+      join accounts a on a.id = l.account_id
+      left join partners p on p.id = l.partner_id
+      left join lateral (
+        select s.source_model, s.source_id, s.source_name from account_move_sources s where s.move_id = m.id
+        order by (s.source_model = 'account_move'), s.source_model limit 1
+      ) src on true
+      where ${where}`}
+      order by m.date, m.name nulls last, l.sequence, l.id
+      limit ${q.limit} offset ${q.offset}`);
+    const sign = q.openOnly && q.type === "payable" ? -1 : 1;
+    return {
+      dateFrom: q.openOnly || q.basis !== "range" ? null : from,
+      /** Untuk `opening`: item sebelum tanggal ini. */
+      dateTo: q.basis === "opening" ? from : q.dateTo,
+      lines: rows.map((r) => ({
+        id: r.id,
+        moveId: r.move_id,
+        date: r.date,
+        dueDate: r.due_date,
+        moveName: r.move_name,
+        moveType: r.move_type,
+        ref: r.ref,
+        accountId: r.account_id,
+        accountCode: r.account_code,
+        accountName: r.account_name,
+        partnerId: r.partner_id,
+        partner: r.partner,
+        label: r.label,
+        debit: fmt(dec(r.debit)),
+        credit: fmt(dec(r.credit)),
+        balance: fmt(dec(r.balance)),
+        residual: fmt(dec(r.residual).times(sign)),
+        source: r.source_model ? { model: r.source_model, id: r.source_id, name: r.source_name } : null,
+      })),
+      totals: {
+        count: totals?.count ?? 0,
+        debit: fmt(dec(totals?.debit)),
+        credit: fmt(dec(totals?.credit)),
+        balance: fmt(dec(totals?.balance)),
+        residual: fmt(dec(totals?.residual).times(sign)),
+      },
+      limit: q.limit,
+      offset: q.offset,
+    };
   }
 
   // ---- Internal ----

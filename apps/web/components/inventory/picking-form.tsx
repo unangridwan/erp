@@ -12,6 +12,7 @@ import { useI18n } from "../../lib/i18n";
 import { can, PICKING_STATE_LABEL, PICKING_TYPE_LABEL } from "../../lib/resources";
 import { useOptions } from "../accounting/use-options";
 import { Chatter } from "../chatter";
+import { RelatedDocuments } from "../related-documents";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
 import { ask, toast } from "../feedback";
@@ -911,6 +912,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
             </p>
           )}
         </form>
+        {picking && <RelatedDocuments model="stock_picking" id={picking.id} version={version} />}
       </div>
       {picking && picking.state === "done" && <QualityChecksPanel pickingId={picking.id} />}
       {picking && <Chatter model="stock_picking" id={picking.id} version={version} labels={{}} />}

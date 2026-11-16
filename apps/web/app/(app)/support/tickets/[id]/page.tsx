@@ -12,6 +12,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useOptions } from "../../../../../components/accounting/use-options";
 import { Chatter } from "../../../../../components/chatter";
+import { RelatedDocuments } from "../../../../../components/related-documents";
 import { toast } from "../../../../../components/feedback";
 import { useMe } from "../../../../../components/me-context";
 import { SlaBadge } from "../../../../../components/support/sla-badge";
@@ -321,6 +322,7 @@ export default function TicketPage() {
             </tbody>
           </table>
         </section>
+        <RelatedDocuments model="support_ticket" id={t.id} version={version} />
         <Chatter model="support_ticket" id={t.id} version={version} labels={{}} />
       </aside>
     </div>

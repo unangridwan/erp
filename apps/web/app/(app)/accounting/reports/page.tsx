@@ -1,22 +1,29 @@
 "use client";
 
+import { BALANCE_SHEET_GROUPS, PROFIT_LOSS_GROUPS, PROFIT_LOSS_TYPES } from "@erp/shared";
 import Link from "next/link";
-import { Fragment, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Fragment, Suspense, useEffect, useRef, useState } from "react";
 import { download } from "../../../../components/accounting/download";
 import { useOptions, type AccountOption } from "../../../../components/accounting/use-options";
+import { DrillAmount, DrilldownPanel, type DrilldownRequest } from "../../../../components/drilldown-panel";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
 import { formatDate, money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 
-type Tab =
-  | "trial-balance"
-  | "profit-loss"
-  | "balance-sheet"
-  | "cash-flow"
-  | "general-ledger"
-  | "aged"
-  | "branch-clearing";
+const TABS = [
+  "trial-balance",
+  "profit-loss",
+  "balance-sheet",
+  "cash-flow",
+  "general-ledger",
+  "aged",
+  "branch-clearing",
+] as const;
+type Tab = (typeof TABS)[number];
+const isTab = (v: string | null): v is Tab => !!v && (TABS as readonly string[]).includes(v);
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
 interface CashFlowLine {
   key: string;
   code?: string;
@@ -50,25 +57,57 @@ const POINT_IN_TIME: Tab[] = ["balance-sheet", "aged", "branch-clearing"];
 const yearStart = () => `${new Date().getFullYear()}-01-01`;
 
 export default function ReportsPage() {
+  return (
+    <Suspense>
+      <ReportsView />
+    </Suspense>
+  );
+}
+
+/** Filter laporan disimpan di URL agar bisa dibagikan & tetap saat kembali dari dokumen sumber. */
+function ReportsView() {
   const me = useMe();
+  const router = useRouter();
+  const search = useSearchParams();
+  const fromUrl = (q: URLSearchParams | ReturnType<typeof useSearchParams>) => {
+    const param = (k: string) => q.get(k) ?? "";
+    const dateParam = (k: string, fallback: string) => (DATE.test(param(k)) ? param(k) : fallback);
+    const companies = param("companyIds")
+      .split(",")
+      .filter((c) => me.companies.some((x) => x.id === c));
+    const t = q.get("tab");
+    return {
+      tab: isTab(t) ? t : ("profit-loss" as Tab),
+      filters: {
+        dateFrom: dateParam("dateFrom", yearStart()),
+        dateTo: dateParam("dateTo", today()),
+        branchId: param("branchId"),
+        businessUnitId: param("businessUnitId"),
+        costCenterId: param("costCenterId"),
+        profitCenterId: param("profitCenterId"),
+        accountId: param("accountId"),
+        type: param("type") === "payable" ? "payable" : "receivable",
+        companyIds: companies.length ? companies : [me.activeCompanyId],
+      },
+    };
+  };
   const { l, locale } = useI18n();
   const accounts = useOptions<AccountOption>("/accounts");
   const branches = useOptions<{ id: string; name: string }>("/branches");
   const units = useOptions<{ id: string; name: string }>("/business-units");
   const costCenters = useOptions<{ id: string; code: string; name: string }>("/cost-centers");
   const profitCenters = useOptions<{ id: string; code: string; name: string }>("/profit-centers");
-  const [tab, setTab] = useState<Tab>("profit-loss");
-  const [filters, setFilters] = useState({
-    dateFrom: yearStart(),
-    dateTo: today(),
-    branchId: "",
-    businessUnitId: "",
-    costCenterId: "",
-    profitCenterId: "",
-    accountId: "",
-    type: "receivable",
-    companyIds: [me.activeCompanyId],
-  });
+  const [tab, setTab] = useState<Tab>(() => fromUrl(search).tab);
+  const [filters, setFilters] = useState(() => fromUrl(search).filters);
+  // URL terakhir yang ditulis halaman ini; URL lain = navigasi dari luar (mis. "Buka di Buku Besar").
+  const written = useRef("");
+  useEffect(() => {
+    if (!written.current || search.toString() === written.current) return;
+    const next = fromUrl(search);
+    setTab(next.tab);
+    setFilters(next.filters);
+  }, [search]);
+  const [drill, setDrill] = useState<DrilldownRequest | null>(null);
   // Data disimpan bersama tab asalnya agar tab baru tidak merender data tab lama selama memuat.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [result, setResult] = useState<{ tab: Tab; data: any } | null>(null);
@@ -102,6 +141,14 @@ export default function ReportsPage() {
     if (filters.profitCenterId) params.set("profitCenterId", filters.profitCenterId);
     if (tab === "general-ledger") params.set("accountId", filters.accountId);
     if (tab === "aged") params.set("type", filters.type);
+    // Simpan tab & filter di URL (tanpa menambah riwayat).
+    const url = new URLSearchParams(params);
+    url.set("tab", tab);
+    if (POINT_IN_TIME.includes(tab)) url.set("dateFrom", filters.dateFrom);
+    if (filters.accountId) url.set("accountId", filters.accountId);
+    if (filters.type !== "receivable") url.set("type", filters.type);
+    written.current = url.toString();
+    router.replace(`?${url}`, { scroll: false });
     setError(null);
     setPrevious(null);
     if (tab === "cash-flow" && compare) {
@@ -120,6 +167,34 @@ export default function ReportsPage() {
 
   const m = (v: string | number) => money(v, locale);
   const set = (patch: Partial<typeof filters>) => setFilters((f) => ({ ...f, ...patch }));
+
+  // ---- Drilldown: filter laporan + filter angka yang diklik ----
+  const dims = {
+    companyIds: filters.companyIds.join(","),
+    branchId: filters.branchId,
+    businessUnitId: filters.businessUnitId,
+    costCenterId: filters.costCenterId,
+    profitCenterId: filters.profitCenterId,
+  };
+  const period = { ...dims, dateFrom: filters.dateFrom, dateTo: filters.dateTo, basis: "range" };
+  const open = (title: string, params: DrilldownRequest["params"], mode?: DrilldownRequest["mode"]) =>
+    setDrill({ title, params, mode });
+  /** Drilldown laba rugi: per akun atau per kelompok jenis akun. */
+  const plDrill = (title: string, target: { accountId?: string; types?: readonly string[] }) => () =>
+    open(title, {
+      ...period,
+      excludeClosing: true,
+      accountId: target.accountId,
+      accountTypes: target.types?.join(","),
+    });
+  const bsDrill = (title: string, target: { accountId?: string; types?: readonly string[] }) => () =>
+    open(title, {
+      ...dims,
+      dateTo: filters.dateTo,
+      basis: "cumulative",
+      accountId: target.accountId,
+      accountTypes: target.types?.join(","),
+    });
   const tabs: [Tab, string][] = [
     ["profit-loss", l("Laba Rugi", "Profit & Loss")],
     ["balance-sheet", l("Neraca", "Balance Sheet")],
@@ -130,7 +205,15 @@ export default function ReportsPage() {
     ["branch-clearing", l("RK Pusat–Cabang", "Branch Clearing")],
   ];
 
-  const section = (title: string, s: Section) => (
+  type DrillFor = (title: string, target: { accountId?: string; types?: readonly string[] }) => () => void;
+  /** Bagian laporan; angka akun & total bisa diklik untuk melihat item jurnal penyusunnya. */
+  const section = (
+    title: string,
+    s: Section,
+    drillFor?: DrillFor,
+    types?: readonly string[],
+    extra?: (a: Section["accounts"][number]) => (() => void) | undefined,
+  ) => (
     <>
       <tr className="section">
         <th colSpan={2}>{title}</th>
@@ -141,21 +224,37 @@ export default function ReportsPage() {
             {a.code && <span className="muted">{a.code} </span>}
             {a.name}
           </td>
-          <td className="num">{m(a.amount)}</td>
+          <td className="num">
+            <DrillAmount
+              value={m(a.amount)}
+              onDrill={
+                a.accountId && drillFor
+                  ? drillFor(`${a.code} ${a.name}`, { accountId: a.accountId })
+                  : extra?.(a)
+              }
+            />
+          </td>
         </tr>
       ))}
       <tr className="subtotal">
         <td>
           {l("Total", "Total")} {title.toLowerCase()}
         </td>
-        <td className="num">{m(s.total)}</td>
+        <td className="num">
+          <DrillAmount
+            value={m(s.total)}
+            onDrill={drillFor && types ? drillFor(title, { types }) : undefined}
+          />
+        </td>
       </tr>
     </>
   );
-  const totalRow = (label: string, value: string) => (
+  const totalRow = (label: string, value: string, onDrill?: () => void) => (
     <tr className="grand">
       <td>{label}</td>
-      <td className="num">{m(value)}</td>
+      <td className="num">
+        <DrillAmount value={m(value)} onDrill={onDrill} />
+      </td>
     </tr>
   );
 
@@ -314,14 +413,54 @@ export default function ReportsPage() {
         <div className="table-wrap report">
           <table>
             <tbody>
-              {section(l("Pendapatan", "Income"), data.income)}
-              {section(l("Harga pokok penjualan", "Cost of revenue"), data.directCost)}
-              {totalRow(l("Laba kotor", "Gross profit"), data.grossProfit)}
-              {section(l("Beban operasional", "Operating expenses"), data.expense)}
-              {totalRow(l("Laba usaha", "Operating profit"), data.operatingProfit)}
-              {section(l("Pendapatan lain-lain", "Other income"), data.otherIncome)}
-              {section(l("Beban lain-lain", "Other expenses"), data.otherExpense)}
-              {totalRow(l("Laba bersih", "Net profit"), data.netProfit)}
+              {section(l("Pendapatan", "Income"), data.income, plDrill, PROFIT_LOSS_GROUPS.income)}
+              {section(
+                l("Harga pokok penjualan", "Cost of revenue"),
+                data.directCost,
+                plDrill,
+                PROFIT_LOSS_GROUPS.directCost,
+              )}
+              {totalRow(
+                l("Laba kotor", "Gross profit"),
+                data.grossProfit,
+                plDrill(l("Laba kotor", "Gross profit"), {
+                  types: [...PROFIT_LOSS_GROUPS.income, ...PROFIT_LOSS_GROUPS.directCost],
+                }),
+              )}
+              {section(
+                l("Beban operasional", "Operating expenses"),
+                data.expense,
+                plDrill,
+                PROFIT_LOSS_GROUPS.expense,
+              )}
+              {totalRow(
+                l("Laba usaha", "Operating profit"),
+                data.operatingProfit,
+                plDrill(l("Laba usaha", "Operating profit"), {
+                  types: [
+                    ...PROFIT_LOSS_GROUPS.income,
+                    ...PROFIT_LOSS_GROUPS.directCost,
+                    ...PROFIT_LOSS_GROUPS.expense,
+                  ],
+                }),
+              )}
+              {section(
+                l("Pendapatan lain-lain", "Other income"),
+                data.otherIncome,
+                plDrill,
+                PROFIT_LOSS_GROUPS.otherIncome,
+              )}
+              {section(
+                l("Beban lain-lain", "Other expenses"),
+                data.otherExpense,
+                plDrill,
+                PROFIT_LOSS_GROUPS.otherExpense,
+              )}
+              {totalRow(
+                l("Laba bersih", "Net profit"),
+                data.netProfit,
+                plDrill(l("Laba bersih", "Net profit"), { types: PROFIT_LOSS_TYPES }),
+              )}
             </tbody>
           </table>
         </div>
@@ -334,9 +473,26 @@ export default function ReportsPage() {
           )}
           <table>
             <tbody>
-              {section(l("Aset", "Assets"), data.assets)}
-              {section(l("Liabilitas", "Liabilities"), data.liabilities)}
-              {section(l("Ekuitas", "Equity"), data.equity)}
+              {section(l("Aset", "Assets"), data.assets, bsDrill, BALANCE_SHEET_GROUPS.asset)}
+              {section(
+                l("Liabilitas", "Liabilities"),
+                data.liabilities,
+                bsDrill,
+                BALANCE_SHEET_GROUPS.liability,
+              )}
+              {section(l("Ekuitas", "Equity"), data.equity, bsDrill, undefined, (a) =>
+                // Laba tahun berjalan: item akun laba rugi sejak awal tahun fiskal.
+                a.name === "Laba/rugi tahun berjalan"
+                  ? () =>
+                      open(l("Laba/rugi tahun berjalan", "Current year earnings"), {
+                        ...dims,
+                        dateFrom: data.fiscalYearStart,
+                        dateTo: filters.dateTo,
+                        basis: "range",
+                        accountTypes: PROFIT_LOSS_TYPES.join(","),
+                      })
+                  : undefined,
+              )}
               {totalRow(
                 l("Total liabilitas dan ekuitas", "Total liabilities and equity"),
                 data.totalLiabilitiesAndEquity,
@@ -353,7 +509,26 @@ export default function ReportsPage() {
         </label>
       )}
       {data && tab === "cash-flow" && (
-        <CashFlowTable data={data as CashFlow} previous={compare ? previous : null} />
+        <CashFlowTable
+          data={data as CashFlow}
+          previous={compare ? previous : null}
+          onDrill={(line, title) => {
+            const types =
+              line.key === "net_profit"
+                ? PROFIT_LOSS_TYPES
+                : line.key === "depreciation"
+                  ? ["expense_depreciation"]
+                  : null;
+            if (!line.code && !types) return undefined;
+            return () =>
+              open(title, {
+                ...period,
+                excludeClosing: true,
+                accountId: line.code ? line.key : undefined,
+                accountTypes: types?.join(","),
+              });
+          }}
+        />
       )}
 
       {data && tab === "trial-balance" && (
@@ -398,10 +573,26 @@ export default function ReportsPage() {
                         x.name
                       )}
                     </td>
-                    <td className="num">{m(x.opening)}</td>
-                    <td className="num">{m(x.debit)}</td>
-                    <td className="num">{m(x.credit)}</td>
-                    <td className="num">{m(x.closing)}</td>
+                    {(
+                      [
+                        ["opening", { basis: "opening" }],
+                        ["debit", { side: "debit" }],
+                        ["credit", { side: "credit" }],
+                        ["closing", { basis: "cumulative" }],
+                      ] as const
+                    ).map(([k, extra]) => (
+                      <td key={k} className="num">
+                        <DrillAmount
+                          value={m(x[k])}
+                          onDrill={
+                            x.accountId && Number(x[k])
+                              ? () =>
+                                  open(`${x.code} ${x.name}`, { ...period, accountId: x.accountId, ...extra })
+                              : undefined
+                          }
+                        />
+                      </td>
+                    ))}
                   </tr>
                 ),
               )}
@@ -513,7 +704,23 @@ export default function ReportsPage() {
                             ? b.branch
                             : l("Kantor pusat (tanpa cabang)", "Head office (no branch)")}
                         </td>
-                        <td className="num">{m(b.balance)}</td>
+                        <td className="num">
+                          <DrillAmount
+                            value={m(b.balance)}
+                            onDrill={
+                              b.branchId
+                                ? () =>
+                                    open(`${a.code} ${a.name} · ${b.branch}`, {
+                                      companyIds: dims.companyIds,
+                                      dateTo: filters.dateTo,
+                                      basis: "cumulative",
+                                      accountId: a.accountId,
+                                      branchId: b.branchId,
+                                    })
+                                : undefined
+                            }
+                          />
+                        </td>
                       </tr>
                     ))}
                     <tr className="subtotal">
@@ -560,7 +767,28 @@ export default function ReportsPage() {
                       <td>{p.partner}</td>
                       {["current", "d1_30", "d31_60", "d61_90", "over90", "total"].map((k) => (
                         <td key={k} className="num">
-                          {Number(p[k]) ? m(p[k]!) : ""}
+                          {Number(p[k]) ? (
+                            <DrillAmount
+                              value={m(p[k]!)}
+                              onDrill={() =>
+                                open(
+                                  p.isTotal ? l("Umur piutang/utang", "Aged balances") : p.partner!,
+                                  {
+                                    ...dims,
+                                    dateTo: filters.dateTo,
+                                    openOnly: true,
+                                    type: filters.type,
+                                    bucket: k === "total" ? undefined : k,
+                                    partnerId: p.isTotal ? undefined : p.partnerId || undefined,
+                                    noPartner: !p.isTotal && !p.partnerId ? true : undefined,
+                                  },
+                                  "residual",
+                                )
+                              }
+                            />
+                          ) : (
+                            ""
+                          )}
                         </td>
                       ))}
                     </tr>
@@ -571,11 +799,20 @@ export default function ReportsPage() {
           </table>
         </div>
       )}
+      <DrilldownPanel request={drill} onClose={() => setDrill(null)} />
     </>
   );
 }
 
-function CashFlowTable({ data, previous }: { data: CashFlow; previous: CashFlow | null }) {
+function CashFlowTable({
+  data,
+  previous,
+  onDrill,
+}: {
+  data: CashFlow;
+  previous: CashFlow | null;
+  onDrill?: (line: CashFlowLine, title: string) => (() => void) | undefined;
+}) {
   const { l, locale } = useI18n();
   const m = (v: string | number | undefined) => (v === undefined ? "—" : money(v, locale));
   const label = (line: CashFlowLine) =>
@@ -605,7 +842,12 @@ function CashFlowTable({ data, previous }: { data: CashFlow; previous: CashFlow 
               {line.code && <span className="muted">{line.code} </span>}
               {line.code ? `${l("Perubahan", "Change in")} ${line.label}` : label(line)}
             </td>
-            <td className="num">{m(line.amount)}</td>
+            <td className="num">
+              <DrillAmount
+                value={m(line.amount)}
+                onDrill={onDrill?.(line, line.code ? `${line.code} ${line.label}` : label(line))}
+              />
+            </td>
             {previous && <td className="num">{m(prevLine(section, line.key))}</td>}
           </tr>
         ))}

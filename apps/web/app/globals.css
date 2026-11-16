@@ -3735,3 +3735,76 @@ img.qc-photo {
 .portal-header {
   flex-wrap: wrap;
 }
+
+/* ---- Data terhubung: panel drilldown (samping) & dokumen terkait ---- */
+dialog.modal.side {
+  margin: 0 0 0 auto;
+  width: min(880px, 100vw);
+  height: 100vh;
+  max-height: 100vh;
+  border-radius: 0;
+  border-width: 0 0 0 1px;
+}
+dialog.modal.side[open] {
+  display: flex;
+  flex-direction: column;
+}
+dialog.modal.side .modal-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+dialog.modal.side .table-scroll {
+  width: 100%;
+}
+.drill-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  width: 100%;
+}
+.drill-actions {
+  margin-left: auto;
+}
+.drill-table td,
+.drill-table th {
+  white-space: nowrap;
+}
+button.link.drill {
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.related-docs h2 {
+  margin-top: 0;
+}
+.related-grid {
+  display: grid;
+  gap: 12px 20px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+.related-group h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.related-dir {
+  color: var(--muted);
+}
+.related-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.related-group li {
+  overflow-wrap: anywhere;
+}

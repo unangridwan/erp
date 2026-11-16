@@ -866,6 +866,26 @@ dan `InResponseTo` (ID AuthnRequest yang disimpan terenkripsi di RelayState, seh
 diverifikasi. Login yang dimulai dari IdP (tanpa AuthnRequest) ditolak. Email diambil dari atribut yang dipilih, atribut
 email umum, atau NameID.
 
+### Data terhubung & drilldown
+
+Setiap dokumen menampilkan panel **Dokumen terkait**: dokumen asal (↑) dan turunan (↓) lintas modul — mis. faktur ←
+pesanan penjualan, → pembayaran yang melunasi, faktur pajak, bukti potong; transfer stok ↔ SO/PO, retur, backorder,
+pemeriksaan mutu; slip gaji → proses penggajian, klaim biaya, jurnal; kontak → SO, PO, faktur, pembayaran, transfer,
+peluang, tiket (dengan jumlah). Hanya dokumen yang boleh dibaca pengguna yang tampil. Dokumen sumber setiap entri jurnal
+dibaca dari view `account_move_sources` (migrasi 0082) yang dibangun dari referensi yang sudah ada, sehingga tidak perlu
+diisi ulang oleh modul mana pun.
+
+Angka di laporan keuangan (laba rugi, neraca, arus kas, neraca saldo, umur piutang/utang, RK pusat–cabang), anggaran vs
+realisasi, laporan PPN, dan kertas kerja konsolidasi bisa diklik: panel samping menampilkan item jurnal penyusunnya
+(total sama dengan angka laporan) beserta entri & dokumen sumbernya, bisa diekspor CSV; laporan tetap di tempat. Tab &
+filter laporan keuangan tersimpan di URL.
+
+| Endpoint                                                      | Keterangan                                                                                                                  |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `GET /links/:model/:id`                                       | Dokumen terkait (model: `account_move`, `sale_order`, `stock_picking`, `partner`…)                                          |
+| `GET /reports/drilldown`                                      | Item jurnal penyusun angka laporan (filter akun/jenis akun, partner, dimensi, basis tanggal, item terbuka per rentang umur) |
+| `GET /tax/vat-report/drilldown?year&month&use=sale\|purchase` | Baris jurnal PPN keluaran/masukan satu masa                                                                                 |
+
 ### Aplikasi Terhubung (ERP sebagai penyedia login)
 
 | Endpoint                                                                                         | Keterangan                                                                                                    |

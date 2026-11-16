@@ -30,6 +30,7 @@ import {
 } from "./hr/profile-panels";
 import { useMe } from "./me-context";
 import { ask } from "./feedback";
+import { RelatedDocuments } from "./related-documents";
 
 interface Attribute {
   id: string;
@@ -615,12 +616,19 @@ export function FormExtras({ path, id }: { path: string; id: string }) {
         <CreditPanel id={id} />
         <BankAccountsPanel id={id} />
         <PortalAccessPanel id={id} />
+        <RelatedDocuments model="partner" id={id} />
       </>
     );
   if (path === "employees") return <EmployeeExtras id={id} />;
   if (path === "fleet-vehicles") return <VehicleExtras id={id} />;
   if (path === "fleet-contracts") return <ContractActions id={id} />;
-  if (path === "fleet-services") return <ServiceBillPanel id={id} />;
+  if (path === "fleet-services")
+    return (
+      <>
+        <ServiceBillPanel id={id} />
+        <RelatedDocuments model="fleet_service" id={id} />
+      </>
+    );
   if (path === "equipment") return <EquipmentPanel id={id} />;
   if (path === "maintenance-plans") return <PlanTasksPanel id={id} />;
   if (path === "maintenance-teams") return <TeamMembersPanel id={id} />;

@@ -10,6 +10,7 @@ import { api, ApiError } from "../../../../../lib/api";
 import { money } from "../../../../../lib/format";
 import { L, useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { RelatedDocuments } from "../../../../../components/related-documents";
 
 interface Slip {
   id: string;
@@ -476,6 +477,7 @@ export default function PayslipPage() {
           </div>
         </>
       )}
+      {id && id !== "new" && <RelatedDocuments model="payslip" id={id} />}
     </div>
   );
 }

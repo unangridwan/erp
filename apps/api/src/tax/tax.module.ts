@@ -36,6 +36,8 @@ import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { HrModule } from "../hr/hr.module.js";
+import { drilldownQuery, ReportService } from "../accounting/reports.service.js";
+import { periodRange } from "./company-tax.js";
 import { TaxInvoiceService } from "./tax-invoice.service.js";
 import { TaxReturnService } from "./tax-return.service.js";
 import { WithholdingService } from "./withholding.service.js";
@@ -57,6 +59,7 @@ class TaxController {
     @Inject(TaxInvoiceService) private readonly invoices: TaxInvoiceService,
     @Inject(WithholdingService) private readonly withholding: WithholdingService,
     @Inject(TaxReturnService) private readonly returns: TaxReturnService,
+    @Inject(ReportService) private readonly reports: ReportService,
   ) {}
 
   // ---- Faktur pajak keluaran ----
@@ -295,6 +298,27 @@ class TaxController {
 
   // ---- Laporan & riwayat ekspor ----
 
+  /** Rincian baris jurnal PPN keluaran/masukan satu masa (angka "menurut buku besar" di laporan PPN). */
+  @Get("tax/vat-report/drilldown")
+  @RequirePermission("tax.read")
+  vatDrilldown(@Query() query: unknown) {
+    const { year, month, use, limit, offset } = parse(
+      periodQuery.extend({
+        use: z.enum(["sale", "purchase"]),
+        limit: z.coerce.number().int().min(1).max(1000).default(200),
+        offset: z.coerce.number().int().min(0).default(0),
+      }),
+      query,
+    );
+    const { from, to } = periodRange(year, month);
+    return this.tenantDb.run((tx) =>
+      this.reports.drilldown(
+        tx,
+        parse(drilldownQuery, { dateFrom: from, dateTo: to, vatUse: use, limit, offset }),
+      ),
+    );
+  }
+
   @Get("tax/vat-report")
   @RequirePermission("tax.read")
   vatReport(@Query() query: unknown) {
@@ -340,6 +364,6 @@ class TaxController {
 @Module({
   imports: [HrModule],
   controllers: [TaxController],
-  providers: [ActivityService, TaxInvoiceService, WithholdingService, TaxReturnService],
+  providers: [ActivityService, TaxInvoiceService, WithholdingService, TaxReturnService, ReportService],
 })
 export class TaxModule {}

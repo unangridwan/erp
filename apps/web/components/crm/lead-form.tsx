@@ -17,6 +17,7 @@ import { useI18n } from "../../lib/i18n";
 import { can, LEAD_SOURCES, LEAD_STATE_LABEL, ORDER_STATE_LABEL } from "../../lib/resources";
 import { useOptions } from "../accounting/use-options";
 import { Chatter } from "../chatter";
+import { RelatedDocuments } from "../related-documents";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
 import { ActivitiesPanel } from "./activities-panel";
@@ -803,6 +804,7 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
             onChange={() => setVersion((v) => v + 1)}
           />
         )}
+        {lead && <RelatedDocuments model="crm_lead" id={lead.id} version={version} />}
       </div>
       {lead && <Chatter model="crm_lead" id={lead.id} version={version} labels={{}} />}
     </div>

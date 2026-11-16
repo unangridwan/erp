@@ -18,6 +18,7 @@ import { api, ApiError } from "../../../../../lib/api";
 import { formatDate, money, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { RelatedDocuments } from "../../../../../components/related-documents";
 
 interface Component {
   id: string;
@@ -587,6 +588,7 @@ function OrderForm({ id }: { id: string }) {
         </>
       )}
       {doc?.state === "done" && <QualityChecksPanel productionOrderId={doc.id} />}
+      {id && id !== "new" && <RelatedDocuments model="production_order" id={id} />}
     </div>
   );
 }
