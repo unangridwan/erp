@@ -262,6 +262,8 @@ function crmLeads(): Dataset {
         col("name", "Judul", "Lead"),
         col("leadType", "Jenis", "Lead"),
         col("leadStatus", "Status lead", "Lead"),
+        col("campaign", "Kampanye", "Lead"),
+        col("score", "Skor lead", "Nilai", true),
         col("industry", "Industri", "Lead"),
         col("city", "Kota", "Lead"),
         col("created", "Tanggal dibuat", "Lead"),
@@ -288,21 +290,25 @@ function crmLeads(): Dataset {
           user: U.name,
           stage: schema.crmStages.name,
           team: schema.salesTeams.name,
+          campaign: schema.crmCampaigns.name,
         })
         .from(L)
         .leftJoin(P, eq(P.id, L.partnerId))
         .leftJoin(U, eq(U.id, L.userId))
         .leftJoin(schema.crmStages, eq(schema.crmStages.id, L.stageId))
         .leftJoin(schema.salesTeams, eq(schema.salesTeams.id, L.teamId))
+        .leftJoin(schema.crmCampaigns, eq(schema.crmCampaigns.id, L.campaignId))
         .where(and(eq(L.companyId, ctx.companyId), rangeTs(L.createdAt, q)))
         .orderBy(asc(L.createdAt));
-      return rows.map(({ l, partner, user, stage, team }) => {
+      return rows.map(({ l, partner, user, stage, team, campaign }) => {
         const revenue = n(l.expectedRevenue) ?? 0;
         const prob = n(l.probability) ?? 0;
         return {
           name: l.name,
           leadType: l.leadType === "lead" ? "Lead" : "Peluang",
           leadStatus: LEAD_STATUS_LABEL[l.leadStatus]?.[0] ?? l.leadStatus,
+          campaign,
+          score: l.score,
           industry: l.industry,
           city: l.city,
           created: day(l.createdAt),

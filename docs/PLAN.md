@@ -549,7 +549,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] CRM bagian 2 — forecast, kuota & wilayah (migrasi 0079): kategori forecast per tahap/peluang, kuota bulanan per
   salesperson & tim, forecast bulan/kuartal vs kuota + forecast manajer, pencapaian setahun, wilayah penjualan dengan
   aturan provinsi/kota/industri dan penugasan lead bergiliran
-- [ ] CRM bagian 3 — kampanye, web-to-lead, skor & penugasan lead (0080); bagian 4 — tiket layanan & SLA (0081)
+- [x] CRM bagian 3 — marketing (migrasi 0080): kampanye + anggota + ROI, email massal dengan berhenti langganan,
+  formulir web-to-lead publik (halaman & cuplikan HTML, honeypot, batas laju), skor lead dari aturan, aturan
+  penugasan lead bergiliran, corong per kampanye
+- [ ] CRM bagian 4 — tiket layanan & SLA (0081)
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

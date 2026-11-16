@@ -20,6 +20,7 @@ interface Funnel {
   steps: { key: string; count: number; rate: number | null; overall: number | null }[];
   unqualified: number;
   bySource: Group[];
+  byCampaign: Group[];
   byUser: Group[];
 }
 interface Velocity {
@@ -194,6 +195,8 @@ export default function FunnelPage() {
             </section>
           </div>
           {groupTable(l("Sumber", "Source"), funnel.bySource, (g) => sourceLabel(g.key))}
+          {funnel.byCampaign.length > 0 &&
+            groupTable(l("Kampanye", "Campaign"), funnel.byCampaign, (g) => g.label ?? "—")}
           {groupTable(
             l("Salesperson", "Salesperson"),
             funnel.byUser,

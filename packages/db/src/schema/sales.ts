@@ -182,6 +182,9 @@ export const crmLeads = pgTable("crm_leads", {
   convertedAt: timestamp("converted_at", { withTimezone: true }),
   forecastCategory: text("forecast_category", { enum: FORECAST_CATEGORIES }),
   territoryId: uuid("territory_id"),
+  campaignId: uuid("campaign_id"),
+  score: integer("score").notNull().default(0),
+  doNotContact: boolean("do_not_contact").notNull().default(false),
   ...audit,
 });
 
@@ -223,6 +226,101 @@ export const crmStageHistory = pgTable("crm_stage_history", {
   probability: numeric("probability", { precision: 5, scale: 2 }).notNull().default("0"),
   userId: uuid("user_id"),
   changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const CAMPAIGN_TYPES = ["email", "event", "webinar", "ads", "social", "referral", "other"] as const;
+export const CAMPAIGN_STATUSES = ["planned", "active", "completed", "cancelled"] as const;
+export const CAMPAIGN_MEMBER_STATUSES = ["targeted", "sent", "responded", "unsubscribed", "failed"] as const;
+
+export interface RuleCondition {
+  field: string;
+  op: string;
+  value: string;
+}
+
+export const crmCampaigns = pgTable("crm_campaigns", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  campaignType: text("campaign_type", { enum: CAMPAIGN_TYPES }).notNull().default("email"),
+  status: text("status", { enum: CAMPAIGN_STATUSES }).notNull().default("planned"),
+  dateStart: date("date_start"),
+  dateEnd: date("date_end"),
+  budget: numeric("budget", { precision: 20, scale: 2 }).notNull().default("0"),
+  actualCost: numeric("actual_cost", { precision: 20, scale: 2 }).notNull().default("0"),
+  expectedRevenue: numeric("expected_revenue", { precision: 20, scale: 2 }).notNull().default("0"),
+  userId: uuid("user_id"),
+  description: text("description"),
+  ...audit,
+});
+
+export const crmCampaignMembers = pgTable("crm_campaign_members", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  campaignId: uuid("campaign_id").notNull(),
+  leadId: uuid("lead_id"),
+  partnerId: uuid("partner_id"),
+  status: text("status", { enum: CAMPAIGN_MEMBER_STATUSES }).notNull().default("targeted"),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+  error: text("error"),
+  createdAt: audit.createdAt,
+});
+
+export const crmEmailBlasts = pgTable("crm_email_blasts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  campaignId: uuid("campaign_id").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  sentCount: integer("sent_count").notNull().default(0),
+  failedCount: integer("failed_count").notNull().default(0),
+  skippedCount: integer("skipped_count").notNull().default(0),
+  sentBy: uuid("sent_by"),
+  sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const crmScoringRules = pgTable("crm_scoring_rules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  conditions: jsonb("conditions").$type<RuleCondition[]>().notNull().default([]),
+  points: integer("points").notNull(),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const crmAssignmentRules = pgTable("crm_assignment_rules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  sequence: integer("sequence").notNull().default(10),
+  conditions: jsonb("conditions").$type<RuleCondition[]>().notNull().default([]),
+  userIds: uuid("user_ids").array().notNull().default([]),
+  teamId: uuid("team_id"),
+  active: boolean("active").notNull().default(true),
+  ...audit,
+});
+
+export const crmWebForms = pgTable("crm_web_forms", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  name: text("name").notNull(),
+  keyHash: text("key_hash").notNull(),
+  campaignId: uuid("campaign_id"),
+  source: text("source", { enum: LEAD_SOURCES }).notNull().default("website"),
+  fields: text("fields").array().notNull().default([]),
+  requiredFields: text("required_fields").array().notNull().default([]),
+  successMessage: text("success_message"),
+  redirectUrl: text("redirect_url"),
+  active: boolean("active").notNull().default(true),
+  submissionCount: integer("submission_count").notNull().default(0),
+  lastSubmittedAt: timestamp("last_submitted_at", { withTimezone: true }),
+  ...audit,
 });
 
 export const scheduledActivities = pgTable("scheduled_activities", {

@@ -1347,4 +1347,17 @@ export const MESSAGES_EN: Record<string, string> = {
   "Wilayah tidak ditemukan": "Territory not found",
   "Bulan harus berformat YYYY-MM": "The month must be in YYYY-MM format",
   "Isi salesperson atau tim, salah satu": "Set either a salesperson or a team, not both",
+  "Kampanye tidak ditemukan": "Campaign not found",
+  "Anggota kampanye tidak ditemukan": "Campaign member not found",
+  "Maksimal {} penerima per pengiriman; persempit dengan status":
+    "At most {0} recipients per send; narrow it down by status",
+  "Tidak ada anggota kampanye untuk dikirimi": "There are no campaign members to send to",
+  "Formulir tidak ditemukan": "Form not found",
+  "Pilih minimal satu penerima": "Select at least one recipient",
+  "URL harus diawali http:// atau https://": "The URL must start with http:// or https://",
+  "Field syarat tidak dikenal": "Unknown condition field",
+  "Minimal satu syarat": "At least one condition",
+  "Field wajib harus termasuk field yang ditampilkan": "Required fields must be among the displayed fields",
+  "Formulir harus meminta email atau telepon": "The form must ask for an email or phone",
+  "Isi email atau telepon": "Enter an email or phone",
 };

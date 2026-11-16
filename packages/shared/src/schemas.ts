@@ -695,6 +695,8 @@ export const leadSchema = z.object({
   forecastCategory: z.enum(FORECAST_CATEGORY_VALUES).nullish(),
   /** Kosong saat membuat = dicocokkan otomatis dari aturan wilayah. */
   territoryId: z.string().uuid().nullish(),
+  campaignId: z.string().uuid().nullish(),
+  doNotContact: z.boolean().default(false),
 });
 
 export const markLostSchema = z.object({

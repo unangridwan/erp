@@ -8,6 +8,7 @@ import {
   FORECAST_CATEGORY_VALUES,
   LEAD_STATUS_LABEL,
   LEAD_STATUS_VALUES,
+  scoreGrade,
 } from "@erp/shared";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../lib/api";
@@ -64,6 +65,9 @@ interface Lead {
   nextStep: string | null;
   forecastCategory: string | null;
   territoryId: string | null;
+  campaignId: string | null;
+  score: number;
+  doNotContact: boolean;
   contactId: string | null;
   partnerDisplay?: string | null;
   contactDisplay?: string | null;
@@ -109,6 +113,7 @@ const FIELDS = [
   "nextStep",
   "forecastCategory",
   "territoryId",
+  "campaignId",
 ] as const;
 type Values = Record<(typeof FIELDS)[number], string>;
 
@@ -151,6 +156,7 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
   const users = useOptions<{ id: string; name: string }>("/users/options");
   const teams = useOptions<{ id: string; name: string }>("/sales-teams");
   const territories = useOptions<{ id: string; name: string }>("/crm/territories");
+  const campaigns = useOptions<{ id: string; name: string }>("/crm/campaigns");
 
   useEffect(() => {
     if (isNew) return;
@@ -256,6 +262,14 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
             <span className="badge">
               {leadType === "lead" ? l("Lead", "Lead") : l("Peluang", "Opportunity")}
             </span>
+            {lead && (
+              <span className="badge" title={l("Skor lead", "Lead score")}>
+                {l("Skor", "Score")} {lead.score} · {scoreGrade(lead.score)}
+              </span>
+            )}
+            {lead?.doNotContact && (
+              <span className="badge state-cancel">{l("Jangan dihubungi", "Do not contact")}</span>
+            )}
             {lead?.partnerId && (
               <Link className="button" href={`/crm/accounts/${lead.partnerId}`}>
                 {l("Akun 360°", "Account 360°")}
@@ -621,6 +635,20 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
                     </option>
                   ))}
                 </select>
+              </label>
+            )}
+            {campaigns.length > 0 && (
+              <label className="field">
+                <span>{l("Kampanye", "Campaign")}</span>
+                <select value={values.campaignId} onChange={(e) => set({ campaignId: e.target.value })}>
+                  <option value="">—</option>
+                  {campaigns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                {err("campaignId")}
               </label>
             )}
             {territories.length > 0 && (
