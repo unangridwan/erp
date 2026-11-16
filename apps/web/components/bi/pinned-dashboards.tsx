@@ -38,7 +38,7 @@ function Pinned({ pin }: { pin: string }) {
       <h2>
         <Link href={`/bi/dashboards/${ref}`}>{name}</Link>
       </h2>
-      <DashboardGrid widgets={shown} results={results} />
+      <DashboardGrid widgets={shown} results={results} period={period} />
     </section>
   );
 }

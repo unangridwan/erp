@@ -5,6 +5,7 @@ import { toast } from "../../../../components/feedback";
 import { api } from "../../../../lib/api";
 import { money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
+import { DatasetDrillPanel, type DatasetDrillRequest } from "../../../../components/drilldown-panel";
 
 interface Row {
   productId: string;
@@ -24,6 +25,7 @@ export default function ProductionCostReport() {
   const [from, setFrom] = useState(`${today().slice(0, 4)}-01-01`);
   const [to, setTo] = useState(today());
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
   useEffect(() => {
     api<Row[]>(`/manufacturing/reports/costs?from=${from}&to=${to}`)
       .then(setRows)
@@ -74,7 +76,22 @@ export default function ProductionCostReport() {
             {rows?.map((r) => (
               <tr key={r.productId}>
                 <td>
-                  {r.sku} {r.productName}
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() =>
+                      setDrill({
+                        title: `${r.sku} ${r.productName}`,
+                        body: {
+                          dataset: "production_orders",
+                          filters: { from, to },
+                          match: { _productId: r.productId },
+                        },
+                      })
+                    }
+                  >
+                    {r.sku} {r.productName}
+                  </button>
                 </td>
                 <td className="num">{r.orders}</td>
                 <td className="num">{money(r.quantity, locale, 4)}</td>
@@ -98,6 +115,7 @@ export default function ProductionCostReport() {
           )}
         </table>
       </div>
+      <DatasetDrillPanel request={drill} onClose={() => setDrill(null)} />
     </>
   );
 }

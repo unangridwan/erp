@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../../../lib/api";
 import { money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
+import { DatasetDrillPanel, type DatasetDrillRequest } from "../../../../components/drilldown-panel";
 
 interface Pipeline {
   stages: {
@@ -29,6 +30,7 @@ export default function PipelineReportPage() {
   const [to, setTo] = useState(yearEnd());
   const [data, setData] = useState<Pipeline | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
 
   useEffect(() => {
     api<Pipeline>(`/leads/pipeline?from=${from}&to=${to}`)
@@ -96,7 +98,23 @@ export default function PipelineReportPage() {
                 <tbody>
                   {data.stages.map((s) => (
                     <tr key={s.stageId ?? "none"}>
-                      <td>{s.stageName ?? l("(tanpa tahap)", "(no stage)")}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="link"
+                          onClick={() =>
+                            setDrill({
+                              title: s.stageName ?? l("(tanpa tahap)", "(no stage)"),
+                              body: {
+                                dataset: "crm_leads",
+                                match: { _stageId: s.stageId ?? "", _state: "open", leadType: "Peluang" },
+                              },
+                            })
+                          }
+                        >
+                          {s.stageName ?? l("(tanpa tahap)", "(no stage)")}
+                        </button>
+                      </td>
                       <td className="num">{s.count}</td>
                       <td className="num">{money(s.expected, locale)}</td>
                       <td className="num">{money(s.weighted, locale)}</td>
@@ -137,6 +155,7 @@ export default function PipelineReportPage() {
           </section>
         </>
       )}
+      <DatasetDrillPanel request={drill} onClose={() => setDrill(null)} />
     </>
   );
 }

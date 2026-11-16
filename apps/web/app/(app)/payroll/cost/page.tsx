@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../../../lib/api";
 import { money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
+import { DatasetDrillPanel, type DatasetDrillRequest } from "../../../../components/drilldown-panel";
 
 type Totals = Record<"earnings" | "kesEmployer" | "tkEmployer" | "cost" | "pph21" | "net", string>;
 interface Report {
@@ -23,6 +24,7 @@ export default function PayrollCostPage() {
   const [groupBy, setGroupBy] = useState("department");
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
 
   useEffect(() => {
     setError(null);
@@ -73,7 +75,29 @@ export default function PayrollCostPage() {
             <tbody>
               {report.items.map((r) => (
                 <tr key={r.key ?? ""}>
-                  <td>{r.key ?? none}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() =>
+                        setDrill({
+                          title: r.key ?? none,
+                          body: {
+                            dataset: "payslips_history",
+                            filters: { from: `${from}-01`, to: `${to}-01` },
+                            match:
+                              groupBy === "department"
+                                ? { department: r.key ?? "" }
+                                : groupBy === "branch"
+                                  ? { _branch: r.key ?? "" }
+                                  : { month: r.key ?? "" },
+                          },
+                        })
+                      }
+                    >
+                      {r.key ?? none}
+                    </button>
+                  </td>
                   <td className="num">{r.employees}</td>
                   <td className="num">{n(r.earnings)}</td>
                   <td className="num">{n(r.kesEmployer)}</td>
@@ -108,6 +132,7 @@ export default function PayrollCostPage() {
           </table>
         </div>
       )}
+      <DatasetDrillPanel request={drill} onClose={() => setDrill(null)} />
     </div>
   );
 }

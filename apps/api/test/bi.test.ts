@@ -259,4 +259,62 @@ describe.skipIf(!hasDb)("Laporan semua modul & dashboard BI", () => {
     await a.delete(`/dashboards/${d.id}`).expect(204);
     expect((await a.get("/me/dashboard-pins").expect(200)).body).toEqual(["builtin:sales"]);
   });
+
+  it("drilldown: baris penyusun kelompok laporan membawa tautan dokumen sumber", async () => {
+    const config = {
+      filters: { from: `${today.slice(0, 4)}-01-01`, to: today },
+      groupBy: ["custom.musim"],
+      aggregates: [{ column: "amountUntaxed", fn: "sum" }],
+    };
+    const preview = (await a.post("/saved-reports/preview", { dataset: "sales_orders", config }).expect(200))
+      .body;
+    // Hasil berkelompok tanpa referensi; detail membawa `_model`/`_id`.
+    expect(preview.rows[0]._model).toBeUndefined();
+    const drill = (
+      await a
+        .post("/reports/drill", { dataset: "sales_orders", config, match: { "custom.musim": "hujan" } })
+        .expect(200)
+    ).body;
+    expect(drill.total).toBe(1);
+    expect(drill.totals.amountUntaxed).toBe(100000);
+    expect(drill.columns.slice(0, 2).map((c: { key: string }) => c.key)).toEqual([
+      "custom.musim",
+      "amountUntaxed",
+    ]);
+    expect(drill.rows[0]).toMatchObject({
+      _model: "sale_order",
+      _id: expect.any(String),
+      partner: "Koperasi Tani",
+    });
+    const so = (await a.get(`/sale-orders/${drill.rows[0]._id}`).expect(200)).body;
+    expect(so.custom.musim).toBe("hujan");
+
+    // Kunci tersembunyi (laporan modul): baris penjualan per produk, filter periode ditimpa.
+    const lines = (
+      await a
+        .post("/reports/drill", {
+          dataset: "sales_lines",
+          filters: { from: "2000-01-01", to: today },
+          match: { _productId: product },
+        })
+        .expect(200)
+    ).body;
+    expect(lines.total).toBe(3);
+    expect(lines.totals.quantity).toBe(19);
+
+    // Laporan tersimpan sebagai sumber; hak dataset tetap dicek.
+    const saved = (
+      await a.post("/saved-reports", { name: "Per musim", dataset: "sales_orders", config }).expect(201)
+    ).body;
+    expect(
+      (
+        await a
+          .post("/reports/drill", { reportId: saved.id, match: { "custom.musim": "kemarau" } })
+          .expect(200)
+      ).body.total,
+    ).toBe(1);
+    await sales.post("/reports/drill", { dataset: "invoices", match: {} }).expect(403);
+    await a.post("/reports/drill", { dataset: "sales_orders", match: { nope: "x" } }).expect(400);
+    await a.post("/reports/drill", { match: {} }).expect(400);
+  });
 });

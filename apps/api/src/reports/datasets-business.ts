@@ -12,7 +12,7 @@ import {
   type Db,
   type PgColumn,
 } from "@erp/db";
-import { formatCustomValue, LEAD_STATUS_LABEL, type CustomFieldModel } from "@erp/shared";
+import { formatCustomValue, LEAD_STATUS_LABEL, type CustomFieldModel, type RecordModel } from "@erp/shared";
 import { loadCustomDefs } from "../customization/custom-values.js";
 import type { Column, Ctx, Dataset } from "../hr/data-transfer/core.js";
 
@@ -114,6 +114,9 @@ const agingBucket = (days: number | null, residual: number) => {
   return "5. > 90 hari";
 };
 
+/** Dokumen sumber baris (kunci tersembunyi untuk drilldown; tidak menjadi kolom). */
+const ref = (model: RecordModel, id: string) => ({ _model: model, _id: id });
+
 const O = schema.saleOrders;
 const OL = schema.saleOrderLines;
 const P = schema.partners;
@@ -158,6 +161,9 @@ function saleOrders(): Dataset {
         .where(and(eq(O.companyId, ctx.companyId), range(O.dateOrder, q)))
         .orderBy(asc(O.dateOrder));
       return rows.map(({ o, partner, user, team }) => ({
+        ...ref("sale_order", o.id),
+        _partnerId: o.partnerId,
+        _userId: o.userId ?? "",
         name: o.name,
         dateOrder: o.dateOrder,
         month: month(o.dateOrder),
@@ -203,6 +209,10 @@ function saleLines(): Dataset {
     async rows(tx, ctx, q) {
       const rows = await tx
         .select({
+          orderId: O.id,
+          partnerId: O.partnerId,
+          userId: O.userId,
+          productId: OL.productId,
           order: O.name,
           dateOrder: O.dateOrder,
           partner: P.name,
@@ -231,6 +241,10 @@ function saleLines(): Dataset {
         )
         .orderBy(asc(O.dateOrder));
       return rows.map((r) => ({
+        ...ref("sale_order", r.orderId),
+        _partnerId: r.partnerId,
+        _userId: r.userId ?? "",
+        _productId: r.productId ?? "",
         order: r.order,
         dateOrder: r.dateOrder,
         month: month(r.dateOrder),
@@ -304,6 +318,10 @@ function crmLeads(): Dataset {
         const revenue = n(l.expectedRevenue) ?? 0;
         const prob = n(l.probability) ?? 0;
         return {
+          ...ref("crm_lead", l.id),
+          _stageId: l.stageId ?? "",
+          _userId: l.userId ?? "",
+          _state: l.state,
           name: l.name,
           leadType: l.leadType === "lead" ? "Lead" : "Peluang",
           leadStatus: LEAD_STATUS_LABEL[l.leadStatus]?.[0] ?? l.leadStatus,
@@ -405,6 +423,8 @@ function invoices(): Dataset {
             ? Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${m.dueDate}T00:00:00Z`)) / 864e5)
             : null;
         return {
+          ...ref("account_move", m.id),
+          _partnerId: m.partnerId ?? "",
           name: m.name,
           moveType: MOVE_TYPE[m.moveType] ?? m.moveType,
           side: m.moveType.startsWith("out") ? "Pelanggan" : "Pemasok",
@@ -484,6 +504,8 @@ function journalItems(): Dataset {
     async rows(tx, ctx, q) {
       const rows = await tx
         .select({
+          moveId: M.id,
+          accountId: A.id,
           date: M.date,
           move: M.name,
           code: A.code,
@@ -511,6 +533,8 @@ function journalItems(): Dataset {
         const credit = n(r.credit) ?? 0;
         const group = plGroup(r.type);
         return {
+          ...ref("account_move", r.moveId),
+          _accountId: r.accountId,
           date: r.date,
           month: month(r.date),
           move: r.move ?? "",
@@ -570,6 +594,8 @@ function purchaseOrders(): Dataset {
         .where(and(eq(PO.companyId, ctx.companyId), range(PO.dateOrder, q)))
         .orderBy(asc(PO.dateOrder));
       return rows.map(({ o, partner, user }) => ({
+        ...ref("purchase_order", o.id),
+        _partnerId: o.partnerId,
         name: o.name,
         dateOrder: o.dateOrder,
         month: month(o.dateOrder),
@@ -610,6 +636,9 @@ function purchaseLines(): Dataset {
     async rows(tx, ctx, q) {
       const rows = await tx
         .select({
+          orderId: PO.id,
+          partnerId: PO.partnerId,
+          productId: POL.productId,
           order: PO.name,
           dateOrder: PO.dateOrder,
           partner: P.name,
@@ -629,6 +658,9 @@ function purchaseLines(): Dataset {
         .where(and(eq(PO.companyId, ctx.companyId), eq(PO.state, "purchase"), range(PO.dateOrder, q)))
         .orderBy(asc(PO.dateOrder));
       return rows.map((r) => ({
+        ...ref("purchase_order", r.orderId),
+        _partnerId: r.partnerId,
+        _productId: r.productId ?? "",
         order: r.order,
         dateOrder: r.dateOrder,
         month: month(r.dateOrder),
@@ -719,6 +751,8 @@ function stockQuants(): Dataset {
         const cost = unit.get(r.productId) ?? Number(r.cost ?? 0);
         const m = min.get(`${r.productId}:${r.warehouseId}`);
         return {
+          ...ref("product", r.productId),
+          _productId: r.productId,
           sku: r.sku ?? "",
           product: r.product,
           category: r.category ?? "",
@@ -768,6 +802,8 @@ function stockMoves(): Dataset {
         .select({
           date: SM.date,
           reference: SM.reference,
+          pickingId: SM.pickingId,
+          productId: SM.productId,
           pickingType: SP.pickingType,
           isInventory: SM.isInventory,
           production: SM.productionOrderId,
@@ -796,6 +832,12 @@ function stockMoves(): Dataset {
         dropship: "Dropship",
       };
       return rows.map((r) => ({
+        ...(r.pickingId
+          ? ref("stock_picking", r.pickingId)
+          : r.production
+            ? ref("production_order", r.production)
+            : {}),
+        _productId: r.productId,
         date: day(r.date),
         month: month(r.date),
         reference: r.reference ?? "",
@@ -857,6 +899,8 @@ function productionOrders(): Dataset {
         .where(and(eq(MO.companyId, ctx.companyId), range(MO.datePlanned, q)))
         .orderBy(asc(MO.datePlanned));
       return rows.map(({ o, sku, product }) => ({
+        ...ref("production_order", o.id),
+        _productId: o.productId,
         name: o.name,
         datePlanned: o.datePlanned,
         month: month(o.datePlanned),
@@ -905,6 +949,9 @@ function payslipHistory(): Dataset {
     async rows(tx, ctx, q) {
       const rows = await tx
         .select({
+          id: S.id,
+          departmentId: E.departmentId,
+          branch: schema.branches.name,
           period: RUN.periodStart,
           run: RUN.name,
           number: E.employeeNumber,
@@ -919,6 +966,7 @@ function payslipHistory(): Dataset {
         .innerJoin(RUN, eq(RUN.id, S.runId))
         .innerJoin(E, eq(E.id, S.employeeId))
         .leftJoin(schema.departments, eq(schema.departments.id, E.departmentId))
+        .leftJoin(schema.branches, eq(schema.branches.id, S.branchId))
         .where(
           and(
             eq(S.companyId, ctx.companyId),
@@ -932,6 +980,9 @@ function payslipHistory(): Dataset {
         const gross = n(r.gross) ?? 0;
         const employer = n(r.employerBpjs) ?? 0;
         return {
+          ...ref("payslip", r.id),
+          _departmentId: r.departmentId ?? "",
+          _branch: r.branch ?? "",
           period: r.period,
           month: month(r.period),
           run: r.run,

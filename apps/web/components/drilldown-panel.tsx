@@ -277,3 +277,126 @@ export function DrillAmount({
     </button>
   );
 }
+
+/** Permintaan rincian baris dataset BI (`POST /reports/drill`). */
+export interface DatasetDrillRequest {
+  title: string;
+  body: {
+    reportId?: string;
+    dataset?: string;
+    config?: unknown;
+    /** Nilai kelompok yang diklik (kolom `groupBy`) atau kunci tersembunyi `_xxxId`. */
+    match: Record<string, string>;
+    filters?: Record<string, string>;
+  };
+}
+interface DrillResult {
+  columns: { key: string; header: string; numeric?: boolean }[];
+  rows: Record<string, unknown>[];
+  total: number;
+  totals: Record<string, number>;
+}
+
+/** Nilai kelompok baris hasil laporan (untuk `match`). */
+export const groupMatch = (row: Record<string, unknown>, groupBy: string[]) =>
+  Object.fromEntries(groupBy.map((k) => [k, String(row[k] ?? "")]));
+
+/** Tautan dokumen sumber sebuah baris hasil laporan (`_model`/`_id`). */
+export const rowHref = (row: Record<string, unknown>) =>
+  typeof row._model === "string" && typeof row._id === "string" ? recordHref(row._model, row._id) : null;
+
+/** Panel samping berisi baris data penyusun satu angka/kelompok laporan BI atau laporan modul. */
+export function DatasetDrillPanel({
+  request,
+  onClose,
+}: {
+  request: DatasetDrillRequest | null;
+  onClose: () => void;
+}) {
+  const { l, locale } = useI18n();
+  const [data, setData] = useState<DrillResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    setData(null);
+    setError(null);
+    if (!request) return;
+    api<DrillResult>("/reports/drill", { method: "POST", body: request.body }).then(setData, (e: Error) =>
+      setError(e.message),
+    );
+  }, [request]);
+  const fmt = (v: unknown, numeric?: boolean) =>
+    v === null || v === undefined || v === ""
+      ? ""
+      : numeric && !Number.isNaN(Number(v))
+        ? money(Number(v), locale)
+        : String(v);
+  return (
+    <Modal open={!!request} title={request?.title ?? ""} onClose={onClose} side>
+      {error && <p className="error">{error}</p>}
+      {!data && !error && <p className="muted">{l("Memuat…", "Loading…")}</p>}
+      {data && (
+        <>
+          <div className="drill-summary">
+            <span>
+              {data.total} {l("baris data", "data rows")}
+              {data.rows.length < data.total && ` · ${l("tampil", "showing")} ${data.rows.length}`}
+            </span>
+          </div>
+          <div className="table-scroll">
+            <table className="drill-table">
+              <thead>
+                <tr>
+                  {data.columns.map((c) => (
+                    <th key={c.key} className={c.numeric ? "num" : ""}>
+                      {c.header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((r, i) => {
+                  const href = rowHref(r);
+                  return (
+                    <tr key={i}>
+                      {data.columns.map((c, j) => (
+                        <td key={c.key} className={c.numeric ? "num" : ""}>
+                          {j === 0 && href ? (
+                            <Link href={href}>{fmt(r[c.key], c.numeric) || "—"}</Link>
+                          ) : (
+                            fmt(r[c.key], c.numeric)
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+                {data.rows.length === 0 && (
+                  <tr>
+                    <td colSpan={data.columns.length || 1} className="muted">
+                      {l("Tidak ada data.", "No data.")}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+              {Object.keys(data.totals).length > 0 && (
+                <tfoot>
+                  <tr>
+                    {data.columns.map((c, i) => (
+                      <th key={c.key} className={c.numeric ? "num" : ""}>
+                        {c.key in data.totals
+                          ? fmt(data.totals[c.key], true)
+                          : i === 0
+                            ? l("Total", "Total")
+                            : ""}
+                      </th>
+                    ))}
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}

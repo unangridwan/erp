@@ -22,6 +22,7 @@ import {
 } from "@nestjs/common";
 import { and, asc, desc, eq, isNull, lte, or, schema, sql, type Db } from "@erp/db";
 import {
+  drillReport,
   effectivePermissions,
   latestOccurrence,
   nextOccurrence,
@@ -58,6 +59,16 @@ const D = schema.reportDeliveries;
 type Format = "xlsx" | "csv" | "pdf";
 const formatQuery = z.object({ format: z.enum(["xlsx", "csv", "pdf"]).default("xlsx") });
 const previewSchema = z.object({ dataset: z.string().min(1).max(60), config: reportConfigSchema });
+/** Drilldown: laporan tersimpan (`reportId`) atau dataset + konfigurasi, nilai kelompok yang diklik, filter periode. */
+const drillSchema = z
+  .object({
+    reportId: z.string().uuid().optional(),
+    dataset: z.string().min(1).max(60).optional(),
+    config: reportConfigSchema.optional(),
+    match: z.record(z.string().max(100), z.string().max(500)).default({}),
+    filters: z.record(z.string().max(60), z.string().max(200)).default({}),
+  })
+  .refine((v) => v.reportId || v.dataset, { message: "Isi laporan atau dataset" });
 const CONTENT_TYPE: Record<Format, string> = {
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   csv: "text/csv; charset=utf-8",
@@ -93,6 +104,26 @@ export class ReportsService {
    * sehingga laporan bersama/terjadwal tidak membuka data bagi yang kehilangan hak.
    */
   async execute(tx: Db, datasetKey: string, config: ReportConfig): Promise<ReportResult & { title: string }> {
+    return this.compute(tx, datasetKey, config, [], (rows, cols) => runReport(rows, cols, config));
+  }
+
+  /** Rincian baris penyusun satu kelompok/titik laporan (lihat `drillReport`). */
+  async drill(tx: Db, datasetKey: string, config: ReportConfig, match: Record<string, string>) {
+    return this.compute(tx, datasetKey, config, Object.keys(match), (rows, cols) =>
+      drillReport(rows, cols, config, match),
+    );
+  }
+
+  private async compute(
+    tx: Db,
+    datasetKey: string,
+    config: ReportConfig,
+    extraKeys: string[],
+    run: (
+      rows: Record<string, unknown>[],
+      columns: { key: string; header: string; numeric?: boolean }[],
+    ) => ReportResult,
+  ): Promise<ReportResult & { title: string }> {
     const d = this.registry.get(datasetKey);
     const filters = { ...config.filters };
     if (d.needsRun && (filters.runId === "latest" || !filters.runId))
@@ -105,6 +136,7 @@ export class ReportsService {
       ...config.conditions.map((c) => c.column),
       ...config.groupBy,
       ...config.aggregates.map((a) => a.column).filter((c) => c !== "*"),
+      ...extraKeys,
     ];
     if (referenced.some((k) => all.some((c) => c.key === k && c.sensitive) && !ctx.manage))
       throw new ForbiddenException("Kolom data pribadi hanya untuk pemegang hak kelola");
@@ -117,10 +149,9 @@ export class ReportsService {
     }
     try {
       return {
-        ...runReport(
+        ...run(
           rows,
           visible.map((c) => ({ key: c.key, header: c.header, numeric: c.numeric })),
-          config,
         ),
         title: d.label,
       };
@@ -416,6 +447,24 @@ class ReportsController {
     return this.tenantDb.run(async (tx) => {
       const result = await this.reports.execute(tx, input.dataset, input.config);
       return { ...result, rows: result.rows.slice(0, 500) };
+    });
+  }
+
+  /** Drilldown laporan/grafik/widget: baris dataset penyusun satu kelompok, dengan tautan dokumen sumber. */
+  @Post("reports/drill")
+  @HttpCode(200)
+  drill(@Body() body: unknown) {
+    const input = parse(drillSchema, body);
+    return this.tenantDb.run(async (tx) => {
+      let dataset = input.dataset!;
+      let config = input.config ?? reportConfigSchema.parse({});
+      if (input.reportId) {
+        const report = await this.reports.find(tx, input.reportId);
+        dataset = report.dataset;
+        config = reportConfigSchema.parse(report.config);
+      }
+      config = { ...config, filters: { ...config.filters, ...input.filters } };
+      return this.reports.drill(tx, dataset, config, input.match);
     });
   }
 
