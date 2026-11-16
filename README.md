@@ -411,28 +411,37 @@ yang perkiraan closing-nya di periode itu, dibandingkan kuota bulanan. Pemimpin 
 forecast manajer per salesperson. Wilayah mencocokkan lead dan akun dari provinsi, kota, atau industri; lead tanpa
 penanggung jawab dibagi bergiliran ke anggota wilayah.
 
-| Endpoint                                                                                      | Keterangan                                                                     |
-| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `/crm-stages`, `/lost-reasons`, `/sales-teams`, `/payment-terms`, `/pricelists`               | Konfigurasi (tahap pipeline, alasan kalah, tim, termin, daftar harga + aturan) |
-| `GET/POST /leads`, `GET/PATCH/DELETE /leads/:id`                                              | Lead & peluang; filter `leadType`, `state=open,won`, `stageId`, `userId=me`    |
-| `POST /leads/:id/{convert,won,lost,reopen}`, `GET /leads/pipeline?from=&to=`                  | Konversi ke peluang/pelanggan, menang/kalah, buka kembali, ringkasan pipeline  |
-| `GET /leads/:id/duplicates`, `POST /leads/:id/merge`                                          | Kemungkinan duplikat (email/telepon/nama perusahaan) di lead & partner; gabung |
-| `PUT /leads/:id/products`, `PUT /leads/:id/contact-roles`                                     | Produk peluang (nilai harapan = total) dan peran kontak (satu kontak utama)    |
-| `GET /leads/reports/funnel`, `GET /leads/reports/velocity` (`from`, `to`)                     | Corong lead → peluang → menang; lama per tahap, siklus penjualan, win rate     |
-| `GET /crm/accounts?kind=company\|person`, `GET /crm/accounts/:id`                             | Akun & kontak; tampilan 360° (peluang, pesanan, faktur sesuai hak, aktivitas)  |
-| `GET /crm/forecast?period=YYYY-MM\|YYYY-Qn`, `PUT /crm/forecast/adjustments`                  | Forecast per salesperson/tim vs kuota (closed, commit, best case, pipeline)    |
-| `GET/PUT /crm/quotas?year=`, `GET /crm/forecast/attainment?year=`                             | Kuota bulanan per salesperson/tim; pencapaian setahun                          |
-| `/crm/territories`, `POST /crm/territory-assign`, `GET /crm/territory-report`                 | Wilayah (aturan provinsi/kota/industri, anggota), penerapan & ringkasan        |
-| `POST /sale-orders/from-lead/:leadId`                                                         | Penawaran draft berisi produk peluang                                          |
-| `GET/POST /activities`, `GET /activities/mine`, `PATCH/DELETE /activities/:id`, `POST …/done` | Aktivitas terjadwal pada lead, pesanan, atau kontak                            |
-| `GET/POST /sale-orders`, `GET/PUT/DELETE /sale-orders/:id`, `POST /sale-orders/compute`       | Penawaran/pesanan; `compute` = pratinjau harga daftar harga, pajak, total      |
-| `POST /sale-orders/:id/{send,confirm,cancel,draft}`, `GET /sale-orders/:id/pdf`               | Kirim email (PDF terlampir), konfirmasi, batal, kembali ke draft, unduh PDF    |
-| `POST /sale-orders/:id/invoice` (`method`: `regular` / `percentage` / `fixed`)                | Draft faktur dari pesanan (sisa kuantitas atau uang muka)                      |
-| `GET /sale-orders/report?from=&to=&groupBy=product\|partner\|salesperson\|month`              | Analisis penjualan pesanan terkonfirmasi                                       |
-| `GET /users/options`                                                                          | Pilihan user aktif perusahaan aktif (penanggung jawab, penjual)                |
-| `/commission-plans`, `GET /sales/commissions[/export]?dateFrom=&dateTo=`                      | Aturan komisi (penjual → tim → bawaan; dasar faktur/lunas), laporan & Excel    |
-| `/product-attributes`, `/product-attribute-values`, `GET/POST /products/:id/variants`         | Varian produk: atribut & nilai (kode SKU, tambahan harga), buat kombinasi      |
-| `GET /partners/:id/portal`, `POST /partners/:id/{portal-invite,portal-revoke}`                | Akses portal pelanggan: undang (email + tautan), cabut                         |
+**Marketing** (migrasi 0080): kampanye dengan anggota (lead, kontak, atau segmen lead), email massal dengan tautan
+berhenti langganan, serta hasil per kampanye (lead, peluang, nilai menang, ROI, biaya per lead). Formulir web-to-lead
+punya halaman siap pakai (`/f/<kunci>`) dan cuplikan HTML untuk situs lain; kiriman menjadi lead dengan kampanye,
+wilayah, skor, dan penanggung jawab otomatis (honeypot + batas laju, email yang sama tidak menggandakan lead). Skor
+lead 0–100 dihitung dari aturan syarat → poin; aturan penugasan membagi lead tanpa penanggung jawab secara bergiliran.
+
+| Endpoint                                                                                        | Keterangan                                                                     |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `/crm-stages`, `/lost-reasons`, `/sales-teams`, `/payment-terms`, `/pricelists`                 | Konfigurasi (tahap pipeline, alasan kalah, tim, termin, daftar harga + aturan) |
+| `GET/POST /leads`, `GET/PATCH/DELETE /leads/:id`                                                | Lead & peluang; filter `leadType`, `state=open,won`, `stageId`, `userId=me`    |
+| `POST /leads/:id/{convert,won,lost,reopen}`, `GET /leads/pipeline?from=&to=`                    | Konversi ke peluang/pelanggan, menang/kalah, buka kembali, ringkasan pipeline  |
+| `GET /leads/:id/duplicates`, `POST /leads/:id/merge`                                            | Kemungkinan duplikat (email/telepon/nama perusahaan) di lead & partner; gabung |
+| `PUT /leads/:id/products`, `PUT /leads/:id/contact-roles`                                       | Produk peluang (nilai harapan = total) dan peran kontak (satu kontak utama)    |
+| `GET /leads/reports/funnel`, `GET /leads/reports/velocity` (`from`, `to`)                       | Corong lead → peluang → menang; lama per tahap, siklus penjualan, win rate     |
+| `GET /crm/accounts?kind=company\|person`, `GET /crm/accounts/:id`                               | Akun & kontak; tampilan 360° (peluang, pesanan, faktur sesuai hak, aktivitas)  |
+| `GET /crm/forecast?period=YYYY-MM\|YYYY-Qn`, `PUT /crm/forecast/adjustments`                    | Forecast per salesperson/tim vs kuota (closed, commit, best case, pipeline)    |
+| `GET/PUT /crm/quotas?year=`, `GET /crm/forecast/attainment?year=`                               | Kuota bulanan per salesperson/tim; pencapaian setahun                          |
+| `/crm/territories`, `POST /crm/territory-assign`, `GET /crm/territory-report`                   | Wilayah (aturan provinsi/kota/industri, anggota), penerapan & ringkasan        |
+| `/crm/campaigns`, `GET /crm/campaign-stats[/:id]`, `POST /crm/campaigns/:id/{members,emails}`   | Kampanye: anggota (lead/kontak/segmen), email massal, hasil & ROI              |
+| `/crm/scoring-rules`, `/crm/assignment-rules`, `POST /crm/{scoring-recompute,assignment-apply}` | Skor lead 0–100 dari aturan; penugasan lead bergiliran                         |
+| `/crm/web-forms`, `GET/POST /public/web-forms/:key`, `GET /public/crm/unsubscribe/:token`       | Formulir web-to-lead publik (JSON atau form HTML); berhenti langganan email    |
+| `POST /sale-orders/from-lead/:leadId`                                                           | Penawaran draft berisi produk peluang                                          |
+| `GET/POST /activities`, `GET /activities/mine`, `PATCH/DELETE /activities/:id`, `POST …/done`   | Aktivitas terjadwal pada lead, pesanan, atau kontak                            |
+| `GET/POST /sale-orders`, `GET/PUT/DELETE /sale-orders/:id`, `POST /sale-orders/compute`         | Penawaran/pesanan; `compute` = pratinjau harga daftar harga, pajak, total      |
+| `POST /sale-orders/:id/{send,confirm,cancel,draft}`, `GET /sale-orders/:id/pdf`                 | Kirim email (PDF terlampir), konfirmasi, batal, kembali ke draft, unduh PDF    |
+| `POST /sale-orders/:id/invoice` (`method`: `regular` / `percentage` / `fixed`)                  | Draft faktur dari pesanan (sisa kuantitas atau uang muka)                      |
+| `GET /sale-orders/report?from=&to=&groupBy=product\|partner\|salesperson\|month`                | Analisis penjualan pesanan terkonfirmasi                                       |
+| `GET /users/options`                                                                            | Pilihan user aktif perusahaan aktif (penanggung jawab, penjual)                |
+| `/commission-plans`, `GET /sales/commissions[/export]?dateFrom=&dateTo=`                        | Aturan komisi (penjual → tim → bawaan; dasar faktur/lunas), laporan & Excel    |
+| `/product-attributes`, `/product-attribute-values`, `GET/POST /products/:id/variants`           | Varian produk: atribut & nilai (kode SKU, tambahan harga), buat kombinasi      |
+| `GET /partners/:id/portal`, `POST /partners/:id/{portal-invite,portal-revoke}`                  | Akses portal pelanggan: undang (email + tautan), cabut                         |
 
 **Portal pelanggan** (`/portal` di web; token portal terpisah dari token user internal):
 `POST /portal/auth/{login,accept}`, `GET /portal/me`, `GET /portal/orders[/:id[/pdf]]`, `POST /portal/orders/:id/accept`

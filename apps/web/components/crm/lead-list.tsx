@@ -8,7 +8,7 @@ import { can, LEAD_SOURCES, LEAD_STATE_LABEL } from "../../lib/resources";
 import { truncatedNote, useListData } from "../../lib/use-list-data";
 import { DataTable, type DataColumn } from "../data-table";
 import { useMe } from "../me-context";
-import { LEAD_STATUS_LABEL } from "@erp/shared";
+import { LEAD_STATUS_LABEL, scoreGrade } from "@erp/shared";
 import { Stars, type LeadRow } from "./pipeline";
 
 /**
@@ -48,6 +48,15 @@ export function LeadList({ type }: { type?: "lead" | "opportunity" }) {
         value: (x) => [x.partnerDisplay, x.contactName].filter(Boolean).join(" · ") || null,
       },
       { key: "email", label: l("Email", "Email"), value: (x) => x.email },
+      {
+        key: "score",
+        label: l("Skor", "Score"),
+        type: "number",
+        className: "num",
+        value: (x) => x.score,
+        text: (x) => `${x.score} · ${scoreGrade(x.score)}`,
+        hidden: type === "opportunity",
+      },
       { key: "phone", label: l("Telepon", "Phone"), value: (x) => x.phone, hidden: true },
       {
         key: "source",

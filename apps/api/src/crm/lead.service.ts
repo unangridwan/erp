@@ -14,6 +14,7 @@ import { ActivityService } from "../activity/activity.service.js";
 import { assertDimensions, assertPartner, fieldError } from "../accounting/context.js";
 import { currentContext } from "../common/request-context.js";
 import { assertCompanyUser, assertTeam, ownedScope } from "./checks.js";
+import { leadScore } from "./scoring.js";
 import { resolveTerritory } from "./territory.js";
 
 export type LeadInput = z.infer<typeof leadSchema>;
@@ -122,8 +123,10 @@ export class LeadService {
         // Peluang yang dibuat langsung dianggap sudah terkualifikasi.
         leadStatus: input.leadType === "opportunity" ? "qualified" : input.leadStatus,
         territoryId: input.territoryId ?? (await this.territoryFor(tx, ctx.companyId, input)),
+        score: await leadScore(tx, ctx.companyId, input),
       })
       .returning();
+    if (lead!.campaignId) await this.joinCampaign(tx, lead!.campaignId, lead!.id);
     if (lead!.leadType === "opportunity") await this.track(tx, lead!, null);
     await this.activity.log(tx, { resModel: "crm_lead", resId: lead!.id, action: "create" });
     return lead!;
@@ -153,6 +156,13 @@ export class LeadService {
       .set({ ...values, updatedAt: sql`now()` })
       .where(eq(L.id, id))
       .returning();
+    const score = await leadScore(tx, row!.companyId, row!);
+    if (score !== row!.score) {
+      await tx.update(L).set({ score }).where(eq(L.id, id));
+      row!.score = score;
+    }
+    if (row!.campaignId && row!.campaignId !== before.campaignId)
+      await this.joinCampaign(tx, row!.campaignId, id);
     if (row!.leadType === "opportunity" && (row!.stageId !== before.stageId || row!.state !== before.state))
       await this.track(tx, row!, before.stageId);
     const changes = Object.fromEntries(
@@ -473,6 +483,14 @@ export class LeadService {
     return row!;
   }
 
+  /** Lead yang ditautkan ke kampanye otomatis menjadi anggota kampanye itu (status merespons). */
+  private async joinCampaign(tx: Db, campaignId: string, leadId: string) {
+    await tx
+      .insert(schema.crmCampaignMembers)
+      .values({ campaignId, leadId, status: "responded", respondedAt: new Date() })
+      .onConflictDoNothing();
+  }
+
   /** Wilayah dari akun (bila sudah ditetapkan) atau dari aturan wilayah atas provinsi/kota/industri. */
   private async territoryFor(
     tx: Db,
@@ -521,6 +539,13 @@ export class LeadService {
     const companyId = currentContext().companyId;
     if (input.partnerId) await assertPartner(tx, companyId, input.partnerId);
     if (input.contactId) await assertPartner(tx, companyId, input.contactId, "contactId");
+    if (input.campaignId) {
+      const [c] = await tx
+        .select({ companyId: schema.crmCampaigns.companyId })
+        .from(schema.crmCampaigns)
+        .where(eq(schema.crmCampaigns.id, input.campaignId));
+      if (!c || c.companyId !== companyId) throw fieldError("campaignId", "Kampanye tidak ditemukan");
+    }
     if (input.territoryId) {
       const [t] = await tx
         .select({ companyId: schema.crmTerritories.companyId })

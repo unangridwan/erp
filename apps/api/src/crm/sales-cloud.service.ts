@@ -355,6 +355,8 @@ export class SalesCloudService {
     const rows = await tx
       .select({
         source: L.source,
+        campaignId: L.campaignId,
+        campaignName: schema.crmCampaigns.name,
         userId: L.userId,
         userName: schema.users.name,
         leadType: L.leadType,
@@ -366,7 +368,17 @@ export class SalesCloudService {
       .from(L)
       .leftJoin(schema.users, eq(schema.users.id, L.userId))
       .where(where)
-      .groupBy(L.source, L.userId, schema.users.name, L.leadType, L.leadStatus, L.state);
+      .leftJoin(schema.crmCampaigns, eq(schema.crmCampaigns.id, L.campaignId))
+      .groupBy(
+        L.source,
+        L.campaignId,
+        schema.crmCampaigns.name,
+        L.userId,
+        schema.users.name,
+        L.leadType,
+        L.leadStatus,
+        L.state,
+      );
 
     const isOpp = (r: (typeof rows)[number]) => r.leadType === "opportunity";
     const total = (pick: (r: (typeof rows)[number]) => boolean, list = rows) =>
@@ -412,6 +424,10 @@ export class SalesCloudService {
         (r) => r.source,
         (r) => r.source,
       ),
+      byCampaign: group(
+        (r) => r.campaignId,
+        (r) => r.campaignName,
+      ).filter((g) => g.key !== null),
       byUser: group(
         (r) => r.userId,
         (r) => r.userName,
