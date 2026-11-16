@@ -88,18 +88,21 @@ bervolume transaksi sangat besar.
 
 ### 2.4 Penjualan & CRM (SAP SD / Sales Cloud)
 
-| Fitur SAP                                       | Status | Di ERP ini                                      |
-| ----------------------------------------------- | :----: | ----------------------------------------------- |
-| Lead, pipeline, aktivitas, alasan kalah         |   ✅   | CRM                                             |
-| Penawaran → SO → kirim → faktur                 |   ✅   | Penjualan + Persediaan + Akuntansi              |
-| Daftar harga & diskon                           |   🟡   | Pricelist; tanpa condition technique bertingkat |
-| Komisi sales                                    |   ✅   | Rencana komisi                                  |
-| Retur & nota kredit                             |   ✅   |                                                 |
-| SO↔PO antarperusahaan                           |   ✅   |                                                 |
-| Portal pelanggan                                |   ✅   | Faktur & pesanan                                |
-| ATP (cek ketersediaan) & reservasi              |   🟡   | Reservasi stok; tanpa ATP berbasis jadwal       |
-| Kontrak penjualan, scheduling agreement, rebate |   ❌   | —                                               |
-| Uang muka penjualan                             |   ✅   | Termasuk perlakuan PPN uang muka                |
+| Fitur SAP                                        | Status | Di ERP ini                                      |
+| ------------------------------------------------ | :----: | ----------------------------------------------- |
+| Lead, pipeline, aktivitas, alasan kalah          |   ✅   | CRM                                             |
+| Akun & kontak 360°, peran kontak, produk peluang |   ✅   | CRM › Akun, Kontak, Peluang                     |
+| Duplikat lead, corong & kecepatan pipeline       |   ✅   | CRM › Lead, Corong & Kecepatan                  |
+| Forecast, kuota, wilayah, kampanye, tiket/SLA    |   ❌   | Direncanakan (CRM bagian 2–4)                   |
+| Penawaran → SO → kirim → faktur                  |   ✅   | Penjualan + Persediaan + Akuntansi              |
+| Daftar harga & diskon                            |   🟡   | Pricelist; tanpa condition technique bertingkat |
+| Komisi sales                                     |   ✅   | Rencana komisi                                  |
+| Retur & nota kredit                              |   ✅   |                                                 |
+| SO↔PO antarperusahaan                            |   ✅   |                                                 |
+| Portal pelanggan                                 |   ✅   | Faktur & pesanan                                |
+| ATP (cek ketersediaan) & reservasi               |   🟡   | Reservasi stok; tanpa ATP berbasis jadwal       |
+| Kontrak penjualan, scheduling agreement, rebate  |   ❌   | —                                               |
+| Uang muka penjualan                              |   ✅   | Termasuk perlakuan PPN uang muka                |
 
 ### 2.5 Pembelian (SAP MM)
 

@@ -302,6 +302,41 @@ export class SaleOrderService implements OnModuleInit {
     return this.get(tx, order!.id);
   }
 
+  /** Penawaran draft dari peluang: pelanggan, penjual, dan baris produk (qty, harga, diskon) diambil dari peluang. */
+  async createFromLead(tx: Db, leadId: string, input: { dateOrder?: string; validityDate?: string | null }) {
+    const lead = await this.leads.get(tx, leadId).catch(() => {
+      throw new NotFoundException("Peluang tidak ditemukan");
+    });
+    if (lead.leadType !== "opportunity" || lead.state !== "open")
+      throw new BadRequestException("Penawaran hanya bisa dibuat dari peluang yang masih terbuka");
+    if (!lead.partnerId)
+      throw new BadRequestException("Isi pelanggan pada peluang sebelum membuat penawaran");
+    const products = await tx
+      .select()
+      .from(schema.crmLeadProducts)
+      .where(eq(schema.crmLeadProducts.leadId, leadId))
+      .orderBy(asc(schema.crmLeadProducts.sequence));
+    if (!products.length)
+      throw new BadRequestException("Tambahkan produk pada peluang sebelum membuat penawaran");
+    return this.create(tx, {
+      partnerId: lead.partnerId,
+      dateOrder: input.dateOrder ?? new Date().toISOString().slice(0, 10),
+      validityDate: input.validityDate ?? null,
+      leadId,
+      userId: lead.userId,
+      teamId: lead.teamId,
+      branchId: lead.branchId,
+      businessUnitId: lead.businessUnitId,
+      lines: products.map((p) => ({
+        productId: p.productId,
+        name: p.name ?? undefined,
+        quantity: p.quantity,
+        priceUnit: p.priceUnit,
+        discount: p.discount,
+      })),
+    });
+  }
+
   /** Ganti isi penawaran (hanya draft/terkirim). */
   async update(tx: Db, id: string, input: OrderInput) {
     const order = await this.find(tx, id, true);

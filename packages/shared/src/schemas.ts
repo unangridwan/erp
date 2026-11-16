@@ -3,6 +3,7 @@ import { customValuesInput } from "./custom-fields.js";
 import { contractTypeCode } from "./contract-types.js";
 import { isValidPlate, normalizePlate } from "./fleet.js";
 import { ALL_PERMISSION_CODES } from "./rbac.js";
+import { ACCOUNT_RATING_VALUES, LEAD_STATUS_VALUES } from "./crm.js";
 import { CONSOLIDATION_METHODS, ENTITY_TYPES } from "./group.js";
 
 const optionalText = z
@@ -179,6 +180,13 @@ export const partnerSchema = z.object({
   paymentTermId: optionalUuid,
   pricelistId: optionalUuid,
   salespersonId: optionalUuid,
+  industry: optionalText,
+  website: optionalText,
+  employeeCount: z.coerce.number().int().min(0).max(10_000_000).nullish(),
+  annualRevenue: money.nullish(),
+  jobTitle: optionalText,
+  accountRating: z.enum(ACCOUNT_RATING_VALUES).nullish(),
+  doNotContact: z.boolean().default(false),
   active: z.boolean().default(true),
 });
 
@@ -668,6 +676,18 @@ export const leadSchema = z.object({
   description: z.string().max(5000).nullish(),
   branchId: z.string().uuid().nullish(),
   businessUnitId: z.string().uuid().nullish(),
+  leadStatus: z.enum(LEAD_STATUS_VALUES).default("new"),
+  title: z.string().trim().max(100).nullish(),
+  industry: z.string().trim().max(100).nullish(),
+  website: z.string().trim().max(200).nullish(),
+  employeeCount: z.coerce.number().int().min(0).max(10_000_000).nullish(),
+  annualRevenue: nonNegative(2).nullish(),
+  street: z.string().trim().max(300).nullish(),
+  city: z.string().trim().max(100).nullish(),
+  province: z.string().trim().max(100).nullish(),
+  nextStep: z.string().trim().max(300).nullish(),
+  /** Kontak utama (partner perorangan). */
+  contactId: z.string().uuid().nullish(),
 });
 
 export const markLostSchema = z.object({
@@ -679,6 +699,11 @@ export const markLostSchema = z.object({
 export const convertLeadSchema = z.object({
   partner: z.enum(["existing", "create", "none"]).default("create"),
   partnerId: z.string().uuid().nullish(),
+  /** Buat kontak (perorangan) di bawah akun dari nama kontak lead; `existing` = pakai kontak yang ada. */
+  contact: z.enum(["create", "existing", "none"]).default("create"),
+  contactId: z.string().uuid().nullish(),
+  /** Nama peluang; kosong = judul lead. */
+  opportunityName: z.string().trim().min(1).max(200).nullish(),
 });
 
 export const activitySchema = z.object({

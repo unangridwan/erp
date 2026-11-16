@@ -11,16 +11,20 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
 } from "@nestjs/common";
 import { eq, schema } from "@erp/db";
 import {
   activitySchema,
+  contactRolesSchema,
   convertLeadSchema,
   crmStageSchema,
+  leadProductsSchema,
   leadSchema,
   lostReasonSchema,
   markLostSchema,
+  mergeLeadsSchema,
   salesTeamSchema,
 } from "@erp/shared";
 import { z } from "zod";
@@ -32,6 +36,12 @@ import { parse } from "../common/zod.js";
 import { ScheduleService } from "./activity-schedule.service.js";
 import { assertCompanyUser, assertUsers } from "./checks.js";
 import { LeadService, type LeadQuery } from "./lead.service.js";
+import { SalesCloudService } from "./sales-cloud.service.js";
+
+const period = (from?: string, to?: string) => {
+  const date = z.string().date().optional();
+  return [parse(date, from), parse(date, to)] as const;
+};
 
 const StagesController = createCrudController({
   path: "crm-stages",
@@ -85,6 +95,7 @@ class LeadsController {
   constructor(
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(LeadService) private readonly leads: LeadService,
+    @Inject(SalesCloudService) private readonly cloud: SalesCloudService,
   ) {}
 
   @Get()
@@ -100,10 +111,53 @@ class LeadsController {
     return this.tenantDb.run((tx) => this.leads.pipeline(tx, parse(date, from), parse(date, to)));
   }
 
+  /** Corong lead → peluang → menang. Didaftarkan sebelum `:id`. */
+  @Get("reports/funnel")
+  @RequirePermission("crm.read")
+  funnel(@Query("from") from?: string, @Query("to") to?: string) {
+    const [f, t] = period(from, to);
+    return this.tenantDb.run((tx) => this.cloud.funnel(tx, f, t));
+  }
+
+  @Get("reports/velocity")
+  @RequirePermission("crm.read")
+  velocity(@Query("from") from?: string, @Query("to") to?: string) {
+    const [f, t] = period(from, to);
+    return this.tenantDb.run((tx) => this.cloud.velocity(tx, f, t));
+  }
+
   @Get(":id")
   @RequirePermission("crm.read")
   get(@Param("id", ParseUUIDPipe) id: string) {
-    return this.tenantDb.run((tx) => this.leads.get(tx, id));
+    return this.tenantDb.run((tx) => this.cloud.detail(tx, id));
+  }
+
+  @Get(":id/duplicates")
+  @RequirePermission("crm.read")
+  duplicates(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.cloud.duplicates(tx, id));
+  }
+
+  @Put(":id/products")
+  @RequirePermission("crm.write")
+  products(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(leadProductsSchema, body);
+    return this.tenantDb.run((tx) => this.cloud.setProducts(tx, id, input));
+  }
+
+  @Put(":id/contact-roles")
+  @RequirePermission("crm.write")
+  contactRoles(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(contactRolesSchema, body);
+    return this.tenantDb.run((tx) => this.cloud.setContactRoles(tx, id, input));
+  }
+
+  @Post(":id/merge")
+  @HttpCode(200)
+  @RequirePermission("crm.write")
+  merge(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(mergeLeadsSchema, body);
+    return this.tenantDb.run((tx) => this.cloud.merge(tx, id, input.sourceIds));
   }
 
   @Post()
@@ -159,6 +213,28 @@ class LeadsController {
   convert(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
     const input = parse(convertLeadSchema, body ?? {});
     return this.tenantDb.run((tx) => this.leads.convert(tx, id, input));
+  }
+}
+
+/** Akun (perusahaan pelanggan) & kontak (perorangan) dengan tampilan 360°. */
+@Controller("crm")
+class AccountsController {
+  constructor(
+    @Inject(TenantDb) private readonly tenantDb: TenantDb,
+    @Inject(SalesCloudService) private readonly cloud: SalesCloudService,
+  ) {}
+
+  @Get("accounts")
+  @RequirePermission("crm.read")
+  accounts(@Query("kind") kind?: string) {
+    const k = parse(z.enum(["company", "person"]).default("company"), kind);
+    return this.tenantDb.run((tx) => this.cloud.accounts(tx, k));
+  }
+
+  @Get("accounts/:id")
+  @RequirePermission("crm.read")
+  account(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.cloud.account360(tx, id));
   }
 }
 
@@ -218,9 +294,10 @@ class ScheduledActivitiesController {
     LostReasonsController,
     SalesTeamsController,
     LeadsController,
+    AccountsController,
     ScheduledActivitiesController,
   ],
-  providers: [ActivityService, LeadService, ScheduleService],
+  providers: [ActivityService, LeadService, SalesCloudService, ScheduleService],
   exports: [LeadService],
 })
 export class CrmModule {}

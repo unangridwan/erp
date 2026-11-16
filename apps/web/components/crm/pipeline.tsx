@@ -12,6 +12,8 @@ export interface LeadRow {
   id: string;
   name: string;
   leadType: string;
+  leadStatus: string;
+  nextStep: string | null;
   state: string;
   stageId: string | null;
   stageName: string | null;

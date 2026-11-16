@@ -543,6 +543,11 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
 - [x] P5 bagian 2 — inspeksi mutu (migrasi 0077): titik kontrol penerimaan/produksi per produk/kategori/pemasok,
   sampling, butir lulus-gagal/ukur min–maks/wajib foto, karantina otomatis, keputusan terima/bersyarat/retur/scrap,
   NCR, laporan tingkat cacat per pemasok & produk. Paket P5 selesai
+- [x] CRM bagian 1 — Sales Cloud inti (migrasi 0078): status & profil lead, deteksi duplikat + gabung, konversi lead →
+  akun + kontak + peluang, produk per peluang (nilai otomatis, penawaran sekali klik), peran kontak, riwayat tahap,
+  akun/kontak 360°, laporan corong & kecepatan pipeline
+- [ ] CRM bagian 2 — forecast, kuota & wilayah (0079); bagian 3 — kampanye, web-to-lead, skor & penugasan lead (0080);
+  bagian 4 — tiket layanan & SLA (0081)
 
 ## Rekomendasi berikutnya — SDM & Payroll
 

@@ -64,11 +64,14 @@ export const APPS: App[] = [
       group("Penjualan", "Sales", [
         link("Pipeline", "My Pipeline", "/crm/pipeline", "crm.read"),
         link("Lead", "Leads", "/crm/leads", "crm.read"),
+        link("Peluang", "Opportunities", "/crm/opportunities", "crm.read"),
+        link("Akun", "Accounts", "/crm/accounts", "crm.read"),
+        link("Kontak", "Contacts", "/crm/contacts", "crm.read"),
         link("Aktivitas Saya", "My Activities", "/crm/activities", "crm.read"),
-        CUSTOMERS,
       ]),
       group("Laporan", "Reporting", [
         link("Analisis Pipeline", "Pipeline Analysis", "/crm/reports", "crm.read"),
+        link("Corong & Kecepatan", "Funnel & Velocity", "/crm/funnel", "crm.read"),
       ]),
       group("Konfigurasi", "Configuration", [
         link("Tahap Pipeline", "Stages", "/crm-stages", "crm.read"),

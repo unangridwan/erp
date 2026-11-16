@@ -401,11 +401,20 @@ Pemeriksa Mutu):
 
 ### CRM & Penjualan (Fase 2)
 
+CRM memisahkan **Lead** (status baru → dihubungi → terkualifikasi/tidak layak) dari **Peluang**. Konversi lead membuat
+akun (perusahaan), kontak di bawah akun itu, dan peluang dengan kontak utama; riwayat tahap dicatat otomatis. Menu:
+CRM › Lead, Peluang, Akun, Kontak, Corong & Kecepatan (migrasi 0078).
+
 | Endpoint                                                                                      | Keterangan                                                                     |
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | `/crm-stages`, `/lost-reasons`, `/sales-teams`, `/payment-terms`, `/pricelists`               | Konfigurasi (tahap pipeline, alasan kalah, tim, termin, daftar harga + aturan) |
 | `GET/POST /leads`, `GET/PATCH/DELETE /leads/:id`                                              | Lead & peluang; filter `leadType`, `state=open,won`, `stageId`, `userId=me`    |
 | `POST /leads/:id/{convert,won,lost,reopen}`, `GET /leads/pipeline?from=&to=`                  | Konversi ke peluang/pelanggan, menang/kalah, buka kembali, ringkasan pipeline  |
+| `GET /leads/:id/duplicates`, `POST /leads/:id/merge`                                          | Kemungkinan duplikat (email/telepon/nama perusahaan) di lead & partner; gabung |
+| `PUT /leads/:id/products`, `PUT /leads/:id/contact-roles`                                     | Produk peluang (nilai harapan = total) dan peran kontak (satu kontak utama)    |
+| `GET /leads/reports/funnel`, `GET /leads/reports/velocity` (`from`, `to`)                     | Corong lead → peluang → menang; lama per tahap, siklus penjualan, win rate     |
+| `GET /crm/accounts?kind=company\|person`, `GET /crm/accounts/:id`                             | Akun & kontak; tampilan 360° (peluang, pesanan, faktur sesuai hak, aktivitas)  |
+| `POST /sale-orders/from-lead/:leadId`                                                         | Penawaran draft berisi produk peluang                                          |
 | `GET/POST /activities`, `GET /activities/mine`, `PATCH/DELETE /activities/:id`, `POST …/done` | Aktivitas terjadwal pada lead, pesanan, atau kontak                            |
 | `GET/POST /sale-orders`, `GET/PUT/DELETE /sale-orders/:id`, `POST /sale-orders/compute`       | Penawaran/pesanan; `compute` = pratinjau harga daftar harga, pajak, total      |
 | `POST /sale-orders/:id/{send,confirm,cancel,draft}`, `GET /sale-orders/:id/pdf`               | Kirim email (PDF terlampir), konfirmasi, batal, kembali ke draft, unduh PDF    |

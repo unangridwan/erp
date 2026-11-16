@@ -3712,3 +3712,6 @@ img.qc-photo {
   margin: 2px 4px 2px 0;
   vertical-align: middle;
 }
+.crm-funnel li {
+  grid-template-columns: 120px 1fr 44px 52px;
+}

@@ -12,7 +12,7 @@ import {
   type Db,
   type PgColumn,
 } from "@erp/db";
-import { formatCustomValue, type CustomFieldModel } from "@erp/shared";
+import { formatCustomValue, LEAD_STATUS_LABEL, type CustomFieldModel } from "@erp/shared";
 import { loadCustomDefs } from "../customization/custom-values.js";
 import type { Column, Ctx, Dataset } from "../hr/data-transfer/core.js";
 
@@ -261,6 +261,9 @@ function crmLeads(): Dataset {
       return [
         col("name", "Judul", "Lead"),
         col("leadType", "Jenis", "Lead"),
+        col("leadStatus", "Status lead", "Lead"),
+        col("industry", "Industri", "Lead"),
+        col("city", "Kota", "Lead"),
         col("created", "Tanggal dibuat", "Lead"),
         col("month", "Bulan dibuat", "Lead"),
         col("partner", "Pelanggan", "Lead"),
@@ -299,6 +302,9 @@ function crmLeads(): Dataset {
         return {
           name: l.name,
           leadType: l.leadType === "lead" ? "Lead" : "Peluang",
+          leadStatus: LEAD_STATUS_LABEL[l.leadStatus]?.[0] ?? l.leadStatus,
+          industry: l.industry,
+          city: l.city,
           created: day(l.createdAt),
           month: month(l.createdAt),
           partner: partner ?? l.partnerName ?? "",

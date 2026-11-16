@@ -15,6 +15,16 @@ import { audit, tenantId } from "./core.js";
 // FK di database berbentuk komposit (tenant_id, id); di sini cukup dideklarasikan kolomnya.
 
 export const LEAD_SOURCES = ["website", "referral", "event", "ads", "social", "cold_call", "other"] as const;
+export const LEAD_STATUSES = ["new", "contacted", "qualified", "unqualified"] as const;
+export const CONTACT_ROLES = [
+  "decision_maker",
+  "influencer",
+  "champion",
+  "evaluator",
+  "buyer",
+  "user",
+  "other",
+] as const;
 export const ACTIVITY_TYPES = ["call", "meeting", "email", "todo"] as const;
 
 export const crmStages = pgTable("crm_stages", {
@@ -114,7 +124,59 @@ export const crmLeads = pgTable("crm_leads", {
   description: text("description"),
   branchId: uuid("branch_id"),
   businessUnitId: uuid("business_unit_id"),
+  leadStatus: text("lead_status", { enum: LEAD_STATUSES }).notNull().default("new"),
+  title: text("title"),
+  industry: text("industry"),
+  website: text("website"),
+  employeeCount: integer("employee_count"),
+  annualRevenue: numeric("annual_revenue", { precision: 20, scale: 2 }),
+  street: text("street"),
+  city: text("city"),
+  province: text("province"),
+  nextStep: text("next_step"),
+  contactId: uuid("contact_id"),
+  convertedAt: timestamp("converted_at", { withTimezone: true }),
   ...audit,
+});
+
+export const crmLeadProducts = pgTable("crm_lead_products", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  leadId: uuid("lead_id").notNull(),
+  sequence: integer("sequence").notNull().default(10),
+  productId: uuid("product_id").notNull(),
+  name: text("name"),
+  quantity: numeric("quantity", { precision: 18, scale: 4 }).notNull().default("1"),
+  priceUnit: numeric("price_unit", { precision: 20, scale: 4 }).notNull().default("0"),
+  discount: numeric("discount", { precision: 7, scale: 4 }).notNull().default("0"),
+  subtotal: numeric("subtotal", { precision: 20, scale: 2 }).notNull().default("0"),
+  createdAt: audit.createdAt,
+});
+
+export const crmContactRoles = pgTable("crm_contact_roles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  leadId: uuid("lead_id").notNull(),
+  partnerId: uuid("partner_id").notNull(),
+  role: text("role", { enum: CONTACT_ROLES }).notNull().default("other"),
+  isPrimary: boolean("is_primary").notNull().default(false),
+  note: text("note"),
+  createdAt: audit.createdAt,
+});
+
+export const crmStageHistory = pgTable("crm_stage_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  leadId: uuid("lead_id").notNull(),
+  fromStageId: uuid("from_stage_id"),
+  toStageId: uuid("to_stage_id"),
+  state: text("state", { enum: ["open", "won", "lost"] })
+    .notNull()
+    .default("open"),
+  expectedRevenue: numeric("expected_revenue", { precision: 20, scale: 2 }).notNull().default("0"),
+  probability: numeric("probability", { precision: 5, scale: 2 }).notNull().default("0"),
+  userId: uuid("user_id"),
+  changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const scheduledActivities = pgTable("scheduled_activities", {
