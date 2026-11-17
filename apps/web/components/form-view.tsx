@@ -160,7 +160,7 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
 
   return (
     <>
-      <header className="toolbar control-panel">
+      <header className="toolbar control-panel form-toolbar">
         <div className="cp-left">
           <nav className="breadcrumb">
             <Link href={`/${resource.path}`}>{tx(resource.title)}</Link>
@@ -174,6 +174,23 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
               />
             )}
           </nav>
+        </div>
+        <div className="cp-right">
+          {editable && dirty && !saving && (
+            <span className="dirty-dot" role="status">
+              {l("Belum disimpan", "Unsaved changes")}
+            </span>
+          )}
+          {editable && !isNew && !resource.noDelete && canDelete(me.permissions, resource) && (
+            <button type="button" className="danger ghost" onClick={onDelete}>
+              {t("form.delete")}
+            </button>
+          )}
+          {editable && dirty && !saving && (
+            <button type="button" onClick={onDiscard}>
+              {l("Buang", "Discard")}
+            </button>
+          )}
           {editable && (
             <button
               className="primary"
@@ -183,21 +200,6 @@ export function FormView({ resource, id }: { resource: Resource; id: string }) {
               title={l("Simpan (Ctrl+S)", "Save (Ctrl+S)")}
             >
               {saving ? t("form.saving") : t("form.save")}
-            </button>
-          )}
-          {editable && dirty && !saving && (
-            <>
-              <button type="button" onClick={onDiscard}>
-                {l("Buang", "Discard")}
-              </button>
-              <span className="dirty-dot" role="status">
-                {l("Belum disimpan", "Unsaved changes")}
-              </span>
-            </>
-          )}
-          {editable && !isNew && !resource.noDelete && canDelete(me.permissions, resource) && (
-            <button type="button" className="danger" onClick={onDelete}>
-              {t("form.delete")}
             </button>
           )}
         </div>
