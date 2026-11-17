@@ -282,6 +282,13 @@ export function DataTransferPanel({
         () => setRuns([]),
       );
   }, [app]);
+  // Dibuka dari daftar (mis. Jatah Cuti › Impor & ekspor): gulir & sorot dataset yang dituju.
+  useEffect(() => {
+    if (!datasets || !window.location.hash) return;
+    const el = document.getElementById(window.location.hash.slice(1));
+    el?.scrollIntoView({ block: "start" });
+    el?.classList.add("data-anchor-target");
+  }, [datasets]);
   const STATE: Record<string, string> = {
     draft: l("draft", "draft"),
     done: l("diposting", "posted"),
@@ -322,7 +329,9 @@ export function DataTransferPanel({
       ) : (
         <div className="data-grid">
           {datasets.map((d) => (
-            <DatasetCard key={d.key} d={d} runId={runId} />
+            <div key={d.key} id={`ds-${d.key}`} className="data-anchor">
+              <DatasetCard d={d} runId={runId} />
+            </div>
           ))}
         </div>
       )}

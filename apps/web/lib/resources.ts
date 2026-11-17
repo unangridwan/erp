@@ -44,12 +44,19 @@ export interface Resource {
   group: Text;
   /** Tampilkan tombol impor/ekspor CSV. */
   csv?: boolean;
+  /** Impor/ekspor ditangani halaman Impor & Ekspor Data (tautan dari menu "Lainnya"), bukan CSV daftar. */
+  dataTransfer?: string;
   /** Permission untuk menulis bila berbeda dari `<permission>.write`. */
   writePermission?: string;
   /** Permission untuk membuat data baru bila berbeda dari hak menulis (mis. karyawan: butuh hak kontrak). */
   createPermission?: string;
   /** Data tidak bisa dihapus (cukup dinonaktifkan). */
   noDelete?: boolean;
+  /**
+   * Tampilan terfilter lewat `?role=` (mis. kontak → Pelanggan/Pemasok): daftar hanya baris dengan field boolean
+   * bernilai benar, judul mengikuti peran, dan data baru langsung dicentang perannya.
+   */
+  roles?: Record<string, { field: string; title: Text }>;
   /** Model field kustom (Pengaturan › Field Kustom) yang ditampilkan di form & daftar. */
   customModel?: CustomFieldModel;
   /** Tampilan kartu (kanban) — menjadi tampilan bawaan seperti di Odoo. */
@@ -176,6 +183,10 @@ const TAX_KINDS: [string, Text][] = [
 export const RESOURCES: Resource[] = [
   {
     path: "partners",
+    roles: {
+      customer: { field: "isCustomer", title: L("Pelanggan", "Customers") },
+      supplier: { field: "isSupplier", title: L("Pemasok", "Vendors") },
+    },
     customModel: "partner",
     kanban: { title: "name", lines: ["city", "email", "phone"] },
     model: "partner",
@@ -2439,7 +2450,8 @@ RESOURCES.push(
   {
     path: "leave-allocations",
     model: "leave_allocation",
-    csv: true,
+    // Impor/ekspor lewat SDM › Impor & Ekspor Data (satu format, dengan pratinjau).
+    dataTransfer: "/hr/data#ds-leave-allocations",
     title: L("Jatah Cuti", "Leave Allocations"),
     singular: L("Jatah cuti", "Leave allocation"),
     permission: "hr",
@@ -2613,7 +2625,8 @@ RESOURCES.push(
   {
     path: "overtimes",
     model: "overtime",
-    csv: true,
+    // Impor/ekspor lewat SDM › Impor & Ekspor Data (satu format, dengan pratinjau).
+    dataTransfer: "/hr/data#ds-overtimes",
     title: L("Lembur", "Overtime"),
     singular: L("Lembur", "Overtime"),
     permission: "hr",

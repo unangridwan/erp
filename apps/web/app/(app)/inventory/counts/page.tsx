@@ -11,6 +11,7 @@ import { api, ApiError } from "../../../../lib/api";
 import { formatDate, money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
+import { CountTabs } from "../../../../components/inventory/count-tabs";
 
 interface Row {
   id: string;
@@ -74,7 +75,7 @@ export default function StockCountsPage() {
   return (
     <>
       <header className="toolbar">
-        <h1>{l("Stock Opname", "Physical Inventory")}</h1>
+        <h1>{l("Stock Opname & Penyesuaian", "Physical Inventory & Adjustments")}</h1>
         {manage && !form && (
           <button
             className="primary"
@@ -86,6 +87,7 @@ export default function StockCountsPage() {
           </button>
         )}
       </header>
+      <CountTabs />
       <p className="muted">
         {l(
           "Hitung fisik per gudang/lokasi (penuh) atau per kategori (cycle count): stok sistem diambil saat hitung dimulai, hasil hitung diisi manual, scan barcode, atau impor Excel; selisih diajukan untuk disetujui lalu diposting sebagai penyesuaian.",

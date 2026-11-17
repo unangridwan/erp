@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { BarChart, HBarList } from "../../../../components/hr/charts";
+import { HrCostActivity } from "../../../../components/hr/hr-cost-activity";
 import { errorText } from "../../../../components/hr/hr-panels";
 import { RefSelect } from "../../../../components/ref-select";
 import { api } from "../../../../lib/api";
@@ -62,7 +64,23 @@ const MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"
 
 /** Analitik SDM: turnover & retensi, masa kerja, demografi, dan kesetaraan gaji per golongan × gender. */
 export default function HrAnalyticsPage() {
+  return (
+    <Suspense>
+      <HrAnalytics />
+    </Suspense>
+  );
+}
+
+/**
+ * Dashboard & Analitik SDM (satu halaman, dulu dua menu): tab Analitik (headcount, turnover, retensi, demografi,
+ * kesetaraan gaji) dan tab Biaya & aktivitas (biaya tenaga kerja & pelatihan, cuti, lembur, kinerja).
+ */
+function HrAnalytics() {
   const { l, locale } = useI18n();
+  const router = useRouter();
+  const tab = useSearchParams().get("tab") === "costs" ? "costs" : "analytics";
+  const setTab = (t: "analytics" | "costs") =>
+    router.replace(t === "costs" ? "/hr/analytics?tab=costs" : "/hr/analytics", { scroll: false });
   const [year, setYear] = useState(new Date().getFullYear());
   const [departmentId, setDepartmentId] = useState("");
   const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
@@ -117,7 +135,7 @@ export default function HrAnalyticsPage() {
     <div className="stack-wide">
       <section className="panel">
         <header className="toolbar">
-          <h1>{l("Analitik SDM", "HR Analytics")}</h1>
+          <h1>{l("Dashboard & Analitik SDM", "HR Dashboard & Analytics")}</h1>
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
@@ -127,29 +145,51 @@ export default function HrAnalyticsPage() {
               <option key={y}>{y}</option>
             ))}
           </select>
-          <label className="field">
-            <span>{l("Departemen", "Department")}</span>
-            <RefSelect
-              name="departmentId"
-              resource="departments"
-              display="name"
-              value={departmentId}
-              onChange={setDepartmentId}
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() =>
-              download(`/hr/analytics?${query}&format=xlsx`, undefined, `analitik-sdm-${year}.xlsx`).catch(
-                (e: Error) => setError(e.message),
-              )
-            }
-          >
-            {l("Ekspor Excel", "Export Excel")}
-          </button>
+          {tab === "analytics" && (
+            <label className="field">
+              <span>{l("Departemen", "Department")}</span>
+              <RefSelect
+                name="departmentId"
+                resource="departments"
+                display="name"
+                value={departmentId}
+                onChange={setDepartmentId}
+              />
+            </label>
+          )}
+          {tab === "analytics" && (
+            <button
+              type="button"
+              onClick={() =>
+                download(`/hr/analytics?${query}&format=xlsx`, undefined, `analitik-sdm-${year}.xlsx`).catch(
+                  (e: Error) => setError(e.message),
+                )
+              }
+            >
+              {l("Ekspor Excel", "Export Excel")}
+            </button>
+          )}
         </header>
+        <nav className="tabs" role="tablist">
+          <button
+            role="tab"
+            aria-selected={tab === "analytics"}
+            className={tab === "analytics" ? "active" : ""}
+            onClick={() => setTab("analytics")}
+          >
+            {l("Analitik tenaga kerja", "Workforce analytics")}
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === "costs"}
+            className={tab === "costs" ? "active" : ""}
+            onClick={() => setTab("costs")}
+          >
+            {l("Biaya & aktivitas", "Cost & activity")}
+          </button>
+        </nav>
         {error && <p className="error">{error}</p>}
-        {s && (
+        {tab === "analytics" && s && (
           <>
             <ul className="grid">
               {(
@@ -184,7 +224,7 @@ export default function HrAnalyticsPage() {
           </>
         )}
       </section>
-      {d && (
+      {tab === "analytics" && d && (
         <>
           <div className="grid-2">
             <section className="panel">
@@ -346,6 +386,7 @@ export default function HrAnalyticsPage() {
           )}
         </>
       )}
+      {tab === "costs" && <HrCostActivity year={year} />}
       <DatasetDrillPanel request={drill} onClose={() => setDrill(null)} />
     </div>
   );
