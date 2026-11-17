@@ -10,6 +10,7 @@ import { errorText } from "../hr/hr-panels";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
 import { ask } from "../feedback";
+import { DatasetDrillPanel, type DatasetDrillRequest } from "../drilldown-panel";
 
 interface Overview {
   vehicle: {
@@ -622,6 +623,36 @@ export function FleetReports() {
   const label = (g: { label: string }) =>
     groupBy === "category" ? l(...(CATEGORY[g.label] ?? [g.label, g.label])) : g.label;
   const max = Math.max(1, ...(costs?.groups.map((g) => g.total) ?? [1]));
+  const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
+  /** Kejadian biaya (kontrak/servis) penyusun satu kelompok; `source` membatasi ke salah satu sumber. */
+  const drillCell = (g: { key: string; label: string }, value: number, source?: "Kontrak" | "Servis") =>
+    value ? (
+      <button
+        type="button"
+        className="link drill"
+        onClick={() =>
+          setDrill({
+            title: label(g),
+            body: {
+              dataset: "fleet_costs",
+              filters: { from, to },
+              match: {
+                ...(groupBy === "vehicle"
+                  ? { _vehicleId: g.key }
+                  : groupBy === "category"
+                    ? { _category: g.key }
+                    : { month: g.key }),
+                ...(source ? { source } : {}),
+              },
+            },
+          })
+        }
+      >
+        {money(value, locale, 0)}
+      </button>
+    ) : (
+      money(value, locale, 0)
+    );
   return (
     <>
       <section className="panel">
@@ -667,10 +698,10 @@ export function FleetReports() {
                 {costs.groups.map((g) => (
                   <tr key={g.key}>
                     <td>{label(g)}</td>
-                    <td className="num">{money(g.contract, locale, 0)}</td>
-                    <td className="num">{money(g.service, locale, 0)}</td>
+                    <td className="num">{drillCell(g, g.contract, "Kontrak")}</td>
+                    <td className="num">{drillCell(g, g.service, "Servis")}</td>
                     <td className="num">
-                      <strong>{money(g.total, locale, 0)}</strong>
+                      <strong>{drillCell(g, g.total)}</strong>
                     </td>
                     <td className="bar-col">
                       <span className="cost-bar" style={{ width: `${(g.total / max) * 100}%` }} />
@@ -697,6 +728,7 @@ export function FleetReports() {
             </table>
           </div>
         )}
+        <DatasetDrillPanel request={drill} onClose={() => setDrill(null)} />
       </section>
       <section className="panel">
         <h2>{l("Tren Odometer", "Odometer Trend")}</h2>

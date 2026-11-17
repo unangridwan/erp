@@ -266,6 +266,29 @@ describe.skipIf(!hasDb)("Maintenance aset", () => {
     expect(row.preventiveDue).toBe(2);
     expect(row.preventiveOnTime).toBe(2);
     expect(row.compliance).toBe(100);
+    // Drilldown per peralatan dengan syarat tanggal sama dengan laporan.
+    const drill = async (match: Record<string, string>, column: string) =>
+      (
+        await a
+          .post("/reports/drill", {
+            dataset: "maintenance_requests",
+            config: {
+              conditions: [
+                { column, op: "gte", value: from },
+                { column, op: "lte", value: today },
+              ],
+            },
+            match: { _equipmentId: mill, ...match },
+          })
+          .expect(200)
+      ).body;
+    expect((await drill({ _kind: "corrective" }, "breakdown")).total).toBe(row.failures);
+    const cost = await drill({ _done: "1" }, "finished");
+    expect(cost.totals.totalCost).toBe(950000);
+    expect(cost.rows[0]._model).toBe("maintenance_request");
+    expect((await drill({ _kind: "preventive" }, "scheduled")).total).toBe(row.preventiveDue);
+    const links = (await a.get(`/links/maintenance_request/${cost.rows[0]._id}`).expect(200)).body;
+    expect(links.model).toBe("maintenance_request");
   });
 
   it("isolasi tenant & pengaturan", async () => {

@@ -31,6 +31,21 @@ export default function PipelineReportPage() {
   const [data, setData] = useState<Pipeline | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
+  /** Peluang menang/kalah yang ditutup dalam periode (tanggal tutup, sama dengan laporan). */
+  const closed = (state: "won" | "lost", title: string) =>
+    setDrill({
+      title,
+      body: {
+        dataset: "crm_leads",
+        config: {
+          conditions: [
+            { column: "closed", op: "gte", value: from },
+            { column: "closed", op: "lte", value: to },
+          ],
+        },
+        match: { _state: state, leadType: "Peluang" },
+      },
+    });
 
   useEffect(() => {
     api<Pipeline>(`/leads/pipeline?from=${from}&to=${to}`)
@@ -75,7 +90,9 @@ export default function PipelineReportPage() {
             <li className="card">
               <span>{l("Menang (periode)", "Won (period)")}</span>
               <strong>
-                {data.won.count} · {money(data.won.amount, locale)}
+                <button type="button" className="link" onClick={() => closed("won", l("Menang", "Won"))}>
+                  {data.won.count} · {money(data.won.amount, locale)}
+                </button>
               </strong>
             </li>
             <li className="card">
@@ -134,7 +151,11 @@ export default function PipelineReportPage() {
           </section>
           <section className="panel">
             <h2>
-              {l("Alasan kalah", "Lost reasons")} ({data.lost.count})
+              {l("Alasan kalah", "Lost reasons")} (
+              <button type="button" className="link" onClick={() => closed("lost", l("Kalah", "Lost"))}>
+                {data.lost.count}
+              </button>
+              )
             </h2>
             {data.lostByReason.length === 0 ? (
               <p className="muted">—</p>

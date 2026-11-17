@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { DataTable } from "../../../../components/data-table";
+import { DatasetDrillPanel, type DatasetDrillRequest } from "../../../../components/drilldown-panel";
 import { toast } from "../../../../components/feedback";
 import { api } from "../../../../lib/api";
 import { today } from "../../../../lib/format";
@@ -34,28 +35,46 @@ export default function QualityReportsPage() {
     api<Report>(`/quality/reports?from=${from}&to=${to}`).then(setData, (e: Error) => toast.error(e.message));
   }, [from, to]);
   useEffect(load, [load]);
-  const columns = (who: string) => [
+  const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
+  /** Angka pemeriksaan → daftar pemeriksaan penyusunnya (per pemasok/produk, opsional per status). */
+  const count = (
+    key: "checks" | "passed" | "conditional" | "failed" | "pending",
+    label: string,
+    by: "_partnerId" | "_productId",
+  ) => ({
+    key,
+    label,
+    type: "number" as const,
+    value: (r: Group) => r[key],
+    render: (r: Group) =>
+      r[key] ? (
+        <button
+          type="button"
+          className="link drill"
+          onClick={() =>
+            setDrill({
+              title: `${r.name} · ${label}`,
+              body: {
+                dataset: "quality_checks",
+                filters: { from, to },
+                match: { [by]: r.id, ...(key === "checks" ? {} : { _state: key }) },
+              },
+            })
+          }
+        >
+          {r[key]}
+        </button>
+      ) : (
+        r[key]
+      ),
+  });
+  const columns = (who: string, by: "_partnerId" | "_productId") => [
     { key: "name", label: who, value: (r: Group) => r.name },
-    {
-      key: "checks",
-      label: l("Pemeriksaan", "Checks"),
-      type: "number" as const,
-      value: (r: Group) => r.checks,
-    },
-    { key: "passed", label: l("Lulus", "Passed"), type: "number" as const, value: (r: Group) => r.passed },
-    {
-      key: "conditional",
-      label: l("Bersyarat", "Conditional"),
-      type: "number" as const,
-      value: (r: Group) => r.conditional,
-    },
-    { key: "failed", label: l("Gagal", "Failed"), type: "number" as const, value: (r: Group) => r.failed },
-    {
-      key: "pending",
-      label: l("Menunggu", "Pending"),
-      type: "number" as const,
-      value: (r: Group) => r.pending,
-    },
+    count("checks", l("Pemeriksaan", "Checks"), by),
+    count("passed", l("Lulus", "Passed"), by),
+    count("conditional", l("Bersyarat", "Conditional"), by),
+    count("failed", l("Gagal", "Failed"), by),
+    count("pending", l("Menunggu", "Pending"), by),
     {
       key: "defectRate",
       label: l("Tingkat cacat", "Defect rate"),
@@ -113,7 +132,7 @@ export default function QualityReportsPage() {
             storageKey="quality-report-supplier"
             rowKey={(r) => r.id}
             empty={l("Belum ada data.", "No data yet.")}
-            columns={columns(l("Pemasok", "Supplier"))}
+            columns={columns(l("Pemasok", "Supplier"), "_partnerId")}
           />
           <h2>{l("Per produk", "By product")}</h2>
           <DataTable
@@ -121,10 +140,11 @@ export default function QualityReportsPage() {
             storageKey="quality-report-product"
             rowKey={(r) => r.id}
             empty={l("Belum ada data.", "No data yet.")}
-            columns={columns(l("Produk", "Product"))}
+            columns={columns(l("Produk", "Product"), "_productId")}
           />
         </>
       )}
+      <DatasetDrillPanel request={drill} onClose={() => setDrill(null)} />
     </>
   );
 }

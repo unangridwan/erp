@@ -282,6 +282,14 @@ describe.skipIf(!hasDb)("Inspeksi mutu (QM)", () => {
     expect(r.totals).toMatchObject({ checks: 4, failed: 2, passed: 1, conditional: 1 });
     const sup = r.bySupplier.find((x: { id: string }) => x.id === vendor);
     expect(sup).toMatchObject({ checks: 3, failed: 2, defectRate: 66.7 });
+    const drill = (match: Record<string, string>) =>
+      a
+        .post("/reports/drill", { dataset: "quality_checks", filters: { from: today, to: today }, match })
+        .expect(200);
+    expect((await drill({ _partnerId: vendor })).body.total).toBe(3);
+    const failed = (await drill({ _partnerId: vendor, _state: "failed" })).body;
+    expect(failed.total).toBe(2);
+    expect(failed.rows[0]._model).toBe("quality_check");
     const b = await signup(app, "qm2");
     expect((await b.get("/quality-checks").expect(200)).body).toEqual([]);
     const any = (await a.get("/quality-checks").expect(200)).body[0];

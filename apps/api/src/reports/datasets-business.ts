@@ -12,7 +12,16 @@ import {
   type Db,
   type PgColumn,
 } from "@erp/db";
-import { formatCustomValue, LEAD_STATUS_LABEL, type CustomFieldModel, type RecordModel } from "@erp/shared";
+import {
+  CHECK_STATE_LABEL,
+  formatCustomValue,
+  LEAD_STATUS_LABEL,
+  QUALITY_TRIGGER_LABEL,
+  REQUEST_STATE_LABEL,
+  type CustomFieldModel,
+  type RecordModel,
+} from "@erp/shared";
+import { fleetCostRows } from "../fleet/fleet-costs.js";
 import { loadCustomDefs } from "../customization/custom-values.js";
 import type { Column, Ctx, Dataset } from "../hr/data-transfer/core.js";
 
@@ -289,6 +298,7 @@ function crmLeads(): Dataset {
         col("team", "Tim penjualan", "Lead"),
         col("state", "Status", "Lead"),
         col("expectedClose", "Perkiraan tutup", "Lead"),
+        col("closed", "Tanggal tutup", "Lead"),
         col("expectedRevenue", "Nilai harapan", "Nilai", true),
         col("probability", "Probabilitas (%)", "Nilai", true),
         col("weighted", "Nilai tertimbang", "Nilai", true),
@@ -338,6 +348,7 @@ function crmLeads(): Dataset {
           team: team ?? "",
           state: { open: "Terbuka", won: "Menang", lost: "Kalah" }[l.state as string] ?? l.state,
           expectedClose: l.expectedClose ?? "",
+          closed: day(l.closedAt),
           expectedRevenue: revenue,
           probability: prob,
           weighted: Math.round(revenue * prob) / 100,
@@ -937,6 +948,7 @@ function payslipHistory(): Dataset {
       col("period", "Periode", "Payroll"),
       col("month", "Bulan", "Payroll"),
       col("run", "Payroll", "Payroll"),
+      col("runKind", "Jenis payroll", "Payroll"),
       col("employeeNumber", "No. karyawan", "Karyawan"),
       col("employee", "Nama", "Karyawan"),
       col("department", "Departemen", "Karyawan"),
@@ -950,6 +962,7 @@ function payslipHistory(): Dataset {
       const rows = await tx
         .select({
           id: S.id,
+          kind: RUN.kind,
           departmentId: E.departmentId,
           branch: schema.branches.name,
           period: RUN.periodStart,
@@ -971,7 +984,8 @@ function payslipHistory(): Dataset {
           and(
             eq(S.companyId, ctx.companyId),
             inArray(RUN.state, ["done", "paid"]),
-            ne(RUN.kind, "correction"),
+            // Bawaan tanpa payroll koreksi; `includeCorrections=1` (drilldown laporan biaya tenaga kerja) ikut.
+            q.includeCorrections === "1" ? undefined : ne(RUN.kind, "correction"),
             range(RUN.periodStart, q),
           ),
         )
@@ -986,6 +1000,7 @@ function payslipHistory(): Dataset {
           period: r.period,
           month: month(r.period),
           run: r.run,
+          runKind: r.kind === "correction" ? "Koreksi" : "Reguler",
           employeeNumber: r.number,
           employee: r.employee,
           department: r.department ?? "",
@@ -1001,6 +1016,151 @@ function payslipHistory(): Dataset {
 }
 
 /** Dataset laporan bisnis (hanya baca) — dipakai pembuat laporan & dashboard, bukan impor/ekspor SDM. */
+function qualityChecks(): Dataset {
+  const QC = schema.qualityChecks;
+  return {
+    key: "quality_checks",
+    label: "Pemeriksaan mutu",
+    description: "Pemeriksaan mutu: produk, pemasok, pemicu, status, kuantitas.",
+    app: "quality",
+    read: "quality.read",
+    admin: "quality.manage",
+    filters: DATE_FILTERS,
+    columns: () => [
+      col("name", "Nomor", "Pemeriksaan"),
+      col("date", "Tanggal", "Pemeriksaan"),
+      col("month", "Bulan", "Pemeriksaan"),
+      col("trigger", "Pemicu", "Pemeriksaan"),
+      col("state", "Status", "Pemeriksaan"),
+      col("product", "Produk", "Produk"),
+      col("partner", "Pemasok/pelanggan", "Pemeriksaan"),
+      col("quantity", "Kuantitas", "Nilai", true),
+    ],
+    async rows(tx, ctx, q) {
+      const rows = await tx
+        .select({ c: QC, product: PR.name, partner: P.name })
+        .from(QC)
+        .innerJoin(PR, eq(PR.id, QC.productId))
+        .leftJoin(P, eq(P.id, QC.partnerId))
+        .where(and(eq(QC.companyId, ctx.companyId), rangeTs(QC.createdAt, q)))
+        .orderBy(asc(QC.createdAt));
+      return rows.map(({ c, product, partner }) => ({
+        ...ref("quality_check", c.id),
+        _productId: c.productId,
+        _partnerId: c.partnerId ?? "",
+        _state: c.state,
+        name: c.name,
+        date: day(c.createdAt),
+        month: month(c.createdAt),
+        trigger: QUALITY_TRIGGER_LABEL[c.trigger]?.[0] ?? c.trigger,
+        state: CHECK_STATE_LABEL[c.state]?.[0] ?? c.state,
+        product,
+        partner: partner ?? "",
+        quantity: n(c.quantity),
+      }));
+    },
+  };
+}
+
+function maintenanceRequests(): Dataset {
+  const RQ = schema.maintenanceRequests;
+  const EQ = schema.equipment;
+  return {
+    key: "maintenance_requests",
+    label: "Permintaan perawatan",
+    description:
+      "Permintaan perawatan (korektif & preventif) per peralatan: tanggal kerusakan/jadwal/selesai, downtime, biaya.",
+    app: "maintenance",
+    read: "maintenance.read",
+    admin: "maintenance.manage",
+    columns: () => [
+      col("name", "Nomor", "Permintaan"),
+      col("title", "Judul", "Permintaan"),
+      col("equipment", "Peralatan", "Permintaan"),
+      col("kind", "Jenis", "Permintaan"),
+      col("state", "Status", "Permintaan"),
+      col("breakdown", "Tanggal kerusakan", "Tanggal"),
+      col("scheduled", "Tanggal terjadwal", "Tanggal"),
+      col("finished", "Tanggal selesai", "Tanggal"),
+      col("downtimeHours", "Downtime (jam)", "Nilai", true),
+      col("partsCost", "Biaya suku cadang", "Nilai", true),
+      col("vendorCost", "Biaya vendor", "Nilai", true),
+      col("laborCost", "Biaya tenaga kerja", "Nilai", true),
+      col("totalCost", "Total biaya", "Nilai", true),
+    ],
+    async rows(tx, ctx) {
+      const rows = await tx
+        .select({ r: RQ, code: EQ.code, equipment: EQ.name })
+        .from(RQ)
+        .innerJoin(EQ, eq(EQ.id, RQ.equipmentId))
+        .where(and(eq(RQ.companyId, ctx.companyId), ne(RQ.state, "cancelled")))
+        .orderBy(asc(RQ.createdAt));
+      return rows.map(({ r, code, equipment }) => {
+        const parts = n(r.partsCost) ?? 0;
+        const vendor = n(r.vendorCost) ?? 0;
+        const labor = n(r.laborCost) ?? 0;
+        return {
+          ...ref("maintenance_request", r.id),
+          _equipmentId: r.equipmentId,
+          _kind: r.kind,
+          _done: r.state === "done" ? "1" : "",
+          name: r.name,
+          title: r.title,
+          equipment: `${code} ${equipment}`,
+          kind: r.kind === "preventive" ? "Preventif" : "Korektif",
+          state: REQUEST_STATE_LABEL[r.state]?.[0] ?? r.state,
+          breakdown: day(r.breakdownAt),
+          scheduled: r.scheduledDate ?? "",
+          finished: day(r.finishedAt),
+          downtimeHours: n(r.downtimeHours),
+          partsCost: parts,
+          vendorCost: vendor,
+          laborCost: labor,
+          totalCost: Math.round((parts + vendor + labor) * 100) / 100,
+        };
+      });
+    },
+  };
+}
+
+function fleetCosts(): Dataset {
+  return {
+    key: "fleet_costs",
+    label: "Biaya armada",
+    description: "Biaya kendaraan per kejadian: kontrak (awal & berkala) dan servis.",
+    app: "fleet",
+    read: "fleet.read",
+    admin: "fleet.manage",
+    filters: DATE_FILTERS,
+    columns: () => [
+      col("date", "Tanggal", "Biaya"),
+      col("month", "Bulan", "Biaya"),
+      col("vehicle", "Kendaraan", "Biaya"),
+      col("category", "Kategori", "Biaya"),
+      col("source", "Sumber", "Biaya"),
+      col("amount", "Jumlah", "Nilai", true),
+    ],
+    async rows(tx, ctx, q) {
+      const today = new Date().toISOString().slice(0, 10);
+      const from = q.from && ISO.test(q.from) ? q.from : `${today.slice(0, 4)}-01-01`;
+      const to = q.to && ISO.test(q.to) ? q.to : today;
+      const rows = await fleetCostRows(tx, ctx.companyId, from, to);
+      rows.sort((a, b) => a.date.localeCompare(b.date));
+      return rows.map((r) => ({
+        ...ref(r.refModel, r.refId),
+        _vehicleId: r.vehicleId,
+        _category: r.category,
+        date: r.date,
+        month: month(r.date),
+        vehicle: r.vehicle,
+        category: r.category,
+        source: r.source === "contract" ? "Kontrak" : "Servis",
+        amount: r.amount,
+      }));
+    },
+  };
+}
+
 export function businessDatasets(): Dataset[] {
   return [
     saleOrders(),
@@ -1014,6 +1174,9 @@ export function businessDatasets(): Dataset[] {
     stockMoves(),
     productionOrders(),
     payslipHistory(),
+    qualityChecks(),
+    maintenanceRequests(),
+    fleetCosts(),
   ];
 }
 

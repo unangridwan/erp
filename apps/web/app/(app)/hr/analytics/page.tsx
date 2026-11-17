@@ -8,6 +8,7 @@ import { api } from "../../../../lib/api";
 import { download } from "../../../../lib/download";
 import { money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
+import { DatasetDrillPanel, type DatasetDrillRequest } from "../../../../components/drilldown-panel";
 
 type Count = { label: string; count: number };
 interface Analytics {
@@ -64,6 +65,42 @@ export default function HrAnalyticsPage() {
   const { l, locale } = useI18n();
   const [year, setYear] = useState(new Date().getFullYear());
   const [departmentId, setDepartmentId] = useState("");
+  const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
+  /** Karyawan masuk/keluar satu departemen (tanggal dalam tahun s.d. tanggal laporan, sama dengan analitik). */
+  const people = (
+    dept: string,
+    column: "joinDate" | "resignDate",
+    value: number,
+    title: string,
+    asOf: string,
+  ) =>
+    value ? (
+      <button
+        type="button"
+        className="link drill"
+        onClick={() =>
+          setDrill({
+            title: `${dept} · ${title}`,
+            body: {
+              dataset: "employees",
+              filters: { active: "all" },
+              config: {
+                columns: ["employeeNumber", "name", "department", "job", "joinDate", "resignDate"],
+                conditions: [
+                  { column, op: "gte", value: `${year}-01-01` },
+                  { column, op: "lte", value: asOf },
+                ],
+              },
+              match: { department: dept === "Tanpa departemen" ? "" : dept },
+            },
+          })
+        }
+      >
+        {value}
+      </button>
+    ) : (
+      value
+    );
   const [d, setD] = useState<Analytics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const query = `year=${year}${departmentId ? `&departmentId=${departmentId}` : ""}`;
@@ -201,8 +238,12 @@ export default function HrAnalyticsPage() {
                     <tr key={r.department}>
                       <td>{r.department}</td>
                       <td className="num">{r.start}</td>
-                      <td className="num">{r.hires}</td>
-                      <td className="num">{r.leavers}</td>
+                      <td className="num">
+                        {people(r.department, "joinDate", r.hires, l("Masuk", "Hires"), d.asOf)}
+                      </td>
+                      <td className="num">
+                        {people(r.department, "resignDate", r.leavers, l("Keluar", "Leavers"), d.asOf)}
+                      </td>
                       <td className="num">{r.end}</td>
                       <td className="num">
                         <span className={`pill ${r.turnover > 20 ? "bad" : r.turnover > 10 ? "warn" : "ok"}`}>
@@ -305,6 +346,7 @@ export default function HrAnalyticsPage() {
           )}
         </>
       )}
+      <DatasetDrillPanel request={drill} onClose={() => setDrill(null)} />
     </div>
   );
 }

@@ -8,6 +8,9 @@ export const DATASET_APPS: Record<string, [string, string]> = {
   purchase: ["Pembelian", "Purchase"],
   inventory: ["Persediaan", "Inventory"],
   mrp: ["Manufaktur", "Manufacturing"],
+  quality: ["Mutu", "Quality"],
+  maintenance: ["Perawatan", "Maintenance"],
+  fleet: ["Armada", "Fleet"],
   hr: ["SDM", "Employees"],
   payroll: ["Payroll", "Payroll"],
 };
