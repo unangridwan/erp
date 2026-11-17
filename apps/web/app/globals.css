@@ -1305,49 +1305,49 @@ label.check {
   font-weight: 600;
   font-size: 13px;
 }
-.app.home {
-  background:
-    radial-gradient(circle at 15% 10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 45%),
-    radial-gradient(circle at 85% 90%, color-mix(in srgb, var(--link) 12%, transparent), transparent 45%),
-    var(--bg);
-}
+/* Beranda: sapaan, yang perlu tindakan, lalu daftar aplikasi berupa kartu ringkas. */
 .app.home .content {
-  padding-top: 32px;
+  padding-top: 8px;
 }
 .app-grid {
-  max-width: 900px;
-  margin: 24px auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 28px 16px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+  margin: 0 0 24px;
 }
 .app-tile {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
   color: var(--fg) !important;
-  font-size: 14px;
-  text-align: center;
+  font-weight: 500;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
 }
 .app-tile:hover {
   text-decoration: none;
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
 }
 .app-tile-icon {
   display: grid;
   place-items: center;
-  width: 76px;
-  height: 76px;
-  border-radius: 14px;
-  background: var(--card);
-  box-shadow: var(--shadow);
-  transition:
-    transform 0.12s,
-    box-shadow 0.12s;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: var(--bg);
 }
-.app-tile:hover .app-tile-icon {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgb(0 0 0 / 14%);
+@media (prefers-reduced-motion: reduce) {
+  .app-tile,
+  .sidebar {
+    transition: none;
+  }
 }
 
 /* ---- Kanban (kartu) ---- */
@@ -3573,8 +3573,14 @@ dialog.palette {
 }
 /* ---- Beranda ---- */
 .home-page {
-  max-width: 1000px;
+  max-width: 1120px;
   margin: 0 auto;
+}
+.home-date {
+  margin: 4px 0 0;
+}
+.home-apps-title {
+  margin-top: 28px;
 }
 .home-hero {
   display: flex;
@@ -3586,7 +3592,34 @@ dialog.palette {
 }
 .home-hero h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 26px;
+}
+/* Kotak cari besar hanya di ponsel (di layar lebar sudah ada di bilah atas). */
+@media (min-width: 641px) {
+  .home-search {
+    display: none !important;
+  }
+}
+@media (max-width: 640px) {
+  .home-hero .home-search {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+  .home-hero .home-search kbd {
+    display: none;
+  }
+  .app-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .app-tile {
+    padding: 10px;
+    gap: 8px;
+    font-size: 14px;
+  }
+  .app-tile-icon {
+    width: 36px;
+    height: 36px;
+  }
 }
 .home-search {
   display: inline-flex;
@@ -3615,7 +3648,7 @@ dialog.palette {
   gap: 16px;
 }
 .home-card {
-  padding: 14px 16px;
+  padding: 18px 20px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--card);
@@ -3623,8 +3656,8 @@ dialog.palette {
   min-width: 0;
 }
 .home-card h2 {
-  margin-bottom: 8px;
-  font-size: 14px;
+  margin: 0 0 10px;
+  font-size: 16px;
 }
 .home-list {
   list-style: none;
@@ -4198,4 +4231,63 @@ button.kpi-value {
 }
 .more-menu:not([open]) > .nav-items {
   display: none;
+}
+/* Tombol lipat panel filter: hanya di ponsel. */
+.filters-toggle {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+@media (max-width: 640px) {
+  .filters-toggle {
+    display: inline-flex;
+  }
+  .panel.filters.collapsed {
+    display: none;
+  }
+}
+/* Laporan di layar sempit: nama akun boleh turun baris agar kolom angka tetap terlihat. */
+@media (max-width: 640px) {
+  .report td:first-child,
+  .report th:first-child {
+    white-space: normal;
+    min-width: 140px;
+  }
+  .report td,
+  .report th {
+    padding: 8px 10px;
+  }
+}
+/* Halaman masuk/daftar: identitas aplikasi & kartu lebih lega. */
+.auth .panel {
+  max-width: 420px;
+  padding: 32px;
+}
+.auth h1 {
+  font-size: 24px;
+}
+.auth form > button.primary {
+  width: 100%;
+  min-height: 42px;
+}
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.auth-brand .side-logo {
+  width: auto;
+  padding: 0 8px;
+}
+/* Ponsel: target sentuh minimal ±42px (tombol & field). */
+@media (max-width: 640px) {
+  button,
+  .button,
+  input:not([type="checkbox"]):not([type="radio"]),
+  select {
+    min-height: 42px;
+  }
 }

@@ -446,6 +446,7 @@ export default function PayslipPage() {
                     <td>
                       <button
                         type="button"
+                        aria-label="Hapus baris / Remove"
                         className="link"
                         onClick={() => setInputs((rs) => rs.filter((_, j) => j !== i))}
                       >

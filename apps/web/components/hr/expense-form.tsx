@@ -216,6 +216,7 @@ export function ExpenseClaimForm(props: {
                   {form.lines.length > 1 && (
                     <button
                       type="button"
+                      aria-label="Hapus baris / Remove"
                       className="link"
                       onClick={() => setForm((f) => ({ ...f, lines: f.lines.filter((_, j) => j !== i) }))}
                     >

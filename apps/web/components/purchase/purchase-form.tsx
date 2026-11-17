@@ -743,6 +743,7 @@ export function PurchaseForm({ id }: { id: string }) {
                       <td>
                         <button
                           type="button"
+                          aria-label="Hapus baris / Remove"
                           className="link"
                           onClick={() => setLines((r) => r.filter((_, j) => j !== i))}
                         >

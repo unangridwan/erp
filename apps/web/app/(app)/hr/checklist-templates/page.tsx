@@ -176,6 +176,7 @@ export default function ChecklistTemplatesPage() {
                     <td>
                       <button
                         type="button"
+                        aria-label="Hapus baris / Remove"
                         className="link"
                         onClick={() => setEdit({ ...edit, items: edit.items.filter((_, j) => j !== i) })}
                       >

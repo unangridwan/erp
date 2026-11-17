@@ -81,6 +81,10 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   return (
     <main className="auth">
       <form className="panel" onSubmit={onSubmit}>
+        <div className="auth-brand" aria-hidden>
+          <span className="side-logo">ERP</span>
+          <span>{l("Sistem ERP Perusahaan", "Company ERP")}</span>
+        </div>
         <h1>{mode === "login" ? t("auth.login") : t("auth.signup")}</h1>
         {/* Field tetap di DOM saat meminta kode 2FA agar nilainya ikut terkirim. */}
         {field("tenantSlug", "auth.tenant", "text", needCode)}

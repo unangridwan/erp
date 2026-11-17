@@ -689,6 +689,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
                       <td>
                         <button
                           type="button"
+                          aria-label="Hapus baris / Remove"
                           className="link"
                           onClick={() => setLines((r) => r.filter((_, j) => j !== i))}
                         >
@@ -837,6 +838,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
                                       )}
                                       <button
                                         type="button"
+                                        aria-label="Hapus baris / Remove"
                                         className="link"
                                         onClick={() =>
                                           setWorkFor(m.id, { lots: w.lots.filter((_, k) => k !== j) })
