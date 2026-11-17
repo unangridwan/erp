@@ -188,6 +188,7 @@ textarea:focus {
 }
 /* Field terkunci (dokumen terposting/tanpa hak ubah): tetap mudah dibaca, tanpa kesan "rusak". */
 input:disabled,
+input.locked,
 select:disabled,
 textarea:disabled {
   background: color-mix(in srgb, var(--bg) 70%, var(--card));

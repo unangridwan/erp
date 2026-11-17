@@ -480,6 +480,12 @@ const MOVE_FIELDS = [
   ["toGradeId", "fromGradeId", "gradeId", schema.salaryGrades],
 ] as const;
 
+const MOVEMENT_SUBJECT: Record<string, string> = {
+  promotion: "Promosi",
+  demotion: "Demosi",
+  wage_adjustment: "Penyesuaian upah",
+};
+
 @Controller("employee-movements")
 class MovementsController {
   constructor(
@@ -633,7 +639,7 @@ class MovementsController {
         m.reason ? `Alasan: ${m.reason}` : null,
       ].filter((l): l is string => !!l);
       const requestId = await this.gate.submit(tx, m.companyId, "movement", {
-        subject: `${m.kind === "promotion" ? "Promosi" : m.kind === "demotion" ? "Demosi" : "Mutasi"} ${employee.name}`,
+        subject: `${MOVEMENT_SUBJECT[m.kind] ?? "Mutasi"} ${employee.name}`,
         reference: m.decreeNo ?? employee.employeeNumber,
         date: m.effectiveDate,
         amount: m.newWage ?? "0",
@@ -703,12 +709,14 @@ class MovementsController {
           .map(([to, fromKey]) => named!.names[side === "to" ? to : fromKey])
           .filter(Boolean)
           .join(", ") || null;
-      await this.history.record(tx, employee, m.kind === "rotation" ? "transfer" : m.kind, {
-        date: m.effectiveDate,
-        oldValue: describe("from"),
-        newValue: describe("to"),
-        note: [m.decreeNo && `SK ${m.decreeNo}`, m.reason].filter(Boolean).join(" — ") || null,
-      });
+      // Penyesuaian upah saja: riwayat upah sudah dicatat oleh renewWage.
+      if (m.kind !== "wage_adjustment")
+        await this.history.record(tx, employee, m.kind === "rotation" ? "transfer" : m.kind, {
+          date: m.effectiveDate,
+          oldValue: describe("from"),
+          newValue: describe("to"),
+          note: [m.decreeNo && `SK ${m.decreeNo}`, m.reason].filter(Boolean).join(" — ") || null,
+        });
       return named;
     });
   }

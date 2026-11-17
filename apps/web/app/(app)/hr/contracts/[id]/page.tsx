@@ -176,6 +176,8 @@ function Contract() {
   // Kontrak yang sudah ditandatangani terkunci; batalkan tanda tangan di panel dokumen untuk mengubahnya.
   const signed = contract?.signState === "partial" || contract?.signState === "signed";
   const editable = isNew || ((contract?.state === "draft" || contract?.state === "running") && !signed);
+  // Satu jalur perubahan upah: upah kontrak berjalan diubah lewat SK (Promosi & Mutasi) atau Kenaikan Gaji.
+  const wageLocked = contract?.state === "running";
   async function run(fn: () => Promise<void>) {
     setError(null);
     setFieldErrors({});
@@ -550,6 +552,7 @@ function Contract() {
             <span>{l("Jenis upah", "Wage type")}</span>
             <select
               value={form.wageType}
+              disabled={wageLocked}
               onChange={(e) => setForm((f) => ({ ...f, wageType: e.target.value }))}
             >
               <option value="monthly">{l("Bulanan", "Monthly")}</option>
@@ -580,17 +583,30 @@ function Contract() {
                   : l("Gaji pokok / bulan *", "Base wage / month *")}
             </span>
             <input
-              className="num"
+              className={wageLocked ? "num locked" : "num"}
               inputMode="decimal"
               required
+              readOnly={wageLocked}
               value={form.wage}
               onChange={(e) => setForm((f) => ({ ...f, wage: e.target.value }))}
             />
+            {wageLocked && (
+              <small className="muted">
+                {l("Ubah upah kontrak berjalan lewat ", "Change a running contract's wage via ")}
+                <Link href="/hr/movements">{l("SK Penyesuaian upah", "a wage adjustment decree")}</Link>
+                {l(" atau ", " or ")}
+                <Link href="/payroll/compensation">{l("Kenaikan Gaji", "Salary Review")}</Link>
+                {l(
+                  " agar tercatat dan berlaku per tanggal efektif.",
+                  " so it is recorded and takes effect on a date.",
+                )}
+              </small>
+            )}
             <GradeWageHint
               grade={grade}
               wage={form.wage}
               wageType={form.wageType}
-              editable={editable}
+              editable={editable && !wageLocked}
               onUseStandard={(wage) => setForm((f) => ({ ...f, wage }))}
             />
             {err("wage")}

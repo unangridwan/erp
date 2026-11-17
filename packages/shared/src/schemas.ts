@@ -2344,7 +2344,14 @@ export const employeeExperienceSchema = z
     path: ["dateEnd"],
   });
 
-export const MOVEMENT_KIND_VALUES = ["promotion", "demotion", "transfer", "rotation"] as const;
+/** `wage_adjustment` = penyesuaian upah saja (tanpa perubahan jabatan/organisasi), mis. gaji pokok golongan baru. */
+export const MOVEMENT_KIND_VALUES = [
+  "promotion",
+  "demotion",
+  "transfer",
+  "rotation",
+  "wage_adjustment",
+] as const;
 
 export const employeeMovementSchema = z
   .object({
@@ -2364,6 +2371,20 @@ export const employeeMovementSchema = z
   .refine(
     (m) => m.toJobId || m.toDepartmentId || m.toBranchId || m.toManagerId || m.toGradeId || m.newWage != null,
     { message: "Isi minimal satu perubahan (jabatan, departemen, cabang, atasan, golongan, atau upah)" },
+  )
+  .refine((m) => m.kind !== "wage_adjustment" || m.newWage != null, {
+    message: "Penyesuaian upah wajib mengisi upah baru",
+    path: ["newWage"],
+  })
+  .refine(
+    (m) =>
+      m.kind !== "wage_adjustment" ||
+      !(m.toJobId || m.toDepartmentId || m.toBranchId || m.toManagerId || m.toGradeId),
+    {
+      message:
+        "Penyesuaian upah hanya mengubah upah; pakai promosi/mutasi untuk perubahan jabatan atau organisasi",
+      path: ["kind"],
+    },
   );
 
 export const employeeWarningSchema = z

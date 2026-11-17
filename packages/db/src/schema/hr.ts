@@ -1517,7 +1517,7 @@ export const employeeExperiences = pgTable("employee_experiences", {
   ...audit,
 });
 
-export const MOVEMENT_KINDS = ["promotion", "demotion", "transfer", "rotation"] as const;
+export const MOVEMENT_KINDS = ["promotion", "demotion", "transfer", "rotation", "wage_adjustment"] as const;
 
 export const employeeMovements = pgTable("employee_movements", {
   id: uuid("id").primaryKey().defaultRandom(),

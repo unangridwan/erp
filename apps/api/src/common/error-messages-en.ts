@@ -562,6 +562,11 @@ export const MESSAGES_EN: Record<string, string> = {
   "Pengalaman kerja tidak ditemukan": "Work experience not found",
   "Surat peringatan tidak ditemukan": "Warning letter not found",
   "Hanya mutasi draft yang bisa diubah": "Only draft movements can be edited",
+  "Upah kontrak berjalan tidak bisa diubah langsung. Buat SK Penyesuaian upah di Promosi & Mutasi atau lewat Kenaikan Gaji.":
+    "A running contract's wage cannot be changed directly. Create a wage adjustment decree in Promotions & Transfers or use Salary Review.",
+  "Penyesuaian upah wajib mengisi upah baru": "A wage adjustment requires a new wage",
+  "Penyesuaian upah hanya mengubah upah; pakai promosi/mutasi untuk perubahan jabatan atau organisasi":
+    "A wage adjustment only changes the wage; use a promotion/transfer for job or organization changes",
   "Hanya mutasi draft yang bisa dihapus": "Only draft movements can be deleted",
   "Hanya mutasi draft yang bisa dibatalkan": "Only draft movements can be cancelled",
   "Mutasi sudah diterapkan atau dibatalkan": "The movement has already been applied or cancelled",

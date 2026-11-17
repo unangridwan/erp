@@ -48,10 +48,11 @@ describe.skipIf(!hasDb)("RBAC: gaji & data pribadi sebagai hak tersendiri", () =
     contractId = (
       await a.post("/contracts", { employeeId, wage: "8500000", dateStart: "2025-01-02" }).expect(201)
     ).body.id;
-    await a.post(`/contracts/${contractId}/start`).expect(200);
+    // Upah draft masih bisa diubah langsung; setelah berjalan hanya lewat SK/Kenaikan Gaji.
     await a
       .put(`/contracts/${contractId}`, { employeeId, wage: "9000000", dateStart: "2025-01-02" })
       .expect(200);
+    await a.post(`/contracts/${contractId}/start`).expect(200);
   });
   afterAll(() => app?.close());
 

@@ -210,8 +210,8 @@ describe.skipIf(!hasDb)("Template & tanda tangan kontrak", () => {
         employeeId,
         contractType: "pkwt",
         dateStart: c.dateStart,
-        dateEnd: c.dateEnd,
-        wage: "7000000",
+        dateEnd: "2027-12-31",
+        wage: c.wage,
       })
       .expect(400);
     await a.put(`/contracts/${contractId}/document`, { body: "Isi baru" }).expect(400);
@@ -236,12 +236,12 @@ describe.skipIf(!hasDb)("Template & tanda tangan kontrak", () => {
         employeeId,
         contractType: "pkwt",
         dateStart: c.dateStart,
-        dateEnd: c.dateEnd,
-        wage: "7000000",
+        dateEnd: "2027-12-31",
+        wage: c.wage,
       })
       .expect(200);
     expect((await a.get(`/contracts/${contractId}/document`).expect(200)).body.body).toContain(
-      "tujuh juta rupiah",
+      "31 Desember 2027",
     );
     await a
       .post(`/contracts/${contractId}/signed-file`, {
