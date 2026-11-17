@@ -124,5 +124,60 @@ describe.skipIf(!hasDb)("Gaji pokok standar golongan", () => {
         .expect(201)
     ).body;
     expect(again.updated.map((u: { employeeName: string }) => u.employeeName)).toEqual(["Dewi A1"]);
+
+    // Satu jalur perubahan upah: setiap penerapan tercatat sebagai SK "Penyesuaian upah" yang sudah diterapkan.
+    const movements = (await a.get("/employee-movements").expect(200)).body as {
+      employeeName: string;
+      kind: string;
+      state: string;
+      newWage: string;
+      contractId: string;
+    }[];
+    const budi = movements.find((m) => m.employeeName === "Budi A1");
+    expect(budi).toMatchObject({
+      kind: "wage_adjustment",
+      state: "done",
+      contractId: applied.updated[0].contractId,
+    });
+    expect(Number(budi!.newWage)).toBe(5500000);
+  });
+
+  it("upah kontrak berjalan tidak bisa diubah langsung; syarat lain tetap bisa", async () => {
+    const budi = (await a.get("/employees?search=Budi A1").expect(200)).body.items[0];
+    const contracts = (await a.get(`/contracts?employeeId=${budi.id}`).expect(200)).body.items;
+    const running = contracts.find((c: { state: string }) => c.state === "running");
+    const body = {
+      employeeId: budi.id,
+      contractType: running.contractType,
+      dateStart: running.dateStart,
+      wage: running.wage,
+    };
+    const res = await a.put(`/contracts/${running.id}`, { ...body, wage: "5600000" }).expect(400);
+    expect(res.body.errors?.[0]?.path).toBe("wage");
+    await a.put(`/contracts/${running.id}`, { ...body, note: "catatan baru" }).expect(200);
+  });
+
+  it("bila SK mutasi wajib disetujui, penerapan golongan membuat SK draft (tanpa duplikat)", async () => {
+    const settings = (await a.get("/payroll/settings").expect(200)).body;
+    await a.put("/payroll/settings", { ...settings, movementApproval: true }).expect(200);
+    await a.patch(`/salary-grades/${a1}`, { baseWage: 5800000 }).expect(200);
+    const r = (
+      await a.post(`/salary-grades/${a1}/apply-base-wage`, { effectiveDate: "2026-10-01" }).expect(201)
+    ).body;
+    expect(r.updated).toHaveLength(0);
+    expect(r.pending.map((p: { employeeName: string }) => p.employeeName)).toEqual(["Budi A1", "Dewi A1"]);
+    const draft = (await a.get("/employee-movements?state=draft").expect(200)).body;
+    expect(draft).toHaveLength(2);
+    expect(draft[0]).toMatchObject({ kind: "wage_adjustment", effectiveDate: "2026-10-01" });
+    // Kontrak belum berubah sampai SK disetujui & diterapkan.
+    const impact = (await a.get(`/salary-grades/${a1}/base-wage-impact`).expect(200)).body;
+    expect(impact.items.every((i: { wage: string }) => Number(i.wage) === 5500000)).toBe(true);
+    await a.post(`/employee-movements/${draft[0].id}/apply`).expect(400);
+
+    const again = (
+      await a.post(`/salary-grades/${a1}/apply-base-wage`, { effectiveDate: "2026-10-01" }).expect(201)
+    ).body;
+    expect(again.pending).toHaveLength(0);
+    expect(again.skipped.map((s: { reason: string }) => s.reason)).toEqual(["pending", "pending"]);
   });
 });

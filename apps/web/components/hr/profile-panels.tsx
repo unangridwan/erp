@@ -744,7 +744,11 @@ export const MOVEMENT_KIND_LABEL: Record<string, Text> = {
   demotion: L("Demosi", "Demotion"),
   transfer: L("Mutasi", "Transfer"),
   rotation: L("Rotasi", "Rotation"),
+  wage_adjustment: L("Penyesuaian upah", "Wage adjustment"),
 };
+
+/** Penyesuaian upah hanya mengubah upah; isian jabatan/organisasi disembunyikan & dikosongkan. */
+const STRUCTURE_KEYS = ["toJobId", "toDepartmentId", "toBranchId", "toManagerId", "toGradeId"] as const;
 
 interface Movement {
   approval?: ApprovalInfo;
@@ -835,7 +839,13 @@ export function MovementsPanel({ employeeId }: { employeeId?: string }) {
           })
         ).id;
       }
-      const body = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v === "" ? null : v]));
+      const wageOnly = form.kind === "wage_adjustment";
+      const body = Object.fromEntries(
+        Object.entries(form).map(([k, v]) => [
+          k,
+          v === "" || (wageOnly && (STRUCTURE_KEYS as readonly string[]).includes(k)) ? null : v,
+        ]),
+      );
       await api("/employee-movements", { method: "POST", body: { ...body, documentId } });
       setForm(null);
       setFile(null);
@@ -899,16 +909,25 @@ export function MovementsPanel({ employeeId }: { employeeId?: string }) {
               onChange={(e) => setForm({ ...form, effectiveDate: e.target.value })}
             />
           </label>
-          {ref("toJobId", L("Jabatan baru", "New job"), "job-positions")}
-          {ref("toDepartmentId", L("Departemen baru", "New department"), "departments")}
-          {ref("toBranchId", L("Cabang baru", "New branch"), "branches")}
-          {ref("toManagerId", L("Atasan baru", "New manager"), "employees")}
-          {ref("toGradeId", L("Golongan baru", "New grade"), "salary-grades")}
+          {form.kind !== "wage_adjustment" && (
+            <>
+              {ref("toJobId", L("Jabatan baru", "New job"), "job-positions")}
+              {ref("toDepartmentId", L("Departemen baru", "New department"), "departments")}
+              {ref("toBranchId", L("Cabang baru", "New branch"), "branches")}
+              {ref("toManagerId", L("Atasan baru", "New manager"), "employees")}
+              {ref("toGradeId", L("Golongan baru", "New grade"), "salary-grades")}
+            </>
+          )}
           <label className="field">
-            <span>{l("Upah pokok baru (kosong = tetap)", "New base wage (empty = unchanged)")}</span>
+            <span>
+              {form.kind === "wage_adjustment"
+                ? l("Upah pokok baru *", "New base wage *")
+                : l("Upah pokok baru (kosong = tetap)", "New base wage (empty = unchanged)")}
+            </span>
             <input
               className="num"
               inputMode="decimal"
+              required={form.kind === "wage_adjustment"}
               value={form.newWage}
               onChange={(e) => setForm({ ...form, newWage: e.target.value })}
             />

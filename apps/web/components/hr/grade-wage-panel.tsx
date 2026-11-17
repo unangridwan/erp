@@ -57,24 +57,49 @@ export function GradeBaseWagePanel({ id }: { id: string }) {
     const ok = await ask({
       title: l("Terapkan gaji pokok golongan", "Apply grade base wage"),
       message: l(
-        `${targets.length} kontrak berjalan diganti kontrak baru dengan gaji pokok ${money(impact.grade.baseWage, locale)} mulai ${formatDate(date, locale)}. Selisih periode yang sudah dibayar dihitung lewat "Hitung rapel" di payroll.`,
-        `${targets.length} running contracts will be replaced by new contracts with base wage ${money(impact.grade.baseWage, locale)} from ${formatDate(date, locale)}. Differences for paid periods are calculated with "Compute back pay" in payroll.`,
+        `${targets.length} karyawan mendapat SK Penyesuaian upah ke gaji pokok ${money(impact.grade.baseWage, locale)} mulai ${formatDate(date, locale)} (bila SK mutasi wajib disetujui, SK dibuat sebagai draft). Selisih periode yang sudah dibayar dihitung lewat "Hitung rapel" di payroll.`,
+        `${targets.length} employees get a wage adjustment decree to base wage ${money(impact.grade.baseWage, locale)} from ${formatDate(date, locale)} (drafts when decrees require approval). Differences for paid periods are calculated with "Compute back pay" in payroll.`,
       ),
       confirmLabel: l("Terapkan", "Apply"),
     });
     if (!ok) return;
     setBusy(true);
     try {
-      const r = await api<{ updated: unknown[]; skipped: { employeeName: string; reason: string }[] }>(
-        `/salary-grades/${id}/apply-base-wage`,
-        { method: "POST", body: { effectiveDate: date, includeAdjusted } },
-      );
+      const r = await api<{
+        updated: unknown[];
+        pending: unknown[];
+        skipped: { employeeName: string; reason: string }[];
+      }>(`/salary-grades/${id}/apply-base-wage`, {
+        method: "POST",
+        body: { effectiveDate: date, includeAdjusted },
+      });
       const late = r.skipped.filter((s) => s.reason === "date").length;
+      const open = r.skipped.filter((s) => s.reason === "pending").length;
+      const notes = [
+        late
+          ? l(
+              `${late} dilewati (kontrak mulai setelah tanggal berlaku)`,
+              `${late} skipped (contract starts after the effective date)`,
+            )
+          : null,
+        open
+          ? l(
+              `${open} dilewati (masih ada SK upah draft)`,
+              `${open} skipped (a wage decree is still in draft)`,
+            )
+          : null,
+      ].filter(Boolean);
+      const tail = notes.length ? `, ${notes.join(", ")}` : "";
       toast.success(
-        l(
-          `${r.updated.length} kontrak disesuaikan${late ? `, ${late} dilewati (kontrak mulai setelah tanggal berlaku)` : ""}.`,
-          `${r.updated.length} contracts updated${late ? `, ${late} skipped (contract starts after the effective date)` : ""}.`,
-        ),
+        r.pending.length
+          ? l(
+              `${r.pending.length} SK Penyesuaian upah dibuat sebagai draft — ajukan persetujuan lalu terapkan di Promosi & Mutasi${tail}.`,
+              `${r.pending.length} wage adjustment decrees created as drafts — submit for approval and apply in Promotions & Transfers${tail}.`,
+            )
+          : l(
+              `${r.updated.length} kontrak disesuaikan lewat SK Penyesuaian upah${tail}.`,
+              `${r.updated.length} contracts updated via wage adjustment decrees${tail}.`,
+            ),
       );
       await load();
     } catch (e) {

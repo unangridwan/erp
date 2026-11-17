@@ -185,6 +185,7 @@ class SalaryGradeWageController {
   constructor(
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(ContractService) private readonly contracts: ContractService,
+    @Inject(ApprovalGateService) private readonly gate: ApprovalGateService,
   ) {}
 
   private async impact(tx: Db, id: string) {
@@ -247,7 +248,12 @@ class SalaryGradeWageController {
     return this.tenantDb.run(async (tx) => {
       const { grade, items } = await this.impact(tx, id);
       if (!grade.baseWage) throw fieldError("baseWage", "Golongan belum punya gaji pokok standar");
-      const updated: { employeeName: string; contractId: string; oldWage: string }[] = [];
+      // Satu jalur perubahan upah: setiap karyawan dicatat sebagai SK "Penyesuaian upah". Bila SK mutasi wajib
+      // disetujui, SK dibuat sebagai draft untuk diajukan dari Promosi & Mutasi; bila tidak, langsung diterapkan.
+      const gated = await this.gate.enabled(tx, currentContext().companyId, "movement");
+      const note = `Penyesuaian gaji pokok golongan ${grade.code}`;
+      const updated: { employeeName: string; contractId: string; oldWage: string; movementId: string }[] = [];
+      const pending: { employeeName: string; movementId: string }[] = [];
       const skipped: { employeeName: string; reason: string }[] = [];
       for (const item of items) {
         if (item.status === "current") continue;
@@ -259,18 +265,60 @@ class SalaryGradeWageController {
           skipped.push({ employeeName: item.employeeName, reason: "date" });
           continue;
         }
+        const movement = {
+          companyId: item.companyId,
+          employeeId: item.employeeId,
+          kind: "wage_adjustment" as const,
+          effectiveDate: input.effectiveDate,
+          newWage: grade.baseWage,
+          reason: note,
+        };
+        if (gated) {
+          const [open] = await tx
+            .select({ id: schema.employeeMovements.id })
+            .from(schema.employeeMovements)
+            .where(
+              and(
+                eq(schema.employeeMovements.employeeId, item.employeeId),
+                eq(schema.employeeMovements.state, "draft"),
+                sql`${schema.employeeMovements.newWage} is not null`,
+              ),
+            );
+          if (open) {
+            skipped.push({ employeeName: item.employeeName, reason: "pending" });
+            continue;
+          }
+          const [row] = await tx
+            .insert(schema.employeeMovements)
+            .values({ ...movement, oldWage: item.wage })
+            .returning({ id: schema.employeeMovements.id });
+          pending.push({ employeeName: item.employeeName, movementId: row!.id });
+          continue;
+        }
         const renewed = await this.contracts.renewWage(
           tx,
           { id: item.employeeId, companyId: item.companyId },
-          {
-            effectiveDate: input.effectiveDate,
-            newWage: grade.baseWage,
-            note: `penyesuaian gaji pokok golongan ${grade.code}`,
-          },
+          { effectiveDate: input.effectiveDate, newWage: grade.baseWage, note: note.toLowerCase() },
         );
-        updated.push({ employeeName: item.employeeName, contractId: renewed.id, oldWage: renewed.oldWage });
+        const [row] = await tx
+          .insert(schema.employeeMovements)
+          .values({
+            ...movement,
+            oldWage: renewed.oldWage,
+            contractId: renewed.id,
+            state: "done",
+            appliedAt: sql`now()`,
+            appliedBy: currentContext().userId,
+          })
+          .returning({ id: schema.employeeMovements.id });
+        updated.push({
+          employeeName: item.employeeName,
+          contractId: renewed.id,
+          oldWage: renewed.oldWage,
+          movementId: row!.id,
+        });
       }
-      return { updated, skipped };
+      return { updated, pending, skipped };
     });
   }
 }
@@ -885,7 +933,7 @@ class ContractsController {
     return this.tenantDb.run(async (tx) => this.load(tx, await this.contracts.create(tx, input)));
   }
 
-  /** Ubah kontrak draft/berjalan (gaji baru berlaku pada payroll berikutnya). */
+  /** Ubah kontrak draft/berjalan (upah kontrak berjalan hanya lewat SK/Kenaikan Gaji). */
   @Put(":id")
   @RequirePermission("hr.manage")
   update(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
@@ -904,6 +952,16 @@ class ContractsController {
       await assertBeforeRetirement(tx, owner, input);
       await assertContractType(tx, input.contractType, input, contract.contractType);
       const pay = await contractGradeWage(tx, owner, input);
+      // Satu jalur perubahan upah: upah kontrak berjalan hanya berubah lewat SK (Promosi & Mutasi) atau siklus
+      // Kenaikan Gaji, agar tercatat di riwayat, mengikuti persetujuan, dan payroll memakai tanggal efektif.
+      if (
+        contract.state === "running" &&
+        (input.wageType !== contract.wageType || !new Decimal(pay.wage).eq(contract.wage))
+      )
+        throw fieldError(
+          "wage",
+          "Upah kontrak berjalan tidak bisa diubah langsung. Buat SK Penyesuaian upah di Promosi & Mutasi atau lewat Kenaikan Gaji.",
+        );
       // Hasil evaluasi yang sudah diputuskan tetap; masa percobaan dihitung ulang dari tanggal mulai.
       const probation = contract.probationResult ? {} : await contractProbation(tx, input);
       await this.assertComponents(
