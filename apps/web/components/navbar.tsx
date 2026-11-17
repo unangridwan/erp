@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { session, type Me } from "../lib/api";
 import { visibleApps, visibleMenu, type App, type MenuGroup, type MenuLink } from "../lib/apps";
@@ -42,7 +42,17 @@ const initials = (name: string) =>
     .map((w) => w[0]!.toUpperCase())
     .join("");
 
-const isActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
+/**
+ * Tautan aktif: path cocok (atau halaman turunannya); bila tautan membawa query (mis. `?role=customer`),
+ * nilainya juga harus sama dengan URL sekarang.
+ */
+const isActive = (pathname: string, href: string, search?: URLSearchParams) => {
+  const [path, query] = href.split("?") as [string, string | undefined];
+  if (!(pathname === path || pathname.startsWith(`${path}/`))) return false;
+  if (!query) return true;
+  if (pathname !== path) return false;
+  return [...new URLSearchParams(query)].every(([k, v]) => search?.get(k) === v);
+};
 
 /**
  * Sidebar kiri: beranda, semua aplikasi, dan menu lengkap aplikasi aktif (kelompok bisa dilipat). Di layar lebar
@@ -60,6 +70,9 @@ export function Sidebar({
   onClose: () => void;
 }) {
   const pathname = usePathname();
+  const params = useSearchParams();
+  const search = new URLSearchParams(params.toString());
+  const active = (href: string) => isActive(pathname, href, search);
   const { tx, l } = useI18n();
   const apps = visibleApps(me);
   const menu = app ? visibleMenu(me, app) : [];
@@ -69,10 +82,8 @@ export function Sidebar({
   const groupOpen = (g: MenuGroup, i: number) => {
     const key = groupKey(g);
     if (key in toggled) return toggled[key]!;
-    const hasActive = g.items.some((it) => isActive(pathname, it.href));
-    const anyActive = menu.some((e) =>
-      ("items" in e ? e.items : [e]).some((it) => isActive(pathname, it.href)),
-    );
+    const hasActive = g.items.some((it) => active(it.href));
+    const anyActive = menu.some((e) => ("items" in e ? e.items : [e]).some((it) => active(it.href)));
     return hasActive || (!anyActive && i === 0);
   };
   const navRef = useRef<HTMLElement>(null);
@@ -85,8 +96,8 @@ export function Sidebar({
     <Link
       key={it.href + it.label.id}
       href={it.href}
-      className={`side-link${isActive(pathname, it.href) ? " active" : ""}`}
-      aria-current={isActive(pathname, it.href) ? "page" : undefined}
+      className={`side-link${active(it.href) ? " active" : ""}`}
+      aria-current={active(it.href) ? "page" : undefined}
     >
       {tx(it.label)}
     </Link>

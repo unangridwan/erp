@@ -37,16 +37,22 @@ export function toPayload(fields: Field[], values: Values, isNew: boolean): Valu
   return Object.fromEntries(entries);
 }
 
-export function FormView({ resource, id }: { resource: Resource; id: string }) {
+export function FormView({ resource, id, role }: { resource: Resource; id: string; role?: string }) {
   const me = useMe();
   const { t, tx, l } = useI18n();
   const router = useRouter();
   const isNew = id === "new";
   const editable = canWrite(me.permissions, resource);
   // Data baru: "Aktif" dicentang sesuai default server.
-  const [values, setValues] = useState<Values>(() =>
-    isNew && resource.fields.some((f) => f.name === "active") ? { active: true } : {},
-  );
+  const [values, setValues] = useState<Values>(() => {
+    if (!isNew) return {};
+    const roleField = role ? resource.roles?.[role]?.field : undefined;
+    return {
+      ...(resource.fields.some((f) => f.name === "active") ? { active: true } : {}),
+      // Dibuka dari menu Pelanggan/Pemasok: peran langsung dicentang.
+      ...(roleField ? { [roleField]: true } : {}),
+    };
+  });
   const [loaded, setLoaded] = useState(isNew);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});

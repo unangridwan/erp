@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { CommandPalette } from "../../components/command-palette";
 import { MeContext } from "../../components/me-context";
 import { Navbar, Sidebar } from "../../components/navbar";
@@ -55,7 +55,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <a className="skip-link" href="#main">
           {t("app.skip")}
         </a>
-        <Sidebar me={me} app={app} open={drawer} onClose={() => setDrawer(false)} />
+        <Suspense fallback={<aside className="sidebar" />}>
+          <Sidebar me={me} app={app} open={drawer} onClose={() => setDrawer(false)} />
+        </Suspense>
         <div className="app-main">
           <Navbar me={me} app={app} onMenu={() => setDrawer(true)} />
           <CommandPalette me={me} />

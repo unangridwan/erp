@@ -86,7 +86,8 @@ function useViewMode(resource: Resource) {
   return [view, setView] as const;
 }
 
-export function ListView({ resource }: { resource: Resource }) {
+export function ListView({ resource, role }: { resource: Resource; role?: string }) {
+  const roleDef = role ? resource.roles?.[role] : undefined;
   const me = useMe();
   const { t, tx, l, locale } = useI18n();
   const customDefs = useCustomFields(resource.customModel);
@@ -209,7 +210,12 @@ export function ListView({ resource }: { resource: Resource }) {
       }),
     [resource, list.rows, refLabels, tx, l, customDefs, locale],
   );
-  const table = useTableView(list.rows, columns, { storageKey: `list.${resource.path}` });
+  // Menu Pelanggan/Pemasok: hanya baris dengan perannya (daftar kontak yang sama, terfilter).
+  const rows = useMemo(
+    () => (roleDef ? list.rows.filter((r) => Boolean(r[roleDef.field])) : list.rows),
+    [list.rows, roleDef],
+  );
+  const table = useTableView(rows, columns, { storageKey: `list.${resource.path}` });
   useEffect(() => setSearch(table.state.q), [table.state.q]);
   const data = list.loading && !list.rows.length ? null : list;
   const shownColumns = listColumns.filter((c) => !table.hidden.includes(c.name));
@@ -344,9 +350,14 @@ export function ListView({ resource }: { resource: Resource }) {
     <>
       <header className="toolbar control-panel">
         <div className="cp-left">
-          <h1>{tx(resource.title)}</h1>
+          <h1>{tx(roleDef?.title ?? resource.title)}</h1>
         </div>
         <div className="cp-right">
+          {resource.dataTransfer && (
+            <Link className="button" href={resource.dataTransfer}>
+              {l("Impor & ekspor", "Import & export")}
+            </Link>
+          )}
           {resource.csv && (canExport(me.permissions, resource) || writable) && (
             <details className="more-menu" ref={moreRef}>
               <summary className="button">{l("Lainnya", "More")}</summary>
@@ -412,7 +423,10 @@ export function ListView({ resource }: { resource: Resource }) {
             </span>
           )}
           {canCreate(me.permissions, resource) && (
-            <Link className="button primary" href={`/${resource.path}/new`}>
+            <Link
+              className="button primary"
+              href={`/${resource.path}/new${role && roleDef ? `?role=${role}` : ""}`}
+            >
               + {t("list.new")}
             </Link>
           )}

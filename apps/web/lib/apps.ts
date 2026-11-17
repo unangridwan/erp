@@ -50,8 +50,9 @@ const ATTRIBUTE_VALUES = link(
   "product.read",
 );
 const UOMS = link("Satuan", "Units of Measure", "/uoms", "uom.read");
-const CUSTOMERS = link("Pelanggan", "Customers", "/partners", "partner.read");
-const VENDORS = link("Pemasok", "Vendors", "/partners", "partner.read");
+/** Daftar kontak terfilter (bukan daftar semua kontak dengan nama berbeda). */
+const CUSTOMERS = link("Pelanggan", "Customers", "/partners?role=customer", "partner.read");
+const VENDORS = link("Pemasok", "Vendors", "/partners?role=supplier", "partner.read");
 const SALES_TEAMS = link("Tim Penjualan", "Sales Teams", "/sales-teams", "crm.read");
 
 export const APPS: App[] = [
@@ -66,7 +67,7 @@ export const APPS: App[] = [
         link("Lead", "Leads", "/crm/leads", "crm.read"),
         link("Peluang", "Opportunities", "/crm/opportunities", "crm.read"),
         link("Akun", "Accounts", "/crm/accounts", "crm.read"),
-        link("Kontak", "Contacts", "/crm/contacts", "crm.read"),
+        link("Kontak Person", "Contact Persons", "/crm/contacts", "crm.read"),
         link("Aktivitas Saya", "My Activities", "/crm/activities", "crm.read"),
       ]),
       group("Laporan", "Reporting", [
@@ -158,8 +159,13 @@ export const APPS: App[] = [
         link("Pengiriman", "Deliveries", "/inventory/deliveries", "inventory.read"),
         link("Transfer Internal", "Internal Transfers", "/inventory/internal", "inventory.read"),
         link("Dropship", "Dropship", "/inventory/dropship", "inventory.read"),
-        link("Stock Opname", "Physical Inventory", "/inventory/counts", "inventory.read"),
-        link("Penyesuaian Stok", "Stock Adjustments", "/inventory/adjustments", "inventory.manage"),
+        // Penyesuaian stok cepat ada sebagai tab di halaman yang sama (satu tempat koreksi stok).
+        link(
+          "Stock Opname & Penyesuaian",
+          "Physical Inventory & Adjustments",
+          "/inventory/counts",
+          "inventory.read",
+        ),
         link("Pengadaan Ulang", "Replenishment", "/inventory/replenishment", "inventory.read"),
       ]),
       group("Produk", "Products", [
@@ -246,7 +252,7 @@ export const APPS: App[] = [
       group("Laporan", "Reporting", [link("Rekap PPN", "VAT Summary", "/tax/vat", "tax.read")]),
       group("Konfigurasi", "Configuration", [
         link("Pajak", "Taxes", "/taxes", "accounting.read"),
-        link("Profil pajak perusahaan", "Company tax profile", "/onboarding", "company.write"),
+        link("Profil Perusahaan & Pajak", "Company & Tax Profile", "/onboarding", "company.write"),
         link("NSFP e-Faktur lama", "Legacy e-Faktur serials", "/tax/nsfp", "tax.read"),
       ]),
     ],
@@ -318,9 +324,8 @@ export const APPS: App[] = [
         link("Anggaran Tenaga Kerja", "Manpower Budget", "/hr/manpower-budget", "hr.read"),
       ]),
       group("Laporan", "Reporting", [
-        link("Dashboard SDM", "HR Dashboard", "/hr/dashboard", "hr.read"),
         link("Pembuat Laporan", "Report Builder", "/bi/reports", "hr.read"),
-        link("Analitik SDM", "HR Analytics", "/hr/analytics", "hr.read"),
+        link("Dashboard & Analitik SDM", "HR Dashboard & Analytics", "/hr/analytics", "hr.read"),
         link("Struktur Organisasi", "Org Chart", "/hr/org-chart", "hr.read"),
         link("Pengingat", "Reminders", "/hr/reminders", "hr.read"),
         link("Masa Percobaan", "Probations", "/hr/probations", "hr.read"),
@@ -497,10 +502,7 @@ export const APPS: App[] = [
     name: L("Kontak", "Contacts"),
     home: "/partners",
     prefixes: ["/partners"],
-    menu: [
-      link("Kontak", "Contacts", "/partners", "partner.read"),
-      group("Konfigurasi", "Configuration", [PRODUCTS, CATEGORIES, UOMS]),
-    ],
+    menu: [link("Kontak", "Contacts", "/partners", "partner.read")],
   },
   {
     id: "group",
@@ -589,7 +591,10 @@ function planModule(permission: string) {
 /** Menu boleh tampil: user punya permission dan modulnya termasuk paket langganan. */
 export function allowed(me: Me, permission: string, href = "") {
   const module = planModule(permission);
-  return canPath(me.permissions, permission, href) && (!module || me.subscription.modules.includes(module));
+  return (
+    canPath(me.permissions, permission, href.split("?")[0]!) &&
+    (!module || me.subscription.modules.includes(module))
+  );
 }
 
 /** Menu aplikasi yang terlihat untuk user ini (dropdown kosong disembunyikan). */
@@ -618,7 +623,11 @@ export function visibleApps(me: Me) {
   );
 }
 
-const matches = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
+/** Tautan menu boleh membawa query (mis. `/partners?role=customer`); yang dicocokkan hanya path-nya. */
+const matches = (path: string, href: string) => {
+  const prefix = href.split("?")[0]!;
+  return path === prefix || path.startsWith(`${prefix}/`);
+};
 
 /**
  * Aplikasi aktif dari URL. Halaman bersama (mis. /products dipakai Penjualan, Pembelian, Persediaan)

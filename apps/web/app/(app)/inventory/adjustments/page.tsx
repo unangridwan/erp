@@ -5,6 +5,7 @@ import { useOptions } from "../../../../components/accounting/use-options";
 import { api, ApiError } from "../../../../lib/api";
 import { money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
+import { CountTabs } from "../../../../components/inventory/count-tabs";
 
 interface Quant {
   productId: string;
@@ -91,7 +92,7 @@ export default function AdjustmentsPage() {
   return (
     <>
       <header className="toolbar">
-        <h1>{l("Stock Opname", "Physical Inventory")}</h1>
+        <h1>{l("Stock Opname & Penyesuaian", "Physical Inventory & Adjustments")}</h1>
         <select value={locationId} onChange={(e) => setLocationId(e.target.value)}>
           {locations.map((x) => (
             <option key={x.id} value={x.id}>
@@ -109,6 +110,7 @@ export default function AdjustmentsPage() {
           {l(`Bukukan ${changed.length} selisih`, `Apply ${changed.length} difference(s)`)}
         </button>
       </header>
+      <CountTabs />
       {error && <p className="error">{error}</p>}
       {message && <p className="notice">{message}</p>}
       <div className="table-wrap">
