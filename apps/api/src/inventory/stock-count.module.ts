@@ -46,6 +46,7 @@ import { SequenceService } from "../sequences/sequence.service.js";
 import { renderLabelsPdf, type Label } from "./labels-pdf.js";
 import { InventoryModule } from "./inventory.module.js";
 import { StockService } from "./stock.service.js";
+import { systemCategoryId } from "../hr/approval-categories.registry.js";
 
 const C = schema.stockCounts;
 const L = schema.stockCountLines;
@@ -53,14 +54,6 @@ const P = schema.products;
 const LOT = schema.stockLots;
 const LOC = schema.stockLocations;
 const REQ = schema.approvalRequests;
-const CAT = schema.approvalCategories;
-const CATEGORY = {
-  code: "OPNAME",
-  name: "Selisih Stock Opname",
-  prefix: "SOP",
-  description: "Persetujuan selisih hitung fisik persediaan sebelum diposting sebagai penyesuaian.",
-  fields: { amount: "required", description: "required" } as const,
-};
 type Count = typeof C.$inferSelect;
 type Line = typeof L.$inferSelect;
 const d = (v: Decimal.Value | null | undefined) => new Decimal(v ?? 0);
@@ -758,23 +751,8 @@ export class StockCountService {
     return { updated, errors, count: await this.detail(tx, id) };
   }
 
-  private async category(tx: Db, companyId: string) {
-    const [found] = await tx
-      .select({ id: CAT.id })
-      .from(CAT)
-      .where(and(eq(CAT.companyId, companyId), eq(CAT.code, CATEGORY.code)));
-    if (found) return found.id;
-    await this.approvals.ensureDefaults(tx, companyId);
-    const [again] = await tx
-      .select({ id: CAT.id })
-      .from(CAT)
-      .where(and(eq(CAT.companyId, companyId), eq(CAT.code, CATEGORY.code)));
-    if (again) return again.id;
-    const [created] = await tx
-      .insert(CAT)
-      .values({ ...CATEGORY, companyId, managerFirst: false, sequence: 930 })
-      .returning({ id: CAT.id });
-    return created!.id;
+  private category(tx: Db, companyId: string) {
+    return systemCategoryId(tx, companyId, "OPNAME");
   }
 
   // ---- Barcode & lacak lot/serial ----

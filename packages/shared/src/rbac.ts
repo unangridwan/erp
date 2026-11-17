@@ -358,7 +358,13 @@ export const PERMISSION_CATALOG: readonly ModuleDef[] = [
         "Persetujuan",
         "Approvals",
         ["/approval-requests", "/approvals", "/approval-categories", "/approval-delegations"],
-        ["/hr/approvals", "/hr/approval-requests", "/hr/approval-categories", "/hr/approval-delegations"],
+        [
+          "/hr/approvals",
+          "/hr/approval-requests",
+          "/hr/approval-categories",
+          "/hr/approval-delegations",
+          "/settings/approval-rules",
+        ],
       ),
       f(
         "checklists",

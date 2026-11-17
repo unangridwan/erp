@@ -43,20 +43,13 @@ import { assertCompanyJournal, fieldError, loadBooks } from "./context.js";
 import { MoveService } from "./move.service.js";
 import { PaymentService } from "./payment.service.js";
 import { ReconcileService } from "./reconcile.service.js";
+import { systemCategoryId } from "../hr/approval-categories.registry.js";
 
 const RUN = schema.paymentRuns;
 const LINE = schema.paymentRunLines;
 const BANK = schema.partnerBankAccounts;
 const M = schema.accountMoves;
 const REQ = schema.approvalRequests;
-const CAT = schema.approvalCategories;
-const CATEGORY = {
-  code: "PAYRUN",
-  name: "Pembayaran Pemasok",
-  prefix: "PAY",
-  description: "Persetujuan payment run: daftar tagihan pemasok yang akan dibayar dan totalnya.",
-  fields: { amount: "required", description: "required" } as const,
-};
 type Run = typeof RUN.$inferSelect;
 const d = (v: Decimal.Value | null | undefined) => new Decimal(v ?? 0);
 
@@ -603,18 +596,8 @@ export class PaymentRunService {
     );
   }
 
-  private async category(tx: Db, companyId: string) {
-    const [found] = await tx
-      .select({ id: CAT.id })
-      .from(CAT)
-      .where(and(eq(CAT.companyId, companyId), eq(CAT.code, CATEGORY.code)));
-    if (found) return found.id;
-    await this.approvals.ensureDefaults(tx, companyId);
-    const [created] = await tx
-      .insert(CAT)
-      .values({ ...CATEGORY, companyId, managerFirst: false, sequence: 910 })
-      .returning({ id: CAT.id });
-    return created!.id;
+  private category(tx: Db, companyId: string) {
+    return systemCategoryId(tx, companyId, "PAYRUN");
   }
 }
 

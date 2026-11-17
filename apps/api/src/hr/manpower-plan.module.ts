@@ -41,6 +41,7 @@ import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { ApprovalEngineService } from "./approval-engine.service.js";
 import { HrModule } from "./hr.module.js";
+import { systemCategoryId } from "./approval-categories.registry.js";
 
 const P = schema.manpowerPlans;
 const L = schema.manpowerPlanLines;
@@ -50,17 +51,7 @@ const J = schema.jobPositions;
 const G = schema.salaryGrades;
 const OP = schema.jobOpenings;
 const REQ = schema.approvalRequests;
-const CAT = schema.approvalCategories;
 const MB = schema.manpowerBudgets;
-
-/** Kategori persetujuan Man Power Planning (dibuat otomatis bila belum ada). */
-const CATEGORY = {
-  code: "MPP",
-  name: "Man Power Planning",
-  prefix: "MPP",
-  description: "Persetujuan rencana tenaga kerja departemen per tahun: posisi, headcount, dan biaya tahunan.",
-  fields: { amount: "required", description: "required" } as const,
-};
 
 const yearQuery = z.object({
   year: z.coerce.number().int().min(2000).max(2100).default(new Date().getUTCFullYear()),
@@ -886,18 +877,8 @@ class ManpowerPlanController implements OnModuleInit {
     return s ? toBpjs(s) : DEFAULT_BPJS;
   }
 
-  private async category(tx: Db, companyId: string) {
-    const [found] = await tx
-      .select({ id: CAT.id })
-      .from(CAT)
-      .where(and(eq(CAT.companyId, companyId), eq(CAT.code, CATEGORY.code)));
-    if (found) return found.id;
-    await this.approvals.ensureDefaults(tx, companyId);
-    const [created] = await tx
-      .insert(CAT)
-      .values({ ...CATEGORY, companyId, managerFirst: false, sequence: 910 })
-      .returning({ id: CAT.id });
-    return created!.id;
+  private category(tx: Db, companyId: string) {
+    return systemCategoryId(tx, companyId, "MPP");
   }
 
   private log(tx: Db, id: string, message: string) {

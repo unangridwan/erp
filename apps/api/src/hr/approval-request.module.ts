@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   Inject,
@@ -19,15 +20,26 @@ import {
   approvalDecisionSchema,
   approvalDelegationSchema,
   approvalRequestSchema,
+  allowedFor,
 } from "@erp/shared";
 import type { Response } from "express";
-import { RequirePermission } from "../auth/decorators.js";
 import { TenantDb } from "../common/database.js";
+import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { ApprovalEngineService } from "./approval-engine.service.js";
 import { HrModule } from "./hr.module.js";
 
-/** Kategori persetujuan: dibaca semua user perusahaan (untuk membuat permintaan), diatur hr.manage. */
+/**
+ * Kategori persetujuan: dibaca semua user perusahaan (untuk membuat permintaan). Diatur dari Pengaturan › Aturan
+ * Persetujuan oleh pemegang `approval.manage` atau HR (`hr.manage`).
+ */
+function assertCanManage(method: "POST" | "PUT" | "DELETE") {
+  const granted = currentContext().permissions;
+  const request = { path: "/approval-categories", method };
+  if (!allowedFor(granted, "approval.manage", request) && !allowedFor(granted, "hr.manage", request))
+    throw new ForbiddenException("Butuh permission approval.manage atau hr.manage");
+}
+
 @Controller("approval-categories")
 class ApprovalCategoriesController {
   constructor(
@@ -46,23 +58,23 @@ class ApprovalCategoriesController {
   }
 
   @Post()
-  @RequirePermission("hr.manage")
   create(@Body() body: unknown) {
+    assertCanManage("POST");
     const input = parse(approvalCategorySchema, body);
     return this.tenantDb.run((tx) => this.engine.saveCategory(tx, null, input));
   }
 
   @Put(":id")
-  @RequirePermission("hr.manage")
   update(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    assertCanManage("PUT");
     const input = parse(approvalCategorySchema, body);
     return this.tenantDb.run((tx) => this.engine.saveCategory(tx, id, input));
   }
 
   @Delete(":id")
   @HttpCode(204)
-  @RequirePermission("hr.manage")
   async remove(@Param("id", ParseUUIDPipe) id: string) {
+    assertCanManage("DELETE");
     await this.tenantDb.run((tx) => this.engine.removeCategory(tx, id));
   }
 }

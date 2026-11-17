@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { useMe } from "../../../../components/me-context";
 import { api, ApiError } from "../../../../lib/api";
+import { money } from "../../../../lib/format";
+import { can } from "../../../../lib/resources";
 import { useI18n } from "../../../../lib/i18n";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
 import { useTableView } from "../../../../lib/use-table-view";
@@ -14,7 +17,8 @@ interface Pending {
     | "expense_claim"
     | "approval_request"
     | "attendance_request"
-    | "shift_request";
+    | "shift_request"
+    | "purchase_order";
   id: string;
   employeeName: string;
   summary: string;
@@ -35,7 +39,21 @@ interface Status {
   }[];
 }
 
-/** Kotak persetujuan: cuti, lembur, klaim, dan permintaan persetujuan yang menunggu keputusan user ini. */
+/** PO menunggu persetujuan (dari modul Pembelian). */
+interface PendingPo {
+  id: string;
+  name: string;
+  partnerName: string;
+  amountTotal: string;
+  currencyCode: string;
+  step: number;
+  levels: number;
+}
+
+/**
+ * Kotak persetujuan: cuti, lembur, klaim, koreksi absensi, tukar shift, permintaan persetujuan (termasuk payroll run,
+ * SK mutasi, payment run, dll.), dan PO yang menunggu keputusan user ini.
+ */
 export default function ApprovalsPage() {
   const { l, locale } = useI18n();
   const [rows, setRows] = useState<Pending[] | null>(null);
@@ -45,11 +63,29 @@ export default function ApprovalsPage() {
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  const me = useMe();
+  const canPo = can(me.permissions, "purchase.read");
   useEffect(() => {
-    api<Pending[]>("/approvals/pending")
-      .then(setRows)
+    const po = canPo
+      ? api<PendingPo[]>("/purchase-orders/pending-approval").catch(() => [] as PendingPo[])
+      : Promise.resolve([] as PendingPo[]);
+    Promise.all([api<Pending[]>("/approvals/pending"), po])
+      .then(([hr, orders]) =>
+        setRows([
+          ...hr,
+          ...orders.map((o): Pending => ({
+            model: "purchase_order",
+            id: o.id,
+            employeeName: o.partnerName,
+            summary: `${o.name} — ${money(o.amountTotal, locale)}${o.currencyCode === "IDR" ? "" : ` ${o.currencyCode}`}`,
+            step: o.step,
+            levels: o.levels,
+            mine: true,
+          })),
+        ]),
+      )
       .catch((e: Error) => setError(e.message));
-  }, [version]);
+  }, [version, canPo, locale]);
 
   const columns = useMemo<ViewColumn<Pending>[]>(() => {
     const kind: Record<Pending["model"], string> = {
@@ -59,6 +95,7 @@ export default function ApprovalsPage() {
       approval_request: l("Permintaan", "Request"),
       attendance_request: l("Koreksi absensi", "Attendance correction"),
       shift_request: l("Tukar shift", "Shift change"),
+      purchase_order: l("Pesanan pembelian", "Purchase order"),
     };
     return [
       {
@@ -68,7 +105,7 @@ export default function ApprovalsPage() {
         value: (r) => r.model,
         optionLabel: (v) => kind[v as Pending["model"]] ?? v,
       },
-      { key: "employee", label: l("Karyawan", "Employee"), value: (r) => r.employeeName },
+      { key: "employee", label: l("Pengaju / pihak", "Requester / party"), value: (r) => r.employeeName },
       { key: "summary", label: l("Pengajuan", "Request"), value: (r) => r.summary },
       { key: "step", label: l("Tahap", "Step"), type: "number", value: (r) => r.step },
     ];
@@ -78,17 +115,19 @@ export default function ApprovalsPage() {
   async function decide(r: Pending, decision: "approve" | "refuse") {
     setError(null);
     const path =
-      r.model === "approval_request"
-        ? `/approval-requests/${r.id}/${decision}`
-        : r.model === "attendance_request"
-          ? `/attendance-requests/${r.id}/${decision}`
-          : r.model === "shift_request"
-            ? `/shift-requests/${r.id}/${decision}`
-            : r.model === "leave_request"
-              ? `/leaves/${r.id}/${decision}`
-              : r.model === "expense_claim"
-                ? `/expense-claims/${r.id}/${decision}`
-                : `/approvals/overtime/${r.id}/${decision}`;
+      r.model === "purchase_order"
+        ? `/purchase-orders/${r.id}/approve`
+        : r.model === "approval_request"
+          ? `/approval-requests/${r.id}/${decision}`
+          : r.model === "attendance_request"
+            ? `/attendance-requests/${r.id}/${decision}`
+            : r.model === "shift_request"
+              ? `/shift-requests/${r.id}/${decision}`
+              : r.model === "leave_request"
+                ? `/leaves/${r.id}/${decision}`
+                : r.model === "expense_claim"
+                  ? `/expense-claims/${r.id}/${decision}`
+                  : `/approvals/overtime/${r.id}/${decision}`;
     try {
       const approvedHours = r.overtime && decision === "approve" ? hours[r.id] : undefined;
       await api(path, {
@@ -163,7 +202,7 @@ export default function ApprovalsPage() {
                   {l("Jenis", "Type")}
                 </SortTh>
                 <SortTh view={table} col="employee">
-                  {l("Karyawan", "Employee")}
+                  {l("Pengaju / pihak", "Requester / party")}
                 </SortTh>
                 <SortTh view={table} col="summary">
                   {l("Pengajuan", "Request")}
@@ -188,6 +227,10 @@ export default function ApprovalsPage() {
                         </Link>
                       ) : r.model === "approval_request" ? (
                         <Link href={`/hr/approval-requests/${r.id}`}>{l("Permintaan", "Request")}</Link>
+                      ) : r.model === "purchase_order" ? (
+                        <Link href={`/purchase/orders/${r.id}`}>
+                          {l("Pesanan pembelian", "Purchase order")}
+                        </Link>
                       ) : r.model === "leave_request" ? (
                         l("Cuti", "Time off")
                       ) : r.model === "expense_claim" ? (
@@ -240,12 +283,19 @@ export default function ApprovalsPage() {
                       <button type="button" className="link" onClick={() => decide(r, "approve")}>
                         {l("Setujui", "Approve")}
                       </button>{" "}
-                      <button type="button" className="link" onClick={() => decide(r, "refuse")}>
-                        {l("Tolak", "Refuse")}
-                      </button>{" "}
-                      <button type="button" className="link" onClick={() => toggleHistory(r)}>
-                        {l("Riwayat", "History")}
-                      </button>
+                      {r.model === "purchase_order" ? (
+                        // PO ditolak dengan membatalkannya di halaman PO (riwayat tahap ada di sana).
+                        <Link href={`/purchase/orders/${r.id}`}>{l("Buka PO", "Open PO")}</Link>
+                      ) : (
+                        <>
+                          <button type="button" className="link" onClick={() => decide(r, "refuse")}>
+                            {l("Tolak", "Refuse")}
+                          </button>{" "}
+                          <button type="button" className="link" onClick={() => toggleHistory(r)}>
+                            {l("Riwayat", "History")}
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                   {history[r.id] && (

@@ -8,7 +8,9 @@ import {
   type ApproverType,
 } from "@erp/shared";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { ApprovalCategories } from "../../../../components/settings/approval-categories";
 import { docLabel } from "../../../../components/settings/approval-panels";
 import { useMe } from "../../../../components/me-context";
 import { api, ApiError } from "../../../../lib/api";
@@ -52,9 +54,23 @@ const hasLimits = (doc: string) => (APPROVAL_LIMIT_DOC_KEYS as string[]).include
 const valueLabel = (doc: string) =>
   (APPROVAL_RULE_DOCS as Record<string, { value: readonly [string, string] | null }>)[doc]?.value ?? null;
 
-/** Pengaturan › Aturan Persetujuan: alur tahap per jenis dokumen, batas wewenang, simulasi. */
+/**
+ * Pengaturan › Aturan Persetujuan — satu tempat konfigurasi persetujuan:
+ * - Alur dokumen: tahap per jenis dokumen (cuti, lembur, klaim, absensi, shift, PO), batas wewenang, simulasi.
+ * - Kategori & dokumen sistem: penyetuju kategori yang dipakai payroll run, SK mutasi, payment run, dll., serta
+ *   kategori permintaan bebas.
+ */
 export default function ApprovalRulesPage() {
+  return (
+    <Suspense fallback={null}>
+      <ApprovalRules />
+    </Suspense>
+  );
+}
+
+function ApprovalRules() {
   const { l, locale } = useI18n();
+  const tab = useSearchParams().get("tab") === "categories" ? "categories" : "documents";
   const me = useMe();
   const editable = can(me.permissions, "approval.manage");
   const [doc, setDoc] = useState<string>("purchase_order");
@@ -226,370 +242,398 @@ export default function ApprovalRulesPage() {
         )}
       </section>
 
-      <nav className="tabs">
-        {DOCS.map((d) => (
-          <button key={d} type="button" className={doc === d ? "active" : ""} onClick={() => setDoc(d)}>
-            {l(...docLabel(d))}
-          </button>
-        ))}
+      <nav className="tabs" aria-label={l("Bagian aturan persetujuan", "Approval rule sections")}>
+        <Link href="/settings/approval-rules" className={tab === "documents" ? "active" : ""}>
+          {l("Alur dokumen", "Document flows")}
+        </Link>
+        <Link href="/settings/approval-rules?tab=categories" className={tab === "categories" ? "active" : ""}>
+          {l("Kategori & dokumen sistem", "Categories & system documents")}
+        </Link>
       </nav>
-      {error && <p className="error">{error}</p>}
-      {notice && <p className="notice">{notice}</p>}
 
-      {hasRules(doc) && (
+      {tab === "categories" ? (
         <section className="panel">
-          <h2>{l("Alur tahap", "Approval steps")}</h2>
-          <fieldset disabled={!editable} className="bare">
-            <div className="table-wrap">
-              <table className="lines">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>{l("Penyetuju", "Approver")}</th>
-                    <th>{l("Pengguna / peran", "User / role")}</th>
-                    {unit && (
-                      <th>
-                        {l("Berlaku bila", "Applies when")} {l(...unit).toLowerCase()} ≥
-                      </th>
-                    )}
-                    <th>{l("Label", "Label")}</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {steps.map((s, i) => (
-                    <tr key={i}>
-                      <td>{i + 1}</td>
-                      <td>
-                        <select
-                          aria-label={l("Penyetuju", "Approver")}
-                          value={s.approverType}
-                          onChange={(e) => setStep(i, { approverType: e.target.value as ApproverType })}
-                        >
-                          {(Object.keys(APPROVER_TYPE_LABELS) as ApproverType[]).map((t) => (
-                            <option key={t} value={t}>
-                              {l(...(APPROVER_TYPE_LABELS[t] as readonly [string, string]))}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        {s.approverType === "user" && (
-                          <select
-                            aria-label={l("Pengguna", "User")}
-                            value={s.userId}
-                            onChange={(e) => setStep(i, { userId: e.target.value })}
-                          >
-                            <option value="">—</option>
-                            {users.map((u) => (
-                              <option key={u.id} value={u.id}>
-                                {u.name}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                        {s.approverType === "role" && (
-                          <select
-                            aria-label={l("Peran", "Role")}
-                            value={s.roleId}
-                            onChange={(e) => setStep(i, { roleId: e.target.value })}
-                          >
-                            <option value="">—</option>
-                            {roles.map((r) => (
-                              <option key={r.id} value={r.id}>
-                                {r.name}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                        {err(`steps.${i}.userId`)}
-                        {err(`steps.${i}.roleId`)}
-                      </td>
+          <ApprovalCategories />
+        </section>
+      ) : (
+        documentFlows()
+      )}
+    </>
+  );
+
+  function documentFlows() {
+    return (
+      <>
+        <nav className="tabs">
+          {DOCS.map((d) => (
+            <button key={d} type="button" className={doc === d ? "active" : ""} onClick={() => setDoc(d)}>
+              {l(...docLabel(d))}
+            </button>
+          ))}
+        </nav>
+        {error && <p className="error">{error}</p>}
+        {notice && <p className="notice">{notice}</p>}
+
+        {hasRules(doc) && (
+          <section className="panel">
+            <h2>{l("Alur tahap", "Approval steps")}</h2>
+            <fieldset disabled={!editable} className="bare">
+              <div className="table-wrap">
+                <table className="lines">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>{l("Penyetuju", "Approver")}</th>
+                      <th>{l("Pengguna / peran", "User / role")}</th>
                       {unit && (
+                        <th>
+                          {l("Berlaku bila", "Applies when")} {l(...unit).toLowerCase()} ≥
+                        </th>
+                      )}
+                      <th>{l("Label", "Label")}</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {steps.map((s, i) => (
+                      <tr key={i}>
+                        <td>{i + 1}</td>
+                        <td>
+                          <select
+                            aria-label={l("Penyetuju", "Approver")}
+                            value={s.approverType}
+                            onChange={(e) => setStep(i, { approverType: e.target.value as ApproverType })}
+                          >
+                            {(Object.keys(APPROVER_TYPE_LABELS) as ApproverType[]).map((t) => (
+                              <option key={t} value={t}>
+                                {l(...(APPROVER_TYPE_LABELS[t] as readonly [string, string]))}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          {s.approverType === "user" && (
+                            <select
+                              aria-label={l("Pengguna", "User")}
+                              value={s.userId}
+                              onChange={(e) => setStep(i, { userId: e.target.value })}
+                            >
+                              <option value="">—</option>
+                              {users.map((u) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.name}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          {s.approverType === "role" && (
+                            <select
+                              aria-label={l("Peran", "Role")}
+                              value={s.roleId}
+                              onChange={(e) => setStep(i, { roleId: e.target.value })}
+                            >
+                              <option value="">—</option>
+                              {roles.map((r) => (
+                                <option key={r.id} value={r.id}>
+                                  {r.name}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          {err(`steps.${i}.userId`)}
+                          {err(`steps.${i}.roleId`)}
+                        </td>
+                        {unit && (
+                          <td>
+                            <input
+                              type="number"
+                              min="0"
+                              aria-label={l("Batas minimal", "Minimum value")}
+                              placeholder={l("selalu", "always")}
+                              value={s.minValue}
+                              onChange={(e) => setStep(i, { minValue: e.target.value })}
+                            />
+                          </td>
+                        )}
+                        <td>
+                          <input
+                            aria-label={l("Label", "Label")}
+                            placeholder={l("mis. Direktur", "e.g. Director")}
+                            value={s.label}
+                            onChange={(e) => setStep(i, { label: e.target.value })}
+                          />
+                        </td>
+                        <td className="nowrap">
+                          <button
+                            type="button"
+                            className="link"
+                            aria-label={l("Naikkan", "Move up")}
+                            disabled={i === 0}
+                            onClick={() => move(i, -1)}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className="link"
+                            aria-label={l("Turunkan", "Move down")}
+                            disabled={i === steps.length - 1}
+                            onClick={() => move(i, 1)}
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            className="link"
+                            onClick={() => setSteps(steps.filter((_, j) => j !== i))}
+                          >
+                            {l("Hapus", "Remove")}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {!steps.length && (
+                      <tr>
+                        <td colSpan={6} className="muted">
+                          {l(
+                            "Belum ada tahap — memakai perilaku bawaan.",
+                            "No steps — default behaviour applies.",
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {editable && (
+                <div className="toolbar">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSteps([
+                        ...steps,
+                        { approverType: "manager", userId: "", roleId: "", minValue: "", label: "" },
+                      ])
+                    }
+                  >
+                    {l("Tambah tahap", "Add step")}
+                  </button>
+                  <button type="button" className="primary" onClick={saveSteps}>
+                    {l("Simpan alur", "Save flow")}
+                  </button>
+                </div>
+              )}
+            </fieldset>
+          </section>
+        )}
+
+        {hasLimits(doc) && (
+          <section className="panel">
+            <h2>{l("Batas wewenang", "Approval limits")}</h2>
+            <p className="muted">
+              {doc === "purchase_order"
+                ? l(
+                    "Nominal maksimum PO yang boleh dibuat tanpa persetujuan dan yang boleh disetujui (mata uang perusahaan). Batas pengguna menimpa peran; beberapa peran → yang terbesar. Tanpa batas default di sini dipakai batas di Pengaturan Akuntansi.",
+                    "Maximum purchase order amount one may confirm without approval and may approve (company currency). User limits override roles; several roles → the largest. Without a default here, the Accounting Settings limit applies.",
+                  )
+                : l(
+                    "Nominal maksimum yang boleh disetujui pada tahap terakhir. Batas pengguna menimpa peran; beberapa peran → yang terbesar.",
+                    "Maximum amount one may approve at the final step. User limits override roles; several roles → the largest.",
+                  )}
+            </p>
+            <fieldset disabled={!editable} className="bare">
+              <div className="table-wrap">
+                <table className="lines">
+                  <thead>
+                    <tr>
+                      <th>{l("Berlaku untuk", "Applies to")}</th>
+                      {doc === "approval_request" && <th>{l("Kategori", "Category")}</th>}
+                      <th>{l("Nominal maksimum", "Maximum amount")}</th>
+                      <th>{l("Catatan", "Note")}</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {limits.map((x, i) => (
+                      <tr key={i}>
+                        <td>
+                          <select
+                            aria-label={l("Berlaku untuk", "Applies to")}
+                            value={x.who}
+                            onChange={(e) => setLimit(i, { who: e.target.value })}
+                          >
+                            <option value="">
+                              {l("Default perusahaan (semua)", "Company default (everyone)")}
+                            </option>
+                            <optgroup label={l("Peran", "Roles")}>
+                              {roles.map((r) => (
+                                <option key={r.id} value={`r:${r.id}`}>
+                                  {r.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                            <optgroup label={l("Pengguna", "Users")}>
+                              {users.map((u) => (
+                                <option key={u.id} value={`u:${u.id}`}>
+                                  {u.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          </select>
+                          {err(`limits.${i}.roleId`)}
+                          {err(`limits.${i}.userId`)}
+                        </td>
+                        {doc === "approval_request" && (
+                          <td>
+                            <select
+                              aria-label={l("Kategori", "Category")}
+                              value={x.categoryId}
+                              onChange={(e) => setLimit(i, { categoryId: e.target.value })}
+                            >
+                              <option value="">{l("Semua kategori", "All categories")}</option>
+                              {categories.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        )}
                         <td>
                           <input
                             type="number"
                             min="0"
-                            aria-label={l("Batas minimal", "Minimum value")}
-                            placeholder={l("selalu", "always")}
-                            value={s.minValue}
-                            onChange={(e) => setStep(i, { minValue: e.target.value })}
+                            aria-label={l("Nominal maksimum", "Maximum amount")}
+                            placeholder={l("tanpa batas", "unlimited")}
+                            value={x.maxAmount}
+                            onChange={(e) => setLimit(i, { maxAmount: e.target.value })}
+                          />
+                          {err(`limits.${i}.maxAmount`)}
+                        </td>
+                        <td>
+                          <input
+                            aria-label={l("Catatan", "Note")}
+                            value={x.note}
+                            onChange={(e) => setLimit(i, { note: e.target.value })}
                           />
                         </td>
-                      )}
-                      <td>
-                        <input
-                          aria-label={l("Label", "Label")}
-                          placeholder={l("mis. Direktur", "e.g. Director")}
-                          value={s.label}
-                          onChange={(e) => setStep(i, { label: e.target.value })}
-                        />
-                      </td>
-                      <td className="nowrap">
-                        <button
-                          type="button"
-                          className="link"
-                          aria-label={l("Naikkan", "Move up")}
-                          disabled={i === 0}
-                          onClick={() => move(i, -1)}
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          className="link"
-                          aria-label={l("Turunkan", "Move down")}
-                          disabled={i === steps.length - 1}
-                          onClick={() => move(i, 1)}
-                        >
-                          ↓
-                        </button>
-                        <button
-                          type="button"
-                          className="link"
-                          onClick={() => setSteps(steps.filter((_, j) => j !== i))}
-                        >
-                          {l("Hapus", "Remove")}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {!steps.length && (
-                    <tr>
-                      <td colSpan={6} className="muted">
-                        {l(
-                          "Belum ada tahap — memakai perilaku bawaan.",
-                          "No steps — default behaviour applies.",
-                        )}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {editable && (
-              <div className="toolbar">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setSteps([
-                      ...steps,
-                      { approverType: "manager", userId: "", roleId: "", minValue: "", label: "" },
-                    ])
-                  }
-                >
-                  {l("Tambah tahap", "Add step")}
-                </button>
-                <button type="button" className="primary" onClick={saveSteps}>
-                  {l("Simpan alur", "Save flow")}
-                </button>
-              </div>
-            )}
-          </fieldset>
-        </section>
-      )}
-
-      {hasLimits(doc) && (
-        <section className="panel">
-          <h2>{l("Batas wewenang", "Approval limits")}</h2>
-          <p className="muted">
-            {doc === "purchase_order"
-              ? l(
-                  "Nominal maksimum PO yang boleh dibuat tanpa persetujuan dan yang boleh disetujui (mata uang perusahaan). Batas pengguna menimpa peran; beberapa peran → yang terbesar. Tanpa batas default di sini dipakai batas di Pengaturan Akuntansi.",
-                  "Maximum purchase order amount one may confirm without approval and may approve (company currency). User limits override roles; several roles → the largest. Without a default here, the Accounting Settings limit applies.",
-                )
-              : l(
-                  "Nominal maksimum yang boleh disetujui pada tahap terakhir. Batas pengguna menimpa peran; beberapa peran → yang terbesar.",
-                  "Maximum amount one may approve at the final step. User limits override roles; several roles → the largest.",
-                )}
-          </p>
-          <fieldset disabled={!editable} className="bare">
-            <div className="table-wrap">
-              <table className="lines">
-                <thead>
-                  <tr>
-                    <th>{l("Berlaku untuk", "Applies to")}</th>
-                    {doc === "approval_request" && <th>{l("Kategori", "Category")}</th>}
-                    <th>{l("Nominal maksimum", "Maximum amount")}</th>
-                    <th>{l("Catatan", "Note")}</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {limits.map((x, i) => (
-                    <tr key={i}>
-                      <td>
-                        <select
-                          aria-label={l("Berlaku untuk", "Applies to")}
-                          value={x.who}
-                          onChange={(e) => setLimit(i, { who: e.target.value })}
-                        >
-                          <option value="">
-                            {l("Default perusahaan (semua)", "Company default (everyone)")}
-                          </option>
-                          <optgroup label={l("Peran", "Roles")}>
-                            {roles.map((r) => (
-                              <option key={r.id} value={`r:${r.id}`}>
-                                {r.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                          <optgroup label={l("Pengguna", "Users")}>
-                            {users.map((u) => (
-                              <option key={u.id} value={`u:${u.id}`}>
-                                {u.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        </select>
-                        {err(`limits.${i}.roleId`)}
-                        {err(`limits.${i}.userId`)}
-                      </td>
-                      {doc === "approval_request" && (
                         <td>
-                          <select
-                            aria-label={l("Kategori", "Category")}
-                            value={x.categoryId}
-                            onChange={(e) => setLimit(i, { categoryId: e.target.value })}
+                          <button
+                            type="button"
+                            className="link"
+                            onClick={() => setLimits(limits.filter((_, j) => j !== i))}
                           >
-                            <option value="">{l("Semua kategori", "All categories")}</option>
-                            {categories.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name}
-                              </option>
-                            ))}
-                          </select>
+                            {l("Hapus", "Remove")}
+                          </button>
                         </td>
-                      )}
-                      <td>
-                        <input
-                          type="number"
-                          min="0"
-                          aria-label={l("Nominal maksimum", "Maximum amount")}
-                          placeholder={l("tanpa batas", "unlimited")}
-                          value={x.maxAmount}
-                          onChange={(e) => setLimit(i, { maxAmount: e.target.value })}
-                        />
-                        {err(`limits.${i}.maxAmount`)}
-                      </td>
-                      <td>
-                        <input
-                          aria-label={l("Catatan", "Note")}
-                          value={x.note}
-                          onChange={(e) => setLimit(i, { note: e.target.value })}
-                        />
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="link"
-                          onClick={() => setLimits(limits.filter((_, j) => j !== i))}
-                        >
-                          {l("Hapus", "Remove")}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {!limits.length && (
-                    <tr>
-                      <td colSpan={5} className="muted">
-                        {l("Belum ada batas wewenang.", "No approval limits yet.")}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {editable && (
-              <div className="toolbar">
-                <button
-                  type="button"
-                  onClick={() => setLimits([...limits, { who: "", categoryId: "", maxAmount: "", note: "" }])}
-                >
-                  {l("Tambah batas", "Add limit")}
-                </button>
-                <button type="button" className="primary" onClick={saveLimits}>
-                  {l("Simpan batas", "Save limits")}
-                </button>
+                      </tr>
+                    ))}
+                    {!limits.length && (
+                      <tr>
+                        <td colSpan={5} className="muted">
+                          {l("Belum ada batas wewenang.", "No approval limits yet.")}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </fieldset>
-          {doc === "approval_request" && (
-            <p className="muted">
-              {l("Penyetuju per kategori diatur di", "Approvers per category are set in")}{" "}
-              <Link href="/hr/approval-categories">{l("Kategori Persetujuan", "Approval Categories")}</Link>.
-            </p>
-          )}
-        </section>
-      )}
-
-      {hasRules(doc) && editable && (
-        <section className="panel">
-          <h2>{l("Simulasi", "Simulation")}</h2>
-          <div className="grid-2">
-            <label className="field">
-              <span>{l("Diajukan oleh", "Submitted by")}</span>
-              <select value={sim.userId} onChange={(e) => setSim({ ...sim, userId: e.target.value })}>
-                <option value="">—</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {unit && (
-              <label className="field">
-                <span>{l(...unit)}</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={sim.value}
-                  onChange={(e) => setSim({ ...sim, value: e.target.value })}
-                />
-              </label>
-            )}
-          </div>
-          <div className="toolbar">
-            <button type="button" onClick={simulate}>
-              {l("Simulasikan", "Simulate")}
-            </button>
-          </div>
-          {simResult &&
-            (simResult.steps === null ? (
+              {editable && (
+                <div className="toolbar">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setLimits([...limits, { who: "", categoryId: "", maxAmount: "", note: "" }])
+                    }
+                  >
+                    {l("Tambah batas", "Add limit")}
+                  </button>
+                  <button type="button" className="primary" onClick={saveLimits}>
+                    {l("Simpan batas", "Save limits")}
+                  </button>
+                </div>
+              )}
+            </fieldset>
+            {doc === "approval_request" && (
               <p className="muted">
-                {l(
-                  "Belum ada aturan tersimpan untuk dokumen ini — memakai perilaku bawaan.",
-                  "No saved rules for this document — default behaviour applies.",
-                )}
+                {l("Penyetuju per kategori diatur di", "Approvers per category are set in")}{" "}
+                <Link href="/settings/approval-rules?tab=categories">
+                  {l("Kategori & dokumen sistem", "Categories & system documents")}
+                </Link>
+                .
               </p>
-            ) : simResult.steps.length === 0 ? (
-              <p className="notice">{l("Tidak perlu persetujuan.", "No approval needed.")}</p>
-            ) : (
-              <ol>
-                {simResult.steps.map((s) => (
-                  <li key={s.step}>
-                    <strong>{s.label ?? s.approver ?? l("Admin dokumen", "Document admin")}</strong>
-                    {s.label &&
-                      ` — ${
-                        s.approver ??
-                        (doc === "purchase_order"
-                          ? l("Pemegang hak Setujui PO", "Holders of Approve PO")
-                          : l("HR", "HR"))
-                      }`}
-                    {s.holders.length > 0 && <span className="muted"> ({s.holders.join(", ")})</span>}
-                  </li>
-                ))}
-              </ol>
-            ))}
-          {simResult && simResult.requesterLimit !== null && (
-            <p className="muted">
-              {l("Batas wewenang pengaju", "Submitter's approval limit")}:{" "}
-              {money(simResult.requesterLimit, locale, 0)}
-            </p>
-          )}
-        </section>
-      )}
-    </>
-  );
+            )}
+          </section>
+        )}
+
+        {hasRules(doc) && editable && (
+          <section className="panel">
+            <h2>{l("Simulasi", "Simulation")}</h2>
+            <div className="grid-2">
+              <label className="field">
+                <span>{l("Diajukan oleh", "Submitted by")}</span>
+                <select value={sim.userId} onChange={(e) => setSim({ ...sim, userId: e.target.value })}>
+                  <option value="">—</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {unit && (
+                <label className="field">
+                  <span>{l(...unit)}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={sim.value}
+                    onChange={(e) => setSim({ ...sim, value: e.target.value })}
+                  />
+                </label>
+              )}
+            </div>
+            <div className="toolbar">
+              <button type="button" onClick={simulate}>
+                {l("Simulasikan", "Simulate")}
+              </button>
+            </div>
+            {simResult &&
+              (simResult.steps === null ? (
+                <p className="muted">
+                  {l(
+                    "Belum ada aturan tersimpan untuk dokumen ini — memakai perilaku bawaan.",
+                    "No saved rules for this document — default behaviour applies.",
+                  )}
+                </p>
+              ) : simResult.steps.length === 0 ? (
+                <p className="notice">{l("Tidak perlu persetujuan.", "No approval needed.")}</p>
+              ) : (
+                <ol>
+                  {simResult.steps.map((s) => (
+                    <li key={s.step}>
+                      <strong>{s.label ?? s.approver ?? l("Admin dokumen", "Document admin")}</strong>
+                      {s.label &&
+                        ` — ${
+                          s.approver ??
+                          (doc === "purchase_order"
+                            ? l("Pemegang hak Setujui PO", "Holders of Approve PO")
+                            : l("HR", "HR"))
+                        }`}
+                      {s.holders.length > 0 && <span className="muted"> ({s.holders.join(", ")})</span>}
+                    </li>
+                  ))}
+                </ol>
+              ))}
+            {simResult && simResult.requesterLimit !== null && (
+              <p className="muted">
+                {l("Batas wewenang pengaju", "Submitter's approval limit")}:{" "}
+                {money(simResult.requesterLimit, locale, 0)}
+              </p>
+            )}
+          </section>
+        )}
+      </>
+    );
+  }
 }

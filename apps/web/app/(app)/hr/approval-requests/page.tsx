@@ -115,7 +115,7 @@ function Requests() {
         )}
         <Link href="/hr/approval-delegations">{l("Delegasi", "Delegations")}</Link>
         {can(me.permissions, "hr.manage") && (
-          <Link href="/hr/approval-categories">{l("Kategori", "Categories")}</Link>
+          <Link href="/settings/approval-rules?tab=categories">{l("Kategori", "Categories")}</Link>
         )}
       </header>
       {open && (

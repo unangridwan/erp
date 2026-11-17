@@ -12,7 +12,6 @@ import {
   type approvalDelegationSchema,
   type approvalRequestSchema,
   buildApprovalSteps,
-  DEFAULT_APPROVAL_CATEGORIES,
   hasPermission,
   missingApprovalFields,
   requestOutcome,
@@ -20,6 +19,12 @@ import {
 } from "@erp/shared";
 import type { z } from "zod";
 import { fieldError } from "../accounting/context.js";
+import {
+  ensureDefaultCategories,
+  ensureSystemCategories,
+  isSystemCategory,
+  systemInfo,
+} from "./approval-categories.registry.js";
 import { ActivityService } from "../activity/activity.service.js";
 import { currentContext } from "../common/request-context.js";
 import { NotificationService } from "../notifications/notification.service.js";
@@ -189,17 +194,12 @@ export class ApprovalEngineService {
 
   /** Kategori bawaan BLST untuk perusahaan yang belum punya kategori sama sekali. */
   async ensureDefaults(tx: Db, companyId: string) {
-    const [any] = await tx.select({ id: CAT.id }).from(CAT).where(eq(CAT.companyId, companyId)).limit(1);
-    if (any) return;
-    await tx
-      .insert(CAT)
-      .values(DEFAULT_APPROVAL_CATEGORIES.map((c, i) => ({ ...c, companyId, sequence: (i + 1) * 10 })))
-      .onConflictDoNothing();
+    await ensureDefaultCategories(tx, companyId);
   }
 
   async listCategories(tx: Db, activeOnly: boolean) {
     const companyId = currentContext().companyId;
-    await this.ensureDefaults(tx, companyId);
+    await ensureSystemCategories(tx, companyId);
     const rows = await tx
       .select({
         category: CAT,
@@ -208,7 +208,7 @@ export class ApprovalEngineService {
       .from(CAT)
       .where(and(eq(CAT.companyId, companyId), activeOnly ? eq(CAT.active, true) : undefined))
       .orderBy(asc(CAT.sequence), asc(CAT.name));
-    return rows.map((r) => ({ ...r.category, approverCount: r.approvers }));
+    return rows.map((r) => ({ ...r.category, approverCount: r.approvers, ...systemInfo(r.category.code) }));
   }
 
   async getCategory(tx: Db, id: string) {
@@ -234,7 +234,7 @@ export class ApprovalEngineService {
       .leftJoin(schema.roles, eq(schema.roles.id, APR.roleId))
       .where(eq(APR.categoryId, id))
       .orderBy(asc(APR.sequence));
-    return { ...category, approvers };
+    return { ...category, approvers, ...systemInfo(category.code) };
   }
 
   async saveCategory(tx: Db, id: string | null, input: CategoryInput) {
@@ -262,7 +262,12 @@ export class ApprovalEngineService {
     const row = { ...values, description: values.description ?? null };
     let categoryId = id;
     if (id) {
-      await this.getCategory(tx, id);
+      const current = await this.getCategory(tx, id);
+      // Kategori sistem dirujuk dokumen lewat kodenya; nomor permintaan memakai prefixnya.
+      if (current.system && input.code !== current.code)
+        throw fieldError("code", "Kode kategori sistem tidak bisa diubah");
+      if (current.system && input.prefix !== current.prefix)
+        throw fieldError("prefix", "Prefix kategori sistem tidak bisa diubah");
       await tx
         .update(CAT)
         .set({ ...row, updatedAt: sql`now()` })
@@ -298,7 +303,9 @@ export class ApprovalEngineService {
   }
 
   async removeCategory(tx: Db, id: string) {
-    await this.getCategory(tx, id);
+    const current = await this.getCategory(tx, id);
+    if (isSystemCategory(current.code))
+      throw new BadRequestException("Kategori sistem dipakai dokumen dan tidak bisa dihapus");
     const [used] = await tx.select({ id: REQ.id }).from(REQ).where(eq(REQ.categoryId, id)).limit(1);
     if (used)
       throw new BadRequestException("Kategori sudah dipakai permintaan; nonaktifkan saja (Aktif = tidak)");

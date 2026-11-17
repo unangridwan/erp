@@ -35,6 +35,7 @@ import { parse } from "../common/zod.js";
 import { ApprovalEngineService } from "./approval-engine.service.js";
 import { HrModule } from "./hr.module.js";
 import { assertContractType } from "./contract-types.module.js";
+import { systemCategoryId } from "./approval-categories.registry.js";
 
 const H = schema.hiringRequests;
 const L = schema.manpowerPlanLines;
@@ -46,24 +47,6 @@ const G = schema.salaryGrades;
 const OP = schema.jobOpenings;
 const AP = schema.applicants;
 const REQ = schema.approvalRequests;
-const CAT = schema.approvalCategories;
-
-/** FPK dalam rencana memakai kategori bawaan "FPK"; di luar MPP kategori sendiri agar bisa diberi penyetuju tambahan. */
-const UNPLANNED_CATEGORY = {
-  code: "FPK_NP",
-  name: "FPK di luar MPP",
-  prefix: "FPK",
-  description:
-    "Penambahan karyawan yang tidak ada di Man Power Planning yang disetujui. Tambahkan penyetuju (mis. direksi) di kategori ini.",
-  fields: { quantity: "required", amount: "optional", date: "optional", description: "required" } as const,
-};
-const PLANNED_CATEGORY = {
-  code: "FPK",
-  name: "Formulir Permintaan Karyawan",
-  prefix: "FPK",
-  description: "Permintaan penambahan tenaga kerja: posisi, jumlah, alasan, estimasi biaya.",
-  fields: { quantity: "required", amount: "optional", date: "optional", description: "required" } as const,
-};
 
 const listQuery = z.object({
   state: z.enum(["draft", "in_approval", "approved", "refused", "cancel"]).optional(),
@@ -616,19 +599,9 @@ class HiringRequestController implements OnModuleInit {
       throw new ForbiddenException("Hanya HR (hr.manage) atau kepala departemen yang bisa mengajukan FPK");
   }
 
-  private async category(tx: Db, companyId: string, unplanned: boolean) {
-    const def = unplanned ? UNPLANNED_CATEGORY : PLANNED_CATEGORY;
-    await this.approvals.ensureDefaults(tx, companyId);
-    const [found] = await tx
-      .select({ id: CAT.id })
-      .from(CAT)
-      .where(and(eq(CAT.companyId, companyId), eq(CAT.code, def.code)));
-    if (found) return found.id;
-    const [created] = await tx
-      .insert(CAT)
-      .values({ ...def, companyId, sequence: unplanned ? 15 : 10 })
-      .returning({ id: CAT.id });
-    return created!.id;
+  /** FPK dalam rencana memakai kategori "FPK"; di luar MPP kategori sendiri agar bisa diberi penyetuju tambahan. */
+  private category(tx: Db, companyId: string, unplanned: boolean) {
+    return systemCategoryId(tx, companyId, unplanned ? "FPK_NP" : "FPK");
   }
 
   private log(tx: Db, id: string, message: string) {

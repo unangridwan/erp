@@ -41,18 +41,11 @@ import { SequenceService } from "../sequences/sequence.service.js";
 import { contractLines, lineInfo, orderedLines, type Contract } from "./contract-check.js";
 import { PurchaseModule } from "./purchase.module.js";
 import { PurchaseOrderService } from "./purchase-order.service.js";
+import { systemCategoryId } from "../hr/approval-categories.registry.js";
 
 const C = schema.purchaseContracts;
 const CL = schema.purchaseContractLines;
 const REQ = schema.approvalRequests;
-const CAT = schema.approvalCategories;
-const CATEGORY = {
-  code: "KONTRAK_BELI",
-  name: "Kontrak Pembelian",
-  prefix: "KPB",
-  description: "Persetujuan kontrak pembelian (blanket order): pemasok, periode, harga & komitmen.",
-  fields: { amount: "required", description: "required" } as const,
-};
 const d = (v: Decimal.Value | null | undefined) => new Decimal(v ?? 0);
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -497,18 +490,8 @@ export class PurchaseContractService {
     };
   }
 
-  private async category(tx: Db, companyId: string) {
-    const [found] = await tx
-      .select({ id: CAT.id })
-      .from(CAT)
-      .where(and(eq(CAT.companyId, companyId), eq(CAT.code, CATEGORY.code)));
-    if (found) return found.id;
-    await this.approvals.ensureDefaults(tx, companyId);
-    const [created] = await tx
-      .insert(CAT)
-      .values({ ...CATEGORY, companyId, managerFirst: false, sequence: 920 })
-      .returning({ id: CAT.id });
-    return created!.id;
+  private category(tx: Db, companyId: string) {
+    return systemCategoryId(tx, companyId, "KONTRAK_BELI");
   }
 }
 

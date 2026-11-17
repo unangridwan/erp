@@ -1,33 +1,15 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import { and, eq, schema, sql, type Db } from "@erp/db";
+import { eq, schema, sql, type Db } from "@erp/db";
+import { SYSTEM_APPROVAL_CATEGORIES, systemCategoryId } from "./approval-categories.registry.js";
 import { ApprovalEngineService } from "./approval-engine.service.js";
 
-const CAT = schema.approvalCategories;
 const REQ = schema.approvalRequests;
 
-/** Kategori persetujuan untuk dokumen yang wajib disetujui sebelum diproses (dibuat otomatis bila belum ada). */
+/** Jenis dokumen bergerbang → kode kategori sistem (lihat `approval-categories.registry.ts`). */
 export const GATE_CATEGORIES = {
-  payroll: {
-    code: "PAYROLL",
-    name: "Payroll Run",
-    prefix: "PYR",
-    description:
-      "Persetujuan payroll run sebelum diposting: jumlah slip, total bruto, neto, PPh 21, dan BPJS.",
-  },
-  movement: {
-    code: "MUTASI",
-    name: "Mutasi & Promosi",
-    prefix: "MTS",
-    description:
-      "Persetujuan SK mutasi/promosi/demosi sebelum diterapkan (jabatan, departemen, golongan, upah baru).",
-  },
-  offer: {
-    code: "PENAWARAN",
-    name: "Penawaran Kerja",
-    prefix: "OFR",
-    description:
-      "Persetujuan penawaran kerja sebelum dikirim ke pelamar (posisi, jenis kontrak, gaji ditawarkan).",
-  },
+  payroll: SYSTEM_APPROVAL_CATEGORIES.PAYROLL.def,
+  movement: SYSTEM_APPROVAL_CATEGORIES.MUTASI.def,
+  offer: SYSTEM_APPROVAL_CATEGORIES.PENAWARAN.def,
 } as const;
 export type GateKind = keyof typeof GATE_CATEGORIES;
 
@@ -42,24 +24,7 @@ export class ApprovalGateService {
   constructor(@Inject(ApprovalEngineService) private readonly engine: ApprovalEngineService) {}
 
   async category(tx: Db, companyId: string, kind: GateKind) {
-    const def = GATE_CATEGORIES[kind];
-    const [found] = await tx
-      .select({ id: CAT.id })
-      .from(CAT)
-      .where(and(eq(CAT.companyId, companyId), eq(CAT.code, def.code)));
-    if (found) return found.id;
-    await this.engine.ensureDefaults(tx, companyId);
-    const [created] = await tx
-      .insert(CAT)
-      .values({
-        ...def,
-        companyId,
-        fields: { amount: "required", description: "required" },
-        managerFirst: false,
-        sequence: 910,
-      })
-      .returning({ id: CAT.id });
-    return created!.id;
+    return systemCategoryId(tx, companyId, GATE_CATEGORIES[kind].code);
   }
 
   /** Buat & ajukan permintaan persetujuan; mengembalikan id permintaan. */

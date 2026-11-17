@@ -75,6 +75,13 @@ class PurchaseOrdersController {
     return this.tenantDb.run((tx) => this.orders.list(tx, query));
   }
 
+  /** PO menunggu persetujuan saya (penyetuju dicek per tahap seperti tombol Setujui). */
+  @Get("pending-approval")
+  @RequirePermission("purchase.read")
+  pendingApproval() {
+    return this.tenantDb.run((tx) => this.orders.pendingApproval(tx));
+  }
+
   @Get("report")
   @RequirePermission("purchase.read")
   report(@Query() query: unknown) {
