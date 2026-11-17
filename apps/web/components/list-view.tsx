@@ -5,6 +5,7 @@ import { useCustomFields } from "./custom-fields";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, apiRaw } from "../lib/api";
+import { formatDate, money } from "../lib/format";
 import { truncatedNote, useListData } from "../lib/use-list-data";
 import { useTableView, type ViewColumn } from "../lib/use-table-view";
 import { AuthImage } from "./auth-image";
@@ -53,20 +54,23 @@ function useRefLabels(resource: Resource) {
 }
 
 // Semua cukup gelap untuk huruf putih (kontras ≥ 4,5:1).
-const COLORS = ["#714b67", "#016b70", "#b8432f", "#94590a", "#5b4fa3", "#22704a", "#a83d78", "#2f66a3"];
+const COLORS = ["#1f5fbf", "#0e7a6b", "#b54708", "#6941c6", "#067647", "#b42318", "#2b6cb0", "#9a3412"];
 /** Warna avatar kartu yang konsisten per nama. */
 const avatarColor = (name: string) =>
   COLORS[[...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % COLORS.length]!;
 
-/** Pilihan tampilan per resource (kanban bawaan bila tersedia), diingat di browser. */
+/**
+ * Pilihan tampilan per resource, diingat di browser. Bawaan: tabel di layar lebar (lebih mudah dipindai &
+ * dibandingkan), kartu di ponsel bila resource punya tampilan kartu.
+ */
 function useViewMode(resource: Resource) {
   const key = `erp.view.${resource.path}`;
-  const fallback: "kanban" | "list" = resource.kanban ? "kanban" : "list";
-  const [view, setViewState] = useState<"kanban" | "list">(fallback);
+  const [view, setViewState] = useState<"kanban" | "list">("list");
   useEffect(() => {
     try {
       const saved = localStorage.getItem(key);
       if (saved === "kanban" || saved === "list") setViewState(resource.kanban ? saved : "list");
+      else setViewState(resource.kanban && window.innerWidth < 1024 ? "kanban" : "list");
     } catch {
       // localStorage tidak tersedia; pakai tampilan bawaan.
     }
@@ -95,6 +99,15 @@ export function ListView({ resource }: { resource: Resource }) {
   const writable = canWrite(me.permissions, resource);
   const refLabels = useRefLabels(resource);
   const [view, setView] = useViewMode(resource);
+  // Menu "Lainnya" tertutup saat klik di luar.
+  const moreRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (moreRef.current?.open && !moreRef.current.contains(e.target as Node)) moreRef.current.open = false;
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
   const rowLink = useRowLink();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -130,6 +143,20 @@ export function ListView({ resource }: { resource: Resource }) {
       if (option) return tx(option[1]);
     }
     return refLabels[name]?.get(String(v)) ?? String(v);
+  };
+
+  /** Nilai untuk ditampilkan: angka dengan pemisah ribuan & tanggal terbaca (ekspor CSV tetap memakai `cell`). */
+  const fieldOf = (name: string) => resource.fields.find((f) => f.name === name);
+  const numeric = (name: string) => fieldOf(name)?.type === "number";
+  const display = (row: Row, name: string) => {
+    const field = fieldOf(name);
+    const v = row[name];
+    if (field?.type === "number" && v !== null && v !== undefined && v !== "" && !Number.isNaN(Number(v)))
+      return money(v as string | number, locale);
+    if (field?.type === "date" && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v))
+      return formatDate(v.slice(0, 10), locale);
+    if (typeof v === "boolean") return v ? l("Ya", "Yes") : l("Tidak", "No");
+    return cell(row, name);
   };
 
   const columns = useMemo<ViewColumn<Row>[]>(
@@ -317,50 +344,77 @@ export function ListView({ resource }: { resource: Resource }) {
     <>
       <header className="toolbar control-panel">
         <div className="cp-left">
-          {canCreate(me.permissions, resource) && (
-            <Link className="button primary" href={`/${resource.path}/new`}>
-              {t("list.new")}
-            </Link>
-          )}
           <h1>{tx(resource.title)}</h1>
         </div>
         <div className="cp-right">
-          {resource.csv && canExport(me.permissions, resource) && (
-            <button onClick={openExport}>{t("list.export")}…</button>
+          {resource.csv && (canExport(me.permissions, resource) || writable) && (
+            <details className="more-menu" ref={moreRef}>
+              <summary className="button">{l("Lainnya", "More")}</summary>
+              <div className="nav-items right">
+                {canExport(me.permissions, resource) && (
+                  <button
+                    type="button"
+                    className="nav-item"
+                    onClick={(e) => {
+                      e.currentTarget.closest("details")?.removeAttribute("open");
+                      void openExport();
+                    }}
+                  >
+                    {t("list.export")}…
+                  </button>
+                )}
+                {writable && (
+                  <button
+                    type="button"
+                    className="nav-item"
+                    onClick={(e) => {
+                      e.currentTarget.closest("details")?.removeAttribute("open");
+                      fileInput.current?.click();
+                    }}
+                  >
+                    {t("list.import")}
+                  </button>
+                )}
+              </div>
+            </details>
           )}
           {resource.csv && writable && (
-            <>
-              <button onClick={() => fileInput.current?.click()}>{t("list.import")}</button>
-              <input
-                ref={fileInput}
-                type="file"
-                accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                hidden
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = "";
-                  if (file) void importCsv(file);
-                }}
-              />
-            </>
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) void importCsv(file);
+              }}
+            />
           )}
           {resource.kanban && (
-            <span className="view-switch">
-              <button
-                className={view === "kanban" ? "active" : ""}
-                title="Kanban"
-                onClick={() => setView("kanban")}
-              >
-                ▦
-              </button>
+            <span className="view-switch" role="group" aria-label={l("Tampilan", "View")}>
               <button
                 className={view === "list" ? "active" : ""}
-                title="List"
+                aria-pressed={view === "list"}
+                title={l("Tampilan tabel", "Table view")}
                 onClick={() => setView("list")}
               >
-                ☰
+                <span aria-hidden>☰</span> {l("Tabel", "Table")}
+              </button>
+              <button
+                className={view === "kanban" ? "active" : ""}
+                aria-pressed={view === "kanban"}
+                title={l("Tampilan kartu", "Card view")}
+                onClick={() => setView("kanban")}
+              >
+                <span aria-hidden>▦</span> {l("Kartu", "Cards")}
               </button>
             </span>
+          )}
+          {canCreate(me.permissions, resource) && (
+            <Link className="button primary" href={`/${resource.path}/new`}>
+              + {t("list.new")}
+            </Link>
           )}
         </div>
       </header>
@@ -412,7 +466,7 @@ export function ListView({ resource }: { resource: Resource }) {
                 <span className="record-body">
                   <strong>{title}</strong>
                   {resource.kanban!.lines.map((name) => {
-                    const v = cell(row, name);
+                    const v = display(row, name);
                     return v ? <span key={name}>{v}</span> : null;
                   })}
                   {tag && <span className="tag">{tag}</span>}
@@ -508,7 +562,12 @@ export function ListView({ resource }: { resource: Resource }) {
                   </th>
                 )}
                 {shownColumns.map((c) => (
-                  <SortTh key={c.name} view={table} col={c.name}>
+                  <SortTh
+                    key={c.name}
+                    view={table}
+                    col={c.name}
+                    className={numeric(c.name) ? "num" : undefined}
+                  >
                     {tx(c.label)}
                   </SortTh>
                 ))}
@@ -534,11 +593,11 @@ export function ListView({ resource }: { resource: Resource }) {
                       </td>
                     )}
                     {shownColumns.map((c, i) => (
-                      <td key={c.name}>
+                      <td key={c.name} className={numeric(c.name) ? "num" : undefined}>
                         {i === 0 ? (
-                          <Link href={`/${resource.path}/${row.id}`}>{cell(row, c.name) || "—"}</Link>
+                          <Link href={`/${resource.path}/${row.id}`}>{display(row, c.name) || "—"}</Link>
                         ) : (
-                          cell(row, c.name)
+                          display(row, c.name)
                         )}
                       </td>
                     ))}

@@ -2,16 +2,16 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { session, type Me } from "../lib/api";
-import { visibleMenu, type App, type MenuEntry } from "../lib/apps";
+import { visibleApps, visibleMenu, type App, type MenuGroup, type MenuLink } from "../lib/apps";
 import { useI18n } from "../lib/i18n";
 import { useTheme, useThemeLabels } from "../lib/theme";
-import { AppIcon, AppsGlyph } from "./app-icon";
+import { AppIcon } from "./app-icon";
 import { openCommandPalette } from "./command-palette";
 import { NotificationBell } from "./notification-bell";
 
-/** Tutup dropdown saat klik di luar elemen atau setelah navigasi. */
+/** Tutup dropdown saat klik di luar elemen, menekan Esc, atau setelah navigasi. */
 function useDropdown() {
   const [open, setOpen] = useState<string | null>(null);
   const ref = useRef<HTMLElement>(null);
@@ -34,41 +34,6 @@ function useDropdown() {
   return { open, setOpen, ref };
 }
 
-/**
- * Menu tidak muat di satu baris (banyak item, layar laptop) → mode ringkas: tombol ☰ seperti di ponsel.
- * Diukur ulang saat ukuran jendela, aplikasi aktif, atau bahasa berubah.
- */
-function useCompactNav(ref: RefObject<HTMLElement | null>, key: string) {
-  const [compact, setCompact] = useState(false);
-  const [probe, setProbe] = useState(0);
-  useEffect(() => {
-    const onResize = () => {
-      setCompact(false);
-      setProbe((p) => p + 1);
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-  useEffect(() => {
-    setCompact(false);
-    setProbe((p) => p + 1);
-  }, [key]);
-  useLayoutEffect(() => {
-    const header = ref.current;
-    if (compact || !header) return;
-    const menu = header.querySelector<HTMLElement>(".nav-menu");
-    const right = header.querySelector<HTMLElement>(".nav-right");
-    const company = header.querySelector<HTMLElement>(".nav-company-name");
-    if (!menu || !right || getComputedStyle(menu).display === "none") return;
-    const crowded =
-      menu.getBoundingClientRect().right > right.getBoundingClientRect().left - 8 ||
-      header.scrollWidth > header.clientWidth + 1 ||
-      (!!company && company.scrollWidth > company.clientWidth + 1 && company.clientWidth < 120);
-    if (crowded) setCompact(true);
-  }, [compact, probe, ref]);
-  return compact;
-}
-
 const initials = (name: string) =>
   name
     .split(/\s+/)
@@ -77,71 +42,236 @@ const initials = (name: string) =>
     .map((w) => w[0]!.toUpperCase())
     .join("");
 
-/** Bilah atas gaya Odoo: pengalih aplikasi, nama & menu aplikasi aktif saja, perusahaan, dan menu user. */
-export function Navbar({ me, app }: { me: Me; app: App | null }) {
-  const router = useRouter();
+const isActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
+
+/**
+ * Sidebar kiri: beranda, semua aplikasi, dan menu lengkap aplikasi aktif (kelompok bisa dilipat). Di layar lebar
+ * selalu tampil; di layar sempit menjadi laci yang dibuka tombol ☰ di bilah atas.
+ */
+export function Sidebar({
+  me,
+  app,
+  open,
+  onClose,
+}: {
+  me: Me;
+  app: App | null;
+  open: boolean;
+  onClose: () => void;
+}) {
   const pathname = usePathname();
+  const { tx, l } = useI18n();
+  const apps = visibleApps(me);
+  const menu = app ? visibleMenu(me, app) : [];
+  // Kelompok menu yang terbuka (per aplikasi); bawaannya kelompok yang berisi halaman aktif.
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  const groupKey = (g: MenuGroup) => `${app?.id}:${g.label.id}`;
+  const groupOpen = (g: MenuGroup, i: number) => {
+    const key = groupKey(g);
+    if (key in toggled) return toggled[key]!;
+    const hasActive = g.items.some((it) => isActive(pathname, it.href));
+    const anyActive = menu.some((e) =>
+      ("items" in e ? e.items : [e]).some((it) => isActive(pathname, it.href)),
+    );
+    return hasActive || (!anyActive && i === 0);
+  };
+  const navRef = useRef<HTMLElement>(null);
+  // Halaman aktif selalu terlihat di sidebar (mis. menu panjang SDM).
+  useEffect(() => {
+    navRef.current?.querySelector(".side-link.active")?.scrollIntoView({ block: "nearest" });
+  }, [pathname, app?.id]);
+
+  const item = (it: MenuLink) => (
+    <Link
+      key={it.href + it.label.id}
+      href={it.href}
+      className={`side-link${isActive(pathname, it.href) ? " active" : ""}`}
+      aria-current={isActive(pathname, it.href) ? "page" : undefined}
+    >
+      {tx(it.label)}
+    </Link>
+  );
+
+  return (
+    <>
+      <aside className={`sidebar${open ? " open" : ""}`} aria-label={l("Navigasi utama", "Main navigation")}>
+        <div className="side-head">
+          <Link href="/" className="side-brand" title={l("Beranda", "Home")}>
+            <span className="side-logo" aria-hidden>
+              {initials(me.companies.find((c) => c.id === me.activeCompanyId)?.name ?? "ERP")}
+            </span>
+            <span className="side-brand-name">
+              {me.companies.find((c) => c.id === me.activeCompanyId)?.name ?? "ERP"}
+            </span>
+          </Link>
+          <button
+            type="button"
+            className="side-close"
+            aria-label={l("Tutup menu", "Close menu")}
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </div>
+        {me.companies.length > 1 && (
+          <label className="side-company">
+            <span className="sr-only">{l("Perusahaan aktif", "Active company")}</span>
+            <select
+              value={me.activeCompanyId}
+              onChange={(e) => {
+                session.setCompanyId(e.target.value);
+                window.location.reload();
+              }}
+            >
+              {me.companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <nav className="side-nav" ref={navRef}>
+          <Link
+            href="/"
+            className={`side-app-link${pathname === "/" ? " current" : ""}`}
+            aria-current={pathname === "/" ? "page" : undefined}
+          >
+            <HomeGlyph />
+            <span>{l("Beranda", "Home")}</span>
+          </Link>
+          <div className="side-label">{l("Aplikasi", "Apps")}</div>
+          {apps.map((a) => {
+            const current = a.id === app?.id;
+            return (
+              <div key={a.id} className={`side-app${current ? " current" : ""}`}>
+                <Link href={a.home} className={`side-app-link${current ? " current" : ""}`}>
+                  <AppIcon id={a.id} size={20} />
+                  <span>{tx(a.name)}</span>
+                </Link>
+                {current && menu.length > 0 && (
+                  <div className="side-menu">
+                    {menu.map((entry, i) =>
+                      "items" in entry ? (
+                        <div key={entry.label.id} className="side-group">
+                          <button
+                            type="button"
+                            className="side-group-toggle"
+                            aria-expanded={groupOpen(entry, i)}
+                            onClick={() =>
+                              setToggled((t) => ({ ...t, [groupKey(entry)]: !groupOpen(entry, i) }))
+                            }
+                          >
+                            <span>{tx(entry.label)}</span>
+                            <span className="side-caret" aria-hidden>
+                              ▸
+                            </span>
+                          </button>
+                          {groupOpen(entry, i) && (
+                            <div className="side-group-items">
+                              {entry.items.map((it, j) => (
+                                <Fragment key={it.href + it.label.id}>
+                                  {it.section && it.section.id !== entry.items[j - 1]?.section?.id && (
+                                    <div className="side-section">{tx(it.section)}</div>
+                                  )}
+                                  {item(it)}
+                                </Fragment>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        item(entry)
+                      ),
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+      </aside>
+      {open && <div className="side-backdrop" onClick={onClose} aria-hidden />}
+    </>
+  );
+}
+
+function HomeGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M3 11l9-7 9 7" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 10v10h5v-6h4v6h5V10" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Bilah atas: tombol menu (layar sempit), judul aplikasi aktif, pencarian, perusahaan, notifikasi, profil. */
+export function Navbar({ me, app, onMenu }: { me: Me; app: App | null; onMenu: () => void }) {
+  const router = useRouter();
   const { tx, l, locale, setLocale } = useI18n();
   const [theme, setTheme] = useTheme();
   const themeLabels = useThemeLabels();
   const { open, setOpen, ref } = useDropdown();
-  const menu: MenuEntry[] = app ? visibleMenu(me, app) : [];
-  const active = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const toggle = (key: string) => setOpen(open === key ? null : key);
-  const compact = useCompactNav(ref, `${app?.id ?? ""}|${menu.length}|${locale}`);
-
   return (
-    <header className={`navbar${compact ? " compact" : ""}`} ref={ref}>
-      <Link href="/" className="nav-apps" title={l("Semua aplikasi", "All apps")}>
-        <AppsGlyph />
-      </Link>
-      {app && (
-        <Link href={app.home} className="nav-app">
-          <AppIcon id={app.id} size={22} />
-          <span className="nav-app-name">{tx(app.name)}</span>
-        </Link>
-      )}
-      {menu.length > 0 && (
-        <button className="nav-burger" aria-label="Menu" onClick={() => toggle("burger")}>
-          ☰
-        </button>
-      )}
-      <nav className={`nav-menu ${open === "burger" ? "open" : ""}`}>
-        {menu.map((entry) =>
-          "items" in entry ? (
-            <div key={entry.label.id} className="nav-dropdown">
-              <button
-                className={entry.items.some((i) => active(i.href)) ? "active" : ""}
-                onClick={() => toggle(entry.label.id)}
-              >
-                {tx(entry.label)}
-              </button>
-              {(open === entry.label.id || open === "burger") && (
-                <div className="nav-items">
-                  {entry.items.map((item, i) => (
-                    <Fragment key={item.href + item.label.id}>
-                      {item.section && item.section.id !== entry.items[i - 1]?.section?.id && (
-                        <div className="nav-section">{tx(item.section)}</div>
-                      )}
-                      <Link href={item.href} className={active(item.href) ? "active" : ""}>
-                        {tx(item.label)}
-                      </Link>
-                    </Fragment>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <Link key={entry.href} href={entry.href} className={active(entry.href) ? "active" : ""}>
-              {tx(entry.label)}
-            </Link>
-          ),
+    <header className="topbar" ref={ref}>
+      <button type="button" className="top-burger" aria-label={l("Buka menu", "Open menu")} onClick={onMenu}>
+        <svg
+          viewBox="0 0 24 24"
+          width="22"
+          height="22"
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
+        </svg>
+      </button>
+      <div className="top-title">
+        {app ? (
+          <Link href={app.home}>
+            <AppIcon id={app.id} size={20} />
+            <span>{tx(app.name)}</span>
+          </Link>
+        ) : (
+          <Link href="/">{l("Beranda", "Home")}</Link>
         )}
-      </nav>
-      <div className="nav-right">
+      </div>
+      <button
+        type="button"
+        className="top-search"
+        onClick={openCommandPalette}
+        title={l("Cari menu & data (Ctrl+K)", "Search menus & records (Ctrl+K)")}
+        aria-label={l("Cari", "Search")}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="M20 20l-3.5-3.5" strokeLinecap="round" />
+        </svg>
+        <span className="top-search-label">{l("Cari menu, data, dokumen…", "Search menus, records…")}</span>
+        <kbd>Ctrl K</kbd>
+      </button>
+      <div className="top-right">
         {me.companies.length > 1 ? (
           <select
-            className="nav-company"
+            className="top-company"
             aria-label={l("Perusahaan aktif", "Active company")}
             value={me.activeCompanyId}
             onChange={(e) => {
@@ -155,23 +285,16 @@ export function Navbar({ me, app }: { me: Me; app: App | null }) {
               </option>
             ))}
           </select>
-        ) : (
-          <span className="nav-company-name">{me.companies[0]?.name}</span>
-        )}
-        <button
-          type="button"
-          className="nav-search"
-          onClick={openCommandPalette}
-          title={l("Cari menu & data (Ctrl+K)", "Search menus & records (Ctrl+K)")}
-          aria-label={l("Cari", "Search")}
-        >
-          <span aria-hidden>⌕</span>
-          <span className="nav-search-label">{l("Cari…", "Search…")}</span>
-          <kbd>Ctrl K</kbd>
-        </button>
+        ) : null}
         <NotificationBell />
         <div className="nav-dropdown nav-user">
-          <button className="avatar" title={me.name} onClick={() => toggle("user")}>
+          <button
+            className="avatar"
+            title={me.name}
+            aria-label={l("Menu akun", "Account menu")}
+            aria-expanded={open === "user"}
+            onClick={() => toggle("user")}
+          >
             {initials(me.name)}
           </button>
           {open === "user" && (

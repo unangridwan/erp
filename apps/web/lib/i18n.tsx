@@ -12,6 +12,7 @@ export const L = (id: string, en: string): Text => ({ id, en });
 
 const MESSAGES = {
   "app.loading": L("Memuat…", "Loading…"),
+  "app.skip": L("Lewati ke konten utama", "Skip to main content"),
   "app.activeCompany": L("Perusahaan aktif", "Active company"),
   "app.logout": L("Keluar", "Sign out"),
   "app.language": L("Bahasa", "Language"),
