@@ -26,13 +26,16 @@ const csp = [
   "frame-ancestors 'none'",
 ].join("; ");
 
+/** Root monorepo, ditetapkan eksplisit agar Next tidak menebaknya dari lockfile lain di folder induk. */
+const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  turbopack: { root: repoRoot },
+  outputFileTracingRoot: repoRoot,
   // Image Docker produksi memakai server mandiri (NEXT_OUTPUT=standalone); `next start` lokal tidak.
-  ...(process.env.NEXT_OUTPUT === "standalone"
-    ? { output: "standalone", outputFileTracingRoot: fileURLToPath(new URL("../..", import.meta.url)) }
-    : {}),
+  ...(process.env.NEXT_OUTPUT === "standalone" ? { output: "standalone" } : {}),
   async headers() {
     return [
       {

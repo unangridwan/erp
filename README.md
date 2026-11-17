@@ -78,6 +78,10 @@ Setelah mengubah kode atau `git pull`, cukup jalankan `pnpm start` lagi. Tips la
   Saat start, API juga menulis `Database belum dimigrasi (...)` di log bila masih ada migrasi tertunda. Semua migrasi
   tertunda berjalan dalam satu transaksi; bila satu gagal, pesan `Migrasi 00xx_….sql gagal` menyebut file-nya dan tidak
   ada yang diterapkan.
+- **`Module not found: Can't resolve 'zod'`** (atau paket lain) di `pnpm dev`: tautan paket di `node_modules` belum
+  diperbarui. Hentikan `pnpm dev`, jalankan `pnpm install` di folder root proyek (jawab `Y` bila pnpm meminta membangun
+  ulang `node_modules`), hapus folder `apps/web/.next`, lalu `pnpm dev` lagi. Cadangan tanpa Turbopack:
+  `pnpm --filter @erp/web exec next dev --port 3000`.
 - **`docker` tidak dikenal**: pastikan Docker Desktop sudah berjalan (ikon di system tray) lalu buka terminal baru.
 - **Mulai dari awal**: `docker compose -f infra/docker-compose.yml down -v`, lalu ulangi `up -d` dan `pnpm db:setup`.
 - **`pnpm format:check` gagal di Windows karena akhir baris CRLF** (clone dibuat sebelum `.gitattributes` ada): hapus
