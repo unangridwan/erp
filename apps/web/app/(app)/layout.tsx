@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { CommandPalette } from "../../components/command-palette";
 import { MeContext } from "../../components/me-context";
-import { Navbar } from "../../components/navbar";
+import { Navbar, Sidebar } from "../../components/navbar";
 import { api, ApiError, session, type Me } from "../../lib/api";
 import { setErrorUser } from "../../lib/error-reporting";
 import { appForPath, rememberApp, rememberedApp, visibleApps } from "../../lib/apps";
@@ -17,6 +17,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { t } = useI18n();
   const [me, setMe] = useState<Me | null>(null);
+  // Laci sidebar di layar sempit; tertutup setiap pindah halaman.
+  const [drawer, setDrawer] = useState(false);
+  useEffect(() => setDrawer(false), [pathname]);
   const apps = useMemo(() => (me ? visibleApps(me) : []), [me]);
   // Aplikasi aktif dari URL; halaman bersama (Produk, Kontak) mengikuti aplikasi yang terakhir dibuka.
   const app = pathname === "/" ? null : appForPath(apps, pathname, rememberedApp());
@@ -49,12 +52,18 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <MeContext.Provider value={me}>
       <div className={`app ${pathname === "/" ? "home" : ""}`}>
-        <Navbar me={me} app={app} />
-        <CommandPalette me={me} />
-        <main className="content">
-          <SubscriptionBanner me={me} home={pathname === "/"} />
-          {children}
-        </main>
+        <a className="skip-link" href="#main">
+          {t("app.skip")}
+        </a>
+        <Sidebar me={me} app={app} open={drawer} onClose={() => setDrawer(false)} />
+        <div className="app-main">
+          <Navbar me={me} app={app} onMenu={() => setDrawer(true)} />
+          <CommandPalette me={me} />
+          <main className="content" id="main">
+            <SubscriptionBanner me={me} home={pathname === "/"} />
+            {children}
+          </main>
+        </div>
       </div>
     </MeContext.Provider>
   );

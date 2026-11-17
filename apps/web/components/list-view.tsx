@@ -53,7 +53,7 @@ function useRefLabels(resource: Resource) {
 }
 
 // Semua cukup gelap untuk huruf putih (kontras ≥ 4,5:1).
-const COLORS = ["#714b67", "#016b70", "#b8432f", "#94590a", "#5b4fa3", "#22704a", "#a83d78", "#2f66a3"];
+const COLORS = ["#1f5fbf", "#0e7a6b", "#b54708", "#6941c6", "#067647", "#b42318", "#2b6cb0", "#9a3412"];
 /** Warna avatar kartu yang konsisten per nama. */
 const avatarColor = (name: string) =>
   COLORS[[...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % COLORS.length]!;
