@@ -28,7 +28,7 @@ const QUICK_CREATE = ["employees", "partners", "products", "leaves", "expenses"]
  */
 export default function Home() {
   const me = useMe();
-  const { tx, l } = useI18n();
+  const { tx, l, locale } = useI18n();
   const apps = visibleApps(me);
   const recent = useRecent();
   const favorites = useFavorites();
@@ -49,7 +49,14 @@ export default function Home() {
   return (
     <div className="home-page">
       <header className="home-hero">
-        <h1>{l(`Halo, ${firstName}`, `Hello, ${firstName}`)}</h1>
+        <div>
+          <h1>{l(`Halo, ${firstName}`, `Hello, ${firstName}`)}</h1>
+          <p className="muted home-date">
+            {new Intl.DateTimeFormat(locale === "id" ? "id-ID" : "en-GB", { dateStyle: "full" }).format(
+              new Date(),
+            )}
+          </p>
+        </div>
         <button type="button" className="home-search" onClick={openCommandPalette}>
           <span aria-hidden>⌕</span>
           {l("Cari menu, karyawan, pesanan, faktur…", "Search menus, employees, orders, invoices…")}
@@ -149,11 +156,12 @@ export default function Home() {
         )}
       </div>
 
+      <h2 className="home-apps-title">{l("Aplikasi", "Apps")}</h2>
       <div className="app-grid">
         {apps.map((app) => (
           <Link key={app.id} href={app.home} className="app-tile" onClick={() => rememberApp(app.id)}>
             <span className="app-tile-icon">
-              <AppIcon id={app.id} size={56} />
+              <AppIcon id={app.id} size={30} />
             </span>
             <span>{tx(app.name)}</span>
           </Link>

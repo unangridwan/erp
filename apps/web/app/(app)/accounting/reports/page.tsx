@@ -108,6 +108,14 @@ function ReportsView() {
     setFilters(next.filters);
   }, [search]);
   const [drill, setDrill] = useState<DrilldownRequest | null>(null);
+  // Ponsel: panel filter bisa dilipat agar laporan langsung terlihat (layar lebar selalu terbuka).
+  const [showFilters, setShowFilters] = useState(false);
+  const activeFilters = [
+    filters.branchId,
+    filters.businessUnitId,
+    filters.costCenterId,
+    filters.profitCenterId,
+  ].filter(Boolean).length;
   // Data disimpan bersama tab asalnya agar tab baru tidak merender data tab lama selama memuat.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [result, setResult] = useState<{ tab: Tab; data: any } | null>(null);
@@ -295,7 +303,17 @@ function ReportsView() {
           </button>
         ))}
       </nav>
-      <div className="panel filters no-print">
+      <button
+        type="button"
+        className="filters-toggle no-print"
+        aria-expanded={showFilters}
+        onClick={() => setShowFilters((v) => !v)}
+      >
+        {l("Filter", "Filters")}
+        {activeFilters > 0 && <span className="badge">{activeFilters}</span>}
+        <span aria-hidden>{showFilters ? "▴" : "▾"}</span>
+      </button>
+      <div className={`panel filters no-print${showFilters ? "" : " collapsed"}`}>
         {!POINT_IN_TIME.includes(tab) && (
           <label className="field">
             <span>{l("Dari", "From")}</span>

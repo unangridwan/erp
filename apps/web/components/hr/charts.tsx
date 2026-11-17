@@ -14,6 +14,12 @@ export interface BarSeries {
  * Grafik batang vertikal (satu atau dua seri berdampingan) dalam SVG: batang tipis dengan ujung membulat 4px,
  * celah 2px antar batang, grid samar, label sumbu-x, legenda untuk ≥ 2 seri, dan tooltip saat hover.
  */
+/** Potong label sumbu agar muat di lebar `width` piksel (±7px per karakter pada 12px). */
+const fit = (label: string, width: number) => {
+  const max = Math.max(3, Math.floor((width - 6) / 7));
+  return label.length > max ? `${label.slice(0, max - 1)}…` : label;
+};
+
 export function BarChart(props: {
   labels: string[];
   series: BarSeries[];
@@ -121,7 +127,9 @@ export function BarChart(props: {
                   ) : null;
                 })}
                 <text x={pad.left + i * group + group / 2} y={height - 6} textAnchor="middle">
-                  {label}
+                  {/* Label panjang dipotong sesuai lebar kelompok; nama lengkap di tooltip. */}
+                  <title>{label}</title>
+                  {fit(label, group)}
                 </text>
               </g>
             );

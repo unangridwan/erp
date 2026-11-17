@@ -156,6 +156,7 @@ export function ActivitiesPanel(props: {
                   </button>
                   <button
                     type="button"
+                    aria-label="Hapus baris / Remove"
                     className="link"
                     onClick={async () => {
                       await api(`/activities/${a.id}`, { method: "DELETE" }).catch(() => undefined);

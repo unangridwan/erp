@@ -65,7 +65,12 @@ function LineChart(props: {
         {props.labels.map((l, i) =>
           i % every === 0 ? (
             <text key={i} x={x(i)} y={height - 6} textAnchor="middle">
-              {l}
+              <title>{l}</title>
+              {(() => {
+                // Label panjang dipotong sesuai jarak antar-label yang tampil.
+                const max = Math.max(3, Math.floor(((step || plotW) * every - 6) / 7));
+                return l.length > max ? `${l.slice(0, max - 1)}…` : l;
+              })()}
             </text>
           ) : null,
         )}
