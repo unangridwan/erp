@@ -562,6 +562,11 @@ export const MESSAGES_EN: Record<string, string> = {
   "Pengalaman kerja tidak ditemukan": "Work experience not found",
   "Surat peringatan tidak ditemukan": "Warning letter not found",
   "Hanya mutasi draft yang bisa diubah": "Only draft movements can be edited",
+  "Kode kategori sistem tidak bisa diubah": "A system category's code cannot be changed",
+  "Prefix kategori sistem tidak bisa diubah": "A system category's prefix cannot be changed",
+  "Kategori sistem dipakai dokumen dan tidak bisa dihapus":
+    "System categories are used by documents and cannot be deleted",
+  "Butuh permission approval.manage atau hr.manage": "Requires the approval.manage or hr.manage permission",
   "Upah kontrak berjalan tidak bisa diubah langsung. Buat SK Penyesuaian upah di Promosi & Mutasi atau lewat Kenaikan Gaji.":
     "A running contract's wage cannot be changed directly. Create a wage adjustment decree in Promotions & Transfers or use Salary Review.",
   "Penyesuaian upah wajib mengisi upah baru": "A wage adjustment requires a new wage",

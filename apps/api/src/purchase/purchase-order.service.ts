@@ -260,6 +260,34 @@ export class PurchaseOrderService implements OnModuleInit {
     };
   }
 
+  /** PO yang menunggu persetujuan user login (untuk Kotak Persetujuan bersama dokumen lain). */
+  async pendingApproval(tx: Db) {
+    const rows = await tx
+      .select({ order: O, partnerName: schema.partners.name })
+      .from(O)
+      .innerJoin(schema.partners, eq(schema.partners.id, O.partnerId))
+      .where(and(eq(O.companyId, currentContext().companyId), eq(O.state, "to_approve")))
+      .orderBy(asc(O.dateOrder), asc(O.name));
+    const out = [];
+    for (const { order, partnerName } of rows) {
+      const ok = await this.canApprove(tx, order).then(
+        () => true,
+        () => false,
+      );
+      if (!ok) continue;
+      out.push({
+        id: order.id,
+        name: order.name,
+        partnerName,
+        amountTotal: order.amountTotal,
+        currencyCode: order.currencyCode,
+        step: order.approvalStep,
+        levels: order.approvalLevels,
+      });
+    }
+    return out;
+  }
+
   /** Tahap persetujuan PO (aturan) & apakah user login boleh menyetujui. */
   private async approvalInfo(tx: Db, order: Order) {
     if (order.state !== "to_approve") return null;

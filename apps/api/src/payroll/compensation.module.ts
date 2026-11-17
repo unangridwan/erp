@@ -44,22 +44,13 @@ import { ContractService } from "../hr/contract.service.js";
 import { EmployeeService } from "../hr/employee.service.js";
 import { HrModule } from "../hr/hr.module.js";
 import { renderTotalRewardsPdf, type TotalRewardsData } from "./total-rewards-pdf.js";
+import { systemCategoryId } from "../hr/approval-categories.registry.js";
 
 const CY = schema.compensationCycles;
 const PR = schema.compensationProposals;
 const E = schema.employees;
 const C = schema.contracts;
 const REQ = schema.approvalRequests;
-const CAT = schema.approvalCategories;
-
-/** Kategori persetujuan untuk siklus kenaikan gaji (dibuat otomatis bila belum ada). */
-const CATEGORY = {
-  code: "KENAIKAN",
-  name: "Kenaikan Gaji",
-  prefix: "KNK",
-  description: "Persetujuan siklus kenaikan gaji: daftar usulan, anggaran, dan tambahan biaya tahunan.",
-  fields: { amount: "required", description: "required" } as const,
-};
 
 /** Label ringkas iuran BPJS perusahaan (nama baris slip memuat tarif). */
 const BPJS_LABEL: Record<string, string> = {
@@ -670,18 +661,8 @@ class CompensationController {
     return row!;
   }
 
-  private async category(tx: Db, companyId: string) {
-    const [found] = await tx
-      .select({ id: CAT.id })
-      .from(CAT)
-      .where(and(eq(CAT.companyId, companyId), eq(CAT.code, CATEGORY.code)));
-    if (found) return found.id;
-    await this.approvals.ensureDefaults(tx, companyId);
-    const [created] = await tx
-      .insert(CAT)
-      .values({ ...CATEGORY, companyId, managerFirst: false, sequence: 900 })
-      .returning({ id: CAT.id });
-    return created!.id;
+  private category(tx: Db, companyId: string) {
+    return systemCategoryId(tx, companyId, "KENAIKAN");
   }
 
   private async isManager(tx: Db, managerId: string | null) {

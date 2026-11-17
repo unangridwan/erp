@@ -357,7 +357,13 @@ export const APPS: App[] = [
         ]),
         ...section("Klaim & Persetujuan", "Expenses & Approvals", [
           link("Kategori Klaim", "Expense Categories", "/expense-categories", "hr.read"),
-          link("Kategori Persetujuan", "Approval Categories", "/hr/approval-categories", "hr.manage"),
+          // Satu tempat konfigurasi persetujuan (Pengaturan › Aturan Persetujuan); pintasan untuk HR.
+          link(
+            "Aturan Persetujuan",
+            "Approval Rules",
+            "/settings/approval-rules?tab=categories",
+            "hr.manage",
+          ),
         ]),
         ...section("Data", "Data", [
           link("Impor & Ekspor Data", "Data Import & Export", "/hr/data", "hr.read"),
