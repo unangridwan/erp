@@ -45,6 +45,12 @@ export const TABLES: Record<RecordModel, { table: string; name: string }> = {
     name: "coalesce(t.bupot_number, t.document_number, '(draft)')",
   },
   tax_return: { table: "tax_returns", name: "coalesce(t.return_number, '(draft)')" },
+  equipment: { table: "equipment", name: "t.code || ' ' || t.name" },
+  fleet_vehicle: { table: "fleet_vehicles", name: "t.license_plate" },
+  fleet_contract: {
+    table: "fleet_contracts",
+    name: "coalesce((select v.license_plate from fleet_vehicles v where v.id = t.vehicle_id) || ' ', '') || to_char(t.start_date, 'YYYY-MM-DD')",
+  },
   partner: { table: "partners", name: "t.name" },
   product: { table: "products", name: "t.name" },
   employee: { table: "employees", name: "t.name" },

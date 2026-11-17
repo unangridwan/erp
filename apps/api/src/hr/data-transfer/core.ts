@@ -32,7 +32,18 @@ export interface Dataset {
   key: string;
   label: string;
   description: string;
-  app: "hr" | "payroll" | "sales" | "crm" | "accounting" | "purchase" | "inventory" | "mrp";
+  app:
+    | "hr"
+    | "payroll"
+    | "sales"
+    | "crm"
+    | "accounting"
+    | "purchase"
+    | "inventory"
+    | "mrp"
+    | "quality"
+    | "maintenance"
+    | "fleet";
   read: Permission;
   /** Tanpa `write` = hanya ekspor. */
   write?: Permission;

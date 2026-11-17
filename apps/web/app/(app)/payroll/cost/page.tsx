@@ -84,7 +84,7 @@ export default function PayrollCostPage() {
                           title: r.key ?? none,
                           body: {
                             dataset: "payslips_history",
-                            filters: { from: `${from}-01`, to: `${to}-01` },
+                            filters: { from: `${from}-01`, to: `${to}-01`, includeCorrections: "1" },
                             match:
                               groupBy === "department"
                                 ? { department: r.key ?? "" }

@@ -9,6 +9,7 @@ import { StateBadge } from "../../../../components/maintenance/maintenance-panel
 import { api } from "../../../../lib/api";
 import { money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
+import { DatasetDrillPanel, type DatasetDrillRequest } from "../../../../components/drilldown-panel";
 
 interface Row {
   equipmentId: string;
@@ -57,6 +58,26 @@ export default function MaintenanceReportsPage() {
   useEffect(load, [load]);
   const num = (v: number | null, suffix = "") => (v === null ? "—" : `${v.toLocaleString(locale)}${suffix}`);
 
+  const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
+  /** Permintaan perawatan penyusun angka satu peralatan (syarat tanggal sama dengan laporan). */
+  const open = (r: Row, title: string, match: Record<string, string>, conditions: object[]) =>
+    setDrill({
+      title: `${r.code} ${r.name} · ${title}`,
+      body: {
+        dataset: "maintenance_requests",
+        config: { conditions },
+        match: { _equipmentId: r.equipmentId, ...match },
+      },
+    });
+  const between = (column: string) => [
+    { column, op: "gte", value: from },
+    { column, op: "lte", value: to },
+  ];
+  const drillButton = (text: string, onClick: () => void) => (
+    <button type="button" className="link drill" onClick={onClick}>
+      {text}
+    </button>
+  );
   return (
     <>
       <header className="toolbar control-panel">
@@ -130,6 +151,12 @@ export default function MaintenanceReportsPage() {
                 label: l("Kerusakan", "Breakdowns"),
                 type: "number",
                 value: (r) => r.failures,
+                render: (r) =>
+                  r.failures
+                    ? drillButton(String(r.failures), () =>
+                        open(r, l("Kerusakan", "Breakdowns"), { _kind: "corrective" }, between("breakdown")),
+                      )
+                    : r.failures,
               },
               {
                 key: "downtime",
@@ -165,6 +192,17 @@ export default function MaintenanceReportsPage() {
                 value: (r) => r.compliance,
                 text: (r) =>
                   r.preventiveDue ? `${r.preventiveOnTime}/${r.preventiveDue} (${r.compliance}%)` : "—",
+                render: (r) =>
+                  r.preventiveDue
+                    ? drillButton(`${r.preventiveOnTime}/${r.preventiveDue} (${r.compliance}%)`, () =>
+                        open(
+                          r,
+                          l("Preventif jatuh tempo", "Preventive due"),
+                          { _kind: "preventive" },
+                          between("scheduled"),
+                        ),
+                      )
+                    : "—",
               },
               {
                 key: "totalCost",
@@ -172,11 +210,18 @@ export default function MaintenanceReportsPage() {
                 type: "number",
                 value: (r) => Number(r.totalCost),
                 text: (r) => money(r.totalCost, locale),
+                render: (r) =>
+                  Number(r.totalCost)
+                    ? drillButton(money(r.totalCost, locale), () =>
+                        open(r, l("Biaya", "Cost"), { _done: "1" }, between("finished")),
+                      )
+                    : money(r.totalCost, locale),
               },
             ]}
           />
         </>
       )}
+      <DatasetDrillPanel request={drill} onClose={() => setDrill(null)} />
     </>
   );
 }

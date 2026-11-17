@@ -892,8 +892,11 @@ filter laporan keuangan tersimpan di URL.
 
 Laporan BI ikut terhubung: klik angka/kelompok di pembuat laporan, batang/titik/irisan grafik, atau KPI & tabel widget
 dashboard membuka panel berisi baris data penyusunnya; baris yang punya dokumen sumber (SO, PO, faktur, peluang,
-transfer, MO, slip gaji, karyawan…) bisa dibuka. Laporan modul (analisis penjualan & pembelian, pipeline CRM per tahap,
-biaya tenaga kerja, biaya produksi, nilai persediaan) memakai mekanisme yang sama.
+transfer, MO, slip gaji, karyawan…) bisa dibuka. Laporan modul memakai mekanisme yang sama: analisis penjualan &
+pembelian, pipeline CRM per tahap dan menang/kalah per tanggal tutup, biaya tenaga kerja (termasuk payroll koreksi),
+biaya produksi, nilai persediaan, laporan mutu per pemasok/produk, keandalan & biaya perawatan per peralatan, biaya
+armada (kontrak & servis), serta karyawan masuk/keluar per departemen di analitik SDM. Dataset BI baru:
+`quality_checks`, `maintenance_requests`, `fleet_costs`.
 
 | Endpoint              | Keterangan                                                                                                        |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------- |

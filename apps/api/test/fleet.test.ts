@@ -234,6 +234,30 @@ describe.skipIf(!hasDb)("Armada", () => {
     expect(r.groups).toHaveLength(1);
     expect(r.groups[0].service).toBe(700000);
     expect(r.groups[0].contract).toBeGreaterThanOrEqual(500000 + 3000000);
+    // Drilldown: kejadian biaya penyusun = total laporan, tertaut ke kontrak/servis.
+    const drill = (
+      await a
+        .post("/reports/drill", {
+          dataset: "fleet_costs",
+          filters: { from, to },
+          match: { _vehicleId: vehicle },
+        })
+        .expect(200)
+    ).body;
+    expect(drill.totals.amount).toBe(r.groups[0].total);
+    expect(new Set(drill.rows.map((x: { _model: string }) => x._model))).toEqual(
+      new Set(["fleet_service", "fleet_contract"]),
+    );
+    const services = (
+      await a
+        .post("/reports/drill", {
+          dataset: "fleet_costs",
+          filters: { from, to },
+          match: { _vehicleId: vehicle, source: "Servis" },
+        })
+        .expect(200)
+    ).body;
+    expect(services.totals.amount).toBe(700000);
     const months = (await a.get(`/fleet/reports/costs?from=${from}&to=${to}&groupBy=month`).expect(200)).body;
     expect(months.total).toBe(r.total);
     const odo = (await a.get(`/fleet/reports/odometer?from=${from}&to=${to}`).expect(200)).body;

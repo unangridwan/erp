@@ -35,7 +35,6 @@ import {
   type Db,
 } from "@erp/db";
 import {
-  contractCostEvents,
   fleetContractSchema,
   fleetManufacturerSchema,
   fleetModelSchema,
@@ -47,7 +46,6 @@ import {
   fleetVehicleSchema,
   groupFleetCosts,
   hasPermission,
-  type CostRow,
 } from "@erp/shared";
 import { z } from "zod";
 import { AccountingModule } from "../accounting/accounting.module.js";
@@ -61,6 +59,7 @@ import { reportError } from "../common/error-reporting.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { CONFIG, type AppConfig } from "../config.js";
+import { fleetCostRows } from "./fleet-costs.js";
 
 const V = schema.fleetVehicles;
 const M = schema.fleetModels;
@@ -236,38 +235,8 @@ export class FleetService {
     groupBy: "vehicle" | "category" | "month",
     vehicleId?: string,
   ) {
-    const ctx = currentContext();
-    const vehicles = await tx
-      .select({ id: V.id, plate: V.licensePlate, model: M.name, category: M.category })
-      .from(V)
-      .innerJoin(M, eq(M.id, V.modelId))
-      .where(and(eq(V.companyId, ctx.companyId), vehicleId ? eq(V.id, vehicleId) : undefined));
-    const byId = new Map(vehicles.map((v) => [v.id, v]));
-    const ids = vehicles.map((v) => v.id);
-    if (!ids.length) return { groups: [], total: 0 };
-    const rows: CostRow[] = [];
-    const push = (vid: string, date: string, amount: number, source: CostRow["source"]) => {
-      const v = byId.get(vid)!;
-      rows.push({
-        vehicleId: vid,
-        vehicle: `${v.plate} · ${v.model}`,
-        category: v.category,
-        date,
-        amount,
-        source,
-      });
-    };
-    const contracts = await tx
-      .select()
-      .from(C)
-      .where(and(inArray(C.vehicleId, ids), ne(C.state, "new"), lte(C.startDate, to)));
-    for (const c of contracts)
-      for (const e of contractCostEvents(c, from, to)) push(c.vehicleId, e.date, e.amount, "contract");
-    const services = await tx
-      .select({ vehicleId: S.vehicleId, date: S.date, cost: S.cost })
-      .from(S)
-      .where(and(inArray(S.vehicleId, ids), ne(S.state, "cancelled"), gte(S.date, from), lte(S.date, to)));
-    for (const s of services) if (Number(s.cost)) push(s.vehicleId, s.date, Number(s.cost), "service");
+    const rows = await fleetCostRows(tx, currentContext().companyId, from, to, vehicleId);
+    if (!rows.length) return { groups: [], total: 0 };
     return groupFleetCosts(rows, groupBy);
   }
 
