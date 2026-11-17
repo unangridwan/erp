@@ -234,7 +234,11 @@ export function runReport(
       header: c.header,
       ...(c.numeric ? { numeric: true } : {}),
     }));
-    rows = rows.map((r) => Object.fromEntries(columns.map((c) => [c.key, r[c.key] ?? ""])));
+    // `_model`/`_id` (dokumen sumber baris) ikut agar baris laporan bisa dibuka; tidak tampil sebagai kolom.
+    rows = rows.map((r) => ({
+      ...Object.fromEntries(columns.map((c) => [c.key, r[c.key] ?? ""])),
+      ...rowRef(r),
+    }));
   }
 
   if (config.sort) {
@@ -256,6 +260,48 @@ export function runReport(
       .map((c) => [c.key, round(rows.reduce((s, r) => s + (toNumber(r[c.key]) || 0), 0))]),
   );
   return { columns, rows, total, totals };
+}
+
+/** Referensi dokumen sumber sebuah baris dataset (kunci tersembunyi `_model` & `_id`). */
+const rowRef = (r: Record<string, unknown>) =>
+  typeof r._model === "string" && typeof r._id === "string" ? { _model: r._model, _id: r._id } : {};
+
+/** Batas baris rincian drilldown. */
+export const DRILL_ROW_LIMIT = 500;
+
+/**
+ * Drilldown: baris dataset penyusun satu kelompok/titik laporan. `match` berisi nilai kelompok (kolom `groupBy`)
+ * atau kunci tersembunyi berawalan `_` (mis. `_partnerId`); syarat laporan tetap berlaku. Hasil berupa baris detail
+ * (kolom terpilih laporan, atau semua kolom) beserta `_model`/`_id`.
+ */
+export function drillReport(
+  data: Record<string, unknown>[],
+  available: ReportColumn[],
+  config: ReportConfig,
+  match: Record<string, string>,
+): ReportResult {
+  const known = new Set(available.map((c) => c.key));
+  for (const k of Object.keys(match))
+    if (!k.startsWith("_") && !known.has(k)) throw new Error(`Kolom laporan tidak dikenal: ${k}`);
+  const subset = data.filter((r) => Object.entries(match).every(([k, v]) => String(r[k] ?? "") === v));
+  const grouped = config.groupBy.length > 0 || config.aggregates.length > 0;
+  // Kolom detail: kelompok + kolom yang diagregasi dulu, lalu kolom lain.
+  const first = grouped
+    ? [...config.groupBy, ...config.aggregates.map((a) => a.column).filter((c) => c !== "*")]
+    : config.columns;
+  const columns = [...new Set(first.filter((c) => known.has(c)))];
+  const result = runReport(subset, available, {
+    ...config,
+    groupBy: [],
+    aggregates: [],
+    columns: grouped
+      ? [...columns, ...available.map((c) => c.key).filter((c) => !columns.includes(c))]
+      : columns,
+    sort: config.sort && known.has(config.sort.column) ? config.sort : null,
+    limit: null,
+    chart: null,
+  });
+  return { ...result, rows: result.rows.slice(0, DRILL_ROW_LIMIT) };
 }
 
 // ---- Jadwal ----

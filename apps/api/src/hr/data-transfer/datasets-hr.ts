@@ -268,6 +268,10 @@ function employeesDataset(svc: HrServices): Dataset {
         const open = svc.employees.decrypted(r);
         return {
           ...open,
+          // Dokumen sumber baris untuk drilldown laporan (tidak diekspor: bukan kolom).
+          _model: "employee",
+          _id: r.id,
+          _departmentId: r.departmentId ?? "",
           department: r.departmentId ? n.departments.get(r.departmentId) : "",
           job: r.jobId ? n.jobs.get(r.jobId) : "",
           grade: r.gradeId ? n.grades.get(r.gradeId) : "",

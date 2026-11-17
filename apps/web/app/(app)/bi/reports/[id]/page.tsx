@@ -15,6 +15,12 @@ import {
   type ReportOperator,
 } from "@erp/shared";
 import { RefSelect } from "../../../../../components/ref-select";
+import {
+  DatasetDrillPanel,
+  groupMatch,
+  rowHref,
+  type DatasetDrillRequest,
+} from "../../../../../components/drilldown-panel";
 import { ReportChart } from "../../../../../components/reports/report-chart";
 import { api, ApiError } from "../../../../../lib/api";
 import { download } from "../../../../../lib/download";
@@ -165,6 +171,17 @@ export default function ReportEditorPage() {
     } else c.columns = [];
     if (ds?.needsRun && !c.filters.runId) c.filters = { ...c.filters, runId: "latest" };
     return c;
+  };
+  const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
+  /** Klik kelompok (ringkasan) → baris data penyusunnya. */
+  const drillRow = (r: Record<string, unknown>) => {
+    const c = payload();
+    if (!c.groupBy.length) return;
+    const match = groupMatch(r, c.groupBy);
+    setDrill({
+      title: Object.values(match).join(" · ") || "—",
+      body: { dataset: meta.dataset, config: c, match },
+    });
   };
   const preview = useCallback(async () => {
     if (!meta.dataset) return;
@@ -719,6 +736,7 @@ export default function ReportEditorPage() {
               locale={locale}
               empty={l("Tidak ada data untuk grafik.", "No data to chart.")}
               other={l("Lainnya", "Other")}
+              onSelect={mode === "summary" && config.groupBy.length ? drillRow : undefined}
             />
           )}
           <div className="table-wrap">
@@ -733,15 +751,27 @@ export default function ReportEditorPage() {
                 </tr>
               </thead>
               <tbody>
-                {result.rows.map((r, i) => (
-                  <tr key={i}>
-                    {result.columns.map((c) => (
-                      <td key={c.key} className={c.numeric ? "num" : ""}>
-                        {fmt(r[c.key], c.numeric)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
+                {result.rows.map((r, i) => {
+                  const href = rowHref(r);
+                  const groups = mode === "summary" && config.groupBy.length > 0;
+                  return (
+                    <tr key={i}>
+                      {result.columns.map((c, j) => (
+                        <td key={c.key} className={c.numeric ? "num" : ""}>
+                          {groups && c.numeric ? (
+                            <button type="button" className="link drill" onClick={() => drillRow(r)}>
+                              {fmt(r[c.key], c.numeric)}
+                            </button>
+                          ) : j === 0 && href ? (
+                            <Link href={href}>{fmt(r[c.key], c.numeric) || "—"}</Link>
+                          ) : (
+                            fmt(r[c.key], c.numeric)
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
               </tbody>
               {Object.keys(result.totals).length > 0 && (
                 <tfoot>
@@ -760,6 +790,7 @@ export default function ReportEditorPage() {
       )}
 
       {!isNew && mine && <Schedules reportId={id} schedules={schedules} onChange={loadReport} />}
+      <DatasetDrillPanel request={drill} onClose={() => setDrill(null)} />
     </>
   );
 }

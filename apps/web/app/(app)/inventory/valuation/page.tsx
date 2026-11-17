@@ -6,6 +6,7 @@ import { money, today } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
 import { useTableView } from "../../../../lib/use-table-view";
+import { DatasetDrillPanel, type DatasetDrillRequest } from "../../../../components/drilldown-panel";
 
 interface Valuation {
   date: string;
@@ -27,6 +28,7 @@ export default function ValuationPage() {
   const [date, setDate] = useState(today());
   const [data, setData] = useState<Valuation | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
 
   useEffect(() => {
     api<Valuation>(`/stock/valuation?date=${date}`)
@@ -106,7 +108,22 @@ export default function ValuationPage() {
               {table.rows.map((r) => (
                 <tr key={r.productId}>
                   <td>
-                    {r.sku} {r.name}
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() =>
+                        setDrill({
+                          title: `${r.sku} ${r.name}`,
+                          body: {
+                            dataset: "stock_moves",
+                            filters: { to: date },
+                            match: { _productId: r.productId },
+                          },
+                        })
+                      }
+                    >
+                      {r.sku} {r.name}
+                    </button>
                   </td>
                   <td>{r.costMethod.toUpperCase()}</td>
                   <td className="num">{money(r.quantity, locale, 4)}</td>
@@ -136,6 +153,7 @@ export default function ValuationPage() {
         </div>
       )}
       {data && <TablePager view={table} />}
+      <DatasetDrillPanel request={drill} onClose={() => setDrill(null)} />
     </>
   );
 }

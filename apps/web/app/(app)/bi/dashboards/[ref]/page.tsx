@@ -250,6 +250,7 @@ export default function DashboardPage() {
         editing={editing}
         onChange={setDraft}
         reportHref={(w) => ("reportId" in w.source ? `/bi/reports/${w.source.reportId}` : undefined)}
+        period={period}
       />
       {adding && (
         <AddWidget

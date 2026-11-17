@@ -3808,3 +3808,7 @@ button.link.drill {
 .related-group li {
   overflow-wrap: anywhere;
 }
+button.kpi-value {
+  text-align: left;
+  padding: 0;
+}

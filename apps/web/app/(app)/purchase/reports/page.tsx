@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../../../lib/api";
 import { money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
+import { DatasetDrillPanel, type DatasetDrillRequest } from "../../../../components/drilldown-panel";
 
 interface Row {
   key: string | null;
@@ -23,6 +24,7 @@ export default function PurchaseReportPage() {
   const [groupBy, setGroupBy] = useState<(typeof GROUPS)[number]>("partner");
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
 
   useEffect(() => {
     api<Row[]>(`/purchase-orders/report?from=${from}&to=${to}&groupBy=${groupBy}`)
@@ -72,7 +74,29 @@ export default function PurchaseReportPage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={`${r.key}-${r.label}`}>
-                  <td>{r.label}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() =>
+                        setDrill({
+                          title: r.label,
+                          body: {
+                            dataset: "purchase_lines",
+                            filters: { from, to },
+                            match:
+                              groupBy === "product"
+                                ? { _productId: r.key ?? "" }
+                                : groupBy === "partner"
+                                  ? { _partnerId: r.key ?? "" }
+                                  : { month: r.key ?? "" },
+                          },
+                        })
+                      }
+                    >
+                      {r.label}
+                    </button>
+                  </td>
                   {groupBy === "product" && <td className="num">{money(r.quantity, locale, 4)}</td>}
                   <td className="num">{r.orders}</td>
                   <td className="num">{money(r.amount, locale)}</td>
@@ -101,6 +125,7 @@ export default function PurchaseReportPage() {
           </table>
         </div>
       )}
+      <DatasetDrillPanel request={drill} onClose={() => setDrill(null)} />
     </>
   );
 }

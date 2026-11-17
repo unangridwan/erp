@@ -4,6 +4,7 @@ import {
   nextOccurrence,
   reportConfigSchema,
   reportScheduleSchema,
+  drillReport,
   runReport,
 } from "./reports.js";
 
@@ -125,5 +126,38 @@ describe("pembuat laporan", () => {
     expect(reportScheduleSchema.parse({ frequency: "daily", recipients: ["A@B.CO"] }).recipients).toEqual([
       "a@b.co",
     ]);
+  });
+});
+
+describe("drilldown laporan", () => {
+  const linked = data.map((r, i) => ({
+    ...r,
+    _model: "employee",
+    _id: `e${i}`,
+    _deptId: r.dept === "IT" ? "d2" : "d1",
+  }));
+  const grouped = cfg({
+    groupBy: ["dept"],
+    aggregates: [{ column: "wage", fn: "sum" }],
+    conditions: [{ column: "gender", op: "eq", value: "P" }],
+  });
+
+  it("baris tanpa kelompok membawa referensi dokumen", () => {
+    const r = runReport(linked, columns, cfg({ columns: ["name"] }));
+    expect(r.rows[0]).toEqual({ name: "Ani", _model: "employee", _id: "e0" });
+  });
+
+  it("rincian satu kelompok: syarat tetap berlaku, kolom kelompok & agregat di depan", () => {
+    const r = drillReport(linked, columns, grouped, { dept: "IT" });
+    expect(r.rows).toEqual([
+      { dept: "IT", wage: "15000000", name: "Cici", gender: "P", _model: "employee", _id: "e2" },
+    ]);
+    expect(r.columns.map((c) => c.key)).toEqual(["dept", "wage", "name", "gender"]);
+    expect(r.totals).toEqual({ wage: 15000000 });
+  });
+
+  it("kunci tersembunyi & kolom tak dikenal", () => {
+    expect(drillReport(linked, columns, cfg({}), { _deptId: "d1" }).total).toBe(2);
+    expect(() => drillReport(linked, columns, cfg({}), { nope: "x" })).toThrow(/tidak dikenal/);
   });
 });

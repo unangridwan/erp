@@ -31,6 +31,7 @@ function LineChart(props: {
   values: number[];
   format: (v: number) => string;
   ariaLabel: string;
+  onSelect?: (index: number) => void;
 }) {
   const { ref, width } = useWidth();
   const [hover, setHover] = useState<number | null>(null);
@@ -100,6 +101,8 @@ function LineChart(props: {
             fill="transparent"
             onMouseEnter={() => setHover(i)}
             onMouseLeave={() => setHover(null)}
+            onClick={props.onSelect ? () => props.onSelect!(i) : undefined}
+            style={props.onSelect ? { cursor: "pointer" } : undefined}
           />
         ))}
       </svg>
@@ -121,14 +124,19 @@ function PieChart(props: {
   format: (v: number) => string;
   ariaLabel: string;
   other: string;
+  onSelect?: (index: number) => void;
 }) {
   const [hover, setHover] = useState<number | null>(null);
-  const items = props.labels.map((label, i) => ({ label, value: Math.max(0, props.values[i] ?? 0) }));
+  const items = props.labels.map((label, i) => ({
+    label,
+    value: Math.max(0, props.values[i] ?? 0),
+    index: i as number | null,
+  }));
   items.sort((a, b) => b.value - a.value);
   const head = items.slice(0, PIE_SLOTS - (items.length > PIE_SLOTS ? 1 : 0));
   const rest = items.slice(head.length);
   const slices = rest.length
-    ? [...head, { label: props.other, value: rest.reduce((s, r) => s + r.value, 0) }]
+    ? [...head, { label: props.other, value: rest.reduce((s, r) => s + r.value, 0), index: null }]
     : head;
   const total = slices.reduce((s, r) => s + r.value, 0) || 1;
   const size = 180;
@@ -177,6 +185,8 @@ function PieChart(props: {
               opacity={hover === null || hover === i ? 1 : 0.55}
               onMouseEnter={() => setHover(i)}
               onMouseLeave={() => setHover(null)}
+              onClick={props.onSelect && s.index !== null ? () => props.onSelect!(s.index!) : undefined}
+              style={props.onSelect && s.index !== null ? { cursor: "pointer" } : undefined}
             >
               <title>
                 {s.label}: {props.format(s.value)} ({pct(s.value)})
@@ -202,7 +212,10 @@ export function ReportChart(props: {
   locale: string;
   empty: string;
   other: string;
+  /** Klik titik/batang/irisan → baris hasil yang diklik (drilldown). */
+  onSelect?: (row: Record<string, unknown>) => void;
 }) {
+  const select = props.onSelect ? (i: number) => props.onSelect!(props.rows[i]!) : undefined;
   const labels = props.rows.map((r) => String(r[props.x] ?? "—") || "—");
   const values = props.rows.map((r) => Number(r[props.y]) || 0);
   const format = (v: number) =>
@@ -213,9 +226,18 @@ export function ReportChart(props: {
   if (!labels.length) return <p className="muted">{props.empty}</p>;
   const aria = `${props.yLabel} per ${props.x}`;
   if (props.type === "line")
-    return <LineChart labels={labels} values={values} format={format} ariaLabel={aria} />;
+    return <LineChart labels={labels} values={values} format={format} ariaLabel={aria} onSelect={select} />;
   if (props.type === "pie")
-    return <PieChart labels={labels} values={values} format={format} ariaLabel={aria} other={props.other} />;
+    return (
+      <PieChart
+        labels={labels}
+        values={values}
+        format={format}
+        ariaLabel={aria}
+        other={props.other}
+        onSelect={select}
+      />
+    );
   return (
     <BarChart
       labels={labels}
@@ -223,6 +245,7 @@ export function ReportChart(props: {
       format={format}
       ariaLabel={aria}
       empty={props.empty}
+      onSelect={select}
     />
   );
 }

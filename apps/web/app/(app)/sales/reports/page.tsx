@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../../../lib/api";
 import { money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
+import { DatasetDrillPanel, type DatasetDrillRequest } from "../../../../components/drilldown-panel";
 
 interface Row {
   key: string | null;
@@ -25,6 +26,7 @@ export default function SalesReportPage() {
   const [groupBy, setGroupBy] = useState<(typeof GROUPS)[number]>("product");
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
 
   useEffect(() => {
     api<Row[]>(`/sale-orders/report?from=${from}&to=${to}&groupBy=${groupBy}`)
@@ -82,7 +84,31 @@ export default function SalesReportPage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={`${r.key}-${r.label}`}>
-                  <td>{r.label}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() =>
+                        setDrill({
+                          title: r.label,
+                          body: {
+                            dataset: "sales_lines",
+                            filters: { from, to },
+                            match:
+                              groupBy === "product"
+                                ? { _productId: r.key ?? "" }
+                                : groupBy === "partner"
+                                  ? { _partnerId: r.key ?? "" }
+                                  : groupBy === "salesperson"
+                                    ? { _userId: r.key ?? "" }
+                                    : { month: r.key ?? "" },
+                          },
+                        })
+                      }
+                    >
+                      {r.label}
+                    </button>
+                  </td>
                   {groupBy === "product" && <td className="num">{money(r.quantity, locale, 4)}</td>}
                   <td className="num">{r.orders}</td>
                   <td className="num">{money(r.amount, locale)}</td>
@@ -121,6 +147,7 @@ export default function SalesReportPage() {
           </table>
         </div>
       )}
+      <DatasetDrillPanel request={drill} onClose={() => setDrill(null)} />
     </>
   );
 }

@@ -22,6 +22,8 @@ export function BarChart(props: {
   ariaLabel: string;
   /** Teks saat semua nilai nol. */
   empty?: string;
+  /** Klik batang (drilldown). */
+  onSelect?: (index: number) => void;
 }) {
   const { labels, series } = props;
   const format = props.format ?? ((v: number) => String(v));
@@ -88,7 +90,13 @@ export function BarChart(props: {
           {labels.map((label, i) => {
             const x0 = pad.left + i * group + (group - (barW * series.length + 2 * (series.length - 1))) / 2;
             return (
-              <g key={label} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
+              <g
+                key={label}
+                onMouseEnter={() => setHover(i)}
+                onMouseLeave={() => setHover(null)}
+                onClick={props.onSelect ? () => props.onSelect!(i) : undefined}
+                style={props.onSelect ? { cursor: "pointer" } : undefined}
+              >
                 {/* Area hover lebih besar dari batang. */}
                 <rect x={pad.left + i * group} y={pad.top} width={group} height={plotH} fill="transparent" />
                 {hover === i && (

@@ -886,6 +886,15 @@ filter laporan keuangan tersimpan di URL.
 | `GET /reports/drilldown`                                      | Item jurnal penyusun angka laporan (filter akun/jenis akun, partner, dimensi, basis tanggal, item terbuka per rentang umur) |
 | `GET /tax/vat-report/drilldown?year&month&use=sale\|purchase` | Baris jurnal PPN keluaran/masukan satu masa                                                                                 |
 
+Laporan BI ikut terhubung: klik angka/kelompok di pembuat laporan, batang/titik/irisan grafik, atau KPI & tabel widget
+dashboard membuka panel berisi baris data penyusunnya; baris yang punya dokumen sumber (SO, PO, faktur, peluang,
+transfer, MO, slip gaji, karyawan…) bisa dibuka. Laporan modul (analisis penjualan & pembelian, pipeline CRM per tahap,
+biaya tenaga kerja, biaya produksi, nilai persediaan) memakai mekanisme yang sama.
+
+| Endpoint              | Keterangan                                                                                                        |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `POST /reports/drill` | `{reportId}` atau `{dataset, config}` + `match` (nilai kelompok / kunci tersembunyi `_xxxId`) + `filters` periode |
+
 ### Aplikasi Terhubung (ERP sebagai penyedia login)
 
 | Endpoint                                                                                         | Keterangan                                                                                                    |

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import type { WidgetResult } from "../../lib/bi";
 import { useI18n } from "../../lib/i18n";
+import { DatasetDrillPanel, groupMatch, rowHref, type DatasetDrillRequest } from "../drilldown-panel";
 import { ReportChart } from "../reports/report-chart";
 
 export type Widget = DashboardWidget & { hidden?: boolean };
@@ -56,7 +57,27 @@ const fmt = (v: unknown, locale: string, compact = false) => {
   });
 };
 
-function WidgetBody({ widget, result }: { widget: Widget; result?: WidgetResult }) {
+/**
+ * Kolom kelompok hasil widget: hasil berkelompok punya kolom agregat berkunci `fungsi__kolom`; kolom lain adalah
+ * kelompok. Tanpa kolom agregat = hasil detail (tidak berkelompok).
+ */
+const groupKeys = (result: WidgetResult) => {
+  const cols = result.columns ?? [];
+  return cols.some((c) => c.key.includes("__"))
+    ? cols.filter((c) => !c.key.includes("__")).map((c) => c.key)
+    : null;
+};
+
+function WidgetBody({
+  widget,
+  result,
+  onDrill,
+}: {
+  widget: Widget;
+  result?: WidgetResult;
+  /** Buka rincian baris: `match` = nilai kelompok (kosong = seluruh data widget). */
+  onDrill?: (match: Record<string, string>, title: string) => void;
+}) {
   const { l, locale } = useI18n();
   if (!result) return <div className="skeleton-block" aria-busy="true" />;
   if (result.error) return <p className="error small">{result.error}</p>;
@@ -64,9 +85,20 @@ function WidgetBody({ widget, result }: { widget: Widget; result?: WidgetResult 
     const change = result.change;
     return (
       <div className="kpi">
-        <strong className="kpi-value" title={fmt(result.value, locale)}>
-          {fmt(result.value, locale, true)}
-        </strong>
+        {onDrill ? (
+          <button
+            type="button"
+            className="link kpi-value"
+            title={fmt(result.value, locale)}
+            onClick={() => onDrill({}, widget.title)}
+          >
+            {fmt(result.value, locale, true)}
+          </button>
+        ) : (
+          <strong className="kpi-value" title={fmt(result.value, locale)}>
+            {fmt(result.value, locale, true)}
+          </strong>
+        )}
         {widget.compare && result.previous !== undefined && (
           <span
             className={`kpi-change ${change === null || change === undefined ? "" : change >= 0 ? "up" : "down"}`}
@@ -84,6 +116,14 @@ function WidgetBody({ widget, result }: { widget: Widget; result?: WidgetResult 
   }
   const columns = result.columns ?? [];
   const rows = result.rows ?? [];
+  const groups = groupKeys(result);
+  const drillRow =
+    onDrill && groups?.length
+      ? (r: Record<string, unknown>) => {
+          const match = groupMatch(r, groups);
+          onDrill(match, `${widget.title} · ${Object.values(match).join(" · ") || "—"}`);
+        }
+      : undefined;
   if (widget.type === "table" || !result.chart) {
     if (!rows.length) return <p className="muted small">{l("Tidak ada data.", "No data.")}</p>;
     return (
@@ -99,15 +139,28 @@ function WidgetBody({ widget, result }: { widget: Widget; result?: WidgetResult 
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => (
-              <tr key={i}>
-                {columns.map((c) => (
-                  <td key={c.key} className={c.numeric ? "num" : undefined}>
-                    {c.numeric ? fmt(r[c.key], locale) : String(r[c.key] ?? "")}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {rows.map((r, i) => {
+              const href = rowHref(r);
+              return (
+                <tr key={i}>
+                  {columns.map((c, j) => (
+                    <td key={c.key} className={c.numeric ? "num" : undefined}>
+                      {c.numeric && drillRow ? (
+                        <button type="button" className="link drill" onClick={() => drillRow(r)}>
+                          {fmt(r[c.key], locale)}
+                        </button>
+                      ) : c.numeric ? (
+                        fmt(r[c.key], locale)
+                      ) : j === 0 && href ? (
+                        <Link href={href}>{String(r[c.key] ?? "") || "—"}</Link>
+                      ) : (
+                        String(r[c.key] ?? "")
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -124,6 +177,7 @@ function WidgetBody({ widget, result }: { widget: Widget; result?: WidgetResult 
       locale={locale}
       empty={l("Tidak ada data.", "No data.")}
       other={l("Lainnya", "Other")}
+      onSelect={drillRow}
     />
   );
 }
@@ -135,14 +189,29 @@ export function DashboardGrid({
   editing,
   onChange,
   reportHref,
+  period,
 }: {
   widgets: Widget[];
   results: Record<string, WidgetResult> | null;
   editing?: boolean;
   onChange?: (w: Widget[]) => void;
   reportHref?: (w: Widget) => string | undefined;
+  /** Periode dashboard; dipakai sebagai filter rincian (kecuali widget mengabaikan periode). */
+  period?: { from: string; to: string };
 }) {
   const { l } = useI18n();
+  const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
+  const drillFor = (w: Widget) => (match: Record<string, string>, title: string) =>
+    setDrill({
+      title,
+      body: {
+        ...("reportId" in w.source
+          ? { reportId: w.source.reportId }
+          : { dataset: w.source.dataset, config: w.source.config }),
+        match,
+        filters: !w.ignorePeriod && period?.from && period.to ? { from: period.from, to: period.to } : {},
+      },
+    });
   const shown = widgets.filter((w) => !w.hidden && !(results?.[w.id]?.hidden && !editing));
   if (!shown.length)
     return (
@@ -224,11 +293,12 @@ export function DashboardGrid({
                 {l("Anda tidak berhak melihat data ini.", "You cannot view this data.")}
               </p>
             ) : (
-              <WidgetBody widget={w} result={results?.[w.id]} />
+              <WidgetBody widget={w} result={results?.[w.id]} onDrill={editing ? undefined : drillFor(w)} />
             )}
           </section>
         );
       })}
+      <DatasetDrillPanel request={drill} onClose={() => setDrill(null)} />
     </div>
   );
 }
