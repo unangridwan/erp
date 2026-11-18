@@ -10,8 +10,9 @@ import {
   COMPANIES,
   FIRST_FEMALE,
   FIRST_MALE,
-  FX,
+  fxRate,
   GRADES,
+  HISTORICAL_HOLIDAYS,
   LAST,
   MAJORS,
   PARTNERS,
@@ -27,17 +28,57 @@ export type Cell = string | number | boolean | null;
 export type Row = Record<string, Cell>;
 export type Model = Record<string, Row[]>;
 
-export const OPENING_DATE = "2026-01-01";
-export const PERIODS = ["2026-08", "2026-09", "2026-10"] as const;
-export const TX_FROM = "2026-08-01";
+/** Saldo awal 1 Jan 2021; transaksi Januari 2021 – Oktober 2026 (November 2026 berjalan). */
+export const OPENING_DATE = "2021-01-01";
+export const TX_FROM = "2021-01-01";
 export const TX_TO = "2026-10-31";
+export const YEARS = [2021, 2022, 2023, 2024, 2025, 2026] as const;
+/** Tahun yang sudah ditutup buku (tahun berjalan 2026 belum). */
+export const CLOSED_YEARS = [2021, 2022, 2023, 2024, 2025] as const;
+export const PERIODS: string[] = YEARS.flatMap((y) =>
+  Array.from({ length: y === 2026 ? 10 : 12 }, (_, i) => `${y}-${pad(i + 1, 2)}`),
+);
+/** Absensi harian semua karyawan sejak tanggal ini; sebelumnya hanya pekerja harian (upahnya dihitung dari absensi). */
+export const FULL_ATTENDANCE_FROM = "2025-01-01";
+/**
+ * Kepadatan transaksi harian per tahun (2026 = 1): makin padat mendekati tahun berjalan — volume usaha tumbuh dan
+ * data lama cukup untuk tren tanpa memperlambat pemuatan.
+ */
+export const DENSITY: Record<number, number> = {
+  2021: 0.22,
+  2022: 0.28,
+  2023: 0.36,
+  2024: 0.5,
+  2025: 0.72,
+  2026: 1,
+};
+export const yearOf = (date: string) => Number(date.slice(0, 4));
+const MONTH_NAMES = [
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
+];
+export const periodLabel = (period: string) =>
+  `${MONTH_NAMES[Number(period.slice(5, 7)) - 1]} ${period.slice(0, 4)}`;
 export const DEMO_PASSWORD = "DemoAgro2026!";
 export const EMAIL_DOMAIN = "didinputraagro.co.id";
 
 const SUBS = COMPANIES.filter((c) => !c.holding);
 const HOLDING = COMPANIES.find((c) => c.holding)!;
 
-const HOLIDAYS = new Set((ID_NATIONAL_HOLIDAYS[2026] ?? []).map((h) => h.date));
+const HOLIDAYS = new Set([
+  ...(ID_NATIONAL_HOLIDAYS[2026] ?? []).map((h) => h.date),
+  ...Object.values(HISTORICAL_HOLIDAYS).flatMap((list) => list.map(([d]) => d)),
+]);
 const isWorkday = (date: string) => weekday(date) >= 1 && weekday(date) <= 5 && !HOLIDAYS.has(date);
 const WORKDAYS = eachDay(TX_FROM, TX_TO).filter(isWorkday);
 
@@ -86,9 +127,12 @@ export function buildModel(seed = 20260101): Model {
   for (const c of COMPANIES)
     for (const b of c.branches) add("Cabang", { company: c.code, code: b.code, name: b.name, city: b.city });
   for (const u of BUSINESS_UNITS) add("Unit Bisnis", { code: u.code, name: u.name });
-  for (const [cur, months] of Object.entries(FX))
-    for (const [mm, rate] of Object.entries(months))
-      add("Kurs", { currencyCode: cur, rateDate: `2026-${mm}-01`, rate });
+  for (const cur of ["USD", "EUR"])
+    for (const period of [...PERIODS, "2026-11"])
+      add("Kurs", { currencyCode: cur, rateDate: `${period}-01`, rate: fxRate(cur, period) });
+  for (const [year, list] of Object.entries(HISTORICAL_HOLIDAYS))
+    for (const [date, name, collective] of list)
+      add("Libur Nasional", { year: Number(year), date, name, kind: collective ? "collective" : "national" });
 
   // ---- Akun tambahan (di luar bagan akun bawaan) ----
   const extraAccounts = [
@@ -253,8 +297,16 @@ export function buildModel(seed = 20260101): Model {
     branch: string;
     sales: boolean;
     field: boolean;
+    /** Mantan karyawan: tanggal & alasan keluar (kontrak diakhiri dengan status keluar). */
+    resignDate?: string;
+    resignReason?: "resign" | "end_contract";
   };
   const employees: Emp[] = [];
+  /** Karyawan bekerja pada tanggal ini (sudah masuk & belum keluar). */
+  const activeOn = (e: Emp, date: string) => e.joinDate <= date && (!e.resignDate || date <= e.resignDate);
+  /** Upah tahun `year`: upah 2026 dideflasi ±6,5% per tahun. */
+  const wageIn = (e: Emp, year: number) =>
+    year >= 2026 ? e.wage : roundTo(e.wage / 1.065 ** (2026 - year), e.daily ? 1000 : 50_000);
   for (const c of COMPANIES) {
     for (const d of c.departments) add("Departemen", { company: c.code, name: d, managerNumber: "" });
     let seq = 0;
@@ -271,7 +323,7 @@ export function buildModel(seed = 20260101): Model {
     for (const j of c.jobs) for (let i = 0; i < j.count; i++) slots.push(toSlot(j));
     const filler = c.jobs.filter((j) => j.grade <= "B2" && !j.name.startsWith("Direktur"));
     while (slots.length < c.headcount) slots.push(toSlot(rng.pick(filler)));
-    for (const s of slots.slice(0, c.headcount)) {
+    const hire = (s: (typeof slots)[number], leaver?: { joinDate: string; resignDate: string }) => {
       seq++;
       const female = rng.chance(
         s.department.includes("Keuangan") || s.department.includes("SDM") ? 0.6 : 0.35,
@@ -282,8 +334,13 @@ export function buildModel(seed = 20260101): Model {
       const age = senior ? rng.int(38, 56) : s.grade >= "C1" ? rng.int(28, 45) : rng.int(20, 40);
       const birthDate = `${1999 + 27 - age}-${pad(rng.int(1, 12), 2)}-${pad(rng.int(1, 28), 2)}`;
       const joinYear = Math.min(2025, Math.max(2010, 2026 - rng.int(0, Math.max(1, age - 21))));
-      const joinDate =
-        seq <= 2 ? "2018-01-02" : `${joinYear}-${pad(rng.int(1, 12), 2)}-${pad(rng.int(1, 28), 2)}`;
+      // Mantan karyawan masuk paling cepat usia 19 tahun.
+      const adultFrom = `${Number(birthDate.slice(0, 4)) + 19}${birthDate.slice(4)}`;
+      const joinDate = leaver
+        ? [leaver.joinDate, adultFrom].sort()[1]!
+        : seq <= 2
+          ? "2018-01-02"
+          : `${joinYear}-${pad(rng.int(1, 12), 2)}-${pad(rng.int(1, 28), 2)}`;
       const g = GRADES.find((x) => x.code === s.grade)!;
       // Gaji pokok: standar golongan untuk sebagian besar, sisanya disesuaikan dalam skala.
       const wage = s.daily
@@ -293,7 +350,7 @@ export function buildModel(seed = 20260101): Model {
           : roundTo(rng.int(g.min, g.max), 50_000);
       const number = `${c.code}-${pad(seq, 4)}`;
       if (s.job === "Direktur Utama") director = number;
-      if (/^(Manajer|Kepala|Direktur)/.test(s.job) && !deptHead.has(s.department))
+      if (!leaver && /^(Manajer|Kepala|Direktur)/.test(s.job) && !deptHead.has(s.department))
         deptHead.set(s.department, number);
       const married = age > 26 && rng.chance(0.7);
       const field =
@@ -311,7 +368,12 @@ export function buildModel(seed = 20260101): Model {
         wage,
         daily: Boolean(s.daily),
         joinDate,
-        contractType: s.daily ? "harian" : rng.chance(senior ? 0.95 : 0.7) ? "pkwtt" : "pkwt",
+        // PKWT paling lama 5 tahun: hanya karyawan yang masuk sejak 2022 (kontrak s.d. akhir 2026).
+        contractType: s.daily
+          ? "harian"
+          : !leaver && joinDate >= "2022-01-01" && rng.chance(senior ? 0.05 : 0.3)
+            ? "pkwt"
+            : "pkwtt",
         managerNumber: "",
         schedule: field ? "Lapangan 07:00–16:00 (Sen–Jum)" : "Kantor 08:00–17:00 (Sen–Jum)",
         birthDate,
@@ -320,6 +382,26 @@ export function buildModel(seed = 20260101): Model {
         branch: field && c.branches.length > 1 ? rng.pick(c.branches).code : c.branches[0]!.code,
         sales: /Sales|Account Manager|Export Sales/.test(s.job),
         field,
+        ...(leaver
+          ? {
+              resignDate:
+                [leaver.resignDate, addDays(joinDate, 400)].sort()[1]! > "2026-09-30"
+                  ? "2026-09-30"
+                  : [leaver.resignDate, addDays(joinDate, 400)].sort()[1]!,
+              resignReason: rng.chance(0.8) ? ("resign" as const) : ("end_contract" as const),
+            }
+          : {}),
+      });
+    };
+    for (const s of slots.slice(0, c.headcount)) hire(s);
+    // Mantan karyawan: bekerja sebagian periode 2021–2026 lalu keluar (turnover ±3% per tahun).
+    for (let k = 0; k < Math.round(c.headcount * 0.16); k++) {
+      const resignDate = `${rng.int(2021, 2026)}-${pad(rng.int(1, 12), 2)}-${pad(rng.int(1, 28), 2)}`;
+      if (resignDate > "2026-09-30") continue;
+      const joinDate = addDays(resignDate, -rng.int(300, 2500));
+      hire(toSlot(rng.pick(filler)), {
+        joinDate: joinDate < "2014-01-02" ? "2014-01-02" : joinDate,
+        resignDate,
       });
     }
     for (const e of employees.filter((x) => x.company === c)) {
@@ -391,19 +473,40 @@ export function buildModel(seed = 20260101): Model {
       if (e.married) allowances.TKEL = 500_000;
       allowances.TRANS = e.field ? 600_000 : 750_000;
     }
+    // Upah naik ±6,5% tiap Januari: kontrak pertama memakai upah tahun masuk (paling cepat 2021), kenaikan
+    // tahun berikutnya lewat SK Penyesuaian upah.
+    const firstYear = Math.max(2021, yearOf(e.joinDate));
+    const lastYear = e.resignDate ? yearOf(e.resignDate) : 2026;
     add("Kontrak", {
       company: e.company.code,
       employeeNumber: e.number,
       contractType: e.contractType,
       wageType: e.daily ? "Harian" : "Bulanan",
-      dateStart: e.contractType === "pkwt" ? "2026-01-02" : e.joinDate,
+      dateStart: e.joinDate,
       dateEnd: e.contractType === "pkwt" ? "2026-12-31" : "",
-      wage: e.wage,
-      note: e.contractType === "pkwt" ? "Kontrak 12 bulan tahun 2026" : "",
+      wage: wageIn(e, firstYear),
+      note: e.contractType === "pkwt" ? "PKWT s.d. 31 Desember 2026" : "",
       TJAB: allowances.TJAB ?? null,
       TKEL: allowances.TKEL ?? null,
       TRANS: allowances.TRANS ?? null,
     });
+    for (let y = firstYear + 1; y <= lastYear; y++)
+      if (!e.resignDate || e.resignDate > `${y}-01-01`)
+        add("Penyesuaian Upah", {
+          company: e.company.code,
+          employeeNumber: e.number,
+          effectiveDate: `${y}-01-01`,
+          newWage: wageIn(e, y),
+          reason: `Kenaikan upah tahunan ${y}`,
+        });
+    if (e.resignDate)
+      add("Karyawan Keluar", {
+        company: e.company.code,
+        employeeNumber: e.number,
+        resignDate: e.resignDate,
+        reason: e.resignReason ?? "resign",
+        note: e.resignReason === "end_contract" ? "Kontrak tidak diperpanjang" : "Mengundurkan diri",
+      });
     if (e.married) {
       add("Keluarga", {
         company: e.company.code,
@@ -450,51 +553,65 @@ export function buildModel(seed = 20260101): Model {
       yearEnd,
       gpa: level.startsWith("S") || level === "D3" ? (rng.int(290, 395) / 100).toFixed(2) : "",
     });
-    add("Alokasi Cuti", {
-      company: e.company.code,
-      employeeNumber: e.number,
-      leaveType: "Cuti tahunan",
-      days: 12,
-      dateFrom: "2026-01-01",
-      dateTo: "2026-12-31",
-      note: "Hak cuti tahunan 2026",
-    });
+    for (let y = firstYear; y <= lastYear; y++)
+      add("Alokasi Cuti", {
+        company: e.company.code,
+        employeeNumber: e.number,
+        leaveType: "Cuti tahunan",
+        days: 12,
+        dateFrom: `${y}-01-01`,
+        dateTo: `${y}-12-31`,
+        note: `Hak cuti tahunan ${y}`,
+      });
   }
 
   // ---- Cuti, absensi, lembur ----
   const leaveDays = new Map<string, Set<string>>();
   for (const e of employees) {
     const taken = new Set<string>();
-    const n = rng.weighted([
-      [0, 45],
-      [1, 35],
-      [2, 15],
-      [3, 5],
-    ] as const);
-    for (let i = 0; i < n; i++) {
-      const start = rng.pick(WORKDAYS);
-      const sick = rng.chance(0.3);
-      const len = sick ? rng.int(1, 2) : rng.int(1, 3);
-      const days = WORKDAYS.filter((d) => d >= start).slice(0, len);
-      if (days.some((d) => taken.has(d))) continue;
-      days.forEach((d) => taken.add(d));
-      add("Pengajuan Cuti", {
-        company: e.company.code,
-        employeeNumber: e.number,
-        leaveType: sick ? "Sakit (dengan surat dokter)" : "Cuti tahunan",
-        dateFrom: days[0]!,
-        dateTo: days.at(-1)!,
-        reason: sick
-          ? rng.pick(["Demam & flu", "Sakit gigi", "Gangguan pencernaan", "Kontrol ke dokter"])
-          : rng.pick([
-              "Acara keluarga",
-              "Mudik",
-              "Keperluan pribadi",
-              "Pernikahan saudara",
-              "Liburan keluarga",
-            ]),
-        state: "Disetujui",
-      });
+    for (const year of YEARS) {
+      const days_ = WORKDAYS.filter((d) => d.startsWith(String(year)) && activeOn(e, d));
+      if (!days_.length) continue;
+      // Tahun lama lebih sedikit pengajuan (data bertingkat); 2025–2026 1–4 pengajuan setahun.
+      const n = rng.weighted(
+        year >= 2025
+          ? ([
+              [1, 30],
+              [2, 35],
+              [3, 25],
+              [4, 10],
+            ] as const)
+          : ([
+              [0, 30],
+              [1, 45],
+              [2, 25],
+            ] as const),
+      );
+      for (let i = 0; i < n; i++) {
+        const start = rng.pick(days_);
+        const sick = rng.chance(0.3);
+        const len = sick ? rng.int(1, 2) : rng.int(1, 3);
+        const days = days_.filter((d) => d >= start).slice(0, len);
+        if (days.some((d) => taken.has(d))) continue;
+        days.forEach((d) => taken.add(d));
+        add("Pengajuan Cuti", {
+          company: e.company.code,
+          employeeNumber: e.number,
+          leaveType: sick ? "Sakit (dengan surat dokter)" : "Cuti tahunan",
+          dateFrom: days[0]!,
+          dateTo: days.at(-1)!,
+          reason: sick
+            ? rng.pick(["Demam & flu", "Sakit gigi", "Gangguan pencernaan", "Kontrol ke dokter"])
+            : rng.pick([
+                "Acara keluarga",
+                "Mudik",
+                "Keperluan pribadi",
+                "Pernikahan saudara",
+                "Liburan keluarga",
+              ]),
+          state: "Disetujui",
+        });
+      }
     }
     leaveDays.set(e.number, taken);
   }
@@ -503,6 +620,8 @@ export function buildModel(seed = 20260101): Model {
     const office = e.schedule.startsWith("Kantor");
     const [startH, endH] = office ? [8, 17] : [7, 16];
     for (const d of WORKDAYS) {
+      // Absensi lengkap sejak 2025; tahun sebelumnya hanya pekerja harian (upahnya per hari hadir).
+      if (!activeOn(e, d) || (d < FULL_ATTENDANCE_FROM && !e.daily)) continue;
       if (taken.has(d) || rng.chance(0.008)) continue;
       const late = rng.chance(0.07);
       const inMin = late ? rng.int(16, 70) : rng.int(-35, 10);
@@ -544,8 +663,10 @@ export function buildModel(seed = 20260101): Model {
   // ---- Klaim biaya & pinjaman karyawan ----
   for (const e of employees.filter((x) => (x.sales || x.grade >= "C1") && !x.daily))
     for (const period of PERIODS) {
-      if (!rng.chance(0.55)) continue;
-      const date = rng.pick(WORKDAYS.filter((d) => d.startsWith(period)));
+      if (!rng.chance(0.55 * DENSITY[yearOf(period)]!)) continue;
+      const pool = WORKDAYS.filter((d) => d.startsWith(period) && activeOn(e, d));
+      if (!pool.length) continue;
+      const date = rng.pick(pool);
       const cat = e.sales
         ? rng.pick(["Perjalanan Dinas", "Transportasi & Parkir", "Jamuan Klien"])
         : rng.pick(["Transportasi & Parkir", "Kacamata & Kesehatan", "Perjalanan Dinas"]);
@@ -573,25 +694,35 @@ export function buildModel(seed = 20260101): Model {
       });
     }
   for (const c of COMPANIES)
-    for (const e of rng.sample(
-      employees.filter((x) => x.company === c && !x.daily && x.grade <= "B2"),
-      3,
-    )) {
-      const principal = roundTo(rng.int(3_000_000, 15_000_000), 500_000);
-      add("Pinjaman Karyawan", {
-        company: c.code,
-        employeeNumber: e.number,
-        name: rng.pick([
-          "Pinjaman renovasi rumah",
-          "Pinjaman biaya pendidikan anak",
-          "Pinjaman kesehatan keluarga",
-          "Kasbon kendaraan",
-        ]),
-        principal,
-        installment: roundTo(principal / rng.pick([6, 10, 12]), 50_000),
-        startPeriod: "2026-08",
-      });
-    }
+    for (const year of YEARS)
+      for (const e of rng.sample(
+        employees.filter(
+          (x) =>
+            x.company === c &&
+            !x.daily &&
+            x.grade <= "B2" &&
+            activeOn(x, `${year}-02-01`) &&
+            (!x.resignDate || x.resignDate > `${year + 1}-12-31`),
+        ),
+        year >= 2025 ? 3 : 2,
+      )) {
+        const start = `${year}-${pad(rng.int(2, year === 2026 ? 8 : 9), 2)}`;
+        const principal = roundTo(rng.int(3_000_000, 15_000_000), 500_000);
+        add("Pinjaman Karyawan", {
+          company: c.code,
+          employeeNumber: e.number,
+          name: rng.pick([
+            "Pinjaman renovasi rumah",
+            "Pinjaman biaya pendidikan anak",
+            "Pinjaman kesehatan keluarga",
+            "Kasbon kendaraan",
+          ]),
+          principal,
+          installment: roundTo(principal / rng.pick([6, 10, 12]), 50_000),
+          startPeriod: start,
+          disburseDate: addDays(`${start}-01`, -4),
+        });
+      }
 
   // ---- Penjualan & pembelian dengan simulasi stok ----
   const stock = new Map<string, number>();
@@ -629,7 +760,11 @@ export function buildModel(seed = 20260101): Model {
     const catalog = products[c.code]!;
     for (const period of PERIODS) {
       const days = WORKDAYS.filter((d) => d.startsWith(period));
-      for (let i = 0; i < SO_PER_MONTH[c.code]!; i++) {
+      // Volume tumbuh per tahun (DENSITY) dengan musim: ramai menjelang tanam (Okt–Des) & panen (Mar–Mei).
+      const month = Number(period.slice(5, 7));
+      const season = [10, 11, 12, 3, 4, 5].includes(month) ? 1.12 : [1, 2, 7].includes(month) ? 0.88 : 1;
+      const count = Math.max(4, Math.round(SO_PER_MONTH[c.code]! * DENSITY[yearOf(period)]! * season));
+      for (let i = 0; i < count; i++) {
         const cust = rng.pick(custs);
         const date = rng.pick(days);
         const exportOrder = Boolean(cust.foreign);
@@ -679,9 +814,11 @@ export function buildModel(seed = 20260101): Model {
       }
     }
   }
-  // Transaksi antar-perusahaan tiap bulan.
+  // Transaksi antar-perusahaan: jasa manajemen holding tiap bulan; jasa & barang antar-anak usaha bulanan sejak 2025,
+  // triwulanan sebelumnya.
   for (const period of PERIODS) {
     const date = WORKDAYS.find((d) => d.startsWith(period) && d >= `${period}-05`)!;
+    const monthly = period >= "2025-01" || ["03", "06", "09", "12"].includes(period.slice(5));
     for (const sub of SUBS) {
       orders.push({
         kind: "SO",
@@ -696,6 +833,7 @@ export function buildModel(seed = 20260101): Model {
         ic: sub.code,
       });
     }
+    if (!monthly) continue;
     for (const buyer of ["BUI", "YHN", "PTN"]) {
       orders.push({
         kind: "SO",
@@ -710,28 +848,35 @@ export function buildModel(seed = 20260101): Model {
         ic: buyer,
       });
     }
-    const benih = ["BUI-JG-005", "BUI-PL-001", "BUI-PL-002"].map((sku) => ({ sku, qty: 300 }));
+    // Antar-perusahaan hanya sebanyak stok yang ada (sisanya menunggu pembelian ulang).
+    const icLines = (skus: string[], qty: number) =>
+      skus
+        .map((sku) => ({ sku, qty: Math.min(qty, roundTo(stock.get(sku)! * 0.5, 50)) }))
+        .filter((l) => l.qty > 0);
+    const benih = icLines(["BUI-JG-005", "BUI-PL-001", "BUI-PL-002"], 300);
     for (const l of benih) stock.set(l.sku, stock.get(l.sku)! - l.qty);
-    orders.push({
-      kind: "SO",
-      company: "BUI",
-      no: nextNo("SO", "BUI"),
-      partner: "PT Perdagangan Tani",
-      date: addDays(date, 2),
-      lines: benih,
-      ic: "PTN",
-    });
-    const herbs = ["PTN-EX-013", "PTN-EX-014"].map((sku) => ({ sku, qty: 1500 }));
+    if (benih.length)
+      orders.push({
+        kind: "SO",
+        company: "BUI",
+        no: nextNo("SO", "BUI"),
+        partner: "PT Perdagangan Tani",
+        date: addDays(date, 2),
+        lines: benih,
+        ic: "PTN",
+      });
+    const herbs = icLines(["PTN-EX-013", "PTN-EX-014"], 1500);
     for (const l of herbs) stock.set(l.sku, stock.get(l.sku)! - l.qty);
-    orders.push({
-      kind: "SO",
-      company: "PTN",
-      no: nextNo("SO", "PTN"),
-      partner: "PT Yuyun Herbal Nusantara",
-      date: addDays(date, 3),
-      lines: herbs,
-      ic: "YHN",
-    });
+    if (herbs.length)
+      orders.push({
+        kind: "SO",
+        company: "PTN",
+        no: nextNo("SO", "PTN"),
+        partner: "PT Yuyun Herbal Nusantara",
+        date: addDays(date, 3),
+        lines: herbs,
+        ic: "YHN",
+      });
   }
   for (const s of stock.entries()) if (s[1] < 0) throw new Error(`Stok minus ${s[0]}: ${s[1]}`);
   orders.sort((a, b) => (a.date === b.date ? a.no.localeCompare(b.no) : a.date.localeCompare(b.date)));
@@ -779,7 +924,7 @@ export function buildModel(seed = 20260101): Model {
     });
   }
 
-  // ---- Saldo awal 1 Jan 2026 ----
+  // ---- Saldo awal 1 Jan 2021 ----
   const assetDefs: Record<string, [string, string, string, number, number][]> = {
     DPA: [
       ["Bangunan Kantor Agro Tower Lt. 18", "1-2300", "1-2390", 18_000_000_000, 240],
@@ -822,7 +967,7 @@ export function buildModel(seed = 20260101): Model {
           depreciationAccount: accum,
           expenseAccount: "6-4000",
           acquisitionDate: OPENING_DATE,
-          firstDepreciationDate: "2026-01-31",
+          firstDepreciationDate: "2021-01-31",
           cost,
           usefulLifeMonths: life,
           salvageValue: 0,
@@ -864,105 +1009,142 @@ export function buildModel(seed = 20260101): Model {
     const assets =
       c.cash + c.bank + ar + inventory + investments + assetDefs[c.code]!.reduce((s, a) => s + a[3], 0);
     line("3-1000", 0, c.capital, "Modal disetor");
-    line("3-2000", 0, assets - ap - loan - c.capital, "Saldo laba ditahan s.d. 2025");
+    line("3-2000", 0, assets - ap - loan - c.capital, "Saldo laba ditahan s.d. 2020");
     for (const l of lines) add("Saldo Awal", l);
   }
 
-  // ---- Anggaran 2026 ----
-  for (const c of COMPANIES) {
-    const revenue = c.holding
-      ? 2_900_000_000
-      : products[c.code]!.reduce((s, p) => s + p.price * (p.stock ?? 5), 0) * 1.4;
-    for (const [code, share] of [
-      ["4-1000", 1],
-      ["5-1000", -0.62],
-      ["6-1000", -0.14],
-      ["6-5000", -0.03],
-      ["6-6000", -0.025],
-      ["6-8000", -0.008],
-      ["6-4000", -0.02],
-    ] as const)
-      add("Anggaran", {
-        company: c.code,
-        budget: `Anggaran ${c.code} 2026`,
-        accountCode: c.holding && code === "4-1000" ? "4-1100" : code,
-        amount: roundTo(revenue * Math.abs(share), 1_000_000),
-      });
-  }
+  // ---- Anggaran tahunan 2021–2026 (tumbuh mengikuti volume usaha) ----
   for (const c of COMPANIES)
-    for (const dept of c.departments) {
-      const staff = employees.filter((e) => e.company === c && e.department === dept);
-      const cost = staff.reduce((s, e) => s + (e.daily ? e.wage * 22 : e.wage) * 1.18, 0);
-      for (let month = 1; month <= 12; month++)
-        add("Anggaran Tenaga Kerja", {
+    for (const year of YEARS) {
+      const growth = c.holding ? 0.7 + 0.06 * (year - 2021) : DENSITY[year]! * 1.05;
+      const revenue =
+        (c.holding
+          ? 2_900_000_000
+          : products[c.code]!.reduce((sum, p) => sum + p.price * (p.stock ?? 5), 0) * 1.4) * growth;
+      for (const [code, share] of [
+        ["4-1000", 1],
+        ["5-1000", -0.62],
+        ["6-1000", -0.14],
+        ["6-5000", -0.03],
+        ["6-6000", -0.025],
+        ["6-8000", -0.008],
+        ["6-4000", -0.02],
+      ] as const)
+        add("Anggaran", {
           company: c.code,
-          department: dept,
-          month,
-          headcount: staff.length + (month >= 9 && dept.includes("Penjualan") ? 1 : 0),
-          cost: roundTo(cost * (month >= 9 ? 1.04 : 1), 100_000),
+          budget: `Anggaran ${c.code} ${year}`,
+          year,
+          accountCode: c.holding && code === "4-1000" ? "4-1100" : code,
+          amount: roundTo(revenue * Math.abs(share), 1_000_000),
         });
     }
+  for (const c of COMPANIES)
+    for (const year of YEARS)
+      for (const dept of c.departments)
+        for (let month = 1; month <= 12; month++) {
+          const day = `${year}-${pad(month, 2)}-15`;
+          const staff = employees.filter((e) => e.company === c && e.department === dept && activeOn(e, day));
+          const cost = staff.reduce(
+            (sum, e) => sum + (e.daily ? wageIn(e, year) * 22 : wageIn(e, year)) * 1.18,
+            0,
+          );
+          add("Anggaran Tenaga Kerja", {
+            company: c.code,
+            year,
+            department: dept,
+            month,
+            headcount: staff.length + (month >= 9 && dept.includes("Penjualan") ? 1 : 0),
+            cost: roundTo(cost * (month >= 9 ? 1.04 : 1), 100_000),
+          });
+        }
 
   // ---- CRM, rekrutmen, armada, pengguna ----
   const stages = ["Baru", "Kualifikasi", "Proposal", "Negosiasi", "Menang"];
   for (const c of SUBS) {
     const sellers = employees.filter((e) => e.company === c && e.sales);
-    for (let i = 0; i < 35; i++) {
-      const prospect = `${rng.pick(["PT", "CV", "UD", "Koperasi", "Gapoktan"])} ${rng.pick(["Agro", "Tani", "Bumi", "Hijau", "Lestari", "Makmur", "Subur", "Nusa"])} ${rng.pick(["Sejahtera", "Mandiri", "Jaya", "Abadi", "Prima", "Sentosa"])} ${rng.pick(CITIES)[0]}`;
-      add("Prospek CRM", {
-        company: c.code,
-        name: `Peluang ${rng.pick(products[c.code]!).name.split(" — ")[0]} — ${prospect}`,
-        partnerName: prospect,
-        contactName: `${rng.pick(FIRST_MALE)} ${rng.pick(LAST)}`,
-        email: `${slug(prospect).replace(/\./g, "").slice(0, 20)}@contoh.co.id`,
-        phone: `08${rng.int(11, 99)}${rng.digits(8)}`,
-        stage: rng.weighted(stages.map((s, k) => [s, 5 - k * 0.8] as const)),
-        expectedRevenue: roundTo(rng.int(15_000_000, 900_000_000), 5_000_000),
-        expectedClose: addDays(TX_TO, rng.int(-40, 75)),
-        salesperson: sellers.length ? rng.pick(sellers).number : "",
-        source: rng.pick(["referral", "website", "event", "cold_call", "ads"]),
-      });
-    }
-  }
-  for (const c of COMPANIES)
-    for (const job of rng.sample(
-      c.jobs.filter((j) => j.grade >= "B1" && j.grade <= "C2"),
-      2,
-    )) {
-      const g = GRADES.find((x) => x.code === job.grade)!;
-      const opening = `${job.name} — ${c.branches[0]!.city}`;
-      add("Lowongan", {
-        company: c.code,
-        name: opening,
-        job: job.name,
-        department: job.department,
-        quota: rng.int(1, 3),
-        dateOpen: "2026-08-03",
-        targetDate: "2026-11-30",
-        wageMin: g.min,
-        wageMax: g.max,
-      });
-      for (let k = 0; k < rng.int(6, 12); k++) {
-        const female = rng.chance(0.45);
-        const name = `${rng.pick(female ? FIRST_FEMALE : FIRST_MALE)} ${rng.pick(LAST)}`;
-        add("Pelamar", {
+    for (const year of YEARS)
+      for (let i = 0; i < (year === 2026 ? 35 : Math.round(30 * DENSITY[year]! + 6)); i++) {
+        // Peluang tahun lalu sudah selesai (menang/kalah); tahun berjalan masih di berbagai tahap.
+        const closed = year < 2026 || rng.chance(0.2);
+        const prospect = `${rng.pick(["PT", "CV", "UD", "Koperasi", "Gapoktan"])} ${rng.pick(["Agro", "Tani", "Bumi", "Hijau", "Lestari", "Makmur", "Subur", "Nusa"])} ${rng.pick(["Sejahtera", "Mandiri", "Jaya", "Abadi", "Prima", "Sentosa"])} ${rng.pick(CITIES)[0]}`;
+        add("Prospek CRM", {
           company: c.code,
-          opening,
-          name,
-          email: `${slug(name)}${rng.int(1, 99)}@gmail.com`,
+          name: `Peluang ${rng.pick(products[c.code]!).name.split(" — ")[0]} — ${prospect}`,
+          partnerName: prospect,
+          contactName: `${rng.pick(FIRST_MALE)} ${rng.pick(LAST)}`,
+          email: `${slug(prospect).replace(/\./g, "").slice(0, 20)}@contoh.co.id`,
           phone: `08${rng.int(11, 99)}${rng.digits(8)}`,
-          source: rng.pick(["jobportal", "referral", "website", "walkin"]),
-          expectedWage: roundTo(rng.int(g.min, g.max), 250_000),
-          stage: rng.weighted([
-            ["new", 4],
-            ["screening", 3],
-            ["interview", 2],
-            ["offer", 1],
-          ] as const),
-          consent: true,
+          stage: closed
+            ? rng.chance(0.42)
+              ? "Menang"
+              : "Kalah"
+            : rng.weighted(stages.slice(0, 4).map((s, k) => [s, 5 - k * 0.8] as const)),
+          expectedRevenue: roundTo(
+            rng.int(15_000_000, 900_000_000) * (0.6 + 0.4 * DENSITY[year]!),
+            5_000_000,
+          ),
+          expectedClose:
+            year < 2026
+              ? `${year}-${pad(rng.int(1, 12), 2)}-${pad(rng.int(1, 28), 2)}`
+              : addDays(TX_TO, rng.int(-40, 75)),
+          salesperson: (() => {
+            const pool = sellers.filter((e) => activeOn(e, `${year}-06-30`));
+            return pool.length ? rng.pick(pool).number : "";
+          })(),
+          source: rng.pick(["referral", "website", "event", "cold_call", "ads"]),
         });
       }
-    }
+  }
+  for (const c of COMPANIES)
+    for (const year of YEARS)
+      for (const job of rng.sample(
+        c.jobs.filter((j) => j.grade >= "B1" && j.grade <= "C2"),
+        year >= 2025 ? 2 : 1,
+      )) {
+        const g = GRADES.find((x) => x.code === job.grade)!;
+        const opening = `${job.name} — ${c.branches[0]!.city} ${year}`;
+        const open = year === 2026 ? "2026-08-03" : `${year}-${pad(rng.int(1, 9), 2)}-0${rng.int(1, 9)}`;
+        add("Lowongan", {
+          company: c.code,
+          name: opening,
+          job: job.name,
+          department: job.department,
+          quota: rng.int(1, 3),
+          dateOpen: open,
+          targetDate: year === 2026 ? "2026-11-30" : addDays(open, 90),
+          wageMin: g.min,
+          wageMax: g.max,
+        });
+        for (let k = 0; k < rng.int(6, 12); k++) {
+          const female = rng.chance(0.45);
+          const name = `${rng.pick(female ? FIRST_FEMALE : FIRST_MALE)} ${rng.pick(LAST)}`;
+          add("Pelamar", {
+            company: c.code,
+            opening,
+            name,
+            email: `${slug(name)}${rng.int(1, 99)}@gmail.com`,
+            phone: `08${rng.int(11, 99)}${rng.digits(8)}`,
+            source: rng.pick(["jobportal", "referral", "website", "walkin"]),
+            expectedWage: roundTo(rng.int(g.min, g.max), 250_000),
+            // Lowongan tahun lalu sudah diproses: pelamar sampai tahap akhir.
+            stage: rng.weighted(
+              year < 2026
+                ? ([
+                    ["screening", 3],
+                    ["interview", 3],
+                    ["offer", 2],
+                  ] as const)
+                : ([
+                    ["new", 4],
+                    ["screening", 3],
+                    ["interview", 2],
+                    ["offer", 1],
+                  ] as const),
+            ),
+            consent: true,
+          });
+        }
+      }
   const fleetModels = [
     ["Mitsubishi", "L300 Pickup", "truck"],
     ["Toyota", "Hilux Double Cabin", "car"],
@@ -976,7 +1158,7 @@ export function buildModel(seed = 20260101): Model {
   const plates: Record<string, string> = { DPA: "B", BUI: "T", AGT: "D", PTN: "B", YHN: "AD" };
   for (const c of COMPANIES) {
     const drivers = employees.filter(
-      (e) => e.company === c && (e.job === "Pengemudi" || e.field) && !e.daily,
+      (e) => e.company === c && (e.job === "Pengemudi" || e.field) && !e.daily && !e.resignDate,
     );
     for (let i = 0; i < (c.holding ? 3 : rng.int(5, 8)); i++) {
       const [brand, model] = c.holding ? (["Toyota", "Innova Zenix"] as const) : rng.pick(fleetModels);
@@ -1029,10 +1211,14 @@ export function buildModel(seed = 20260101): Model {
         company: c.code,
         period,
         paymentDate: `${period}-25`,
-        name: `Gaji ${["Agustus", "September", "Oktober"][PERIODS.indexOf(period)]} 2026`,
+        name: `Gaji ${periodLabel(period)}`,
         post: true,
         pay: true,
       });
+
+  // ---- Tutup buku tahunan 2021–2025 (jurnal penutup laba rugi ke laba ditahan) ----
+  for (const c of COMPANIES)
+    for (const year of CLOSED_YEARS) add("Tutup Buku", { company: c.code, fiscalYear: year });
 
   return m;
 }

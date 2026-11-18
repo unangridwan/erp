@@ -2,7 +2,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import ExcelJS from "exceljs";
-import type { Cell, Model, Row } from "./model.js";
+import { YEARS, type Cell, type Model, type Row } from "./model.js";
 import { SHEETS } from "./sheets.js";
 
 const cell = (v: Cell | undefined) =>
@@ -154,13 +154,13 @@ export async function writeImportFiles(model: Model, dir: string): Promise<Impor
       hrColumns("Alokasi Cuti"),
       of("Alokasi Cuti", company),
     );
-    for (const period of ["2026-08", "2026-09", "2026-10"])
+    for (const year of YEARS)
       await put(
         company,
-        `09-absensi-${period}.xlsx`,
+        `09-absensi-${year}.xlsx`,
         "Kehadiran › Impor/Ekspor Data › Absensi › Impor",
         hrColumns("Absensi"),
-        of("Absensi", company).filter((r) => String(r.date).startsWith(period)),
+        of("Absensi", company).filter((r) => String(r.date).startsWith(String(year))),
       );
     await put(
       company,
@@ -169,18 +169,19 @@ export async function writeImportFiles(model: Model, dir: string): Promise<Impor
       hrColumns("Lembur"),
       of("Lembur", company),
     );
-    await put(
-      company,
-      "11-anggaran-tenaga-kerja.xlsx",
-      "Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2026)",
-      [
-        ["department", "Departemen"],
-        ["month", "Bulan"],
-        ["headcount", "Headcount"],
-        ["cost", "Biaya"],
-      ],
-      of("Anggaran Tenaga Kerja", company),
-    );
+    for (const year of YEARS)
+      await put(
+        company,
+        `11-anggaran-tenaga-kerja-${year}.xlsx`,
+        `Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun ${year})`,
+        [
+          ["department", "Departemen"],
+          ["month", "Bulan"],
+          ["headcount", "Headcount"],
+          ["cost", "Biaya"],
+        ],
+        of("Anggaran Tenaga Kerja", company).filter((r) => r.year === year),
+      );
   }
   return out;
 }

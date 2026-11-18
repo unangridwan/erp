@@ -10,7 +10,18 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Api, ApiError } from "./api.js";
-import { buildModel, DEMO_PASSWORD, EMAIL_DOMAIN, type Model, type Row } from "./model.js";
+import {
+  buildModel,
+  DEMO_PASSWORD,
+  EMAIL_DOMAIN,
+  monthEnd,
+  OPENING_DATE,
+  PERIODS,
+  TX_TO,
+  YEARS,
+  type Model,
+  type Row,
+} from "./model.js";
 import { num, readWorkbook, SHEETS, str, yes } from "./sheets.js";
 
 const args = new Map<string, string>();
@@ -280,6 +291,20 @@ async function main() {
     await attempt("hari libur nasional 2026", () =>
       api.post("/work-calendar/holidays/import-national", { year: 2026, collective: true }),
     );
+    // Libur 2021–2025 (belum ada di daftar bawaan aplikasi) ditambahkan satu per satu.
+    const holidays = new Set<string>();
+    for (const year of YEARS.filter((y) => y < 2026))
+      for (const h of (await api.get<any>(`/work-calendar/holidays?year=${year}`)).items ?? [])
+        holidays.add(h.date);
+    for (const r of rows("Libur Nasional"))
+      if (!holidays.has(str(r.date)))
+        await attempt(`libur ${r.date}`, () =>
+          api.post("/public-holidays", {
+            date: str(r.date),
+            name: str(r.name),
+            kind: str(r.kind) || "national",
+          }),
+        );
     const uoms = new Map((await api.list("/uoms")).map((u) => [u.name, u.id]));
     const terms = new Map((await api.list("/payment-terms")).map((t) => [t.name, t.id]));
     const cats = await api.list("/product-categories");
@@ -466,7 +491,47 @@ async function main() {
           rows("Alokasi Cuti", code).filter((r) => numbers.has(str(r.employeeNumber))),
         );
       }
-      log(`  ${code}: ${after.employees.size} karyawan`);
+      // Kenaikan upah tahunan lewat SK Penyesuaian upah (satu jalur perubahan upah), lalu karyawan yang keluar.
+      const mine = await refresh(code);
+      const applied = new Set(
+        (await api.list("/employee-movements"))
+          .filter((m) => m.kind === "wage_adjustment")
+          .map((m) => `${m.employeeId}|${m.effectiveDate}`),
+      );
+      let raised = 0;
+      for (const r of rows("Penyesuaian Upah", code)) {
+        const employeeId = mine.employees.get(str(r.employeeNumber));
+        if (!employeeId || applied.has(`${employeeId}|${str(r.effectiveDate)}`)) continue;
+        await attempt(`upah ${r.employeeNumber} ${r.effectiveDate}`, async () => {
+          const mv = await api.post("/employee-movements", {
+            employeeId,
+            kind: "wage_adjustment",
+            effectiveDate: str(r.effectiveDate),
+            newWage: String(num(r.newWage)),
+            reason: str(r.reason),
+          });
+          await api.post(`/employee-movements/${mv.id}/apply`);
+          raised++;
+        });
+      }
+      for (const r of rows("Karyawan Keluar", code)) {
+        const employeeId = mine.employees.get(str(r.employeeNumber));
+        if (!employeeId) continue;
+        const running = (await api.list(`/contracts?employeeId=${employeeId}`)).find(
+          (x) => x.state === "running",
+        );
+        if (!running) continue;
+        await attempt(`keluar ${r.employeeNumber}`, () =>
+          api.post(`/contracts/${running.id}/close`, {
+            dateEnd: str(r.resignDate),
+            exit: true,
+            resignReason: str(r.reason) || "resign",
+            resignNote: str(r.note) || null,
+            startChecklist: false,
+          }),
+        );
+      }
+      log(`  ${code}: ${after.employees.size} karyawan, ${raised} SK kenaikan upah`);
     }
     api.company = null;
   });
@@ -529,7 +594,7 @@ async function main() {
       // Saldo awal hanya sekali; bila sudah ada (409) stok awal juga dilewati agar stok berjalan tidak tertimpa.
       const posted = await api
         .post("/onboarding/opening-balance", {
-          date: "2026-01-01",
+          date: OPENING_DATE,
           lines: rows("Saldo Awal", code).map((r) => ({
             accountCode: str(r.accountCode),
             partnerId: str(r.partner) ? c.partners.get(str(r.partner)) : null,
@@ -548,8 +613,8 @@ async function main() {
         await attempt(`stok awal ${code}`, () =>
           api.post("/stock/adjustments", {
             locationId: c.warehouse.locationId,
-            date: "2026-01-01",
-            reason: "Stok awal 1 Jan 2026",
+            date: OPENING_DATE,
+            reason: "Stok awal 1 Jan 2021",
             lines: stock.map((r) => ({
               productId: c.products.get(str(r.sku)),
               countedQty: String(num(r.openingStock)),
@@ -578,11 +643,12 @@ async function main() {
       for (const b of [...new Set(rows("Anggaran", code).map((r) => str(r.budget)))]) {
         const existing = await api.list("/budgets");
         if (existing.some((x) => x.name === b)) continue;
+        const year = num(rows("Anggaran", code).find((r) => str(r.budget) === b)!.year) || 2026;
         await attempt(`anggaran ${b}`, () =>
           api.post("/budgets", {
             name: b,
-            dateFrom: "2026-01-01",
-            dateTo: "2026-12-31",
+            dateFrom: `${year}-01-01`,
+            dateTo: `${year}-12-31`,
             lines: rows("Anggaran", code)
               .filter((r) => str(r.budget) === b)
               .map((r) => ({ accountId: c.accounts.get(str(r.accountCode)), amount: String(num(r.amount)) })),
@@ -622,74 +688,77 @@ async function main() {
         (a.kind === b.kind ? 0 : a.kind === "PO" ? -1 : 1),
     );
     let n = 0;
-    for (const { kind, r } of events) {
-      const code = str(r.company);
-      const id = company[code]!;
-      const c = ctx[code]!;
-      const ref = str(r.orderNo);
-      if (existingRefs.has(ref)) continue;
-      api.company = id;
-      const partnerId = c.partners.get(str(r.partner));
-      if (!partnerId) {
-        failures.push(`${ref}: partner ${r.partner} tidak ditemukan`);
-        continue;
-      }
-      await attempt(ref, async () => {
-        const items = (kind === "SO" ? soLines : poLines).get(`${code}|${ref}`) ?? [];
-        const orderLines = items.map((l) => ({
-          productId: c.products.get(str(l.sku)),
-          quantity: String(num(l.quantity)),
-        }));
-        let order: any;
-        if (kind === "SO") {
-          order = await api.post("/sale-orders", {
-            partnerId,
-            dateOrder: str(r.dateOrder),
-            clientOrderRef: ref,
-            pricelistId: str(r.pricelist) ? pricelists[code]!.get(str(r.pricelist)) : null,
-            warehouseId: c.warehouse.id,
-            lines: orderLines,
+    // Tiap perusahaan dimuat paralel; di dalam satu perusahaan berurutan menurut tanggal (stok & valuasi benar).
+    await Promise.all(
+      codes.map(async (code) => {
+        const a = api.as(company[code]!);
+        const c = ctx[code]!;
+        for (const { kind, r } of events.filter((e) => str(e.r.company) === code)) {
+          const ref = str(r.orderNo);
+          if (existingRefs.has(ref)) continue;
+          const partnerId = c.partners.get(str(r.partner));
+          if (!partnerId) {
+            failures.push(`${ref}: partner ${r.partner} tidak ditemukan`);
+            continue;
+          }
+          await attempt(ref, async () => {
+            const items = (kind === "SO" ? soLines : poLines).get(`${code}|${ref}`) ?? [];
+            const orderLines = items.map((l) => ({
+              productId: c.products.get(str(l.sku)),
+              quantity: String(num(l.quantity)),
+            }));
+            let order: any;
+            if (kind === "SO") {
+              order = await a.post("/sale-orders", {
+                partnerId,
+                dateOrder: str(r.dateOrder),
+                clientOrderRef: ref,
+                pricelistId: str(r.pricelist) ? pricelists[code]!.get(str(r.pricelist)) : null,
+                warehouseId: c.warehouse.id,
+                lines: orderLines,
+              });
+              order = await a.post(`/sale-orders/${order.id}/confirm`);
+            } else {
+              order = await a.post("/purchase-orders", {
+                partnerId,
+                partnerRef: ref,
+                dateOrder: str(r.dateOrder),
+                warehouseId: c.warehouse.id,
+                lines: orderLines,
+              });
+              order = await a.post(`/purchase-orders/${order.id}/confirm`);
+              if (order.state === "to_approve") order = await a.post(`/purchase-orders/${order.id}/approve`);
+            }
+            if (str(r.deliveryDate))
+              for (const p of order.pickings ?? [])
+                if (p.state !== "done" && p.state !== "cancel")
+                  await a.post(`/pickings/${p.id}/validate`, { date: str(r.deliveryDate) });
+            if (!str(r.invoiceDate)) return;
+            const { moveId } =
+              kind === "SO"
+                ? await a.post(`/sale-orders/${order.id}/invoice`, {
+                    method: "regular",
+                    date: str(r.invoiceDate),
+                  })
+                : await a.post(`/purchase-orders/${order.id}/bill`, { date: str(r.invoiceDate) });
+            await a.post(`/moves/${moveId}/post`);
+            if (!str(r.paymentDate)) return;
+            const move = await a.get(`/moves/${moveId}`);
+            await a.post("/payments", {
+              paymentType: kind === "SO" ? "inbound" : "outbound",
+              partnerId,
+              journalId: c.journals.BNK1,
+              amount: move.amountTotal,
+              currencyCode: move.currencyCode,
+              date: str(r.paymentDate),
+              memo: ref,
+              moveIds: [moveId],
+            });
           });
-          order = await api.post(`/sale-orders/${order.id}/confirm`);
-        } else {
-          order = await api.post("/purchase-orders", {
-            partnerId,
-            partnerRef: ref,
-            dateOrder: str(r.dateOrder),
-            warehouseId: c.warehouse.id,
-            lines: orderLines,
-          });
-          order = await api.post(`/purchase-orders/${order.id}/confirm`);
-          if (order.state === "to_approve") order = await api.post(`/purchase-orders/${order.id}/approve`);
+          if (++n % 250 === 0) log(`  ${n} pesanan`);
         }
-        if (str(r.deliveryDate))
-          for (const p of order.pickings ?? [])
-            if (p.state !== "done" && p.state !== "cancel")
-              await api.post(`/pickings/${p.id}/validate`, { date: str(r.deliveryDate) });
-        if (!str(r.invoiceDate)) return;
-        const { moveId } =
-          kind === "SO"
-            ? await api.post(`/sale-orders/${order.id}/invoice`, {
-                method: "regular",
-                date: str(r.invoiceDate),
-              })
-            : await api.post(`/purchase-orders/${order.id}/bill`, { date: str(r.invoiceDate) });
-        await api.post(`/moves/${moveId}/post`);
-        if (!str(r.paymentDate)) return;
-        const move = await api.get(`/moves/${moveId}`);
-        await api.post("/payments", {
-          paymentType: kind === "SO" ? "inbound" : "outbound",
-          partnerId,
-          journalId: c.journals.BNK1,
-          amount: move.amountTotal,
-          currencyCode: move.currencyCode,
-          date: str(r.paymentDate),
-          memo: ref,
-          moveIds: [moveId],
-        });
-      });
-      if (++n % 100 === 0) log(`  ${n} pesanan`);
-    }
+      }),
+    );
     // Sisi pembeli transaksi antar-perusahaan.
     for (const r of rows("Tagihan Antar-Perusahaan")) {
       const code = str(r.company);
@@ -729,157 +798,169 @@ async function main() {
         }
       });
     }
-    // Penyusutan aset Jan–Okt.
-    for (const code of codes)
-      for (const month of ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]) {
-        const end = new Date(Date.UTC(2026, Number(month), 0)).toISOString().slice(0, 10);
-        await attempt(`penyusutan ${code} ${month}`, () =>
-          api.post("/assets/depreciate", { date: end }, company[code]),
-        );
-      }
+    // Penyusutan aset tiap akhir bulan Jan 2021 – Okt 2026.
+    await Promise.all(
+      codes.map(async (code) => {
+        for (const period of PERIODS)
+          await attempt(`penyusutan ${code} ${period}`, () =>
+            api.post("/assets/depreciate", { date: monthEnd(period) }, company[code]),
+          );
+      }),
+    );
     api.company = null;
   });
 
   await stage("kehadiran", async () => {
     const leaveTypes = new Map((await api.list("/leave-types")).map((t) => [t.name, t.id]));
-    for (const code of codes) {
-      const id = company[code]!;
-      api.company = id;
-      const c = await refresh(code);
-      for (const period of ["2026-08", "2026-09", "2026-10"]) {
-        const data = rows("Absensi", code).filter((r) => str(r.date).startsWith(period));
-        for (const part of chunk(data, 3000))
-          await attempt(`absensi ${code} ${period}`, () =>
-            api.post("/data-transfer/attendance/import", { csv: csv(hrColumns("Absensi"), part) }),
+    // Tiap perusahaan dimuat paralel (data karyawan tidak saling bergantung antar-perusahaan).
+    await Promise.all(
+      codes.map(async (code) => {
+        const a = api.as(company[code]!);
+        const c = await refresh(code);
+        for (const year of YEARS) {
+          const data = rows("Absensi", code).filter((r) => str(r.date).startsWith(String(year)));
+          for (const part of chunk(data, 3000))
+            await attempt(`absensi ${code} ${year}`, () =>
+              a.post("/data-transfer/attendance/import", { csv: csv(hrColumns("Absensi"), part) }),
+            );
+        }
+        const leaves = await a.list("/leaves");
+        let n = 0;
+        for (const r of rows("Pengajuan Cuti", code)) {
+          const employeeId = c.employees.get(str(r.employeeNumber));
+          if (leaves.some((l) => l.employeeId === employeeId && l.dateFrom === str(r.dateFrom))) continue;
+          await attempt(`cuti ${r.employeeNumber} ${r.dateFrom}`, async () => {
+            const attachment = /sakit/i.test(str(r.leaveType))
+              ? { name: "surat-keterangan-dokter.pdf", type: "application/pdf", data: DOCTOR_NOTE }
+              : null;
+            let leave = await a.post("/leaves", {
+              employeeId,
+              leaveTypeId: leaveTypes.get(str(r.leaveType)),
+              dateFrom: str(r.dateFrom),
+              dateTo: str(r.dateTo),
+              reason: str(r.reason),
+              attachment,
+            });
+            for (let i = 0; i < 4 && leave.state !== "approved" && str(r.state) === "Disetujui"; i++)
+              leave = await a.post(`/leaves/${leave.id}/approve`, {});
+          });
+          if (++n % 500 === 0) log(`  ${code}: ${n} cuti`);
+        }
+        for (const part of chunk(rows("Lembur", code), 3000))
+          await attempt(`lembur ${code}`, () =>
+            a.post("/data-transfer/overtimes/import", { csv: csv(hrColumns("Lembur"), part) }),
           );
-      }
-      const leaves = await api.list("/leaves");
-      for (const r of rows("Pengajuan Cuti", code)) {
-        const employeeId = c.employees.get(str(r.employeeNumber));
-        if (leaves.some((l) => l.employeeId === employeeId && l.dateFrom === str(r.dateFrom))) continue;
-        await attempt(`cuti ${r.employeeNumber} ${r.dateFrom}`, async () => {
-          const attachment = /sakit/i.test(str(r.leaveType))
-            ? { name: "surat-keterangan-dokter.pdf", type: "application/pdf", data: DOCTOR_NOTE }
-            : null;
-          let leave = await api.post("/leaves", {
-            employeeId,
-            leaveTypeId: leaveTypes.get(str(r.leaveType)),
-            dateFrom: str(r.dateFrom),
-            dateTo: str(r.dateTo),
-            reason: str(r.reason),
-            attachment,
+        for (const o of (await a.list("/overtimes")).filter((x) => x.state === "confirm"))
+          await attempt(`setujui lembur ${o.id}`, async () => {
+            for (let i = 0; i < 4; i++) {
+              const r = await a.post(`/approvals/overtime/${o.id}/approve`, {});
+              if ((r.state ?? r.overtime?.state) !== "confirm") break;
+            }
           });
-          for (let i = 0; i < 4 && leave.state !== "approved" && str(r.state) === "Disetujui"; i++)
-            leave = await api.post(`/leaves/${leave.id}/approve`, {});
-        });
-      }
-      if (rows("Lembur", code).length)
-        await attempt(`lembur ${code}`, () =>
-          api.post("/data-transfer/overtimes/import", {
-            csv: csv(hrColumns("Lembur"), rows("Lembur", code)),
-          }),
-        );
-      for (const o of (await api.list("/overtimes")).filter((x) => x.state === "confirm"))
-        await attempt(`setujui lembur ${o.id}`, async () => {
-          for (let i = 0; i < 4; i++) {
-            const r = await api.post(`/approvals/overtime/${o.id}/approve`, {});
-            if ((r.state ?? r.overtime?.state) !== "confirm") break;
-          }
-        });
-      const cats = new Map((await api.list("/expense-categories")).map((x) => [x.name, x.id]));
-      const claims = await api.list("/expense-claims");
-      for (const r of rows("Klaim Biaya", code)) {
-        const employeeId = c.employees.get(str(r.employeeNumber));
-        if (claims.some((x) => x.employeeId === employeeId && x.date === str(r.date))) continue;
-        await attempt(`klaim ${r.employeeNumber} ${r.date}`, async () => {
-          let claim = await api.post("/expense-claims", {
-            employeeId,
-            date: str(r.date),
-            description: str(r.description),
-            payMethod: str(r.payMethod) || "payslip",
-            lines: [
-              {
-                categoryId: cats.get(str(r.category)),
-                date: str(r.date),
-                amount: String(num(r.amount)),
-                note: str(r.description),
-              },
-            ],
-          });
-          claim = await api.post(`/expense-claims/${claim.id}/submit`);
-          for (let i = 0; i < 4 && claim.state !== "approved"; i++)
-            claim = await api.post(`/expense-claims/${claim.id}/approve`, {});
-        });
-      }
-      const loans = await api.list("/employee-loans");
-      for (const r of rows("Pinjaman Karyawan", code)) {
-        const employeeId = c.employees.get(str(r.employeeNumber));
-        if (loans.some((l) => l.employeeId === employeeId && l.name === str(r.name))) continue;
-        await attempt(`pinjaman ${r.employeeNumber}`, async () => {
-          const loan = await api.post("/employee-loans", {
-            employeeId,
-            name: str(r.name),
-            principal: String(num(r.principal)),
-            installment: String(num(r.installment)),
-            startPeriod: str(r.startPeriod),
-          });
-          await api.post(`/employee-loans/${loan.id}/disburse`, {
-            journalId: c.journals.BNK1,
-            date: "2026-07-28",
-          });
-        });
-      }
-      const budget = rows("Anggaran Tenaga Kerja", code);
-      if (budget.length)
-        await attempt(`anggaran tenaga kerja ${code}`, () =>
-          api.post("/manpower-budgets/import?year=2026", {
-            csv: csv(
-              [
-                ["department", "Departemen"],
-                ["month", "Bulan"],
-                ["headcount", "Headcount"],
-                ["cost", "Biaya"],
+        const cats = new Map((await a.list("/expense-categories")).map((x) => [x.name, x.id]));
+        const claims = await a.list("/expense-claims");
+        for (const r of rows("Klaim Biaya", code)) {
+          const employeeId = c.employees.get(str(r.employeeNumber));
+          if (claims.some((x) => x.employeeId === employeeId && x.date === str(r.date))) continue;
+          await attempt(`klaim ${r.employeeNumber} ${r.date}`, async () => {
+            let claim = await a.post("/expense-claims", {
+              employeeId,
+              date: str(r.date),
+              description: str(r.description),
+              payMethod: str(r.payMethod) || "payslip",
+              lines: [
+                {
+                  categoryId: cats.get(str(r.category)),
+                  date: str(r.date),
+                  amount: String(num(r.amount)),
+                  note: str(r.description),
+                },
               ],
-              budget,
-            ),
-          }),
-        );
-    }
-    api.company = null;
+            });
+            claim = await a.post(`/expense-claims/${claim.id}/submit`);
+            for (let i = 0; i < 4 && claim.state !== "approved"; i++)
+              claim = await a.post(`/expense-claims/${claim.id}/approve`, {});
+          });
+        }
+        const loans = await a.list("/employee-loans");
+        for (const r of rows("Pinjaman Karyawan", code)) {
+          const employeeId = c.employees.get(str(r.employeeNumber));
+          if (
+            loans.some(
+              (l) =>
+                l.employeeId === employeeId && l.name === str(r.name) && l.startPeriod === str(r.startPeriod),
+            )
+          )
+            continue;
+          await attempt(`pinjaman ${r.employeeNumber} ${r.startPeriod}`, async () => {
+            const loan = await a.post("/employee-loans", {
+              employeeId,
+              name: str(r.name),
+              principal: String(num(r.principal)),
+              installment: String(num(r.installment)),
+              startPeriod: str(r.startPeriod),
+            });
+            await a.post(`/employee-loans/${loan.id}/disburse`, {
+              journalId: c.journals.BNK1,
+              date: str(r.disburseDate),
+            });
+          });
+        }
+        for (const year of YEARS) {
+          const budget = rows("Anggaran Tenaga Kerja", code).filter((r) => num(r.year) === year);
+          if (budget.length)
+            await attempt(`anggaran tenaga kerja ${code} ${year}`, () =>
+              a.post(`/manpower-budgets/import?year=${year}`, {
+                csv: csv(
+                  [
+                    ["department", "Departemen"],
+                    ["month", "Bulan"],
+                    ["headcount", "Headcount"],
+                    ["cost", "Biaya"],
+                  ],
+                  budget,
+                ),
+              }),
+            );
+        }
+        log(`  ${code}: kehadiran, cuti, lembur, klaim & pinjaman selesai`);
+      }),
+    );
   });
 
   await stage("payroll", async () => {
-    for (const code of codes) {
-      const id = company[code]!;
-      api.company = id;
-      const c = await refresh(code);
-      const runs = await api.list("/payroll-runs");
-      for (const r of rows("Payroll", code)) {
-        if (
-          runs.some(
-            (x) =>
-              String(x.periodStart ?? x.period ?? "").startsWith(str(r.period)) && x.kind !== "correction",
+    await Promise.all(
+      codes.map(async (code) => {
+        const a = api.as(company[code]!);
+        const c = await refresh(code);
+        const runs = await a.list("/payroll-runs");
+        for (const r of rows("Payroll", code)) {
+          if (
+            runs.some(
+              (x) =>
+                String(x.periodStart ?? x.period ?? "").startsWith(str(r.period)) && x.kind !== "correction",
+            )
           )
-        )
-          continue;
-        await attempt(`payroll ${code} ${r.period}`, async () => {
-          const run = await api.post("/payroll-runs", {
-            period: str(r.period),
-            paymentDate: str(r.paymentDate),
-            name: str(r.name),
-          });
-          await api.post(`/payroll-runs/${run.id}/compute`);
-          if (yes(r.post)) await api.post(`/payroll-runs/${run.id}/post`);
-          if (yes(r.pay))
-            await api.post(`/payroll-runs/${run.id}/pay`, {
-              journalId: c.journals.BNK1,
-              date: str(r.paymentDate),
+            continue;
+          await attempt(`payroll ${code} ${r.period}`, async () => {
+            const run = await a.post("/payroll-runs", {
+              period: str(r.period),
+              paymentDate: str(r.paymentDate),
+              name: str(r.name),
             });
-        });
-      }
-      log(`  ${code}: payroll selesai`);
-    }
-    api.company = null;
+            await a.post(`/payroll-runs/${run.id}/compute`);
+            if (yes(r.post)) await a.post(`/payroll-runs/${run.id}/post`);
+            if (yes(r.pay))
+              await a.post(`/payroll-runs/${run.id}/pay`, {
+                journalId: c.journals.BNK1,
+                date: str(r.paymentDate),
+              });
+          });
+          if (str(r.period).endsWith("-12")) log(`  ${code}: payroll s.d. ${r.period}`);
+        }
+        log(`  ${code}: payroll selesai`);
+      }),
+    );
   });
 
   await stage("crm-rekrutmen-armada", async () => {
@@ -915,6 +996,7 @@ async function main() {
         if (!leads.some((l) => l.name === str(r.name)))
           await attempt(`lead ${r.name}`, async () => {
             const won = str(r.stage) === "Menang";
+            const lost = str(r.stage) === "Kalah";
             const lead = await api.post("/leads", {
               leadType: "opportunity",
               name: str(r.name),
@@ -922,13 +1004,15 @@ async function main() {
               contactName: str(r.contactName),
               email: str(r.email) || null,
               phone: str(r.phone),
-              stageId: stages.get(won ? "Negosiasi" : str(r.stage)),
+              stageId: stages.get(won ? "Negosiasi" : lost ? "Proposal" : str(r.stage)),
               userId: null,
               expectedRevenue: String(num(r.expectedRevenue)),
               expectedClose: str(r.expectedClose),
               source: str(r.source) || null,
             });
             if (won) await api.post(`/leads/${lead.id}/won`, {});
+            if (lost)
+              await api.post(`/leads/${lead.id}/lost`, { lostNote: "Pelanggan memilih penawaran lain" });
           });
       const openings = await api.list("/job-openings");
       const jobs = new Map((await api.list("/job-positions")).map((j) => [j.name, j.id]));
@@ -997,20 +1081,37 @@ async function main() {
     api.company = root;
     await attempt("bootstrap konsolidasi", () => api.post("/consolidation/bootstrap"));
     const runs = await api.list("/consolidation/runs");
-    if (!runs.some((r) => r.dateTo === "2026-10-31")) {
-      const run = await attempt("run konsolidasi", () =>
+    // Satu run per tahun (2026 s.d. Oktober), sebelum tutup buku agar laba rugi tahunan tetap terlihat.
+    for (const year of YEARS) {
+      const dateTo = year === 2026 ? TX_TO : `${year}-12-31`;
+      if (runs.some((r) => r.dateTo === dateTo)) continue;
+      const run = await attempt(`run konsolidasi ${year}`, () =>
         api.post("/consolidation/runs", {
-          name: "Konsolidasi Jan–Okt 2026",
+          name: year === 2026 ? "Konsolidasi Jan–Okt 2026" : `Konsolidasi ${year}`,
           rootCompanyId: root,
-          dateFrom: "2026-01-01",
-          dateTo: "2026-10-31",
+          dateFrom: `${year}-01-01`,
+          dateTo,
           rates: [],
         }),
       );
       if (run)
-        await attempt("hitung konsolidasi", () => api.post(`/consolidation/runs/${run.id}/compute`, {}));
+        await attempt(`hitung konsolidasi ${year}`, () =>
+          api.post(`/consolidation/runs/${run.id}/compute`, {}),
+        );
     }
     api.company = null;
+  });
+
+  await stage("tutup-buku", async () => {
+    for (const r of rows("Tutup Buku")) {
+      const id = company[str(r.company)]!;
+      await api.post("/accounting/close-year", { fiscalYear: num(r.fiscalYear) }, id).catch((e) => {
+        // Sudah ditutup (409) dilewati agar aman dijalankan ulang.
+        if (!(e instanceof ApiError && e.status === 409))
+          failures.push(`tutup buku ${r.company} ${r.fiscalYear}: ${e.message}`);
+      });
+    }
+    log(`  tutup buku ${rows("Tutup Buku").length} perusahaan-tahun`);
   });
 
   log(`Selesai: ${api.calls} panggilan API, ${failures.length} gagal.`);

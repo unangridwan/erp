@@ -66,6 +66,16 @@ export class Api {
   patch<T = any>(path: string, body?: unknown, company?: string | null) {
     return this.req<T>("PATCH", path, body ?? {}, company === undefined ? this.company : company);
   }
+  /** Klien yang selalu memakai perusahaan `company` (aman dipakai paralel antar-perusahaan). */
+  as(company: string) {
+    return {
+      get: <T = any>(path: string) => this.get<T>(path, company),
+      post: <T = any>(path: string, body?: unknown) => this.post<T>(path, body, company),
+      put: <T = any>(path: string, body?: unknown) => this.put<T>(path, body, company),
+      patch: <T = any>(path: string, body?: unknown) => this.patch<T>(path, body, company),
+      list: <T = any>(path: string) => this.list<T>(path, company),
+    };
+  }
   /** Daftar lengkap (endpoint list memuat s.d. 5.000 baris). */
   async list<T = any>(path: string, company?: string | null): Promise<T[]> {
     const sep = path.includes("?") ? "&" : "?";

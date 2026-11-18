@@ -964,3 +964,189 @@ export const FX: Record<string, Record<string, number>> = {
     "11": 17820,
   },
 };
+
+/**
+ * Titik acuan kurs historis (fiktif, mengikuti kisaran kurs tengah BI) untuk 2021–2025; nilai antar titik
+ * diinterpolasi per bulan. 2026 memakai tabel `FX`.
+ */
+const FX_ANCHORS: Record<string, [period: string, rate: number][]> = {
+  USD: [
+    ["2021-01", 14050],
+    ["2021-06", 14300],
+    ["2021-12", 14280],
+    ["2022-06", 14650],
+    ["2022-11", 15680],
+    ["2023-01", 15420],
+    ["2023-05", 14780],
+    ["2023-10", 15790],
+    ["2024-01", 15520],
+    ["2024-06", 16380],
+    ["2024-09", 15310],
+    ["2024-12", 16080],
+    ["2025-04", 16790],
+    ["2025-08", 16320],
+    ["2025-12", 16270],
+  ],
+  EUR: [
+    ["2021-01", 17050],
+    ["2021-12", 16180],
+    ["2022-09", 14920],
+    ["2023-01", 16610],
+    ["2023-07", 17020],
+    ["2024-01", 16980],
+    ["2024-06", 17590],
+    ["2024-12", 16870],
+    ["2025-06", 18310],
+    ["2025-12", 17700],
+  ],
+};
+
+const monthIndex = (period: string) => Number(period.slice(0, 4)) * 12 + Number(period.slice(5, 7)) - 1;
+
+/** Kurs awal bulan `period` (YYYY-MM): tabel 2026, atau interpolasi titik acuan 2021–2025. */
+export function fxRate(currency: string, period: string): number {
+  if (period.startsWith("2026")) return FX[currency]![period.slice(5, 7)]!;
+  const anchors = FX_ANCHORS[currency]!;
+  const at = monthIndex(period);
+  let prev = anchors[0]!;
+  for (const next of anchors) {
+    if (monthIndex(next[0]) >= at) {
+      if (next === prev || monthIndex(next[0]) === at) return next[1];
+      const t = (at - monthIndex(prev[0])) / (monthIndex(next[0]) - monthIndex(prev[0]));
+      return Math.round((prev[1] + (next[1] - prev[1]) * t) / 5) * 5;
+    }
+    prev = next;
+  }
+  return prev[1];
+}
+
+/**
+ * Libur nasional & cuti bersama 2021–2025 (data demo; 2026 memakai daftar bawaan aplikasi). Dimuat ke kalender kerja
+ * agar hari kerja, absensi pekerja harian & durasi cuti tahun-tahun lalu dihitung benar.
+ */
+export const HISTORICAL_HOLIDAYS: Record<number, [date: string, name: string, collective?: true][]> = {
+  2021: [
+    ["2021-01-01", "Tahun Baru 2021 Masehi"],
+    ["2021-02-12", "Tahun Baru Imlek 2572 Kongzili"],
+    ["2021-03-11", "Isra Mikraj Nabi Muhammad SAW"],
+    ["2021-03-14", "Hari Suci Nyepi Tahun Baru Saka 1943"],
+    ["2021-04-02", "Wafat Isa Al Masih"],
+    ["2021-05-01", "Hari Buruh Internasional"],
+    ["2021-05-13", "Idul Fitri 1442 H"],
+    ["2021-05-14", "Idul Fitri 1442 H"],
+    ["2021-05-26", "Hari Raya Waisak 2565 BE"],
+    ["2021-06-01", "Hari Lahir Pancasila"],
+    ["2021-07-20", "Idul Adha 1442 H"],
+    ["2021-08-11", "Tahun Baru Islam 1443 H"],
+    ["2021-08-17", "Hari Kemerdekaan Republik Indonesia"],
+    ["2021-10-20", "Maulid Nabi Muhammad SAW"],
+    ["2021-12-25", "Hari Raya Natal"],
+  ],
+  2022: [
+    ["2022-01-01", "Tahun Baru 2022 Masehi"],
+    ["2022-02-01", "Tahun Baru Imlek 2573 Kongzili"],
+    ["2022-02-28", "Isra Mikraj Nabi Muhammad SAW"],
+    ["2022-03-03", "Hari Suci Nyepi Tahun Baru Saka 1944"],
+    ["2022-04-15", "Wafat Isa Al Masih"],
+    ["2022-04-29", "Cuti bersama Idul Fitri 1443 H", true],
+    ["2022-05-01", "Hari Buruh Internasional"],
+    ["2022-05-02", "Idul Fitri 1443 H"],
+    ["2022-05-03", "Idul Fitri 1443 H"],
+    ["2022-05-04", "Cuti bersama Idul Fitri 1443 H", true],
+    ["2022-05-05", "Cuti bersama Idul Fitri 1443 H", true],
+    ["2022-05-06", "Cuti bersama Idul Fitri 1443 H", true],
+    ["2022-05-16", "Hari Raya Waisak 2566 BE"],
+    ["2022-05-26", "Kenaikan Isa Al Masih"],
+    ["2022-06-01", "Hari Lahir Pancasila"],
+    ["2022-07-10", "Idul Adha 1443 H"],
+    ["2022-07-30", "Tahun Baru Islam 1444 H"],
+    ["2022-08-17", "Hari Kemerdekaan Republik Indonesia"],
+    ["2022-10-08", "Maulid Nabi Muhammad SAW"],
+    ["2022-12-25", "Hari Raya Natal"],
+  ],
+  2023: [
+    ["2023-01-01", "Tahun Baru 2023 Masehi"],
+    ["2023-01-22", "Tahun Baru Imlek 2574 Kongzili"],
+    ["2023-01-23", "Cuti bersama Tahun Baru Imlek", true],
+    ["2023-02-18", "Isra Mikraj Nabi Muhammad SAW"],
+    ["2023-03-22", "Hari Suci Nyepi Tahun Baru Saka 1945"],
+    ["2023-03-23", "Cuti bersama Hari Suci Nyepi", true],
+    ["2023-04-07", "Wafat Isa Al Masih"],
+    ["2023-04-19", "Cuti bersama Idul Fitri 1444 H", true],
+    ["2023-04-20", "Cuti bersama Idul Fitri 1444 H", true],
+    ["2023-04-21", "Cuti bersama Idul Fitri 1444 H", true],
+    ["2023-04-22", "Idul Fitri 1444 H"],
+    ["2023-04-23", "Idul Fitri 1444 H"],
+    ["2023-04-24", "Cuti bersama Idul Fitri 1444 H", true],
+    ["2023-04-25", "Cuti bersama Idul Fitri 1444 H", true],
+    ["2023-05-01", "Hari Buruh Internasional"],
+    ["2023-05-18", "Kenaikan Isa Al Masih"],
+    ["2023-06-01", "Hari Lahir Pancasila"],
+    ["2023-06-02", "Cuti bersama Hari Raya Waisak", true],
+    ["2023-06-04", "Hari Raya Waisak 2567 BE"],
+    ["2023-06-29", "Idul Adha 1444 H"],
+    ["2023-07-19", "Tahun Baru Islam 1445 H"],
+    ["2023-08-17", "Hari Kemerdekaan Republik Indonesia"],
+    ["2023-09-28", "Maulid Nabi Muhammad SAW"],
+    ["2023-12-25", "Hari Raya Natal"],
+    ["2023-12-26", "Cuti bersama Hari Raya Natal", true],
+  ],
+  2024: [
+    ["2024-01-01", "Tahun Baru 2024 Masehi"],
+    ["2024-02-08", "Isra Mikraj Nabi Muhammad SAW"],
+    ["2024-02-09", "Cuti bersama Tahun Baru Imlek", true],
+    ["2024-02-10", "Tahun Baru Imlek 2575 Kongzili"],
+    ["2024-03-11", "Hari Suci Nyepi Tahun Baru Saka 1946"],
+    ["2024-03-12", "Cuti bersama Hari Suci Nyepi", true],
+    ["2024-03-29", "Wafat Isa Al Masih"],
+    ["2024-03-31", "Hari Paskah"],
+    ["2024-04-08", "Cuti bersama Idul Fitri 1445 H", true],
+    ["2024-04-09", "Cuti bersama Idul Fitri 1445 H", true],
+    ["2024-04-10", "Idul Fitri 1445 H"],
+    ["2024-04-11", "Idul Fitri 1445 H"],
+    ["2024-04-12", "Cuti bersama Idul Fitri 1445 H", true],
+    ["2024-04-15", "Cuti bersama Idul Fitri 1445 H", true],
+    ["2024-05-01", "Hari Buruh Internasional"],
+    ["2024-05-09", "Kenaikan Isa Al Masih"],
+    ["2024-05-10", "Cuti bersama Kenaikan Isa Al Masih", true],
+    ["2024-05-23", "Hari Raya Waisak 2568 BE"],
+    ["2024-05-24", "Cuti bersama Hari Raya Waisak", true],
+    ["2024-06-01", "Hari Lahir Pancasila"],
+    ["2024-06-17", "Idul Adha 1445 H"],
+    ["2024-06-18", "Cuti bersama Idul Adha 1445 H", true],
+    ["2024-07-07", "Tahun Baru Islam 1446 H"],
+    ["2024-08-17", "Hari Kemerdekaan Republik Indonesia"],
+    ["2024-09-16", "Maulid Nabi Muhammad SAW"],
+    ["2024-12-25", "Hari Raya Natal"],
+    ["2024-12-26", "Cuti bersama Hari Raya Natal", true],
+  ],
+  2025: [
+    ["2025-01-01", "Tahun Baru 2025 Masehi"],
+    ["2025-01-27", "Isra Mikraj Nabi Muhammad SAW"],
+    ["2025-01-28", "Cuti bersama Tahun Baru Imlek", true],
+    ["2025-01-29", "Tahun Baru Imlek 2576 Kongzili"],
+    ["2025-03-28", "Cuti bersama Hari Suci Nyepi", true],
+    ["2025-03-29", "Hari Suci Nyepi Tahun Baru Saka 1947"],
+    ["2025-03-31", "Idul Fitri 1446 H"],
+    ["2025-04-01", "Idul Fitri 1446 H"],
+    ["2025-04-02", "Cuti bersama Idul Fitri 1446 H", true],
+    ["2025-04-03", "Cuti bersama Idul Fitri 1446 H", true],
+    ["2025-04-04", "Cuti bersama Idul Fitri 1446 H", true],
+    ["2025-04-07", "Cuti bersama Idul Fitri 1446 H", true],
+    ["2025-04-18", "Wafat Isa Al Masih"],
+    ["2025-04-20", "Hari Paskah"],
+    ["2025-05-01", "Hari Buruh Internasional"],
+    ["2025-05-12", "Hari Raya Waisak 2569 BE"],
+    ["2025-05-13", "Cuti bersama Hari Raya Waisak", true],
+    ["2025-05-29", "Kenaikan Isa Al Masih"],
+    ["2025-05-30", "Cuti bersama Kenaikan Isa Al Masih", true],
+    ["2025-06-01", "Hari Lahir Pancasila"],
+    ["2025-06-06", "Idul Adha 1446 H"],
+    ["2025-06-09", "Cuti bersama Idul Adha 1446 H", true],
+    ["2025-06-27", "Tahun Baru Islam 1447 H"],
+    ["2025-08-17", "Hari Kemerdekaan Republik Indonesia"],
+    ["2025-09-05", "Maulid Nabi Muhammad SAW"],
+    ["2025-12-25", "Hari Raya Natal"],
+    ["2025-12-26", "Cuti bersama Hari Raya Natal", true],
+  ],
+};
