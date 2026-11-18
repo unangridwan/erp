@@ -91,11 +91,19 @@ Setelah mengubah kode atau `git pull`, cukup jalankan `pnpm start` lagi. Tips la
 
 Holding **PT Didin Putra Agro** (DPA) dengan 4 anak usaha 100%: PT Benih Unggul Indonesia (BUI, benih padi/jagung/
 sayur/cabai), PT Agroteknologi Indonesia (AGT, smart farming & AI, alsintan), PT Perdagangan Tani (PTN, perdagangan
-lokal & ekspor-impor, penjualan USD), PT Yuyun Herbal Nusantara (YHN, budidaya & produk herbal). Isinya: 395 karyawan
-lengkap (kontrak, keluarga, pendidikan, BPJS, rekening), 147 produk, 113 partner, saldo awal & stok awal 1 Jan 2026,
-aset tetap & penyusutan Jan–Okt, anggaran 2026, lalu transaksi **Agustus–Oktober 2026**: ±770 pesanan penjualan
-(kirim, faktur, bayar), pembelian, transaksi antar-perusahaan, ±24 rb baris absensi, cuti, lembur, klaim, pinjaman,
-payroll 3 bulan (hitung, posting, bayar), CRM, rekrutmen, armada, dan konsolidasi Jan–Okt.
+lokal & ekspor-impor, penjualan USD), PT Yuyun Herbal Nusantara (YHN, budidaya & produk herbal). Periode
+**Januari 2021 – Oktober 2026** (saldo awal & stok awal 1 Jan 2021; November 2026 berjalan), dengan usaha yang tumbuh
+tiap tahun:
+
+- **Harian**: ±14,9 rb pesanan penjualan (kirim, faktur, bayar) & ±800 pembelian yang makin padat tiap tahun
+  (2021 ±32% volume 2026), transaksi antar-perusahaan, ±2,7 rb cuti, ±7 rb lembur, ±2 rb klaim, dan ±180 rb baris
+  absensi (semua karyawan sejak 2025; 2021–2024 pekerja harian yang upahnya dihitung dari absensi).
+- **Bulanan**: payroll 70 bulan × 5 perusahaan (hitung, posting, bayar), penyusutan aset, kurs USD/EUR, jasa manajemen
+  holding.
+- **Tahunan**: kenaikan upah tiap Januari (SK Penyesuaian upah), alokasi cuti, anggaran & anggaran tenaga kerja,
+  pinjaman karyawan, CRM (menang/kalah), lowongan & pelamar, konsolidasi, dan tutup buku 2021–2025.
+- 455 karyawan (60 di antaranya sudah keluar) lengkap dengan kontrak, keluarga, pendidikan, BPJS & rekening;
+  147 produk, 113 partner, libur nasional 2021–2026, armada.
 
 - **Excel**: `demo/didin-putra-agro/Data-Simulasi-PT-Didin-Putra-Agro.xlsx` (lembar _Panduan_ menjelaskan menu ERP
   tiap lembar) dan `demo/didin-putra-agro/impor/<KODE>/` berisi file siap unggah lewat menu impor (lihat
@@ -104,14 +112,16 @@ payroll 3 bulan (hitung, posting, bayar), CRM, rekrutmen, armada, dan konsolidas
 
   ```bash
   pnpm install                       # wajib sekali setelah git pull (paket packages/demo-data)
-  pnpm demo:load                     # tenant "didin-putra-agro", ±5 menit
+  pnpm demo:load                     # tenant "didin-putra-agro", ±1 jam (database/tenant baru)
   pnpm demo:load --api http://localhost:3001 --slug didin-putra-agro --only transaksi,payroll
   ```
 
   Login: tenant `didin-putra-agro`, `admin@didinputraagro.co.id` / `DemoAgro2026!` (pengguna demo lain per
   perusahaan ada di lembar _Pengguna_). Skrip membaca workbook, jadi data yang Anda ubah di Excel ikut dimuat; tiap
   tahap aman dijalankan ulang (data yang sudah ada dilewati). Tahap: `perusahaan, master, sdm, pengguna, saldo-awal,
-transaksi, kehadiran, payroll, crm-rekrutmen-armada, konsolidasi`. Semua data fiktif.
+transaksi, kehadiran, karyawan-keluar, payroll, crm-rekrutmen-armada, konsolidasi, tutup-buku`. Data 2021–2026 dimuat ke tenant atau
+  database **baru** (saldo awal kini 1 Jan 2021); tenant demo lama berisi data 2026 pakai `--slug` lain. Semua data
+  fiktif.
 
 ### Menjalankan test
 

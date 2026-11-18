@@ -58,6 +58,13 @@ export const SHEETS: SheetDef[] = [
     columns: [C("currencyCode", "Mata Uang"), C("rateDate", "Tanggal", 12), C("rate", "Kurs (Rp)")],
   },
   {
+    name: "Libur Nasional",
+    menu: "Kehadiran › Konfigurasi › Hari Libur",
+    how: "form",
+    note: "2021–2025 (data demo). 2026 diimpor dari daftar bawaan aplikasi (tombol Impor libur nasional).",
+    columns: [C("year", "Tahun"), C("date", "Tanggal", 12), C("name", "Nama", 40), C("kind", "Jenis", 12)],
+  },
+  {
     name: "Akun Tambahan",
     menu: "Akuntansi › Bagan Akun (per perusahaan)",
     how: "impor",
@@ -68,7 +75,7 @@ export const SHEETS: SheetDef[] = [
     name: "Saldo Awal",
     menu: "Onboarding › Saldo Awal (per perusahaan)",
     how: "impor",
-    note: "Tanggal 1 Jan 2026. Baris 5-1200 membalik selisih persediaan dari stok awal agar persediaan tidak tercatat dua kali.",
+    note: "Tanggal 1 Jan 2021. Baris 5-1200 membalik selisih persediaan dari stok awal agar persediaan tidak tercatat dua kali.",
     columns: [
       company,
       C("accountCode", "Kode Akun"),
@@ -102,6 +109,7 @@ export const SHEETS: SheetDef[] = [
     columns: [
       company,
       C("budget", "Nama Anggaran", 22),
+      C("year", "Tahun"),
       C("accountCode", "Kode Akun"),
       C("amount", "Jumlah Setahun"),
     ],
@@ -254,6 +262,31 @@ export const SHEETS: SheetDef[] = [
     ],
   },
   {
+    name: "Penyesuaian Upah",
+    menu: "Karyawan › Promosi & Mutasi (SK Penyesuaian upah, terapkan)",
+    how: "form",
+    note: "Kenaikan upah tahunan tiap 1 Januari; menerapkan SK membuat kontrak upah baru per tanggal efektif.",
+    columns: [
+      company,
+      emp,
+      C("effectiveDate", "Tanggal Efektif", 12),
+      C("newWage", "Upah Baru"),
+      C("reason", "Alasan", 28),
+    ],
+  },
+  {
+    name: "Karyawan Keluar",
+    menu: "Karyawan › Kontrak › Akhiri kontrak (karyawan keluar)",
+    how: "form",
+    columns: [
+      company,
+      emp,
+      C("resignDate", "Tanggal Keluar", 12),
+      C("reason", "Alasan Keluar", 14),
+      C("note", "Catatan", 26),
+    ],
+  },
+  {
     name: "Keluarga",
     menu: "Karyawan › Impor/Ekspor Data › Keluarga",
     how: "impor",
@@ -315,7 +348,7 @@ export const SHEETS: SheetDef[] = [
     name: "Absensi",
     menu: "Kehadiran › Impor/Ekspor Data › Absensi",
     how: "impor",
-    note: "Agustus–Oktober 2026, hari kerja Senin–Jumat di luar hari libur & cuti.",
+    note: "Semua karyawan Jan 2025 – Okt 2026; 2021–2024 hanya pekerja harian (upahnya per hari hadir). Hari kerja Senin–Jumat di luar hari libur & cuti.",
     columns: [company, emp, C("date", "Tanggal", 12), C("checkIn", "Jam Masuk"), C("checkOut", "Jam Pulang")],
   },
   {
@@ -367,6 +400,7 @@ export const SHEETS: SheetDef[] = [
       C("principal", "Pokok"),
       C("installment", "Cicilan/bulan"),
       C("startPeriod", "Mulai Potong"),
+      C("disburseDate", "Tanggal Cair", 12),
     ],
   },
   {
@@ -389,6 +423,7 @@ export const SHEETS: SheetDef[] = [
     how: "impor",
     columns: [
       company,
+      C("year", "Tahun"),
       C("department", "Departemen", 26),
       C("month", "Bulan"),
       C("headcount", "Headcount"),
@@ -531,6 +566,13 @@ export const SHEETS: SheetDef[] = [
     ],
   },
   {
+    name: "Tutup Buku",
+    menu: "Akuntansi › Tutup Buku Tahunan",
+    how: "form",
+    note: "Dijalankan setelah semua transaksi tahun itu masuk.",
+    columns: [company, C("fiscalYear", "Tahun Fiskal")],
+  },
+  {
     name: "Pengguna",
     menu: "Pengaturan › Pengguna",
     how: "form",
@@ -554,7 +596,7 @@ const PANDUAN = (model: Model) => [
   ],
   [
     "Periode",
-    "Saldo awal 1 Januari 2026; transaksi penjualan, pembelian, absensi, cuti, lembur, klaim & payroll Agustus–Oktober 2026.",
+    "Saldo awal 1 Januari 2021; transaksi harian & bulanan Januari 2021 – Oktober 2026 (penjualan, pembelian, stok, cuti, lembur, klaim, payroll, penyusutan, anggaran, tutup buku 2021–2025). Volume tumbuh tiap tahun; absensi harian semua karyawan sejak 2025.",
   ],
   [
     "Volume",

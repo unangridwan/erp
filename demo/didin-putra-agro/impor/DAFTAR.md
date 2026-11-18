@@ -15,10 +15,14 @@ Pilih perusahaan aktif sesuai nama folder (GRUP = perusahaan mana pun), lalu ung
 | DPA/06-keluarga.xlsx | Karyawan › Impor/Ekspor Data › Keluarga › Impor |
 | DPA/07-pendidikan.xlsx | Karyawan › Impor/Ekspor Data › Pendidikan › Impor |
 | DPA/08-alokasi-cuti.xlsx | Cuti & Klaim › Impor/Ekspor Data › Alokasi Cuti › Impor |
-| DPA/09-absensi-2026-08.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
-| DPA/09-absensi-2026-09.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
-| DPA/09-absensi-2026-10.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
-| DPA/11-anggaran-tenaga-kerja.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2026) |
+| DPA/09-absensi-2025.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| DPA/09-absensi-2026.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| DPA/11-anggaran-tenaga-kerja-2021.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2021) |
+| DPA/11-anggaran-tenaga-kerja-2022.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2022) |
+| DPA/11-anggaran-tenaga-kerja-2023.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2023) |
+| DPA/11-anggaran-tenaga-kerja-2024.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2024) |
+| DPA/11-anggaran-tenaga-kerja-2025.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2025) |
+| DPA/11-anggaran-tenaga-kerja-2026.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2026) |
 | BUI/01-partner.xlsx | Kontak › Partner › Impor |
 | BUI/02-akun-tambahan.xlsx | Akuntansi › Bagan Akun › Impor |
 | BUI/03-saldo-awal.xlsx | Onboarding › Saldo Awal (salin kolom kode akun, debit, kredit, keterangan) |
@@ -27,11 +31,19 @@ Pilih perusahaan aktif sesuai nama folder (GRUP = perusahaan mana pun), lalu ung
 | BUI/06-keluarga.xlsx | Karyawan › Impor/Ekspor Data › Keluarga › Impor |
 | BUI/07-pendidikan.xlsx | Karyawan › Impor/Ekspor Data › Pendidikan › Impor |
 | BUI/08-alokasi-cuti.xlsx | Cuti & Klaim › Impor/Ekspor Data › Alokasi Cuti › Impor |
-| BUI/09-absensi-2026-08.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
-| BUI/09-absensi-2026-09.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
-| BUI/09-absensi-2026-10.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| BUI/09-absensi-2021.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| BUI/09-absensi-2022.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| BUI/09-absensi-2023.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| BUI/09-absensi-2024.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| BUI/09-absensi-2025.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| BUI/09-absensi-2026.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
 | BUI/10-lembur.xlsx | Kehadiran › Impor/Ekspor Data › Lembur › Impor |
-| BUI/11-anggaran-tenaga-kerja.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2026) |
+| BUI/11-anggaran-tenaga-kerja-2021.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2021) |
+| BUI/11-anggaran-tenaga-kerja-2022.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2022) |
+| BUI/11-anggaran-tenaga-kerja-2023.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2023) |
+| BUI/11-anggaran-tenaga-kerja-2024.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2024) |
+| BUI/11-anggaran-tenaga-kerja-2025.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2025) |
+| BUI/11-anggaran-tenaga-kerja-2026.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2026) |
 | AGT/01-partner.xlsx | Kontak › Partner › Impor |
 | AGT/02-akun-tambahan.xlsx | Akuntansi › Bagan Akun › Impor |
 | AGT/03-saldo-awal.xlsx | Onboarding › Saldo Awal (salin kolom kode akun, debit, kredit, keterangan) |
@@ -40,11 +52,15 @@ Pilih perusahaan aktif sesuai nama folder (GRUP = perusahaan mana pun), lalu ung
 | AGT/06-keluarga.xlsx | Karyawan › Impor/Ekspor Data › Keluarga › Impor |
 | AGT/07-pendidikan.xlsx | Karyawan › Impor/Ekspor Data › Pendidikan › Impor |
 | AGT/08-alokasi-cuti.xlsx | Cuti & Klaim › Impor/Ekspor Data › Alokasi Cuti › Impor |
-| AGT/09-absensi-2026-08.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
-| AGT/09-absensi-2026-09.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
-| AGT/09-absensi-2026-10.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| AGT/09-absensi-2025.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| AGT/09-absensi-2026.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
 | AGT/10-lembur.xlsx | Kehadiran › Impor/Ekspor Data › Lembur › Impor |
-| AGT/11-anggaran-tenaga-kerja.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2026) |
+| AGT/11-anggaran-tenaga-kerja-2021.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2021) |
+| AGT/11-anggaran-tenaga-kerja-2022.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2022) |
+| AGT/11-anggaran-tenaga-kerja-2023.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2023) |
+| AGT/11-anggaran-tenaga-kerja-2024.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2024) |
+| AGT/11-anggaran-tenaga-kerja-2025.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2025) |
+| AGT/11-anggaran-tenaga-kerja-2026.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2026) |
 | PTN/01-partner.xlsx | Kontak › Partner › Impor |
 | PTN/02-akun-tambahan.xlsx | Akuntansi › Bagan Akun › Impor |
 | PTN/03-saldo-awal.xlsx | Onboarding › Saldo Awal (salin kolom kode akun, debit, kredit, keterangan) |
@@ -53,11 +69,19 @@ Pilih perusahaan aktif sesuai nama folder (GRUP = perusahaan mana pun), lalu ung
 | PTN/06-keluarga.xlsx | Karyawan › Impor/Ekspor Data › Keluarga › Impor |
 | PTN/07-pendidikan.xlsx | Karyawan › Impor/Ekspor Data › Pendidikan › Impor |
 | PTN/08-alokasi-cuti.xlsx | Cuti & Klaim › Impor/Ekspor Data › Alokasi Cuti › Impor |
-| PTN/09-absensi-2026-08.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
-| PTN/09-absensi-2026-09.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
-| PTN/09-absensi-2026-10.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| PTN/09-absensi-2021.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| PTN/09-absensi-2022.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| PTN/09-absensi-2023.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| PTN/09-absensi-2024.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| PTN/09-absensi-2025.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| PTN/09-absensi-2026.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
 | PTN/10-lembur.xlsx | Kehadiran › Impor/Ekspor Data › Lembur › Impor |
-| PTN/11-anggaran-tenaga-kerja.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2026) |
+| PTN/11-anggaran-tenaga-kerja-2021.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2021) |
+| PTN/11-anggaran-tenaga-kerja-2022.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2022) |
+| PTN/11-anggaran-tenaga-kerja-2023.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2023) |
+| PTN/11-anggaran-tenaga-kerja-2024.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2024) |
+| PTN/11-anggaran-tenaga-kerja-2025.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2025) |
+| PTN/11-anggaran-tenaga-kerja-2026.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2026) |
 | YHN/01-partner.xlsx | Kontak › Partner › Impor |
 | YHN/02-akun-tambahan.xlsx | Akuntansi › Bagan Akun › Impor |
 | YHN/03-saldo-awal.xlsx | Onboarding › Saldo Awal (salin kolom kode akun, debit, kredit, keterangan) |
@@ -66,8 +90,16 @@ Pilih perusahaan aktif sesuai nama folder (GRUP = perusahaan mana pun), lalu ung
 | YHN/06-keluarga.xlsx | Karyawan › Impor/Ekspor Data › Keluarga › Impor |
 | YHN/07-pendidikan.xlsx | Karyawan › Impor/Ekspor Data › Pendidikan › Impor |
 | YHN/08-alokasi-cuti.xlsx | Cuti & Klaim › Impor/Ekspor Data › Alokasi Cuti › Impor |
-| YHN/09-absensi-2026-08.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
-| YHN/09-absensi-2026-09.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
-| YHN/09-absensi-2026-10.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| YHN/09-absensi-2021.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| YHN/09-absensi-2022.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| YHN/09-absensi-2023.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| YHN/09-absensi-2024.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| YHN/09-absensi-2025.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
+| YHN/09-absensi-2026.xlsx | Kehadiran › Impor/Ekspor Data › Absensi › Impor |
 | YHN/10-lembur.xlsx | Kehadiran › Impor/Ekspor Data › Lembur › Impor |
-| YHN/11-anggaran-tenaga-kerja.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2026) |
+| YHN/11-anggaran-tenaga-kerja-2021.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2021) |
+| YHN/11-anggaran-tenaga-kerja-2022.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2022) |
+| YHN/11-anggaran-tenaga-kerja-2023.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2023) |
+| YHN/11-anggaran-tenaga-kerja-2024.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2024) |
+| YHN/11-anggaran-tenaga-kerja-2025.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2025) |
+| YHN/11-anggaran-tenaga-kerja-2026.xlsx | Karyawan › Perencanaan › Anggaran Tenaga Kerja › Impor (tahun 2026) |
