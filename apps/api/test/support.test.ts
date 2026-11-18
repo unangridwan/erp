@@ -322,4 +322,38 @@ describe.skipIf(!hasDb)("Layanan pelanggan: tiket, SLA, portal, email masuk", ()
     expect(view.support).toMatchObject({ total: 3, avgSatisfaction: 4 });
     expect(view.support.tickets).toHaveLength(3);
   });
+
+  it("tiket & balasan yang dicatat belakangan memakai waktu aslinya (SLA, nomor), tanpa email ulang", async () => {
+    mailer.outbox.length = 0;
+    const receivedAt = "2024-03-04T02:00:00.000Z";
+    const old = (
+      await agent
+        .post("/support/tickets", { subject: "Benih tidak tumbuh", partnerId: customer, receivedAt })
+        .expect(201)
+    ).body;
+    expect(old.number).toBe("TKT/2024/0001");
+    expect(new Date(old.createdAt).toISOString()).toBe(receivedAt);
+    expect(new Date(old.resolveDue).getTime() - new Date(receivedAt).getTime()).toBe(72 * HOUR);
+    const sentAt = "2024-03-04T05:30:00.000Z";
+    const replied = (
+      await agent
+        .post(`/support/tickets/${old.id}/messages`, {
+          kind: "public",
+          body: "Kami kirim benih pengganti.",
+          status: "resolved",
+          sentAt,
+        })
+        .expect(200)
+    ).body;
+    expect(replied).toMatchObject({ emailed: false, status: "resolved" });
+    expect(new Date(replied.firstRespondedAt).toISOString()).toBe(sentAt);
+    expect(new Date(replied.resolvedAt).toISOString()).toBe(sentAt);
+    expect(mailer.outbox).toHaveLength(0);
+    // Waktu di masa depan atau balasan sebelum tiket diterima ditolak.
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    await agent.post("/support/tickets", { subject: "x", receivedAt: future }).expect(400);
+    await agent
+      .post(`/support/tickets/${old.id}/messages`, { body: "y", sentAt: "2024-03-01T00:00:00.000Z" })
+      .expect(400);
+  });
 });

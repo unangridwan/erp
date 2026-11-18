@@ -158,7 +158,9 @@ export class SupportService {
     const teamId = input.teamId ?? settings?.defaultTeamId ?? null;
     const priority = input.priority ?? "normal";
     const policy = await this.policy(tx, opts.companyId, priority, teamId);
-    const now = new Date();
+    const now = input.receivedAt ? new Date(input.receivedAt) : new Date();
+    if (now.getTime() > Date.now() + 60_000)
+      throw fieldError("receivedAt", "Waktu diterima tidak boleh di masa depan");
     const due = slaDueDates(now, policy);
     // Lengkapi kontak dari akun bila belum diisi.
     let { email, phone, contactName } = input;
@@ -359,9 +361,8 @@ export class SupportService {
   }
 
   /** Cap waktu saat status berubah: selesai, ditutup, atau dibuka kembali. */
-  private statusChange(before: Ticket, status: Ticket["status"] | null | undefined) {
+  private statusChange(before: Ticket, status: Ticket["status"] | null | undefined, now = new Date()) {
     if (!status || status === before.status) return {};
-    const now = new Date();
     if (status === "resolved") return { status, resolvedAt: now, closedAt: null };
     if (status === "closed") return { status, closedAt: now, resolvedAt: before.resolvedAt ?? now };
     return { status, resolvedAt: null, closedAt: null };
@@ -374,6 +375,10 @@ export class SupportService {
   async addMessage(tx: Db, id: string, input: z.infer<typeof ticketMessageSchema>) {
     const ctx = currentContext();
     const ticket = await this.find(tx, id);
+    const at = input.sentAt ? new Date(input.sentAt) : new Date();
+    if (at.getTime() > Date.now() + 60_000)
+      throw fieldError("sentAt", "Waktu balasan tidak boleh di masa depan");
+    if (at < ticket.createdAt) throw fieldError("sentAt", "Waktu balasan sebelum tiket diterima");
     const [user] = await tx
       .select({ name: schema.users.name })
       .from(schema.users)
@@ -384,10 +389,11 @@ export class SupportService {
       body: input.body,
       authorUserId: ctx.userId,
       authorName: user?.name ?? null,
+      createdAt: at,
     });
     const values: Partial<typeof T.$inferInsert> = {};
     if (input.kind === "public") {
-      if (!ticket.firstRespondedAt) values.firstRespondedAt = new Date();
+      if (!ticket.firstRespondedAt) values.firstRespondedAt = at;
       if (!ticket.userId) values.userId = ctx.userId;
     }
     const status =
@@ -395,14 +401,15 @@ export class SupportService {
       (input.kind === "public" && (ticket.status === "new" || ticket.status === "open")
         ? "pending"
         : undefined);
-    Object.assign(values, this.statusChange(ticket, status));
+    Object.assign(values, this.statusChange(ticket, status, at));
     if (Object.keys(values).length)
       await tx
         .update(T)
         .set({ ...values, updatedAt: sql`now()` })
         .where(eq(T.id, id));
     let emailed = false;
-    if (input.kind === "public" && ticket.email) {
+    // Balasan yang dicatat belakangan (sentAt) sudah sampai ke pelanggan: tidak dikirim ulang.
+    if (input.kind === "public" && ticket.email && !input.sentAt) {
       await this.mailer.send({
         to: ticket.email,
         subject: `[${ticket.number}] ${ticket.subject}`,
