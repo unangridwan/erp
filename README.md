@@ -109,6 +109,12 @@ tiap tahun:
   - Maintenance: peralatan, rencana & ±540 permintaan preventif/korektif.
   - Servis & odometer kendaraan.
   - ±1.100 tiket layanan pelanggan dengan waktu diterima/dibalas aslinya.
+- **Keuangan, pajak & SDM**:
+  - Faktur pajak keluaran tiap masa (±14 rb, bernomor) dan bukti potong PPh 21 bulanan sejak 2025 serta A1 tahunan.
+  - Rekening koran bulanan (biaya admin, bunga & pajak bunga) yang sudah direkonsiliasi.
+  - THR Idul Fitri di payroll tiap tahun.
+  - Penilaian kinerja 2021–2025 (dinilai, dikalibrasi, siklus ditutup), sasaran departemen, pelatihan & peserta.
+  - Aktivitas tindak lanjut peluang CRM.
 - 455 karyawan (60 di antaranya sudah keluar) lengkap dengan kontrak, keluarga, pendidikan, BPJS & rekening;
   147 produk, 113 partner, libur nasional 2021–2026, armada.
 
@@ -127,7 +133,7 @@ tiap tahun:
   perusahaan ada di lembar _Pengguna_). Skrip membaca workbook, jadi data yang Anda ubah di Excel ikut dimuat; tiap
   tahap aman dijalankan ulang (data yang sudah ada dilewati). Tahap: `perusahaan, master, sdm, pengguna, saldo-awal,
 operasional, transaksi, kehadiran, karyawan-keluar, payroll, crm-rekrutmen-armada, mutu, maintenance, armada-servis,
-layanan, konsolidasi, tutup-buku` (`--until YYYY-MM` membatasi transaksi untuk uji cepat). Data 2021–2026 dimuat ke tenant atau
+layanan, pajak, rekening-koran, kinerja, crm-aktivitas, konsolidasi, tutup-buku` (`--until YYYY-MM` membatasi transaksi untuk uji cepat). Data 2021–2026 dimuat ke tenant atau
   database **baru** (saldo awal kini 1 Jan 2021); tenant demo lama berisi data 2026 pakai `--slug` lain. Semua data
   fiktif.
 
