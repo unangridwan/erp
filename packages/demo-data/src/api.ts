@@ -17,12 +17,15 @@ export class Api {
   refreshToken = "";
   company: string | null = null;
   calls = 0;
+  private credentials: { email: string; password: string; tenantSlug: string } | null = null;
+  private refreshing: Promise<void> | null = null;
   constructor(readonly base: string) {}
 
   async req<T = any>(method: string, path: string, body?: unknown, company = this.company): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       this.calls++;
       let res: Response;
+      const token = this.token;
       try {
         res = await fetch(this.base + path, {
           method,
@@ -40,8 +43,8 @@ export class Api {
         }
         throw e;
       }
-      if (res.status === 401 && this.refreshToken && attempt === 0) {
-        await this.refresh();
+      if (res.status === 401 && attempt < 2 && (this.refreshToken || this.credentials)) {
+        await this.renew(token);
         continue;
       }
       if ((res.status === 429 || res.status >= 502) && attempt < 6) {
@@ -86,18 +89,42 @@ export class Api {
   async login(email: string, password: string, tenantSlug: string) {
     const r = await this.req<any>("POST", "/auth/login", { email, password, tenantSlug }, null);
     this.setSession(r);
+    this.credentials = { email, password, tenantSlug };
   }
   setSession(r: any) {
     this.token = r.token ?? r.accessToken;
     this.refreshToken = r.refreshToken ?? "";
   }
-  private async refresh() {
-    const r = await fetch(this.base + "/auth/refresh", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken: this.refreshToken }),
-    });
-    if (r.ok) this.setSession(await r.json());
+  /**
+   * Perbarui sesi sekali untuk semua permintaan paralel yang kena 401 (refresh token dipakai bersamaan dianggap
+   * pemakaian ulang oleh server). Bila refresh gagal, login ulang dengan kredensial yang sama.
+   */
+  private renew(staleToken: string) {
+    if (this.token !== staleToken) return Promise.resolve();
+    this.refreshing ??= (async () => {
+      try {
+        const r = this.refreshToken
+          ? await fetch(this.base + "/auth/refresh", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ refreshToken: this.refreshToken }),
+            }).catch(() => null)
+          : null;
+        if (r?.ok) this.setSession(await r.json());
+        else if (this.credentials) {
+          const c = this.credentials;
+          const res = await fetch(this.base + "/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(c),
+          });
+          if (res.ok) this.setSession(await res.json());
+        }
+      } finally {
+        this.refreshing = null;
+      }
+    })();
+    return this.refreshing;
   }
 }
 

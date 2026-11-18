@@ -155,6 +155,8 @@ async function main() {
       null,
     );
     api.setSession(s);
+    // Login ulang agar kredensial tersimpan (sesi diperbarui otomatis selama pemuatan yang lama).
+    await api.login(EMAIL, PASSWORD, SLUG);
     log(`Tenant baru ${SLUG} dibuat`);
   }
 
