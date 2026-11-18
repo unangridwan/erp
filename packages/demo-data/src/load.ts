@@ -660,12 +660,14 @@ async function main() {
   });
 
   await stage("transaksi", async () => {
-    const existingRefs = new Set<string>();
+    // Pesanan yang sudah ada: dilewati bila tuntas, dilanjutkan bila terpotong (mis. pemuatan berhenti di tengah).
+    const existing = new Map<string, { id: string; state: string; billed: string }>();
     for (const code of codes) {
       for (const o of await api.list("/sale-orders", company[code]))
-        if (o.clientOrderRef) existingRefs.add(o.clientOrderRef);
+        if (o.clientOrderRef)
+          existing.set(o.clientOrderRef, { id: o.id, state: o.state, billed: o.invoiceStatus });
       for (const o of await api.list("/purchase-orders", company[code]))
-        if (o.partnerRef) existingRefs.add(o.partnerRef);
+        if (o.partnerRef) existing.set(o.partnerRef, { id: o.id, state: o.state, billed: o.billStatus });
       await refresh(code);
     }
     const pricelists: Record<string, Map<string, string>> = {};
@@ -695,7 +697,12 @@ async function main() {
         const c = ctx[code]!;
         for (const { kind, r } of events.filter((e) => str(e.r.company) === code)) {
           const ref = str(r.orderNo);
-          if (existingRefs.has(ref)) continue;
+          const found = existing.get(ref);
+          const unfinished =
+            found &&
+            (["draft", "sent", "to_approve"].includes(found.state) ||
+              (str(r.invoiceDate) && found.billed !== "invoiced"));
+          if (found && !unfinished) continue;
           const partnerId = c.partners.get(str(r.partner));
           if (!partnerId) {
             failures.push(`${ref}: partner ${r.partner} tidak ditemukan`);
@@ -708,7 +715,13 @@ async function main() {
               quantity: String(num(l.quantity)),
             }));
             let order: any;
-            if (kind === "SO") {
+            const path = kind === "SO" ? "sale-orders" : "purchase-orders";
+            if (found) {
+              order = await a.get(`/${path}/${found.id}`);
+              if (order.state === "draft" || order.state === "sent")
+                order = await a.post(`/${path}/${order.id}/confirm`);
+              if (order.state === "to_approve") order = await a.post(`/${path}/${order.id}/approve`);
+            } else if (kind === "SO") {
               order = await a.post("/sale-orders", {
                 partnerId,
                 dateOrder: str(r.dateOrder),
@@ -734,16 +747,20 @@ async function main() {
                 if (p.state !== "done" && p.state !== "cancel")
                   await a.post(`/pickings/${p.id}/validate`, { date: str(r.deliveryDate) });
             if (!str(r.invoiceDate)) return;
-            const { moveId } =
-              kind === "SO"
+            const prior = (order.invoices ?? order.bills ?? []).find((m: any) => m.state !== "cancel");
+            const moveId: string =
+              prior?.id ??
+              (kind === "SO"
                 ? await a.post(`/sale-orders/${order.id}/invoice`, {
                     method: "regular",
                     date: str(r.invoiceDate),
                   })
-                : await a.post(`/purchase-orders/${order.id}/bill`, { date: str(r.invoiceDate) });
-            await a.post(`/moves/${moveId}/post`);
+                : await a.post(`/purchase-orders/${order.id}/bill`, { date: str(r.invoiceDate) })
+              ).moveId;
+            if (!prior || prior.state === "draft") await a.post(`/moves/${moveId}/post`);
             if (!str(r.paymentDate)) return;
             const move = await a.get(`/moves/${moveId}`);
+            if (move.paymentState === "paid" || move.paymentState === "in_payment") return;
             await a.post("/payments", {
               paymentType: kind === "SO" ? "inbound" : "outbound",
               partnerId,
