@@ -1452,6 +1452,25 @@ async function main() {
   // Faktur pajak keluaran tiap masa dari faktur penjualan; bukti potong PPh 21 bulanan (sejak 2025) & A1 tahunan.
   // Nomor faktur/bukti potong fiktif berurutan (seolah sudah disetujui di Coretax).
   await stage("pajak", async () => {
+    // Partner anggota grup (dibuat otomatis untuk transaksi antar-perusahaan) dilengkapi alamat & NPWP dari data
+    // perusahaan: faktur pajak mewajibkan alamat pembeli.
+    const group = rows("Perusahaan");
+    for (const code of codes) {
+      const a = api.as(company[code]!);
+      for (const p of await a.list("/partners")) {
+        const co = group.find((g) => str(g.name) === p.name);
+        if (!co || p.street) continue;
+        await attempt(`alamat partner ${p.name}`, () =>
+          a.patch(`/partners/${p.id}`, {
+            street: str(co.street),
+            city: str(co.city),
+            province: str(co.province),
+            postalCode: str(co.postalCode) || null,
+            npwp: str(co.npwp) || p.npwp || null,
+          }),
+        );
+      }
+    }
     await Promise.all(
       codes.map(async (code, ci) => {
         const a = api.as(company[code]!);
