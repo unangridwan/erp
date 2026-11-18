@@ -1093,6 +1093,78 @@ label.check {
   padding: 4px 8px;
   min-height: 0;
 }
+/* Tombol perkecil/perbesar sidebar (desktop). */
+.side-collapse {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 20px;
+  min-height: 44px;
+  border: none;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 0;
+  background: none;
+  color: var(--side-muted) !important;
+  font-size: 14px;
+  text-align: left;
+}
+.side-collapse:hover {
+  background: var(--side-hover);
+  color: var(--side-fg) !important;
+}
+.side-collapse svg {
+  flex: none;
+}
+@media (max-width: 1023px) {
+  .side-collapse {
+    display: none;
+  }
+}
+/* Mode ringkas: hanya ikon; nama aplikasi sebagai tooltip, submenu muncul lagi saat diperbesar. */
+@media (min-width: 1024px) {
+  .app {
+    transition: grid-template-columns 0.18s ease;
+  }
+  .app.side-collapsed {
+    --sidebar-w: 68px;
+  }
+  .side-collapsed .side-head {
+    justify-content: center;
+    padding: 0;
+  }
+  .side-collapsed .side-brand {
+    flex: none;
+  }
+  .side-collapsed .side-brand-name,
+  .side-collapsed .side-label,
+  .side-collapsed .side-company,
+  .side-collapsed .side-menu,
+  .side-collapsed .side-app-link > span,
+  .side-collapsed .side-collapse > span {
+    display: none;
+  }
+  .side-collapsed .side-nav {
+    padding: 10px 8px 24px;
+  }
+  .side-collapsed .side-app-link {
+    justify-content: center;
+    padding: 10px 0;
+  }
+  .side-collapsed .side-app + .side-app,
+  .side-collapsed .side-label + .side-app {
+    margin-top: 2px;
+  }
+  .side-collapsed .side-collapse {
+    justify-content: center;
+    padding: 10px 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app {
+    transition: none;
+  }
+}
 .side-nav {
   flex: 1;
   overflow-y: auto;

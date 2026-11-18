@@ -32,6 +32,8 @@ const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Indikator dev Next di kanan bawah agar tidak menutupi tombol perkecil sidebar (kiri bawah).
+  devIndicators: { position: "bottom-right" },
   turbopack: { root: repoRoot },
   outputFileTracingRoot: repoRoot,
   // Image Docker produksi memakai server mandiri (NEXT_OUTPUT=standalone); `next start` lokal tidak.

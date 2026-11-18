@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { CommandPalette } from "../../components/command-palette";
 import { MeContext } from "../../components/me-context";
 import { Navbar, Sidebar } from "../../components/navbar";
@@ -19,6 +19,26 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   // API tidak bisa dihubungi (server mati, gagal start, salah alamat): tampilkan pesan, bukan "Memuat…" tanpa akhir.
   const [offline, setOffline] = useState(false);
+  // Sidebar ringkas (hanya ikon) di desktop; pilihan diingat di peramban.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    setCollapsed(localStorage.getItem("erp.sidebar") === "collapsed");
+  }, []);
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((c) => {
+      localStorage.setItem("erp.sidebar", c ? "expanded" : "collapsed");
+      return !c;
+    });
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "\\" || !(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      toggleCollapsed();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleCollapsed]);
   const [attempt, setAttempt] = useState(0);
   // Laci sidebar di layar sempit; tertutup setiap pindah halaman.
   const [drawer, setDrawer] = useState(false);
@@ -86,12 +106,19 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <MeContext.Provider value={me}>
-      <div className={`app ${pathname === "/" ? "home" : ""}`}>
+      <div className={`app${pathname === "/" ? " home" : ""}${collapsed ? " side-collapsed" : ""}`}>
         <a className="skip-link" href="#main">
           {t("app.skip")}
         </a>
         <Suspense fallback={<aside className="sidebar" />}>
-          <Sidebar me={me} app={app} open={drawer} onClose={() => setDrawer(false)} />
+          <Sidebar
+            me={me}
+            app={app}
+            open={drawer}
+            onClose={() => setDrawer(false)}
+            collapsed={collapsed}
+            onToggleCollapse={toggleCollapsed}
+          />
         </Suspense>
         <div className="app-main">
           <Navbar me={me} app={app} onMenu={() => setDrawer(true)} />
