@@ -1154,8 +1154,17 @@ async function main() {
 
   log(`Selesai: ${api.calls} panggilan API, ${failures.length} gagal.`);
   if (failures.length) {
-    console.log("\nYang gagal (maks. 60 pertama):");
-    for (const f of failures.slice(0, 60)) console.log(` - ${f}`);
+    // Dikelompokkan per jenis (kata pertama label, mis. "cuti", "SO-BUI-…" → "SO") agar semua jenis terlihat.
+    const groups = new Map<string, string[]>();
+    for (const f of failures) {
+      const kind = f.split(/[\s:]/)[0]!.replace(/-.*/, "");
+      groups.set(kind, [...(groups.get(kind) ?? []), f]);
+    }
+    console.log("\nYang gagal per jenis (maks. 10 contoh per jenis):");
+    for (const [kind, list] of groups) {
+      console.log(`\n${kind}: ${list.length}`);
+      for (const f of list.slice(0, 10)) console.log(` - ${f}`);
+    }
     process.exitCode = 1;
   }
   console.log(`\nLogin: tenant "${SLUG}", ${EMAIL} / ${PASSWORD}`);

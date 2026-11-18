@@ -82,6 +82,13 @@ const HOLIDAYS = new Set([
 const isWorkday = (date: string) => weekday(date) >= 1 && weekday(date) <= 5 && !HOLIDAYS.has(date);
 const WORKDAYS = eachDay(TX_FROM, TX_TO).filter(isWorkday);
 
+/** Plafon klaim per karyawan per tahun. */
+const CLAIM_LIMITS: Record<string, number> = {
+  "Perjalanan Dinas": 24_000_000,
+  "Transportasi & Parkir": 6_000_000,
+  "Jamuan Klien": 12_000_000,
+  "Kacamata & Kesehatan": 2_500_000,
+};
 const TERMS: Record<string, number> = { Tunai: 0, "Net 14 hari": 14, "Net 30 hari": 30, "Net 60 hari": 60 };
 
 function npwp16(rng: Rng) {
@@ -173,13 +180,18 @@ export function buildModel(seed = 20260101): Model {
     });
   }
   for (const c of COMPANIES)
-    for (const [name, account, limit] of [
-      ["Perjalanan Dinas", "6-8000", 24_000_000],
-      ["Transportasi & Parkir", "6-8100", 6_000_000],
-      ["Jamuan Klien", "6-8200", 12_000_000],
-      ["Kacamata & Kesehatan", "6-1000", 2_500_000],
+    for (const [name, account] of [
+      ["Perjalanan Dinas", "6-8000"],
+      ["Transportasi & Parkir", "6-8100"],
+      ["Jamuan Klien", "6-8200"],
+      ["Kacamata & Kesehatan", "6-1000"],
     ] as const)
-      add("Kategori Klaim", { company: c.code, name, accountCode: account, annualLimit: limit });
+      add("Kategori Klaim", {
+        company: c.code,
+        name,
+        accountCode: account,
+        annualLimit: CLAIM_LIMITS[name]!,
+      });
 
   // ---- Produk & kategori ----
   const products: Record<string, ProductDef[]> = PRODUCTS;
@@ -661,6 +673,7 @@ export function buildModel(seed = 20260101): Model {
   }
 
   // ---- Klaim biaya & pinjaman karyawan ----
+  const claimUsed = new Map<string, number>();
   for (const e of employees.filter((x) => (x.sales || x.grade >= "C1") && !x.daily))
     for (const period of PERIODS) {
       if (!rng.chance(0.55 * DENSITY[yearOf(period)]!)) continue;
@@ -670,12 +683,18 @@ export function buildModel(seed = 20260101): Model {
       const cat = e.sales
         ? rng.pick(["Perjalanan Dinas", "Transportasi & Parkir", "Jamuan Klien"])
         : rng.pick(["Transportasi & Parkir", "Kacamata & Kesehatan", "Perjalanan Dinas"]);
-      const amount =
+      const wanted =
         cat === "Perjalanan Dinas"
           ? roundTo(rng.int(800_000, 4_500_000), 5000)
           : cat === "Jamuan Klien"
             ? roundTo(rng.int(350_000, 1_800_000), 5000)
             : roundTo(rng.int(75_000, 650_000), 5000);
+      // Plafon tahunan per kategori: klaim dipotong ke sisa plafon, dilewati bila sisanya terlalu kecil.
+      const usedKey = `${e.number}|${cat}|${yearOf(date)}`;
+      const left = CLAIM_LIMITS[cat]! - (claimUsed.get(usedKey) ?? 0);
+      const amount = Math.min(wanted, Math.floor(left / 5000) * 5000);
+      if (amount < 50_000) continue;
+      claimUsed.set(usedKey, (claimUsed.get(usedKey) ?? 0) + amount);
       add("Klaim Biaya", {
         company: e.company.code,
         employeeNumber: e.number,
@@ -755,10 +774,10 @@ export function buildModel(seed = 20260101): Model {
     return roundTo(rng.int(20, 300), 10);
   };
   const SO_PER_MONTH: Record<string, number> = { BUI: 110, AGT: 55, PTN: 55, YHN: 115 };
-  for (const c of SUBS) {
+  const sellFor = (c: CompanyDef, period: string) => {
     const custs = partners.filter((p) => p.company === c.code && p.customer);
     const catalog = products[c.code]!;
-    for (const period of PERIODS) {
+    {
       const days = WORKDAYS.filter((d) => d.startsWith(period));
       // Volume tumbuh per tahun (DENSITY) dengan musim: ramai menjelang tanam (Okt–Des) & panen (Mar–Mei).
       const month = Number(period.slice(5, 7));
@@ -793,30 +812,34 @@ export function buildModel(seed = 20260101): Model {
             pricelist: exportOrder ? "Ekspor USD" : "",
           });
       }
-      // Pembelian ulang di awal & pertengahan bulan untuk barang yang menipis.
-      const sups = partners.filter((p) => p.company === c.code && p.supplier);
-      for (const day of [days[1]!, days[Math.floor(days.length / 2)]!]) {
-        const low = catalog.filter((p) => p.type !== "service" && stock.get(p.sku)! < (p.stock ?? 0) * 0.8);
-        for (let k = 0; k < low.length; k += 4) {
-          const chunk = low.slice(k, k + 4);
-          const sup = rng.pick(sups.filter((s) => !s.foreign || c.code === "PTN" || c.code === "AGT"));
-          orders.push({
-            kind: "PO",
-            company: c.code,
-            no: nextNo("PO", c.code),
-            partner: sup.name,
-            date: day,
-            lines: chunk.map((p) => ({ sku: p.sku, qty: Math.max(1, Math.round((p.stock ?? 10) * 1.5)) })),
-          });
-          for (const p of chunk)
-            stock.set(p.sku, stock.get(p.sku)! + Math.max(1, Math.round((p.stock ?? 10) * 1.5)));
-        }
+    }
+  };
+  const restockFor = (c: CompanyDef, period: string) => {
+    const catalog = products[c.code]!;
+    const days = WORKDAYS.filter((d) => d.startsWith(period));
+    // Pembelian ulang di awal & pertengahan bulan untuk barang yang menipis.
+    const sups = partners.filter((p) => p.company === c.code && p.supplier);
+    for (const day of [days[1]!, days[Math.floor(days.length / 2)]!]) {
+      const low = catalog.filter((p) => p.type !== "service" && stock.get(p.sku)! < (p.stock ?? 0) * 0.8);
+      for (let k = 0; k < low.length; k += 4) {
+        const chunk = low.slice(k, k + 4);
+        const sup = rng.pick(sups.filter((s) => !s.foreign || c.code === "PTN" || c.code === "AGT"));
+        orders.push({
+          kind: "PO",
+          company: c.code,
+          no: nextNo("PO", c.code),
+          partner: sup.name,
+          date: day,
+          lines: chunk.map((p) => ({ sku: p.sku, qty: Math.max(1, Math.round((p.stock ?? 10) * 1.5)) })),
+        });
+        for (const p of chunk)
+          stock.set(p.sku, stock.get(p.sku)! + Math.max(1, Math.round((p.stock ?? 10) * 1.5)));
       }
     }
-  }
+  };
   // Transaksi antar-perusahaan: jasa manajemen holding tiap bulan; jasa & barang antar-anak usaha bulanan sejak 2025,
   // triwulanan sebelumnya.
-  for (const period of PERIODS) {
+  const icFor = (period: string) => {
     const date = WORKDAYS.find((d) => d.startsWith(period) && d >= `${period}-05`)!;
     const monthly = period >= "2025-01" || ["03", "06", "09", "12"].includes(period.slice(5));
     for (const sub of SUBS) {
@@ -833,7 +856,7 @@ export function buildModel(seed = 20260101): Model {
         ic: sub.code,
       });
     }
-    if (!monthly) continue;
+    if (!monthly) return;
     for (const buyer of ["BUI", "YHN", "PTN"]) {
       orders.push({
         kind: "SO",
@@ -877,6 +900,13 @@ export function buildModel(seed = 20260101): Model {
         lines: herbs,
         ic: "YHN",
       });
+  };
+  // Simulasi stok per bulan berurutan: penjualan ke pelanggan, lalu antar-perusahaan, lalu pembelian ulang
+  // (barang beli ulang baru tiba setelah transaksi awal bulan), sehingga stok tidak pernah kurang saat dikirim.
+  for (const period of PERIODS) {
+    for (const c of SUBS) sellFor(c, period);
+    icFor(period);
+    for (const c of SUBS) restockFor(c, period);
   }
   for (const s of stock.entries()) if (s[1] < 0) throw new Error(`Stok minus ${s[0]}: ${s[1]}`);
   orders.sort((a, b) => (a.date === b.date ? a.no.localeCompare(b.no) : a.date.localeCompare(b.date)));
