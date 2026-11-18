@@ -95,8 +95,8 @@ lokal & ekspor-impor, penjualan USD), PT Yuyun Herbal Nusantara (YHN, budidaya &
 **Januari 2021 – Oktober 2026** (saldo awal & stok awal 1 Jan 2021; November 2026 berjalan), dengan usaha yang tumbuh
 tiap tahun:
 
-- **Harian**: ±9,3 rb pesanan penjualan (kirim, faktur, bayar) & ±1,4 rb pembelian yang makin padat tiap tahun
-  (2021 ±22% volume 2026), transaksi antar-perusahaan, ±2,7 rb cuti, ±7 rb lembur, ±2 rb klaim, dan ±180 rb baris
+- **Harian**: ±14,9 rb pesanan penjualan (kirim, faktur, bayar) & ±800 pembelian yang makin padat tiap tahun
+  (2021 ±32% volume 2026), transaksi antar-perusahaan, ±2,7 rb cuti, ±7 rb lembur, ±2 rb klaim, dan ±180 rb baris
   absensi (semua karyawan sejak 2025; 2021–2024 pekerja harian yang upahnya dihitung dari absensi).
 - **Bulanan**: payroll 70 bulan × 5 perusahaan (hitung, posting, bayar), penyusutan aset, kurs USD/EUR, jasa manajemen
   holding.

@@ -45,11 +45,11 @@ export const FULL_ATTENDANCE_FROM = "2025-01-01";
  * data lama cukup untuk tren tanpa memperlambat pemuatan.
  */
 export const DENSITY: Record<number, number> = {
-  2021: 0.22,
-  2022: 0.28,
-  2023: 0.36,
-  2024: 0.5,
-  2025: 0.72,
+  2021: 0.32,
+  2022: 0.4,
+  2023: 0.5,
+  2024: 0.64,
+  2025: 0.82,
   2026: 1,
 };
 export const yearOf = (date: string) => Number(date.slice(0, 4));
@@ -754,7 +754,7 @@ export function buildModel(seed = 20260101): Model {
     if (p.price >= 1_000_000) return rng.int(2, 15);
     return roundTo(rng.int(20, 300), 10);
   };
-  const SO_PER_MONTH: Record<string, number> = { BUI: 70, AGT: 45, PTN: 55, YHN: 80 };
+  const SO_PER_MONTH: Record<string, number> = { BUI: 110, AGT: 55, PTN: 55, YHN: 115 };
   for (const c of SUBS) {
     const custs = partners.filter((p) => p.company === c.code && p.customer);
     const catalog = products[c.code]!;
@@ -796,7 +796,7 @@ export function buildModel(seed = 20260101): Model {
       // Pembelian ulang di awal & pertengahan bulan untuk barang yang menipis.
       const sups = partners.filter((p) => p.company === c.code && p.supplier);
       for (const day of [days[1]!, days[Math.floor(days.length / 2)]!]) {
-        const low = catalog.filter((p) => p.type !== "service" && stock.get(p.sku)! < (p.stock ?? 0) * 0.6);
+        const low = catalog.filter((p) => p.type !== "service" && stock.get(p.sku)! < (p.stock ?? 0) * 0.8);
         for (let k = 0; k < low.length; k += 4) {
           const chunk = low.slice(k, k + 4);
           const sup = rng.pick(sups.filter((s) => !s.foreign || c.code === "PTN" || c.code === "AGT"));
@@ -806,10 +806,10 @@ export function buildModel(seed = 20260101): Model {
             no: nextNo("PO", c.code),
             partner: sup.name,
             date: day,
-            lines: chunk.map((p) => ({ sku: p.sku, qty: Math.max(1, Math.round((p.stock ?? 10) * 0.5)) })),
+            lines: chunk.map((p) => ({ sku: p.sku, qty: Math.max(1, Math.round((p.stock ?? 10) * 1.5)) })),
           });
           for (const p of chunk)
-            stock.set(p.sku, stock.get(p.sku)! + Math.max(1, Math.round((p.stock ?? 10) * 0.5)));
+            stock.set(p.sku, stock.get(p.sku)! + Math.max(1, Math.round((p.stock ?? 10) * 1.5)));
         }
       }
     }
