@@ -6,7 +6,7 @@ import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { CommandPalette } from "../../components/command-palette";
 import { MeContext } from "../../components/me-context";
 import { Navbar, Sidebar } from "../../components/navbar";
-import { api, ApiError, session, type Me } from "../../lib/api";
+import { api, ApiError, API_URL, session, type Me } from "../../lib/api";
 import { setErrorUser } from "../../lib/error-reporting";
 import { appForPath, rememberApp, rememberedApp, visibleApps } from "../../lib/apps";
 import { useI18n } from "../../lib/i18n";
@@ -15,8 +15,11 @@ import { can } from "../../lib/resources";
 export default function AppLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { t } = useI18n();
+  const { t, l } = useI18n();
   const [me, setMe] = useState<Me | null>(null);
+  // API tidak bisa dihubungi (server mati, gagal start, salah alamat): tampilkan pesan, bukan "Memuat…" tanpa akhir.
+  const [offline, setOffline] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   // Laci sidebar di layar sempit; tertutup setiap pindah halaman.
   const [drawer, setDrawer] = useState(false);
   useEffect(() => setDrawer(false), [pathname]);
@@ -33,20 +36,52 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       router.replace("/login");
       return;
     }
+    let done = false;
+    setOffline(false);
+    const slow = setTimeout(() => {
+      if (!done) setOffline(true);
+    }, 15_000);
     api<Me>("/auth/me")
       .then((data) => {
+        if (done) return;
         session.setCompanyId(data.activeCompanyId);
         setErrorUser(data);
         setMe(data);
+        setOffline(false);
       })
       .catch((e: unknown) => {
-        // Request dibatalkan karena pindah halaman (atau jaringan putus) bukan berarti sesi tidak sah.
-        if (!(e instanceof ApiError)) return;
+        if (done) return;
+        // Jaringan gagal/API tidak jalan bukan berarti sesi tidak sah: jangan logout, beri tahu & tawarkan coba lagi.
+        if (!(e instanceof ApiError)) {
+          setOffline(true);
+          return;
+        }
         session.clear();
         router.replace("/login");
-      });
-  }, [router]);
+      })
+      .finally(() => clearTimeout(slow));
+    return () => {
+      // Dibatalkan karena pindah halaman / dicoba ulang: abaikan hasil request lama.
+      done = true;
+      clearTimeout(slow);
+    };
+  }, [router, attempt]);
 
+  if (!me && offline)
+    return (
+      <main className="shell" role="alert">
+        <h1>{l("Tidak dapat terhubung ke server", "Cannot reach the server")}</h1>
+        <p className="muted">
+          {l(
+            `Server API (${API_URL}) tidak merespons. Pastikan API berjalan (mis. \`pnpm dev\`; periksa error di terminal API), lalu coba lagi.`,
+            `The API server (${API_URL}) is not responding. Make sure the API is running (e.g. \`pnpm dev\`; check the API terminal for errors), then try again.`,
+          )}
+        </p>
+        <button type="button" className="primary" onClick={() => setAttempt((n) => n + 1)}>
+          {l("Coba lagi", "Try again")}
+        </button>
+      </main>
+    );
   if (!me) return <main className="shell muted">{t("app.loading")}</main>;
 
   return (
