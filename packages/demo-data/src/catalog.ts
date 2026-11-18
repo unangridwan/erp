@@ -284,6 +284,8 @@ export interface ProductDef {
   /** Stok awal 1 Jan 2026. */
   stock?: number;
   costMethod?: "fifo" | "average";
+  /** Bahan baku/kemasan untuk produksi: tidak dijual ke pelanggan. */
+  material?: boolean;
 }
 
 const seeds = (prefix: string, category: string, items: [string, number, number, number][], uom = "Pcs") =>
@@ -356,6 +358,19 @@ export const PRODUCTS: Record<string, ProductDef[]> = {
       ["Tray Semai 128 Lubang", 12_000, 6_500, 5000],
       ["Mulsa Plastik Hitam Perak — 1 roll", 485_000, 340_000, 400],
     ]),
+    ...seeds(
+      "BUI-BC",
+      "Bahan Baku Benih",
+      [
+        ["Gabah Benih Padi Curah (lolos sertifikasi)", 9_500, 7_500, 60_000],
+        ["Jagung Benih Hibrida Curah", 11_000, 9_000, 25_000],
+      ],
+      "kg",
+    ).map((p) => ({ ...p, material: true })),
+    ...seeds("BUI-KM", "Bahan Kemas Benih", [
+      ["Kantong Benih Laminasi 5 kg", 2_500, 1_800, 30_000],
+      ["Kantong Benih Laminasi 1 kg", 1_300, 900, 30_000],
+    ]).map((p) => ({ ...p, material: true })),
     {
       sku: "BUI-JS-001",
       name: "Jasa Sertifikasi & Uji Daya Kecambah",
@@ -537,7 +552,7 @@ export const PRODUCTS: Record<string, ProductDef[]> = {
       ["Sachet Aluminium Foil 25 g", 450, 260, 200_000],
       ["Kotak Karton Teh Celup", 1_900, 1_150, 60_000],
       ["Kapsul Kosong HPMC No.0 (per 1.000)", 185_000, 128_000, 300],
-    ]),
+    ]).map((p) => ({ ...p, material: true })),
   ],
   DPA: [
     {
@@ -1148,5 +1163,439 @@ export const HISTORICAL_HOLIDAYS: Record<number, [date: string, name: string, co
     ["2025-09-05", "Maulid Nabi Muhammad SAW"],
     ["2025-12-25", "Hari Raya Natal"],
     ["2025-12-26", "Cuti bersama Hari Raya Natal", true],
+  ],
+};
+
+// ---- Manufaktur: stasiun kerja & BOM (per 100 unit barang jadi) ----
+
+export const WORK_CENTERS: Record<string, [code: string, name: string, costPerHour: number][]> = {
+  YHN: [
+    ["EKS", "Ekstraksi & Pengeringan Herbal", 90_000],
+    ["PKG", "Pengemasan & Pelabelan", 60_000],
+  ],
+  BUI: [
+    ["PRC", "Pengolahan & Sortir Benih", 80_000],
+    ["PKB", "Pengemasan Benih", 50_000],
+  ],
+};
+
+export interface BomDef {
+  /** Barang jadi (diproduksi sendiri: tidak dibeli ulang dari pemasok). */
+  sku: string;
+  /** Komponen per 100 unit. */
+  lines: [sku: string, qty: number][];
+  /** Operasi per 100 unit: stasiun kerja & menit. */
+  ops: [workCenter: string, name: string, minutes: number][];
+}
+
+const herbOps = (extract: number, pack: number): BomDef["ops"] => [
+  ["EKS", "Ekstraksi & pengeringan", extract],
+  ["PKG", "Pengemasan", pack],
+];
+const seedOps: BomDef["ops"] = [
+  ["PRC", "Sortir, perlakuan & uji kadar air", 150],
+  ["PKB", "Pengemasan & pelabelan", 60],
+];
+
+export const BOMS: Record<string, BomDef[]> = {
+  YHN: [
+    {
+      sku: "YHN-PJ-001",
+      lines: [
+        ["YHN-BB-001", 25],
+        ["YHN-BB-009", 15],
+        ["YHN-KM-002", 1000],
+      ],
+      ops: herbOps(90, 60),
+    },
+    {
+      sku: "YHN-PJ-002",
+      lines: [
+        ["YHN-BB-002", 25],
+        ["YHN-BB-009", 15],
+        ["YHN-KM-002", 1000],
+      ],
+      ops: herbOps(90, 60),
+    },
+    {
+      sku: "YHN-PJ-005",
+      lines: [
+        ["YHN-BB-006", 3],
+        ["YHN-KM-004", 6],
+        ["YHN-KM-001", 100],
+      ],
+      ops: herbOps(120, 45),
+    },
+    {
+      sku: "YHN-PJ-006",
+      lines: [
+        ["YHN-BB-007", 3],
+        ["YHN-KM-004", 6],
+        ["YHN-KM-001", 100],
+      ],
+      ops: herbOps(120, 45),
+    },
+    {
+      sku: "YHN-PJ-007",
+      lines: [
+        ["YHN-BB-002", 15],
+        ["YHN-KM-004", 6],
+        ["YHN-KM-001", 100],
+      ],
+      ops: herbOps(120, 45),
+    },
+    {
+      sku: "YHN-PJ-008",
+      lines: [
+        ["YHN-BB-005", 4],
+        ["YHN-BB-001", 2],
+        ["YHN-KM-003", 100],
+      ],
+      ops: herbOps(45, 40),
+    },
+    {
+      sku: "YHN-PJ-009",
+      lines: [
+        ["YHN-BB-007", 4],
+        ["YHN-KM-003", 100],
+      ],
+      ops: herbOps(45, 40),
+    },
+    {
+      sku: "YHN-PJ-016",
+      lines: [
+        ["YHN-BB-003", 50],
+        ["YHN-KM-002", 100],
+      ],
+      ops: herbOps(75, 30),
+    },
+    {
+      sku: "YHN-PJ-017",
+      lines: [
+        ["YHN-BB-001", 50],
+        ["YHN-KM-002", 100],
+      ],
+      ops: herbOps(75, 30),
+    },
+  ],
+  BUI: [
+    {
+      sku: "BUI-PD-001",
+      lines: [
+        ["BUI-BC-001", 520],
+        ["BUI-KM-001", 100],
+      ],
+      ops: seedOps,
+    },
+    {
+      sku: "BUI-PD-003",
+      lines: [
+        ["BUI-BC-001", 520],
+        ["BUI-KM-001", 100],
+      ],
+      ops: seedOps,
+    },
+    {
+      sku: "BUI-PD-005",
+      lines: [
+        ["BUI-BC-001", 520],
+        ["BUI-KM-001", 100],
+      ],
+      ops: seedOps,
+    },
+    {
+      sku: "BUI-JG-001",
+      lines: [
+        ["BUI-BC-002", 105],
+        ["BUI-KM-002", 100],
+      ],
+      ops: seedOps,
+    },
+    {
+      sku: "BUI-JG-006",
+      lines: [
+        ["BUI-BC-002", 105],
+        ["BUI-KM-002", 100],
+      ],
+      ops: seedOps,
+    },
+  ],
+};
+
+/** Titik kontrol mutu (tanpa karantina: stok tetap tersedia, keputusan dicatat setelahnya). */
+export const QUALITY_POINTS: Record<
+  string,
+  {
+    name: string;
+    trigger: "receipt" | "production";
+    category: string;
+    items: { label: string; kind: "pass_fail" | "measure"; min?: number; max?: number; unit?: string }[];
+  }[]
+> = {
+  YHN: [
+    {
+      name: "Penerimaan bahan herbal",
+      trigger: "receipt",
+      category: "Bahan Baku Simplisia",
+      items: [
+        { label: "Bebas jamur & kotoran", kind: "pass_fail" },
+        { label: "Kadar air", kind: "measure", min: 0, max: 12, unit: "%" },
+      ],
+    },
+    {
+      name: "Rilis produk jadi herbal",
+      trigger: "production",
+      category: "Produk Herbal Jadi",
+      items: [
+        { label: "Kemasan & label sesuai", kind: "pass_fail" },
+        { label: "Uji cemaran mikroba", kind: "pass_fail" },
+      ],
+    },
+  ],
+  BUI: [
+    {
+      name: "Penerimaan benih curah",
+      trigger: "receipt",
+      category: "Bahan Baku Benih",
+      items: [
+        { label: "Kadar air", kind: "measure", min: 0, max: 13, unit: "%" },
+        { label: "Kemurnian varietas", kind: "pass_fail" },
+      ],
+    },
+    {
+      name: "Uji daya kecambah benih kemasan",
+      trigger: "production",
+      category: "Benih Padi",
+      items: [{ label: "Daya kecambah", kind: "measure", min: 80, max: 100, unit: "%" }],
+    },
+  ],
+};
+
+// ---- Maintenance ----
+
+export interface EquipmentDef {
+  code: string;
+  name: string;
+  category: string;
+  /** Nama aset tetap terkait (opsional). */
+  asset?: string;
+  workCenter?: string;
+  criticality: "low" | "medium" | "high";
+  /** Interval perawatan preventif (hari) & tugasnya. */
+  plan: { name: string; intervalDays: number; tasks: string[]; hours: number };
+}
+
+export const EQUIPMENT: Record<string, EquipmentDef[]> = {
+  DPA: [
+    {
+      code: "DPA-SRV-01",
+      name: "Server & Jaringan Kantor Grup",
+      category: "TI",
+      asset: "Peralatan Kantor & Server Grup",
+      criticality: "high",
+      plan: {
+        name: "Pemeriksaan server & backup",
+        intervalDays: 90,
+        tasks: ["Cek log & disk", "Uji restore backup", "Update firmware"],
+        hours: 4,
+      },
+    },
+  ],
+  BUI: [
+    {
+      code: "BUI-SRT-01",
+      name: "Mesin Sortir Benih Optik",
+      category: "Mesin Produksi",
+      asset: "Mesin Sortir & Pengering Benih",
+      workCenter: "PRC",
+      criticality: "high",
+      plan: {
+        name: "Kalibrasi & pembersihan sortir",
+        intervalDays: 30,
+        tasks: ["Bersihkan sensor optik", "Kalibrasi ukuran", "Cek sabuk konveyor"],
+        hours: 3,
+      },
+    },
+    {
+      code: "BUI-DRY-01",
+      name: "Mesin Pengering Benih 5 Ton",
+      category: "Mesin Produksi",
+      asset: "Mesin Sortir & Pengering Benih",
+      workCenter: "PRC",
+      criticality: "high",
+      plan: {
+        name: "Servis burner & blower",
+        intervalDays: 60,
+        tasks: ["Bersihkan burner", "Cek blower", "Kalibrasi termostat"],
+        hours: 4,
+      },
+    },
+    {
+      code: "BUI-PKG-01",
+      name: "Mesin Pengemas Benih Otomatis",
+      category: "Mesin Produksi",
+      workCenter: "PKB",
+      criticality: "medium",
+      plan: {
+        name: "Pelumasan & ganti pisau sealer",
+        intervalDays: 45,
+        tasks: ["Pelumasan", "Ganti pisau sealer", "Uji timbangan"],
+        hours: 2,
+      },
+    },
+  ],
+  AGT: [
+    {
+      code: "AGT-GPU-01",
+      name: "Klaster Server GPU",
+      category: "TI",
+      asset: "Server GPU Pelatihan Model AI",
+      criticality: "high",
+      plan: {
+        name: "Pembersihan & cek termal GPU",
+        intervalDays: 90,
+        tasks: ["Bersihkan debu", "Cek suhu & kipas", "Update driver"],
+        hours: 3,
+      },
+    },
+    {
+      code: "AGT-DRN-01",
+      name: "Drone Sprayer Armada Demo",
+      category: "Drone",
+      asset: "Armada Drone Demo & Jasa",
+      criticality: "medium",
+      plan: {
+        name: "Inspeksi baling-baling & baterai",
+        intervalDays: 30,
+        tasks: ["Cek baling-baling", "Uji siklus baterai", "Kalibrasi GPS"],
+        hours: 2,
+      },
+    },
+  ],
+  PTN: [
+    {
+      code: "PTN-FLK-01",
+      name: "Forklift Diesel 3 Ton",
+      category: "Alat Gudang",
+      asset: "Forklift & Timbangan Truk",
+      criticality: "medium",
+      plan: {
+        name: "Servis berkala forklift",
+        intervalDays: 60,
+        tasks: ["Ganti oli", "Cek hidrolik", "Cek rem"],
+        hours: 3,
+      },
+    },
+    {
+      code: "PTN-TMB-01",
+      name: "Timbangan Truk 40 Ton",
+      category: "Alat Gudang",
+      asset: "Forklift & Timbangan Truk",
+      criticality: "high",
+      plan: {
+        name: "Kalibrasi timbangan",
+        intervalDays: 180,
+        tasks: ["Kalibrasi beban uji", "Cek load cell"],
+        hours: 4,
+      },
+    },
+  ],
+  YHN: [
+    {
+      code: "YHN-EKS-01",
+      name: "Mesin Ekstraksi Herbal",
+      category: "Mesin Produksi",
+      asset: "Mesin Ekstraksi & Pengisian Kapsul",
+      workCenter: "EKS",
+      criticality: "high",
+      plan: {
+        name: "Sanitasi & servis ekstraktor",
+        intervalDays: 30,
+        tasks: ["Sanitasi CIP", "Cek seal & gasket", "Kalibrasi suhu"],
+        hours: 4,
+      },
+    },
+    {
+      code: "YHN-KPS-01",
+      name: "Mesin Pengisi Kapsul Otomatis",
+      category: "Mesin Produksi",
+      asset: "Mesin Ekstraksi & Pengisian Kapsul",
+      workCenter: "PKG",
+      criticality: "high",
+      plan: {
+        name: "Servis mesin kapsul",
+        intervalDays: 45,
+        tasks: ["Bersihkan dosing disc", "Cek vakum", "Pelumasan"],
+        hours: 3,
+      },
+    },
+    {
+      code: "YHN-DRY-01",
+      name: "Oven Pengering Simplisia",
+      category: "Mesin Produksi",
+      workCenter: "EKS",
+      criticality: "medium",
+      plan: {
+        name: "Cek elemen pemanas",
+        intervalDays: 90,
+        tasks: ["Cek elemen", "Kalibrasi termometer"],
+        hours: 2,
+      },
+    },
+  ],
+};
+
+/** Kerusakan korektif contoh (judul, jam kerja, biaya suku cadang/jasa). */
+export const BREAKDOWNS: [title: string, hours: number, cost: number][] = [
+  ["Motor penggerak panas berlebih", 5, 3_500_000],
+  ["Sabuk/rantai putus", 3, 850_000],
+  ["Sensor tidak membaca", 2, 1_200_000],
+  ["Kebocoran hidrolik/oli", 4, 1_750_000],
+  ["Panel listrik trip", 2, 650_000],
+  ["Bearing aus berbunyi", 6, 2_300_000],
+];
+
+// ---- Armada: jenis servis ----
+
+export const FLEET_SERVICE_TYPES: [name: string, kind: "service" | "repair", cost: number][] = [
+  ["Servis berkala 10.000 km", "service", 1_350_000],
+  ["Ganti ban", "repair", 3_200_000],
+  ["Perbaikan rem & kaki-kaki", "repair", 1_900_000],
+  ["Ganti aki", "repair", 1_150_000],
+];
+
+// ---- Layanan pelanggan ----
+
+export const SUPPORT_TOPICS: Record<string, [category: string, subject: string, reply: string][]> = {
+  BUI: [
+    [
+      "Mutu produk",
+      "Benih padi daya tumbuh rendah",
+      "Mohon kirim foto & nomor lot; kami siapkan benih pengganti.",
+    ],
+    ["Pengiriman", "Kiriman benih belum sampai", "Kiriman dalam perjalanan, estimasi tiba 2 hari kerja."],
+    [
+      "Teknis budidaya",
+      "Konsultasi jarak tanam jagung hibrida",
+      "Rekomendasi 70 × 20 cm, satu benih per lubang.",
+    ],
+  ],
+  AGT: [
+    ["Garansi", "Traktor sulit dihidupkan", "Teknisi kami jadwalkan kunjungan ke lokasi."],
+    [
+      "Teknis",
+      "Aplikasi smart farming tidak sinkron",
+      "Silakan perbarui aplikasi; data tersinkron ulang otomatis.",
+    ],
+    ["Suku cadang", "Permintaan suku cadang rotari", "Suku cadang tersedia, penawaran kami kirim hari ini."],
+  ],
+  PTN: [
+    ["Pengiriman", "Dokumen ekspor belum diterima", "Dokumen B/L & COO kami kirim ulang via email."],
+    ["Tagihan", "Selisih nilai faktur", "Kami cek dan terbitkan nota koreksi bila perlu."],
+  ],
+  YHN: [
+    ["Mutu produk", "Kemasan jamu instan bocor", "Mohon maaf, kami ganti produk dan cek batch produksi."],
+    ["Informasi produk", "Izin edar & komposisi kapsul kelor", "Nomor izin edar & komposisi kami lampirkan."],
+    ["Pesanan", "Perubahan jumlah pesanan reseller", "Pesanan sudah kami perbarui sesuai permintaan."],
   ],
 };

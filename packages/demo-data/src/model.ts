@@ -5,6 +5,11 @@
 import { ID_NATIONAL_HOLIDAYS } from "@erp/shared";
 import {
   BANKS,
+  BOMS,
+  BREAKDOWNS,
+  EQUIPMENT,
+  FLEET_SERVICE_TYPES,
+  SUPPORT_TOPICS,
   BUSINESS_UNITS,
   CITIES,
   COMPANIES,
@@ -773,6 +778,11 @@ export function buildModel(seed = 20260101): Model {
     if (p.price >= 1_000_000) return rng.int(2, 15);
     return roundTo(rng.int(20, 300), 10);
   };
+  const MADE = new Set(Object.values(BOMS).flatMap((list) => list.map((b) => b.sku)));
+  /** Bahan untuk produksi dibeli ulang lebih banyak (dipakai produksi & sebagian dijual). */
+  const BOM_INPUTS = new Set(
+    Object.values(BOMS).flatMap((list) => list.flatMap((b) => b.lines.map(([sku]) => sku))),
+  );
   const SO_PER_MONTH: Record<string, number> = { BUI: 110, AGT: 55, PTN: 55, YHN: 115 };
   const sellFor = (c: CompanyDef, period: string) => {
     const custs = partners.filter((p) => p.company === c.code && p.customer);
@@ -789,7 +799,7 @@ export function buildModel(seed = 20260101): Model {
         const exportOrder = Boolean(cust.foreign);
         const pool = exportOrder
           ? catalog.filter((p) => p.usd)
-          : catalog.filter((p) => !p.usd || rng.chance(0.3));
+          : catalog.filter((p) => !p.material && (!p.usd || rng.chance(0.3)));
         const lines: Order["lines"] = [];
         for (const p of rng.sample(pool, rng.int(1, exportOrder ? 2 : 5))) {
           let qty = qtyFor(p, exportOrder);
@@ -820,7 +830,10 @@ export function buildModel(seed = 20260101): Model {
     // Pembelian ulang di awal & pertengahan bulan untuk barang yang menipis.
     const sups = partners.filter((p) => p.company === c.code && p.supplier);
     for (const day of [days[1]!, days[Math.floor(days.length / 2)]!]) {
-      const low = catalog.filter((p) => p.type !== "service" && stock.get(p.sku)! < (p.stock ?? 0) * 0.8);
+      // Barang produksi sendiri diisi lewat order produksi, bukan dibeli dari pemasok.
+      const low = catalog.filter(
+        (p) => p.type !== "service" && !MADE.has(p.sku) && stock.get(p.sku)! < (p.stock ?? 0) * 0.8,
+      );
       for (let k = 0; k < low.length; k += 4) {
         const chunk = low.slice(k, k + 4);
         const sup = rng.pick(sups.filter((s) => !s.foreign || c.code === "PTN" || c.code === "AGT"));
@@ -830,10 +843,17 @@ export function buildModel(seed = 20260101): Model {
           no: nextNo("PO", c.code),
           partner: sup.name,
           date: day,
-          lines: chunk.map((p) => ({ sku: p.sku, qty: Math.max(1, Math.round((p.stock ?? 10) * 1.5)) })),
+          lines: chunk.map((p) => ({
+            sku: p.sku,
+            qty: Math.max(1, Math.round((p.stock ?? 10) * (p.material || BOM_INPUTS.has(p.sku) ? 3 : 1.5))),
+          })),
         });
         for (const p of chunk)
-          stock.set(p.sku, stock.get(p.sku)! + Math.max(1, Math.round((p.stock ?? 10) * 1.5)));
+          stock.set(
+            p.sku,
+            stock.get(p.sku)! +
+              Math.max(1, Math.round((p.stock ?? 10) * (p.material || BOM_INPUTS.has(p.sku) ? 3 : 1.5))),
+          );
       }
     }
   };
@@ -901,11 +921,42 @@ export function buildModel(seed = 20260101): Model {
         ic: "YHN",
       });
   };
+  // Order produksi: barang jadi yang menipis diproduksi dari bahan yang tersedia (dua kali sebulan sejak 2025,
+  // sebulan sekali sebelumnya). Bahan yang terpakai ikut menipis lalu dibeli ulang oleh restockFor.
+  const moCounter: Record<string, number> = {};
+  const produceFor = (c: CompanyDef, period: string) => {
+    const boms = BOMS[c.code];
+    if (!boms) return;
+    const days = WORKDAYS.filter((d) => d.startsWith(period));
+    const runs = period >= "2025-01" ? [0.3, 0.7] : [0.45];
+    for (const f of runs) {
+      const date = days[Math.floor(days.length * f)]!;
+      for (const b of boms) {
+        const base = products[c.code]!.find((p) => p.sku === b.sku)!.stock ?? 0;
+        if (stock.get(b.sku)! >= base * 0.9) continue;
+        let qty = Math.max(100, roundTo((base * 1.1) / runs.length, 100));
+        for (const [sku, per] of b.lines) qty = Math.min(qty, Math.floor(stock.get(sku)! / per) * 100);
+        if (qty < 100) continue;
+        for (const [sku, per] of b.lines) stock.set(sku, stock.get(sku)! - (per * qty) / 100);
+        stock.set(b.sku, stock.get(b.sku)! + qty);
+        moCounter[c.code] = (moCounter[c.code] ?? 0) + 1;
+        add("Produksi", {
+          company: c.code,
+          orderNo: `MO-${c.code}-${pad(moCounter[c.code]!, 4)}`,
+          sku: b.sku,
+          quantity: qty,
+          date,
+        });
+      }
+    }
+  };
+
   // Simulasi stok per bulan berurutan: penjualan ke pelanggan, lalu antar-perusahaan, lalu pembelian ulang
   // (barang beli ulang baru tiba setelah transaksi awal bulan), sehingga stok tidak pernah kurang saat dikirim.
   for (const period of PERIODS) {
     for (const c of SUBS) sellFor(c, period);
     icFor(period);
+    for (const c of SUBS) produceFor(c, period);
     for (const c of SUBS) restockFor(c, period);
   }
   for (const s of stock.entries()) if (s[1] < 0) throw new Error(`Stok minus ${s[0]}: ${s[1]}`);
@@ -1209,6 +1260,146 @@ export function buildModel(seed = 20260101): Model {
       });
     }
   }
+  // ---- Armada: servis berkala, perbaikan & odometer sejak kendaraan terdaftar ----
+  for (const vr of m["Armada - Kendaraan"]!) {
+    const v = {
+      company: String(vr.company),
+      licensePlate: String(vr.licensePlate),
+      model: String(vr.model),
+      modelYear: Number(vr.modelYear),
+    };
+    const registered = `${v.modelYear}-03-01`;
+    const from = registered > TX_FROM ? registered : TX_FROM;
+    let km =
+      registered >= TX_FROM
+        ? rng.int(10, 300)
+        : (2021 - Number(v.modelYear)) * 20_000 + rng.int(1_000, 9_000);
+    const perMonth = v.model === "Vario 160" ? rng.int(600, 1_200) : rng.int(1_500, 3_200);
+    let nextService = addDays(from, rng.int(30, 170));
+    for (const period of PERIODS.filter((p) => `${p}-28` >= from)) {
+      const prevKm = km;
+      km += Math.round(perMonth * (0.85 + rng.next() * 0.3));
+      // Odometer saat servis (pertengahan bulan) di antara pembacaan bulan lalu & akhir bulan ini.
+      const midKm = prevKm + Math.round((km - prevKm) * 0.5);
+      const day = WORKDAYS.find((d) => d.startsWith(period) && d >= `${period}-25`) ?? monthEnd(period);
+      // Odometer bulanan sejak 2025, triwulanan sebelumnya.
+      if (period >= "2025-01" || ["03", "06", "09", "12"].includes(period.slice(5)))
+        add("Armada - Odometer", { company: v.company, licensePlate: v.licensePlate, date: day, value: km });
+      const serviceDay = WORKDAYS.find((d) => d.startsWith(period) && d >= `${period}-10`);
+      if (serviceDay && serviceDay >= nextService) {
+        const [type, , cost] = FLEET_SERVICE_TYPES[0]!;
+        add("Armada - Servis", {
+          company: v.company,
+          licensePlate: v.licensePlate,
+          serviceType: type,
+          date: serviceDay,
+          odometer: midKm,
+          cost: roundTo(cost * (1 + (yearOf(period) - 2021) * 0.04) * (0.9 + rng.next() * 0.2), 5000),
+          description: "Ganti oli, filter & pemeriksaan umum",
+        });
+        nextService = addDays(serviceDay, rng.int(160, 200));
+      } else if (serviceDay && rng.chance(0.03)) {
+        const [type, , cost] = rng.pick(FLEET_SERVICE_TYPES.slice(1));
+        add("Armada - Servis", {
+          company: v.company,
+          licensePlate: v.licensePlate,
+          serviceType: type,
+          date: serviceDay,
+          odometer: midKm,
+          cost: roundTo(cost * (0.85 + rng.next() * 0.3), 5000),
+          description: type,
+        });
+      }
+    }
+  }
+
+  // ---- Maintenance: perawatan preventif sesuai rencana & kerusakan korektif ----
+  const workdayOnOrAfter = (date: string) => WORKDAYS.find((d) => d >= date);
+  for (const c of COMPANIES)
+    for (const eq of EQUIPMENT[c.code] ?? []) {
+      for (
+        let due = addDays(TX_FROM, rng.int(3, eq.plan.intervalDays));
+        due <= TX_TO;
+        due = addDays(due, eq.plan.intervalDays)
+      ) {
+        const day = workdayOnOrAfter(due);
+        if (!day || day > TX_TO) break;
+        add("Maintenance", {
+          company: c.code,
+          equipment: eq.code,
+          kind: "preventive",
+          title: eq.plan.name,
+          priority: "normal",
+          scheduledDate: day,
+          finishedAt: `${day}T${pad(rng.int(9, 15), 2)}:${pad(rng.int(0, 59), 2)}:00+07:00`,
+          hours: eq.plan.hours,
+          cost: 0,
+          resolution: "Perawatan selesai sesuai checklist",
+        });
+      }
+      for (const period of PERIODS) {
+        if (!rng.chance(eq.criticality === "high" ? 0.1 : 0.07)) continue;
+        const day = rng.pick(WORKDAYS.filter((d) => d.startsWith(period)));
+        const [title, hours, cost] = rng.pick(BREAKDOWNS);
+        add("Maintenance", {
+          company: c.code,
+          equipment: eq.code,
+          kind: "corrective",
+          title,
+          priority: eq.criticality === "high" ? "high" : "normal",
+          scheduledDate: day,
+          breakdownAt: `${day}T${pad(rng.int(7, 11), 2)}:${pad(rng.int(0, 59), 2)}:00+07:00`,
+          finishedAt: `${day}T${pad(rng.int(13, 17), 2)}:${pad(rng.int(0, 59), 2)}:00+07:00`,
+          hours,
+          cost: roundTo(cost * (0.8 + rng.next() * 0.5), 5000),
+          resolution: `Perbaikan: ${title.toLowerCase()} — komponen diganti, mesin normal kembali`,
+        });
+      }
+    }
+
+  // ---- Layanan pelanggan: tiket per bulan (makin ramai mendekati 2026) ----
+  for (const c of SUBS) {
+    const topics = SUPPORT_TOPICS[c.code] ?? [];
+    const custs = partners.filter((p) => p.company === c.code && p.customer && !p.foreign);
+    if (!topics.length || !custs.length) continue;
+    for (const period of PERIODS) {
+      const n = Math.round(rng.int(4, 9) * DENSITY[yearOf(period)]!);
+      for (let i = 0; i < n; i++) {
+        const day = rng.pick(WORKDAYS.filter((d) => d.startsWith(period)));
+        const [category, subject, reply] = rng.pick(topics);
+        const at = (date: string, h: number, min: number) =>
+          new Date(`${date}T${pad(h, 2)}:${pad(min, 2)}:00+07:00`);
+        const received = at(day, rng.int(8, 16), rng.int(0, 59));
+        const replied = new Date(received.getTime() + rng.int(1, 20) * 3_600_000);
+        const resolved = new Date(replied.getTime() + rng.int(0, 72) * 3_600_000);
+        // Tiket akhir Oktober 2026 sebagian masih terbuka.
+        const open = period === "2026-10" && rng.chance(0.4);
+        add("Tiket Layanan", {
+          company: c.code,
+          partner: rng.pick(custs).name,
+          category,
+          subject,
+          channel: rng.weighted([
+            ["phone", 4],
+            ["email", 4],
+            ["chat", 3],
+            ["portal", 1],
+          ] as const),
+          priority: rng.weighted([
+            ["low", 2],
+            ["normal", 6],
+            ["high", 2],
+            ["urgent", 1],
+          ] as const),
+          receivedAt: received.toISOString(),
+          reply,
+          repliedAt: replied.toISOString(),
+          resolvedAt: open ? "" : resolved.toISOString(),
+        });
+      }
+    }
+  }
+
   const userRoles = [
     ["direktur", "Direktur", "dir"],
     ["keuangan", "Keuangan", "fin"],
