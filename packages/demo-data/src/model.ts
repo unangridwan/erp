@@ -87,6 +87,46 @@ const HOLIDAYS = new Set([
 const isWorkday = (date: string) => weekday(date) >= 1 && weekday(date) <= 5 && !HOLIDAYS.has(date);
 const WORKDAYS = eachDay(TX_FROM, TX_TO).filter(isWorkday);
 
+/** Idul Fitri tiap tahun (THR dibayar sebelumnya) & tahun hijriahnya. */
+const IDUL_FITRI: Record<number, string> = {
+  2021: "2021-05-13",
+  2022: "2022-05-02",
+  2023: "2023-04-22",
+  2024: "2024-04-10",
+  2025: "2025-03-31",
+  2026: "2026-03-21",
+};
+const HIJRI: Record<number, number> = {
+  2021: 1442,
+  2022: 1443,
+  2023: 1444,
+  2024: 1445,
+  2025: 1446,
+  2026: 1447,
+};
+
+/** Pelatihan contoh: nama, penyelenggara, biaya per peserta, masa berlaku sertifikat (bulan). */
+const TRAININGS: [string, string, number, number | null][] = [
+  ["K3 Umum & Keselamatan Kerja", "Lembaga K3 Nusantara", 1_500_000, 36],
+  ["Good Manufacturing Practice (CPOTB)", "Konsultan Mutu Pangan & Obat", 2_750_000, 24],
+  ["Kepemimpinan Supervisor", "Akademi Manajemen Indonesia", 3_500_000, null],
+  ["Excel & Analisis Data untuk Bisnis", "Pusat Pelatihan Digital", 1_200_000, null],
+  ["Teknik Penjualan B2B", "Sales Excellence Institute", 2_200_000, null],
+  ["Perpajakan Brevet A/B", "Ikatan Konsultan Pajak", 4_500_000, null],
+  ["Budidaya Tanaman Berkelanjutan", "Balai Pelatihan Pertanian", 1_800_000, null],
+  ["Operator Forklift Bersertifikat", "Disnaker Kota", 2_500_000, 60],
+];
+
+/** Sasaran departemen contoh: judul, metrik, target, satuan. */
+const GOALS: [string, "percent" | "number" | "currency", number, string][] = [
+  ["Kepuasan pelanggan", "percent", 90, "%"],
+  ["Ketepatan pengiriman", "percent", 95, "%"],
+  ["Penurunan biaya operasional", "percent", 10, "%"],
+  ["Jumlah pelanggan baru", "number", 25, "pelanggan"],
+  ["Pelatihan karyawan selesai", "number", 40, "jam"],
+  ["Nilai penjualan baru", "currency", 2_000_000_000, "Rp"],
+];
+
 /** Plafon klaim per karyawan per tahun. */
 const CLAIM_LIMITS: Record<string, number> = {
   "Perjalanan Dinas": 24_000_000,
@@ -1436,6 +1476,145 @@ export function buildModel(seed = 20260101): Model {
         post: true,
         pay: true,
       });
+
+  // ---- THR keagamaan: dibayar di payroll terakhir sebelum Idul Fitri ----
+  for (const [year, date] of Object.entries(IDUL_FITRI)) {
+    // Payroll dibayar tanggal 25: hari raya ≤ tanggal 25 → THR ikut payroll bulan sebelumnya.
+    const month = Number(date.slice(5, 7)) - (Number(date.slice(8, 10)) <= 25 ? 1 : 0);
+    const period = `${year}-${pad(month, 2)}`;
+    if (!PERIODS.includes(period)) continue;
+    for (const c of COMPANIES)
+      add("THR", {
+        company: c.code,
+        period,
+        holidayDate: date,
+        holiday: `Idul Fitri ${HIJRI[Number(year)]} H`,
+      });
+  }
+
+  // ---- Rekening koran bulanan: biaya administrasi, bunga jasa giro & pajak bunga ----
+  for (const c of COMPANIES)
+    for (const period of PERIODS) {
+      const end = monthEnd(period);
+      const fee = rng.pick([15_000, 25_000, 30_000, 50_000]);
+      const interest = roundTo(
+        (c.bank / 1000) * (0.8 + rng.next() * 0.5) * (0.7 + DENSITY[yearOf(period)]! * 0.6),
+        100,
+      );
+      add("Rekening Koran", {
+        company: c.code,
+        period,
+        date: end,
+        description: "Biaya administrasi rekening",
+        amount: -fee,
+        kind: "fee",
+      });
+      add("Rekening Koran", {
+        company: c.code,
+        period,
+        date: end,
+        description: "Bunga jasa giro",
+        amount: interest,
+        kind: "interest",
+      });
+      add("Rekening Koran", {
+        company: c.code,
+        period,
+        date: end,
+        description: "Pajak bunga jasa giro (20%)",
+        amount: -roundTo(interest * 0.2, 1),
+        kind: "tax",
+      });
+    }
+
+  // ---- Penilaian kinerja tahunan 2021–2025 (karyawan yang masih bekerja) ----
+  for (const year of CLOSED_YEARS)
+    for (const e of employees) {
+      if (e.resignDate || e.daily || e.joinDate > `${year}-09-30`) continue;
+      const score = rng.weighted([
+        [2.5, 1],
+        [3, 4],
+        [3.5, 6],
+        [4, 5],
+        [4.5, 2],
+      ] as const);
+      add("Penilaian Kinerja", {
+        company: e.company.code,
+        year,
+        employeeNumber: e.number,
+        score,
+        rating: score >= 4.5 ? "A" : score >= 4 ? "B" : score >= 3 ? "C" : "D",
+        raisePercent: score >= 4.5 ? 8 : score >= 4 ? 6 : score >= 3 ? 4 : 2,
+      });
+    }
+
+  // ---- Pelatihan & sasaran tahunan ----
+  for (const c of COMPANIES)
+    for (const year of YEARS)
+      for (const [name, provider, cost, months] of rng.sample(TRAININGS, year >= 2025 ? 4 : 2)) {
+        const start = WORKDAYS.find(
+          (d) => d >= `${year}-${pad(rng.int(2, year === 2026 ? 9 : 11), 2)}-${pad(rng.int(1, 20), 2)}`,
+        )!;
+        const people = rng
+          .sample(
+            employees.filter((e) => e.company === c && !e.daily && !e.resignDate && e.joinDate < start),
+            rng.int(5, 14),
+          )
+          .map((e) => e.number);
+        if (!people.length) continue;
+        add("Pelatihan", {
+          company: c.code,
+          name: `${name} ${year}`,
+          provider,
+          dateStart: start,
+          dateEnd: addDays(start, rng.int(0, 2)),
+          cost: roundTo(cost * people.length * (0.9 + (year - 2021) * 0.04), 50_000),
+          certificateMonths: months,
+          participants: people.join(" "),
+          done: start < "2026-10-15",
+        });
+      }
+  for (const c of COMPANIES)
+    for (const year of YEARS)
+      for (const dept of rng.sample(c.departments, Math.min(3, c.departments.length))) {
+        const [title, metric, target, unit] = rng.pick(GOALS);
+        const achieved =
+          year < 2026
+            ? Math.round(target * (0.75 + rng.next() * 0.4))
+            : Math.round(target * (0.3 + rng.next() * 0.5));
+        add("Sasaran", {
+          company: c.code,
+          year,
+          department: dept,
+          title: `${title} ${year}`,
+          metric,
+          target,
+          achieved,
+          unit,
+        });
+      }
+
+  // ---- Aktivitas CRM pada peluang (telepon, rapat, email) ----
+  for (const lead of m["Prospek CRM"] ?? []) {
+    const close = String(lead.expectedClose);
+    for (let i = 0; i < rng.int(1, 3); i++) {
+      const type = rng.pick(["call", "meeting", "email"] as const);
+      const due = addDays(close, -rng.int(5, 60));
+      add("Aktivitas CRM", {
+        company: String(lead.company),
+        lead: String(lead.name),
+        activityType: type,
+        summary:
+          type === "call"
+            ? "Telepon tindak lanjut kebutuhan"
+            : type === "meeting"
+              ? "Rapat presentasi & demo produk"
+              : "Kirim penawaran & brosur",
+        dueDate: due > "2026-11-30" ? "2026-11-30" : due,
+        done: due < "2026-11-01",
+      });
+    }
+  }
 
   // ---- Tutup buku tahunan 2021–2025 (jurnal penutup laba rugi ke laba ditahan) ----
   for (const c of COMPANIES)

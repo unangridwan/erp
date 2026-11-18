@@ -1082,6 +1082,13 @@ async function main() {
               name: str(r.name),
             });
             await a.post(`/payroll-runs/${run.id}/compute`);
+            // THR keagamaan dihitung di payroll terakhir sebelum hari raya, sebelum posting.
+            const thr = rows("THR", code).find((x) => str(x.period) === str(r.period));
+            if (thr)
+              await a.post(`/payroll-runs/${run.id}/thr`, {
+                holidayDate: str(thr.holidayDate),
+                holiday: str(thr.holiday),
+              });
             if (yes(r.post)) await a.post(`/payroll-runs/${run.id}/post`);
             if (yes(r.pay))
               await a.post(`/payroll-runs/${run.id}/pay`, {
@@ -1439,6 +1446,246 @@ async function main() {
           }
           log(`  ${code}: ${n} tiket layanan`);
         }),
+    );
+  });
+
+  // Faktur pajak keluaran tiap masa dari faktur penjualan; bukti potong PPh 21 bulanan (sejak 2025) & A1 tahunan.
+  // Nomor faktur/bukti potong fiktif berurutan (seolah sudah disetujui di Coretax).
+  await stage("pajak", async () => {
+    await Promise.all(
+      codes.map(async (code, ci) => {
+        const a = api.as(company[code]!);
+        let seq = 0;
+        const number = (prefix: string, period: string) =>
+          `${prefix}${ci + 1}${period.slice(2, 4)}${String(++seq).padStart(8, "0")}`;
+        let invoices = 0;
+        let slips = 0;
+        for (const period of PERIODS) {
+          const [year, month] = period.split("-").map(Number) as [number, number];
+          const res = await attempt(`faktur pajak ${code} ${period}`, () =>
+            a.post("/tax-invoices/generate", { year, month }),
+          );
+          for (const id of res?.ids ?? [])
+            if (
+              await attempt(`setujui faktur ${code} ${period}`, () =>
+                a.post(`/tax-invoices/${id}/approve`, { number: number("04002", period) }),
+              )
+            )
+              invoices++;
+          const kinds = [
+            ...(period >= "2025-01" ? ["bpmp"] : []),
+            ...(period.endsWith("-12") && period < "2026" ? ["bpa1"] : []),
+          ];
+          for (const kind of kinds) {
+            const gen = await attempt(`bukti potong ${kind} ${code} ${period}`, () =>
+              a.post("/withholding-slips/generate", { kind, year, month }),
+            );
+            for (const id of gen?.ids ?? [])
+              if (
+                await attempt(`setujui bukti potong ${code} ${period}`, () =>
+                  a.post(`/withholding-slips/${id}/approve`, {
+                    number: number(kind === "bpa1" ? "A1" : "BP", period),
+                  }),
+                )
+              )
+                slips++;
+          }
+        }
+        log(`  ${code}: ${invoices} faktur pajak, ${slips} bukti potong`);
+      }),
+    );
+  });
+
+  // Rekening koran bulanan (biaya admin, bunga & pajak bunga) diimpor lalu direkonsiliasi ke akun beban/pendapatan.
+  await stage("rekening-koran", async () => {
+    await Promise.all(
+      codes.map(async (code) => {
+        const a = api.as(company[code]!);
+        const c = await refresh(code);
+        const done = new Set((await a.list("/bank-statements")).map((x) => x.name));
+        let n = 0;
+        for (const period of PERIODS) {
+          const name = `Rekening koran ${period}`;
+          if (done.has(name)) continue;
+          const lines = rows("Rekening Koran", code).filter((r) => str(r.period) === period);
+          if (!lines.length) continue;
+          await attempt(`rekening koran ${code} ${period}`, async () => {
+            const statement = await a.post("/bank-statements/import", {
+              journalId: c.journals.BNK1,
+              name,
+              csv: csv(
+                [
+                  ["date", "Tanggal"],
+                  ["description", "Keterangan"],
+                  ["amount", "Jumlah"],
+                ],
+                lines,
+              ),
+              mapping: {
+                date: "Tanggal",
+                description: "Keterangan",
+                amount: "Jumlah",
+                dateFormat: "YYYY-MM-DD",
+                decimal: ".",
+              },
+            });
+            for (const [i, line] of (statement.lines ?? []).entries()) {
+              const kind = str(lines[i]?.kind);
+              await a.post(`/bank-statement-lines/${line.id}/reconcile`, {
+                accountId: c.accounts.get(kind === "interest" ? "4-9200" : "7-1000"),
+                label: str(lines[i]?.description),
+              });
+            }
+            n++;
+          });
+        }
+        log(`  ${code}: ${n} rekening koran`);
+      }),
+    );
+  });
+
+  // Penilaian kinerja tahunan (dinilai HR → kalibrasi → siklus ditutup), sasaran departemen, pelatihan & peserta.
+  await stage("kinerja", async () => {
+    await Promise.all(
+      codes.map(async (code) => {
+        const a = api.as(company[code]!);
+        const c = await refresh(code);
+        const templates = await a.list("/appraisal-templates");
+        const template =
+          templates.find((t) => t.name === "Penilaian Kinerja Umum") ??
+          (await a.post("/appraisal-templates", {
+            name: "Penilaian Kinerja Umum",
+            items: [
+              { name: "Pencapaian target kerja", weight: 40 },
+              { name: "Kualitas & ketelitian kerja", weight: 25 },
+              { name: "Kerja sama tim", weight: 20 },
+              { name: "Kedisiplinan & kehadiran", weight: 15 },
+            ],
+          }));
+        const cycles = await a.list("/appraisal-cycles");
+        for (const year of [...new Set(rows("Penilaian Kinerja", code).map((r) => num(r.year)))]) {
+          const name = `Penilaian Kinerja ${year}`;
+          let cycle = cycles.find((x) => x.name === name);
+          if (cycle?.state === "closed") continue;
+          await attempt(`siklus ${code} ${year}`, async () => {
+            const people = rows("Penilaian Kinerja", code).filter((r) => num(r.year) === year);
+            cycle ??= await a.post("/appraisal-cycles", {
+              name,
+              dateStart: `${year}-01-01`,
+              dateEnd: `${year}-12-31`,
+            });
+            const ids = people.map((r) => c.employees.get(str(r.employeeNumber))).filter(Boolean);
+            if (cycle.state === "draft" || !cycle.state)
+              await a.post(`/appraisal-cycles/${cycle.id}/start`, {
+                employeeIds: ids,
+                templateId: template.id,
+              });
+            const byEmployee = new Map(people.map((r) => [c.employees.get(str(r.employeeNumber)), r]));
+            for (const ap of await a.list(`/appraisals?cycleId=${cycle.id}`)) {
+              if (ap.state === "done") continue;
+              const r = byEmployee.get(ap.employeeId);
+              const score = r ? num(r.score) : 3;
+              const detail = await a.get(`/appraisals/${ap.id}`);
+              if (detail.state === "self" || detail.state === "manager")
+                await a.put(`/appraisals/${ap.id}/manager`, {
+                  lines: detail.lines.map((l: any, i: number) => ({
+                    id: l.id,
+                    score: Math.min(5, Math.max(1, Math.round(score + (i % 2 ? 0.4 : -0.4)))),
+                  })),
+                  comment: "Dinilai bersama atasan langsung",
+                });
+              await a.post(`/appraisals/${ap.id}/calibrate`, {
+                finalScore: score,
+                rating: r ? str(r.rating) : "C",
+                raisePercent: r ? num(r.raisePercent) : 4,
+              });
+            }
+            await a.post(`/appraisal-cycles/${cycle.id}/close`);
+          });
+        }
+        const depts = new Map((await a.list("/departments")).map((d) => [d.name, d.id]));
+        const goals = new Set((await a.list("/goals")).map((g) => g.title));
+        for (const r of rows("Sasaran", code))
+          if (!goals.has(str(r.title)))
+            await attempt(`sasaran ${r.title}`, () =>
+              a.post("/goals", {
+                departmentId: depts.get(str(r.department)) ?? null,
+                title: str(r.title),
+                metric: str(r.metric),
+                startValue: 0,
+                targetValue: num(r.target),
+                currentValue: num(r.achieved),
+                unit: str(r.unit) || null,
+                dueDate: `${num(r.year)}-12-31`,
+                state: num(r.year) < 2026 ? "done" : "active",
+              }),
+            );
+        const trainings = new Set((await a.list("/trainings")).map((t) => t.name));
+        for (const r of rows("Pelatihan", code)) {
+          if (trainings.has(str(r.name))) continue;
+          await attempt(`pelatihan ${r.name}`, async () => {
+            const t = await a.post("/trainings", {
+              name: str(r.name),
+              provider: str(r.provider) || null,
+              dateStart: str(r.dateStart),
+              dateEnd: str(r.dateEnd),
+              cost: String(num(r.cost)),
+              certificateValidMonths: num(r.certificateMonths) || null,
+              state: yes(r.done) ? "done" : "planned",
+            });
+            const employeeIds = str(r.participants)
+              .split(" ")
+              .map((x) => c.employees.get(x))
+              .filter(Boolean);
+            const withPeople = await a.post(`/trainings/${t.id}/participants`, { employeeIds });
+            if (yes(r.done))
+              for (const p of withPeople.participants ?? [])
+                await a.put(`/trainings/${t.id}/participants/${p.id}`, { state: "completed" });
+          });
+        }
+        log(`  ${code}: kinerja, sasaran & pelatihan selesai`);
+      }),
+    );
+  });
+
+  // Aktivitas tindak lanjut pada peluang CRM; yang sudah lewat ditandai selesai.
+  await stage("crm-aktivitas", async () => {
+    await Promise.all(
+      codes.map(async (code) => {
+        const a = api.as(company[code]!);
+        const leads = new Map((await a.list("/leads")).map((l) => [l.name, l.id]));
+        // Aktivitas yang sudah ada dibaca per peluang (endpoint daftar per dokumen).
+        const existing = new Map<string, Set<string>>();
+        const seen = async (resId: string) => {
+          if (!existing.has(resId))
+            existing.set(
+              resId,
+              new Set(
+                (await a.list(`/activities?resModel=crm_lead&resId=${resId}`)).map(
+                  (x) => `${x.dueDate}|${x.summary}`,
+                ),
+              ),
+            );
+          return existing.get(resId)!;
+        };
+        let n = 0;
+        for (const r of rows("Aktivitas CRM", code)) {
+          const resId = leads.get(str(r.lead));
+          if (!resId || (await seen(resId)).has(`${str(r.dueDate)}|${str(r.summary)}`)) continue;
+          await attempt(`aktivitas ${r.lead}`, async () => {
+            const act = await a.post("/activities", {
+              resModel: "crm_lead",
+              resId,
+              activityType: str(r.activityType),
+              summary: str(r.summary),
+              dueDate: str(r.dueDate),
+            });
+            if (yes(r.done)) await a.post(`/activities/${act.id}/done`, {});
+          });
+          n++;
+        }
+        log(`  ${code}: ${n} aktivitas CRM`);
+      }),
     );
   });
 
