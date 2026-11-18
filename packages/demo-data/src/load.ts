@@ -1474,9 +1474,9 @@ async function main() {
     await Promise.all(
       codes.map(async (code, ci) => {
         const a = api.as(company[code]!);
-        let seq = 0;
-        const number = (prefix: string, period: string) =>
-          `${prefix}${ci + 1}${period.slice(2, 4)}${String(++seq).padStart(8, "0")}`;
+        // Nomor fiktif dari id dokumen: unik & tetap sama bila tahap dijalankan ulang.
+        const number = (prefix: string, period: string, id: string) =>
+          `${prefix}${ci + 1}${period.slice(2, 4)}${id.replace(/-/g, "").slice(0, 10).toUpperCase()}`;
         let invoices = 0;
         let slips = 0;
         for (const period of PERIODS) {
@@ -1487,7 +1487,7 @@ async function main() {
           for (const id of res?.ids ?? [])
             if (
               await attempt(`setujui faktur ${code} ${period}`, () =>
-                a.post(`/tax-invoices/${id}/approve`, { number: number("04002", period) }),
+                a.post(`/tax-invoices/${id}/approve`, { number: number("04002", period, id) }),
               )
             )
               invoices++;
@@ -1503,7 +1503,7 @@ async function main() {
               if (
                 await attempt(`setujui bukti potong ${code} ${period}`, () =>
                   a.post(`/withholding-slips/${id}/approve`, {
-                    number: number(kind === "bpa1" ? "A1" : "BP", period),
+                    number: number(kind === "bpa1" ? "A1" : "BP", period, id),
                   }),
                 )
               )
