@@ -154,6 +154,11 @@ export const ticketSchema = z.object({
   teamId: z.string().uuid().nullish(),
   userId: z.string().uuid().nullish(),
   leadId: z.string().uuid().nullish(),
+  /**
+   * Waktu tiket sebenarnya diterima (mis. telepon yang dicatat belakangan, impor dari helpdesk lama). Kosong = saat
+   * ini; tidak boleh di masa depan. Tenggat SLA & nomor tiket dihitung dari waktu ini.
+   */
+  receivedAt: z.string().datetime({ offset: true }).nullish(),
 });
 
 export const ticketMessageSchema = z.object({
@@ -161,6 +166,11 @@ export const ticketMessageSchema = z.object({
   body: z.string().trim().min(1).max(20000),
   /** Status tiket setelah balasan (mis. menunggu pelanggan). */
   status: z.enum(TICKET_STATUS_VALUES).nullish(),
+  /**
+   * Waktu balasan sebenarnya (mencatat balasan yang sudah dikirim di luar sistem). Diisi = tidak dikirim ulang
+   * lewat email; tidak boleh sebelum tiket diterima atau di masa depan.
+   */
+  sentAt: z.string().datetime({ offset: true }).nullish(),
 });
 
 export const supportTeamSchema = z.object({

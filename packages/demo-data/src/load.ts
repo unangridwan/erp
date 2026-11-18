@@ -10,6 +10,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Api, ApiError } from "./api.js";
+import { BOMS, EQUIPMENT, FLEET_SERVICE_TYPES, QUALITY_POINTS, WORK_CENTERS } from "./catalog.js";
 import {
   buildModel,
   DEMO_PASSWORD,
@@ -53,6 +54,8 @@ const EMAIL = args.get("email") ?? `admin@${EMAIL_DOMAIN}`;
 const PASSWORD = args.get("password") ?? DEMO_PASSWORD;
 const FILE = args.get("file") ?? join(root, "demo/didin-putra-agro/Data-Simulasi-PT-Didin-Putra-Agro.xlsx");
 const ONLY = args.get("only")?.split(",");
+/** Untuk uji cepat: transaksi (pesanan, produksi) hanya sampai bulan ini (YYYY-MM). */
+const UNTIL = args.get("until");
 
 const api = new Api(API);
 /** Surat keterangan dokter contoh (PDF satu halaman) untuk cuti sakit. */
@@ -644,6 +647,63 @@ async function main() {
     api.company = null;
   });
 
+  // Data master operasional yang dipakai transaksi: stasiun kerja & BOM (order produksi) serta titik kontrol mutu
+  // (pemeriksaan dibuat otomatis saat barang diterima/diproduksi; tanpa karantina agar stok tetap tersedia).
+  await stage("operasional", async () => {
+    const categories = new Map((await api.list("/product-categories")).map((x) => [x.name, x.id]));
+    for (const code of codes) {
+      const a = api.as(company[code]!);
+      const c = await refresh(code);
+      const centers = await a.list("/work-centers");
+      for (const [wc, name, rate] of WORK_CENTERS[code] ?? [])
+        if (!centers.some((w) => w.code === wc)) {
+          const w = await attempt(`stasiun kerja ${wc}`, () =>
+            a.post("/work-centers", { code: wc, name, costPerHour: String(rate), capacityHoursPerDay: "16" }),
+          );
+          if (w) centers.push(w);
+        }
+      const centerId = new Map(centers.map((w) => [w.code, w.id]));
+      const boms = await a.list("/boms");
+      for (const b of BOMS[code] ?? []) {
+        const productId = c.products.get(b.sku);
+        if (!productId || boms.some((x) => x.productId === productId)) continue;
+        await attempt(`BOM ${b.sku}`, () =>
+          a.post("/boms", {
+            productId,
+            quantity: "100",
+            lines: b.lines.map(([sku, qty]) => ({ productId: c.products.get(sku), quantity: String(qty) })),
+            operations: b.ops.map(([wc, name, minutes]) => ({
+              name,
+              workCenterId: centerId.get(wc),
+              minutes: String(minutes),
+            })),
+          }),
+        );
+      }
+      const points = await a.list("/quality-points");
+      for (const qp of QUALITY_POINTS[code] ?? [])
+        if (!points.some((x) => x.name === qp.name))
+          await attempt(`titik mutu ${qp.name}`, () =>
+            a.post("/quality-points", {
+              name: qp.name,
+              trigger: qp.trigger,
+              categoryId: categories.get(qp.category) ?? null,
+              sampling: "all",
+              items: qp.items.map((i) => ({
+                label: i.label,
+                kind: i.kind,
+                min: i.min ?? null,
+                max: i.max ?? null,
+                unit: i.unit ?? null,
+                photo: false,
+              })),
+              quarantine: false,
+              active: true,
+            }),
+          );
+    }
+  });
+
   await stage("transaksi", async () => {
     // Pesanan yang sudah ada: dilewati bila tuntas, dilanjutkan bila terpotong (mis. pemuatan berhenti di tengah).
     const existing = new Map<string, { id: string; state: string; billed: string }>();
@@ -653,6 +713,9 @@ async function main() {
           existing.set(o.clientOrderRef, { id: o.id, state: o.state, billed: o.invoiceStatus });
       for (const o of await api.list("/purchase-orders", company[code]))
         if (o.partnerRef) existing.set(o.partnerRef, { id: o.id, state: o.state, billed: o.billStatus });
+      if (BOMS[code])
+        for (const o of await api.list("/production-orders", company[code]))
+          if (o.origin) existing.set(o.origin, { id: o.id, state: o.state, billed: "invoiced" });
       await refresh(code);
     }
     const pricelists: Record<string, Map<string, string>> = {};
@@ -666,14 +729,18 @@ async function main() {
     };
     const soLines = lines("Penjualan - Baris");
     const poLines = lines("Pembelian - Baris");
+    // Urutan per tanggal: penerimaan pembelian, lalu produksi, lalu penjualan (stok bahan & barang jadi tersedia).
+    const rank = { PO: 0, MO: 1, SO: 2 } as const;
     const events = [
       ...rows("Penjualan").map((r) => ({ kind: "SO" as const, r })),
       ...rows("Pembelian").map((r) => ({ kind: "PO" as const, r })),
-    ].sort(
-      (a, b) =>
-        str(a.r.dateOrder).localeCompare(str(b.r.dateOrder)) ||
-        (a.kind === b.kind ? 0 : a.kind === "PO" ? -1 : 1),
-    );
+      ...rows("Produksi").map((r) => ({
+        kind: "MO" as const,
+        r: { ...r, dateOrder: r.date ?? null } as Row,
+      })),
+    ]
+      .filter((e) => !UNTIL || str(e.r.dateOrder).slice(0, 7) <= UNTIL)
+      .sort((a, b) => str(a.r.dateOrder).localeCompare(str(b.r.dateOrder)) || rank[a.kind] - rank[b.kind]);
     let n = 0;
     // Tiap perusahaan dimuat paralel; di dalam satu perusahaan berurutan menurut tanggal (stok & valuasi benar).
     await Promise.all(
@@ -683,6 +750,34 @@ async function main() {
         for (const { kind, r } of events.filter((e) => str(e.r.company) === code)) {
           const ref = str(r.orderNo);
           const found = existing.get(ref);
+          if (kind === "MO") {
+            if (found?.state === "done") continue;
+            await attempt(ref, async () => {
+              let mo: any = found
+                ? await a.get(`/production-orders/${found.id}`)
+                : await a.post("/production-orders", {
+                    productId: c.products.get(str(r.sku)),
+                    quantity: String(num(r.quantity)),
+                    datePlanned: str(r.date),
+                    origin: ref,
+                    warehouseId: c.warehouse.id,
+                  });
+              if (mo.state === "draft") mo = await a.post(`/production-orders/${mo.id}/confirm`);
+              for (const op of mo.operations ?? []) {
+                if (op.state === "done") continue;
+                if (op.state === "pending")
+                  await a.post(`/production-orders/${mo.id}/operations/${op.id}`, { action: "start" });
+                // Menit aktual ±10% dari rencana (deterministik dari nomor order).
+                const jitter = 0.9 + ((ref.charCodeAt(ref.length - 1) + op.sequence) % 21) / 100;
+                await a.post(`/production-orders/${mo.id}/operations/${op.id}`, {
+                  action: "finish",
+                  actualMinutes: (Number(op.plannedMinutes) * jitter).toFixed(2),
+                });
+              }
+              await a.post(`/production-orders/${mo.id}/produce`, { date: str(r.date) });
+            });
+            continue;
+          }
           const unfinished =
             found &&
             (["draft", "sent", "to_approve"].includes(found.state) ||
@@ -1112,6 +1207,239 @@ async function main() {
           );
     }
     api.company = null;
+  });
+
+  // Pemeriksaan mutu yang dibuat saat penerimaan/produksi: hasil diisi & diputuskan. Sebagian kecil terima bersyarat
+  // dengan NCR (nilai di luar batas). Deterministik dari nomor pemeriksaan.
+  await stage("mutu", async () => {
+    await Promise.all(
+      codes
+        .filter((code) => QUALITY_POINTS[code])
+        .map(async (code) => {
+          const a = api.as(company[code]!);
+          let n = 0;
+          for (const qc of await a.list("/quality-checks?state=pending")) {
+            const seed = [...str(qc.name)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 1000, 7);
+            const flawed = seed < 60;
+            await attempt(`mutu ${qc.name}`, async () => {
+              const detail = await a.get(`/quality-checks/${qc.id}`);
+              const results = (detail.results ?? []).map((item: any, i: number) => {
+                if (item.kind === "pass_fail")
+                  return { value: flawed && i === 0 ? "fail" : "pass", note: null };
+                const lo = Number(item.min ?? 0);
+                const hi = Number(item.max ?? lo + 10);
+                const ok = lo + ((hi - lo) * (20 + (seed % 60))) / 100;
+                return { value: (flawed ? hi + 1.5 : ok).toFixed(1), note: flawed ? "Di luar batas" : null };
+              });
+              await a.put(`/quality-checks/${qc.id}/results`, { results });
+              await a.post(`/quality-checks/${qc.id}/decide`, {
+                decision: flawed ? "conditional" : "accept",
+                note: flawed ? "Diterima bersyarat: dipakai setelah sortir ulang" : null,
+              });
+              if (flawed && seed % 3 === 0)
+                await a.post("/quality-alerts", {
+                  title: `Ketidaksesuaian ${detail.productName ?? ""} (${qc.name})`.slice(0, 200),
+                  description: "Hasil pemeriksaan di luar batas spesifikasi.",
+                  rootCause: "Pengeringan/penanganan pasca panen belum optimal di pemasok.",
+                  correctiveAction: "Sortir ulang & umpan balik ke pemasok; pengawasan diperketat.",
+                });
+            });
+            n++;
+          }
+          log(`  ${code}: ${n} pemeriksaan mutu diputuskan`);
+        }),
+    );
+  });
+
+  // Peralatan, tim & rencana perawatan; permintaan preventif sesuai jadwal & korektif, diselesaikan per tanggalnya.
+  await stage("maintenance", async () => {
+    await Promise.all(
+      codes
+        .filter((code) => EQUIPMENT[code]?.length)
+        .map(async (code) => {
+          const a = api.as(company[code]!);
+          const teams = await a.list("/maintenance-teams");
+          const team =
+            teams.find((t) => t.name === "Tim Teknik & Perawatan") ??
+            (await a.post("/maintenance-teams", { name: "Tim Teknik & Perawatan" }));
+          const assets = new Map((await a.list("/assets")).map((x) => [x.name, x.id]));
+          const centers = new Map((await a.list("/work-centers")).map((x) => [x.code, x.id]));
+          const equipment = await a.list("/equipment");
+          for (const eq of EQUIPMENT[code]!)
+            if (!equipment.some((x) => x.code === eq.code)) {
+              const created = await attempt(`peralatan ${eq.code}`, () =>
+                a.post("/equipment", {
+                  code: eq.code,
+                  name: eq.name,
+                  category: eq.category,
+                  assetId: eq.asset ? (assets.get(eq.asset) ?? null) : null,
+                  workCenterId: eq.workCenter ? (centers.get(eq.workCenter) ?? null) : null,
+                  teamId: team.id,
+                  criticality: eq.criticality,
+                }),
+              );
+              if (!created) continue;
+              equipment.push(created);
+              await attempt(`rencana ${eq.code}`, () =>
+                a.post("/maintenance-plans", {
+                  equipmentId: created.id,
+                  name: eq.plan.name,
+                  intervalDays: eq.plan.intervalDays,
+                  startDate: "2021-01-01",
+                  tasks: eq.plan.tasks.map((label) => ({ label })),
+                  durationHours: String(eq.plan.hours),
+                  teamId: team.id,
+                }),
+              );
+            }
+          const equipmentId = new Map(equipment.map((x) => [x.code, x.id]));
+          const tasks = new Map(EQUIPMENT[code]!.map((e) => [e.code, e.plan.tasks]));
+          const done = new Set(
+            (await a.list("/maintenance-requests")).map(
+              (x) => `${x.equipmentId}|${x.scheduledDate}|${x.title}`,
+            ),
+          );
+          let n = 0;
+          for (const r of rows("Maintenance", code)) {
+            const id = equipmentId.get(str(r.equipment));
+            if (!id || done.has(`${id}|${str(r.scheduledDate)}|${str(r.title)}`)) continue;
+            const preventive = str(r.kind) === "preventive";
+            await attempt(`perawatan ${r.equipment} ${r.scheduledDate}`, async () => {
+              const req = await a.post("/maintenance-requests", {
+                equipmentId: id,
+                kind: str(r.kind),
+                title: str(r.title),
+                priority: str(r.priority) || "normal",
+                teamId: team.id,
+                scheduledDate: str(r.scheduledDate),
+                breakdownAt: str(r.breakdownAt) || null,
+                vendorCost: String(num(r.cost)),
+                laborHours: String(num(r.hours)),
+                checklist: preventive
+                  ? tasks.get(str(r.equipment))!.map((label) => ({ label, done: false }))
+                  : [],
+              });
+              // Tanpa "mulai": waktu mulai = waktu selesai yang tercatat (tanggal historis).
+              await a.post(`/maintenance-requests/${req.id}/done`, {
+                finishedAt: str(r.finishedAt),
+                resolution: str(r.resolution),
+                laborHours: String(num(r.hours)),
+                checklist: preventive
+                  ? tasks.get(str(r.equipment))!.map((label) => ({ label, done: true }))
+                  : undefined,
+              });
+            });
+            n++;
+          }
+          log(`  ${code}: ${n} permintaan perawatan`);
+        }),
+    );
+  });
+
+  // Servis berkala/perbaikan & pembacaan odometer kendaraan, berurutan menurut tanggal per kendaraan.
+  await stage("armada-servis", async () => {
+    await Promise.all(
+      codes.map(async (code) => {
+        const a = api.as(company[code]!);
+        // Jenis servis berlaku per perusahaan.
+        const types = await a.list("/fleet-service-types");
+        for (const [name] of FLEET_SERVICE_TYPES)
+          if (!types.some((t) => t.name === name)) {
+            const t = await attempt(`jenis servis ${code} ${name}`, () =>
+              a.post("/fleet-service-types", { name, category: "service" }),
+            );
+            if (t) types.push(t);
+          }
+        const typeId = new Map(types.map((t) => [t.name, t.id]));
+        const vehicles = new Map((await a.list("/fleet-vehicles")).map((v) => [v.licensePlate, v.id]));
+        const existing = new Set(
+          (await a.list("/fleet-services")).map((x) => `${x.vehicleId}|${x.date}|${x.serviceTypeId}`),
+        );
+        const events = [
+          ...rows("Armada - Odometer", code).map((r) => ({ kind: "km" as const, r })),
+          ...rows("Armada - Servis", code).map((r) => ({ kind: "servis" as const, r })),
+        ].sort((x, y) => str(x.r.date).localeCompare(str(y.r.date)));
+        const readings = new Map<string, Set<string>>();
+        let n = 0;
+        for (const { kind, r } of events) {
+          const vehicleId = vehicles.get(str(r.licensePlate));
+          if (!vehicleId) continue;
+          if (!readings.has(vehicleId))
+            readings.set(
+              vehicleId,
+              new Set((await a.list(`/fleet/vehicles/${vehicleId}/odometers`)).map((o) => o.date)),
+            );
+          if (kind === "km") {
+            if (readings.get(vehicleId)!.has(str(r.date))) continue;
+            await attempt(`odometer ${r.licensePlate} ${r.date}`, () =>
+              a.post(`/fleet/vehicles/${vehicleId}/odometers`, { date: str(r.date), value: num(r.value) }),
+            );
+            continue;
+          }
+          const serviceTypeId = typeId.get(str(r.serviceType));
+          if (existing.has(`${vehicleId}|${str(r.date)}|${serviceTypeId}`)) continue;
+          await attempt(`servis ${r.licensePlate} ${r.date}`, () =>
+            a.post("/fleet-services", {
+              vehicleId,
+              serviceTypeId,
+              date: str(r.date),
+              odometer: num(r.odometer),
+              cost: String(num(r.cost)),
+              description: str(r.description),
+              state: "done",
+            }),
+          );
+          n++;
+        }
+        log(`  ${code}: ${n} servis kendaraan`);
+      }),
+    );
+  });
+
+  // Tiket layanan pelanggan dengan waktu diterima, balasan & selesai sesuai tanggal aslinya.
+  await stage("layanan", async () => {
+    await Promise.all(
+      codes
+        .filter((code) => rows("Tiket Layanan", code).length)
+        .map(async (code) => {
+          const a = api.as(company[code]!);
+          const c = await refresh(code);
+          const existing = new Set(
+            (await a.list("/support/tickets")).map(
+              (t) => `${new Date(t.createdAt).toISOString()}|${t.subject}`,
+            ),
+          );
+          let n = 0;
+          for (const r of rows("Tiket Layanan", code)) {
+            if (existing.has(`${str(r.receivedAt)}|${str(r.subject)}`)) continue;
+            await attempt(`tiket ${code} ${r.receivedAt}`, async () => {
+              const t = await a.post("/support/tickets", {
+                subject: str(r.subject),
+                partnerId: c.partners.get(str(r.partner)) ?? null,
+                category: str(r.category),
+                channel: str(r.channel) || "phone",
+                priority: str(r.priority) || "normal",
+                receivedAt: str(r.receivedAt),
+              });
+              await a.post(`/support/tickets/${t.id}/messages`, {
+                kind: "public",
+                body: str(r.reply),
+                sentAt: str(r.repliedAt),
+                status: str(r.resolvedAt) && str(r.resolvedAt) === str(r.repliedAt) ? "resolved" : "pending",
+              });
+              if (str(r.resolvedAt) && str(r.resolvedAt) !== str(r.repliedAt))
+                await a.post(`/support/tickets/${t.id}/messages`, {
+                  kind: "internal",
+                  body: "Pelanggan mengonfirmasi masalah selesai.",
+                  sentAt: str(r.resolvedAt),
+                  status: "resolved",
+                });
+            });
+            n++;
+          }
+          log(`  ${code}: ${n} tiket layanan`);
+        }),
+    );
   });
 
   await stage("konsolidasi", async () => {

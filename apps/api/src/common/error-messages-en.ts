@@ -562,6 +562,9 @@ export const MESSAGES_EN: Record<string, string> = {
   "Pengalaman kerja tidak ditemukan": "Work experience not found",
   "Surat peringatan tidak ditemukan": "Warning letter not found",
   "Hanya mutasi draft yang bisa diubah": "Only draft movements can be edited",
+  "Waktu diterima tidak boleh di masa depan": "The received time cannot be in the future",
+  "Waktu balasan tidak boleh di masa depan": "The reply time cannot be in the future",
+  "Waktu balasan sebelum tiket diterima": "The reply time is before the ticket was received",
   "Kode kategori sistem tidak bisa diubah": "A system category's code cannot be changed",
   "Prefix kategori sistem tidak bisa diubah": "A system category's prefix cannot be changed",
   "Kategori sistem dipakai dokumen dan tidak bisa dihapus":

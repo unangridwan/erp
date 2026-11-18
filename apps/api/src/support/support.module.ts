@@ -153,7 +153,8 @@ class SupportController {
   @Patch("tickets/:id")
   @RequirePermission("support.write")
   update(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
-    const values = parsePartial(ticketSchema, body);
+    // Waktu diterima hanya diisi saat tiket dibuat (tenggat SLA & nomor bergantung padanya).
+    const { receivedAt: _receivedAt, ...values } = parsePartial(ticketSchema, body);
     return this.tenantDb.run((tx) => this.support.update(tx, id, values));
   }
 
