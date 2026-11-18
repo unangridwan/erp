@@ -63,11 +63,16 @@ export function Sidebar({
   app,
   open,
   onClose,
+  collapsed = false,
+  onToggleCollapse,
 }: {
   me: Me;
   app: App | null;
   open: boolean;
   onClose: () => void;
+  /** Mode ringkas (desktop): hanya ikon aplikasi. */
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }) {
   const pathname = usePathname();
   const params = useSearchParams();
@@ -147,6 +152,7 @@ export function Sidebar({
             href="/"
             className={`side-app-link${pathname === "/" ? " current" : ""}`}
             aria-current={pathname === "/" ? "page" : undefined}
+            title={collapsed ? l("Beranda", "Home") : undefined}
           >
             <HomeGlyph />
             <span>{l("Beranda", "Home")}</span>
@@ -156,7 +162,12 @@ export function Sidebar({
             const current = a.id === app?.id;
             return (
               <div key={a.id} className={`side-app${current ? " current" : ""}`}>
-                <Link href={a.home} className={`side-app-link${current ? " current" : ""}`}>
+                <Link
+                  href={a.home}
+                  className={`side-app-link${current ? " current" : ""}`}
+                  title={collapsed ? tx(a.name) : undefined}
+                  aria-label={collapsed ? tx(a.name) : undefined}
+                >
                   <AppIcon id={a.id} size={20} />
                   <span>{tx(a.name)}</span>
                 </Link>
@@ -201,6 +212,32 @@ export function Sidebar({
             );
           })}
         </nav>
+        {onToggleCollapse && (
+          <button
+            type="button"
+            className="side-collapse"
+            onClick={onToggleCollapse}
+            aria-expanded={!collapsed}
+            title={`${collapsed ? l("Perbesar sidebar", "Expand sidebar") : l("Perkecil sidebar", "Collapse sidebar")} (Ctrl+\\)`}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden="true"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path
+                d={collapsed ? "M6 6l6 6-6 6M13 6l6 6-6 6" : "M18 6l-6 6 6 6M11 6l-6 6 6 6"}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span>{collapsed ? l("Perbesar", "Expand") : l("Perkecil menu", "Collapse menu")}</span>
+          </button>
+        )}
       </aside>
       {open && <div className="side-backdrop" onClick={onClose} aria-hidden />}
     </>
