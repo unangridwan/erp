@@ -514,23 +514,6 @@ async function main() {
           raised++;
         });
       }
-      for (const r of rows("Karyawan Keluar", code)) {
-        const employeeId = mine.employees.get(str(r.employeeNumber));
-        if (!employeeId) continue;
-        const running = (await api.list(`/contracts?employeeId=${employeeId}`)).find(
-          (x) => x.state === "running",
-        );
-        if (!running) continue;
-        await attempt(`keluar ${r.employeeNumber}`, () =>
-          api.post(`/contracts/${running.id}/close`, {
-            dateEnd: str(r.resignDate),
-            exit: true,
-            resignReason: str(r.reason) || "resign",
-            resignNote: str(r.note) || null,
-            startChecklist: false,
-          }),
-        );
-      }
       log(`  ${code}: ${after.employees.size} karyawan, ${raised} SK kenaikan upah`);
     }
     api.company = null;
@@ -845,19 +828,23 @@ async function main() {
         let n = 0;
         for (const r of rows("Pengajuan Cuti", code)) {
           const employeeId = c.employees.get(str(r.employeeNumber));
-          if (leaves.some((l) => l.employeeId === employeeId && l.dateFrom === str(r.dateFrom))) continue;
+          const prior = leaves.find((l) => l.employeeId === employeeId && l.dateFrom === str(r.dateFrom));
+          // Sudah ada: lanjutkan persetujuan bila belum diputuskan (mis. pemuatan sebelumnya terhenti).
+          if (prior && (prior.state !== "confirm" || str(r.state) !== "Disetujui")) continue;
           await attempt(`cuti ${r.employeeNumber} ${r.dateFrom}`, async () => {
             const attachment = /sakit/i.test(str(r.leaveType))
               ? { name: "surat-keterangan-dokter.pdf", type: "application/pdf", data: DOCTOR_NOTE }
               : null;
-            let leave = await a.post("/leaves", {
-              employeeId,
-              leaveTypeId: leaveTypes.get(str(r.leaveType)),
-              dateFrom: str(r.dateFrom),
-              dateTo: str(r.dateTo),
-              reason: str(r.reason),
-              attachment,
-            });
+            let leave =
+              prior ??
+              (await a.post("/leaves", {
+                employeeId,
+                leaveTypeId: leaveTypes.get(str(r.leaveType)),
+                dateFrom: str(r.dateFrom),
+                dateTo: str(r.dateTo),
+                reason: str(r.reason),
+                attachment,
+              }));
             for (let i = 0; i < 4 && leave.state !== "approved" && str(r.state) === "Disetujui"; i++)
               leave = await a.post(`/leaves/${leave.id}/approve`, {});
           });
@@ -878,23 +865,26 @@ async function main() {
         const claims = await a.list("/expense-claims");
         for (const r of rows("Klaim Biaya", code)) {
           const employeeId = c.employees.get(str(r.employeeNumber));
-          if (claims.some((x) => x.employeeId === employeeId && x.date === str(r.date))) continue;
+          const prior = claims.find((x) => x.employeeId === employeeId && x.date === str(r.date));
+          if (prior && prior.state !== "draft" && prior.state !== "confirm") continue;
           await attempt(`klaim ${r.employeeNumber} ${r.date}`, async () => {
-            let claim = await a.post("/expense-claims", {
-              employeeId,
-              date: str(r.date),
-              description: str(r.description),
-              payMethod: str(r.payMethod) || "payslip",
-              lines: [
-                {
-                  categoryId: cats.get(str(r.category)),
-                  date: str(r.date),
-                  amount: String(num(r.amount)),
-                  note: str(r.description),
-                },
-              ],
-            });
-            claim = await a.post(`/expense-claims/${claim.id}/submit`);
+            let claim =
+              prior ??
+              (await a.post("/expense-claims", {
+                employeeId,
+                date: str(r.date),
+                description: str(r.description),
+                payMethod: str(r.payMethod) || "payslip",
+                lines: [
+                  {
+                    categoryId: cats.get(str(r.category)),
+                    date: str(r.date),
+                    amount: String(num(r.amount)),
+                    note: str(r.description),
+                  },
+                ],
+              }));
+            if (claim.state === "draft") claim = await a.post(`/expense-claims/${claim.id}/submit`);
             for (let i = 0; i < 4 && claim.state !== "approved"; i++)
               claim = await a.post(`/expense-claims/${claim.id}/approve`, {});
           });
@@ -943,6 +933,35 @@ async function main() {
         log(`  ${code}: kehadiran, cuti, lembur, klaim & pinjaman selesai`);
       }),
     );
+  });
+
+  // Karyawan keluar diproses setelah cuti & klaimnya disetujui (pengajuan karyawan yang sudah keluar tidak bisa
+  // diputuskan) dan sebelum payroll (gaji bulan terakhir dihitung prorata sampai tanggal keluar).
+  await stage("karyawan-keluar", async () => {
+    for (const code of codes) {
+      const a = api.as(company[code]!);
+      const c = await refresh(code);
+      let n = 0;
+      for (const r of rows("Karyawan Keluar", code)) {
+        const employeeId = c.employees.get(str(r.employeeNumber));
+        if (!employeeId) continue;
+        const running = (await a.list(`/contracts?employeeId=${employeeId}`)).find(
+          (x) => x.state === "running",
+        );
+        if (!running) continue;
+        await attempt(`keluar ${r.employeeNumber}`, () =>
+          a.post(`/contracts/${running.id}/close`, {
+            dateEnd: str(r.resignDate),
+            exit: true,
+            resignReason: str(r.reason) || "resign",
+            resignNote: str(r.note) || null,
+            startChecklist: false,
+          }),
+        );
+        n++;
+      }
+      log(`  ${code}: ${n} karyawan keluar`);
+    }
   });
 
   await stage("payroll", async () => {

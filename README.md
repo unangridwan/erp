@@ -119,7 +119,7 @@ tiap tahun:
   Login: tenant `didin-putra-agro`, `admin@didinputraagro.co.id` / `DemoAgro2026!` (pengguna demo lain per
   perusahaan ada di lembar _Pengguna_). Skrip membaca workbook, jadi data yang Anda ubah di Excel ikut dimuat; tiap
   tahap aman dijalankan ulang (data yang sudah ada dilewati). Tahap: `perusahaan, master, sdm, pengguna, saldo-awal,
-transaksi, kehadiran, payroll, crm-rekrutmen-armada, konsolidasi, tutup-buku`. Data 2021–2026 dimuat ke tenant atau
+transaksi, kehadiran, karyawan-keluar, payroll, crm-rekrutmen-armada, konsolidasi, tutup-buku`. Data 2021–2026 dimuat ke tenant atau
   database **baru** (saldo awal kini 1 Jan 2021); tenant demo lama berisi data 2026 pakai `--slug` lain. Semua data
   fiktif.
 
