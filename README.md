@@ -119,7 +119,7 @@ tiap tahun:
 
   ```bash
   pnpm install                       # wajib sekali setelah git pull (paket packages/demo-data)
-  pnpm demo:load                     # tenant "didin-putra-agro", ±1 jam (database/tenant baru)
+  pnpm demo:load                     # tenant "didin-putra-agro", ±1¼ jam (database/tenant baru)
   pnpm demo:load --api http://localhost:3001 --slug didin-putra-agro --only transaksi,payroll
   ```
 
