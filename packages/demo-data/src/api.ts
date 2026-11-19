@@ -17,11 +17,15 @@ export class Api {
   refreshToken = "";
   company: string | null = null;
   calls = 0;
+  /** Sejak kapan API tak terjangkau (galat jaringan); 0 = normal. Dipakai bersama semua permintaan paralel. */
+  private downSince = 0;
+  private warnedAt = 0;
   private credentials: { email: string; password: string; tenantSlug: string } | null = null;
   private refreshing: Promise<void> | null = null;
   constructor(readonly base: string) {}
 
   async req<T = any>(method: string, path: string, body?: unknown, company = this.company): Promise<T> {
+    let netFailed = false;
     for (let attempt = 0; ; attempt++) {
       this.calls++;
       let res: Response;
@@ -37,11 +41,26 @@ export class Api {
           body: body === undefined ? undefined : JSON.stringify(body),
         });
       } catch (e) {
-        if (attempt < 4) {
-          await sleep(500 * 2 ** attempt);
+        // Galat jaringan (API restart, komputer tertidur, koneksi diputus): tunggu API pulih sampai ±5 menit
+        // agar data tidak bolong di tengah tahun yang nanti ditutup buku.
+        if (attempt < 14) {
+          netFailed = true;
+          if (!this.downSince) this.downSince = Date.now();
+          // Saat API berhenti, koneksi keep-alive lama masih bisa menjawab; pesan dibatasi sekali per 30 dtk.
+          if (Date.now() - this.warnedAt > 30_000) {
+            this.warnedAt = Date.now();
+            const cause = (e as { cause?: { code?: string } }).cause?.code ?? (e as Error).message;
+            console.warn(`  API tidak terjangkau (${cause}), menunggu sampai ±5 menit…`);
+          }
+          await sleep(Math.min(1000 * 2 ** attempt, 30_000));
           continue;
         }
         throw e;
+      }
+      if (netFailed && this.downSince) {
+        const secs = Math.round((Date.now() - this.downSince) / 1000);
+        if (secs >= 3) console.warn(`  API kembali setelah ${secs} dtk`);
+        this.downSince = 0;
       }
       if (res.status === 401 && attempt < 2 && (this.refreshToken || this.credentials)) {
         await this.renew(token);

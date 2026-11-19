@@ -135,7 +135,9 @@ tiap tahun:
 operasional, transaksi, kehadiran, karyawan-keluar, payroll, crm-rekrutmen-armada, mutu, maintenance, armada-servis,
 layanan, pajak, rekening-koran, kinerja, crm-aktivitas, konsolidasi, tutup-buku` (`--until YYYY-MM` membatasi transaksi untuk uji cepat). Data 2021–2026 dimuat ke tenant atau
   database **baru** (saldo awal kini 1 Jan 2021); tenant demo lama berisi data 2026 pakai `--slug` lain. Semua data
-  fiktif.
+  fiktif. Bila API sempat tak terjangkau (restart, komputer tertidur), skrip menunggu sampai ±5 menit. Bila
+  akhirnya ada yang gagal, tutup buku dilewati: jalankan ulang tahap yang gagal (mis. `--only transaksi`), lalu
+  `--only tutup-buku`. Selama pemuatan, matikan mode tidur komputer.
 
 ### Menjalankan test
 

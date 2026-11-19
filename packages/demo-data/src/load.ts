@@ -1735,6 +1735,13 @@ async function main() {
   });
 
   await stage("tutup-buku", async () => {
+    // Tahun yang sudah ditutup terkunci; jangan tutup bila ada yang gagal supaya masih bisa dilengkapi.
+    if (failures.length) {
+      log(
+        "  tutup buku DILEWATI karena ada yang gagal: jalankan ulang tahap yang gagal (mis. --only transaksi), lalu --only tutup-buku",
+      );
+      return;
+    }
     for (const r of rows("Tutup Buku")) {
       const id = company[str(r.company)]!;
       await api.post("/accounting/close-year", { fiscalYear: num(r.fiscalYear) }, id).catch((e) => {
