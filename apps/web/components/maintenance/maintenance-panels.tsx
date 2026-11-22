@@ -195,7 +195,7 @@ export function EquipmentPanel({ id }: { id: string }) {
                     <td>
                       {r.kind === "preventive" ? l("Preventif", "Preventive") : l("Korektif", "Corrective")}
                     </td>
-                    <td>{formatDate(r.createdAt.slice(0, 10), locale)}</td>
+                    <td>{formatDate(r.createdAt, locale)}</td>
                     <td>{r.downtimeHours ? Number(r.downtimeHours) : "—"}</td>
                     <td>
                       <StateBadge state={r.state} />
@@ -469,7 +469,7 @@ export function MyBreakdownPanel() {
                     {r.title}
                     {r.resolution && <div className="muted">{r.resolution}</div>}
                   </td>
-                  <td>{formatDate(r.createdAt.slice(0, 10), locale)}</td>
+                  <td>{formatDate(r.createdAt, locale)}</td>
                   <td>
                     <StateBadge state={r.state} />
                   </td>

@@ -532,7 +532,7 @@ export function EmployeeForm({ id }: { id: string }) {
               ) : overview.account.status === "invited" ? (
                 <span className="pill warn">
                   ✉ {l("Diundang", "Invited")}: {overview.account.email} · {l("berlaku s.d.", "until")}{" "}
-                  {formatDate(overview.account.expiresAt.slice(0, 10), locale)}
+                  {formatDate(overview.account.expiresAt, locale)}
                 </span>
               ) : (
                 <span className="pill bad">○ {l("Belum diundang", "Not invited")}</span>

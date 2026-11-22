@@ -102,7 +102,7 @@ const EMPTY_PLAN: PlanForm = {
 
 type Tab = "tenants" | "plans" | "invoices";
 
-const date = (v: string | null, locale: "id" | "en") => (v ? formatDate(v.slice(0, 10), locale) : "—");
+const date = (v: string | null, locale: "id" | "en") => (v ? formatDate(v, locale) : "—");
 
 /** Konsol operator SaaS: tenant (paket, gratis, uji coba, tangguhkan), paket langganan, tagihan transfer manual. */
 export default function PlatformPage() {

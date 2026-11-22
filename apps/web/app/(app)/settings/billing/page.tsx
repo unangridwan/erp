@@ -61,7 +61,7 @@ const MODULE_LABEL: Record<string, string> = {
   consolidation: "Konsolidasi",
 };
 
-const date = (v: string | null, locale: "id" | "en") => (v ? formatDate(v.slice(0, 10), locale) : "—");
+const date = (v: string | null, locale: "id" | "en") => (v ? formatDate(v, locale) : "—");
 
 export default function BillingPage() {
   const { l, tx, locale } = useI18n();

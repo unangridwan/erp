@@ -250,7 +250,7 @@ function SignatureList({ doc }: { doc: ContractDocument }) {
           </span>
           <span>
             {s.signerName}
-            {s.signerTitle ? ` (${s.signerTitle})` : ""} · {formatDate(s.signedAt.slice(0, 10), locale)}{" "}
+            {s.signerTitle ? ` (${s.signerTitle})` : ""} · {formatDate(s.signedAt, locale)}{" "}
             {new Date(s.signedAt).toLocaleTimeString(locale === "en" ? "en-GB" : "id-ID", {
               hour: "2-digit",
               minute: "2-digit",
@@ -620,7 +620,7 @@ export function ContractDocumentPanel({
             "Tanda tangan karyawan diminta lewat portal pada",
             "Employee signature requested via the portal on",
           )}{" "}
-          {formatDate(doc.signRequestedAt.slice(0, 10), locale)}.
+          {formatDate(doc.signRequestedAt, locale)}.
         </p>
       )}
       <SignatureList doc={doc} />

@@ -133,7 +133,7 @@ export default function DashboardsPage() {
                         {l(`${d.widgets} widget`, `${d.widgets} widgets`)} ·{" "}
                         {d.mine ? l("Milik saya", "Mine") : d.ownerName} ·{" "}
                         {d.visibility === "shared" ? l("Dibagikan", "Shared") : l("Pribadi", "Private")} ·{" "}
-                        {formatDate(d.updatedAt.slice(0, 10), locale)}
+                        {formatDate(d.updatedAt, locale)}
                       </span>
                     </span>
                   </Link>

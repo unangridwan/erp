@@ -10,6 +10,7 @@ import { QualityBadge } from "../../../../../components/quality/quality-ui";
 import { api, ApiError } from "../../../../../lib/api";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { LoadFailed, useLoadError } from "../../../../../components/load-failed";
 
 interface Form {
   title: string;
@@ -37,6 +38,7 @@ export default function QualityAlertPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { l } = useI18n();
+  const [loadError, failLoad] = useLoadError();
   const me = useMe();
   const isNew = id === "new";
   const [f, setF] = useState<Form | null>(isNew ? EMPTY : null);
@@ -52,24 +54,26 @@ export default function QualityAlertPage() {
     if (isNew) return;
     api<Record<string, string | null> & { name: string; check: { id: string; name: string } | null }>(
       `/quality-alerts/${id}`,
-    ).then(
-      (a) => {
-        setMeta({ name: a.name, check: a.check });
-        setF({
-          title: a.title ?? "",
-          description: a.description ?? "",
-          rootCause: a.rootCause ?? "",
-          correctiveAction: a.correctiveAction ?? "",
-          responsibleUserId: a.responsibleUserId ?? "",
-          productId: a.productId ?? "",
-          partnerId: a.partnerId ?? "",
-          state: (a.state as Form["state"]) ?? "open",
-        });
-      },
-      (e: Error) => toast.error(e.message),
-    );
+    ).then((a) => {
+      setMeta({ name: a.name, check: a.check });
+      setF({
+        title: a.title ?? "",
+        description: a.description ?? "",
+        rootCause: a.rootCause ?? "",
+        correctiveAction: a.correctiveAction ?? "",
+        responsibleUserId: a.responsibleUserId ?? "",
+        productId: a.productId ?? "",
+        partnerId: a.partnerId ?? "",
+        state: (a.state as Form["state"]) ?? "open",
+      });
+    }, failLoad);
   }, [id, isNew]);
-  if (!f) return <p className="muted">{l("Memuat…", "Loading…")}</p>;
+  if (!f)
+    return loadError ? (
+      <LoadFailed message={loadError} />
+    ) : (
+      <p className="muted">{l("Memuat…", "Loading…")}</p>
+    );
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF({ ...f, [k]: v });
   const err = (k: string) => (errors[k] ? <small className="error">{errors[k]}</small> : null);
 

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../lib/api";
-import { formatDate, money, today } from "../../lib/format";
+import { formatDate, money, parseNumberInput, today } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
 import { can, MOVE_TYPE_LABEL } from "../../lib/resources";
 import { Chatter } from "../chatter";
@@ -44,6 +44,7 @@ interface MoveLine {
   deferralStart: string | null;
   deferralEnd: string | null;
   deferralAccountId: string | null;
+  uomId?: string | null;
 }
 interface Move {
   id: string;
@@ -79,6 +80,7 @@ interface InvoiceLine {
   priceUnit: string;
   discount: string;
   taxIds: string[];
+  uomId?: string;
   branchId: string;
   businessUnitId: string;
   costCenterId: string;
@@ -207,6 +209,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                 priceUnit: String(Number(x.priceUnit ?? 0)),
                 discount: String(Number(x.discount)),
                 taxIds: x.taxIds,
+                uomId: x.uomId ?? "",
                 branchId: x.branchId ?? "",
                 businessUnitId: x.businessUnitId ?? "",
                 costCenterId: x.costCenterId ?? "",
@@ -233,9 +236,9 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
     try {
       return computeInvoice(
         invoiceLines.map((x) => ({
-          quantity: x.quantity || 0,
-          priceUnit: x.priceUnit || 0,
-          discount: x.discount || 0,
+          quantity: parseNumberInput(x.quantity, locale) || 0,
+          priceUnit: parseNumberInput(x.priceUnit, locale) || 0,
+          discount: parseNumberInput(x.discount, locale) || 0,
           taxIds: x.taxIds,
         })),
         usableTaxes.map((t) => ({ id: t.id, amount: t.amount, baseRatio: t.baseRatio })),
@@ -288,10 +291,12 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
         productId: orNull(x.productId),
         accountId: orNull(x.accountId),
         name: x.name,
-        quantity: x.quantity,
-        priceUnit: x.priceUnit,
-        discount: x.discount || "0",
+        quantity: parseNumberInput(x.quantity, locale),
+        priceUnit: parseNumberInput(x.priceUnit, locale),
+        discount: parseNumberInput(x.discount, locale) || "0",
         taxIds: x.taxIds,
+        // Satuan dari pesanan (mis. Box) dipertahankan; bila hilang, e-Faktur melaporkan satuan dasar produk.
+        uomId: orNull(x.uomId ?? ""),
         branchId: orNull(x.branchId),
         businessUnitId: orNull(x.businessUnitId),
         costCenterId: orNull(x.costCenterId),

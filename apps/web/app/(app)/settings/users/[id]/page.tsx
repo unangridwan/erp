@@ -184,7 +184,7 @@ export default function UserDetailPage() {
           </div>
           <div className="card">
             <span>{l("Login terakhir", "Last login")}</span>
-            <strong>{user.lastLoginAt ? formatDate(user.lastLoginAt.slice(0, 10), locale) : "—"}</strong>
+            <strong>{user.lastLoginAt ? formatDate(user.lastLoginAt, locale) : "—"}</strong>
           </div>
         </div>
         <h2>{l("Perusahaan yang boleh diakses", "Companies this user can access")}</h2>

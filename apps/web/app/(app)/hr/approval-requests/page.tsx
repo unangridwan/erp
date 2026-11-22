@@ -11,7 +11,7 @@ import {
 } from "../../../../components/hr/approval-request-form";
 import { useMe } from "../../../../components/me-context";
 import { api } from "../../../../lib/api";
-import { formatDate, money } from "../../../../lib/format";
+import { formatDate, money, localDay } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
 import { SortTh, TablePager, TableTools, type ViewColumn } from "../../../../components/data-table";
@@ -74,7 +74,7 @@ function Requests() {
         key: "createdAt",
         label: l("Dibuat", "Created"),
         type: "date",
-        value: (r) => r.createdAt.slice(0, 10),
+        value: (r) => localDay(r.createdAt),
       },
       {
         key: "amount",
@@ -182,7 +182,7 @@ function Requests() {
                 <td>{r.subject}</td>
                 <td>{r.categoryName}</td>
                 <td>{r.requesterName}</td>
-                <td>{formatDate(r.createdAt.slice(0, 10), locale)}</td>
+                <td>{formatDate(r.createdAt, locale)}</td>
                 <td className="num">{r.amount ? money(r.amount, locale) : ""}</td>
                 <td>
                   <span className={`badge ${REQUEST_BADGE[r.state] ?? ""}`}>

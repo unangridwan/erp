@@ -322,7 +322,7 @@ export default function WebFormsPage() {
                     <td>{f.campaignName ?? "—"}</td>
                     <td>{f.fields.map((x) => l(...WEB_FORM_FIELD_LABEL[x])).join(", ")}</td>
                     <td className="num">{f.submissionCount}</td>
-                    <td>{f.lastSubmittedAt ? formatDate(f.lastSubmittedAt.slice(0, 10), locale) : "—"}</td>
+                    <td>{f.lastSubmittedAt ? formatDate(f.lastSubmittedAt, locale) : "—"}</td>
                     <td>
                       {editable && (
                         <>

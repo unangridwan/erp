@@ -891,7 +891,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
           )}
           {picking?.dateDone && (
             <p className="muted">
-              {l("Selesai", "Done")}: {formatDate(picking.dateDone.slice(0, 10), locale)}
+              {l("Selesai", "Done")}: {formatDate(picking.dateDone, locale)}
               {picking.accountMove && (
                 <>
                   {" · "}

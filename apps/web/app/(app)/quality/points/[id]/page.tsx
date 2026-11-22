@@ -7,8 +7,10 @@ import { useOptions } from "../../../../../components/accounting/use-options";
 import { ask, toast } from "../../../../../components/feedback";
 import { useMe } from "../../../../../components/me-context";
 import { api, ApiError } from "../../../../../lib/api";
+import { parseNumberInput } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { LoadFailed, useLoadError } from "../../../../../components/load-failed";
 
 interface Item {
   label: string;
@@ -44,13 +46,19 @@ const EMPTY: Form = {
   active: true,
   items: [{ label: "", kind: "pass_fail", min: "", max: "", unit: "", photo: false }],
 };
-const num = (v: string) => (v.trim() === "" ? null : Number(v.replace(",", ".")));
+/** Batas ukur: format Indonesia ("1.000,5"); teks tak valid dikirim apa adanya agar ditolak server, bukan jadi kosong. */
+const num = (v: string): number | string | null => {
+  if (v.trim() === "") return null;
+  const n = Number(parseNumberInput(v));
+  return Number.isFinite(n) ? n : v;
+};
 
 /** Editor titik kontrol: kapan diperiksa, untuk produk/kategori/pemasok mana, sampel, dan butir pemeriksaan. */
 export default function QualityPointPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { l } = useI18n();
+  const [loadError, failLoad] = useLoadError();
   const me = useMe();
   const isNew = id === "new";
   const [f, setF] = useState<Form | null>(isNew ? EMPTY : null);
@@ -90,10 +98,15 @@ export default function QualityPointPage() {
             photo: !!x.photo,
           })),
         }),
-      (e: Error) => toast.error(e.message),
+      failLoad,
     );
   }, [id, isNew]);
-  if (!f) return <p className="muted">{l("Memuat…", "Loading…")}</p>;
+  if (!f)
+    return loadError ? (
+      <LoadFailed message={loadError} />
+    ) : (
+      <p className="muted">{l("Memuat…", "Loading…")}</p>
+    );
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF({ ...f, [k]: v });
   const setItem = (idx: number, patch: Partial<Item>) =>
     set(

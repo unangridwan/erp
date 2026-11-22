@@ -29,9 +29,19 @@ export interface Session {
   refreshToken: string;
 }
 
+/** Cache tingkat modul (definisi field kustom, jenis kontrak, …) yang harus dibuang saat sesi berganti. */
+const sessionResetHooks = new Set<() => void>();
+export function onSessionReset(fn: () => void) {
+  sessionResetHooks.add(fn);
+  return () => sessionResetHooks.delete(fn);
+}
+const resetSessionCaches = () => sessionResetHooks.forEach((fn) => fn());
+
 export const session = {
   token: () => read(TOKEN_KEY),
   set: (s: Session) => {
+    // Login baru (bukan perpanjangan token): data cache milik sesi sebelumnya tidak boleh terbawa.
+    if (!read(TOKEN_KEY)) resetSessionCaches();
     write(TOKEN_KEY, s.token);
     write(REFRESH_KEY, s.refreshToken);
   },
@@ -42,6 +52,7 @@ export const session = {
     write(REFRESH_KEY, null);
     write(COMPANY_KEY, null);
     setErrorUser(null);
+    resetSessionCaches();
   },
   async logout() {
     const refreshToken = read(REFRESH_KEY);
@@ -78,7 +89,7 @@ function rawFetch(path: string, method: string, body?: unknown): Promise<Respons
   });
 }
 
-/** Endpoint publik: 401 di sini berarti kredensial salah, bukan sesi kedaluwarsa. */
+/** Endpoint publik / pemeriksa kode: 401 di sini berarti kredensial atau kode salah, bukan sesi kedaluwarsa. */
 const PUBLIC_AUTH = new Set([
   "/auth/login",
   "/auth/signup",
@@ -86,27 +97,61 @@ const PUBLIC_AUTH = new Set([
   "/auth/logout",
   "/auth/invitation",
   "/auth/accept-invite",
+  "/auth/2fa/enable",
+  "/auth/2fa/disable",
 ]);
 
-/** Satu refresh berjalan untuk semua request yang gagal 401 bersamaan. */
-let refreshing: Promise<boolean> | null = null;
+/** Hasil perpanjangan sesi: "network" = server tak terjangkau (sesi mungkin masih berlaku, jangan logout). */
+type RefreshResult = "ok" | "expired" | "network";
 
-function refreshSession(): Promise<boolean> {
-  refreshing ??= (async () => {
-    const refreshToken = read(REFRESH_KEY);
-    if (!refreshToken) return false;
+/** Satu refresh berjalan untuk semua request yang gagal 401 bersamaan (dalam tab ini). */
+let refreshing: Promise<RefreshResult> | null = null;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function doRefresh(): Promise<RefreshResult> {
+  const used = read(REFRESH_KEY);
+  if (!used) return "expired";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    // Tab lain sudah memperbarui sesi (refresh token berotasi): pakai hasilnya, jangan kirim token lama lagi —
+    // server menganggap pemakaian ulang sebagai pencurian dan mencabut semua sesi.
+    const current = read(REFRESH_KEY);
+    if (current !== used) return current ? "ok" : "expired";
     const res = await fetch(`${API_URL}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
+      body: JSON.stringify({ refreshToken: used }),
     }).catch(() => null);
-    if (!res?.ok) return false;
-    session.set((await res.json()) as Session);
-    return true;
+    if (res?.ok) {
+      session.set((await res.json()) as Session);
+      return "ok";
+    }
+    // Gagal jaringan / dibatasi / server error: coba lagi sebentar lagi; 4xx lain berarti sesi memang berakhir.
+    if (res && res.status !== 429 && res.status < 500) return "expired";
+    await sleep(1000 * (attempt + 1));
+  }
+  return "network";
+}
+
+function refreshSession(): Promise<RefreshResult> {
+  refreshing ??= (async () => {
+    // Kunci lintas tab: hanya satu tab yang memutar refresh token pada satu waktu.
+    const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+    return locks ? locks.request("erp.refresh", doRefresh) : doRefresh();
   })().finally(() => {
     refreshing = null;
   });
   return refreshing;
+}
+
+// Tab lain mengganti perusahaan aktif atau keluar: muat ulang tab ini agar data & penyimpanan tidak tercampur.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === COMPANY_KEY && e.newValue && e.oldValue && e.newValue !== e.oldValue)
+      window.location.reload();
+    if (e.key === TOKEN_KEY && e.oldValue && !e.newValue && !window.location.pathname.startsWith("/login"))
+      window.location.href = "/login";
+  });
 }
 
 /** Request ke API dengan token & perusahaan aktif; access token kedaluwarsa diperbarui otomatis sekali. */
@@ -117,10 +162,11 @@ export async function apiRaw(
   const method = init.method ?? "GET";
   const isPublic = PUBLIC_AUTH.has(path);
   let res = await rawFetch(path, method, init.body);
-  if (res.status === 401 && !isPublic && (await refreshSession())) {
-    res = await rawFetch(path, method, init.body);
-  }
-  if (res.status === 401 && !isPublic && typeof window !== "undefined") {
+  if (res.status !== 401 || isPublic) return res;
+  const refreshed = await refreshSession();
+  if (refreshed === "ok") res = await rawFetch(path, method, init.body);
+  // Hanya sesi yang benar-benar berakhir yang dikeluarkan; gangguan jaringan sesaat tidak menghapus form yang terisi.
+  if (refreshed === "expired" && typeof window !== "undefined") {
     session.clear();
     // Kembali ke halaman semula setelah masuk lagi.
     const here = window.location.pathname + window.location.search;

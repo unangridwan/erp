@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { LIST_LOAD_LIMIT } from "@erp/shared";
 import { api } from "../../lib/api";
 
-/** Muat daftar pilihan (maks. 200) dari endpoint list; mendukung respons `{ items }` maupun array. */
+/**
+ * Muat daftar pilihan dari endpoint list (sampai batas muat daftar, 5.000 baris — bukan 200, agar akun/produk/karyawan
+ * berikutnya tetap bisa dipilih); mendukung respons `{ items }` maupun array.
+ */
 export function useOptions<T>(path: string | null): T[] {
   const [rows, setRows] = useState<T[]>([]);
   useEffect(() => {
     if (!path) return;
-    api<{ items: T[] } | T[]>(`${path}${path.includes("?") ? "&" : "?"}limit=200`)
+    api<{ items: T[] } | T[]>(`${path}${path.includes("?") ? "&" : "?"}limit=${LIST_LOAD_LIMIT}`)
       .then((d) => setRows(Array.isArray(d) ? d : d.items))
       .catch(() => setRows([]));
   }, [path]);

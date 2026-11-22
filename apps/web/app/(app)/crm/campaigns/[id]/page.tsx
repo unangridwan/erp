@@ -486,7 +486,7 @@ export default function CampaignPage() {
                         {l(...MEMBER_STATUS_LABEL[x.status]!)}
                       </span>
                     </td>
-                    <td>{x.sentAt ? formatDate(x.sentAt.slice(0, 10), locale) : ""}</td>
+                    <td>{x.sentAt ? formatDate(x.sentAt, locale) : ""}</td>
                     <td>
                       {editable && (
                         <>
@@ -544,7 +544,7 @@ export default function CampaignPage() {
               <tbody>
                 {data.emails.map((e) => (
                   <tr key={e.id}>
-                    <td>{formatDate(e.sentAt.slice(0, 10), locale)}</td>
+                    <td>{formatDate(e.sentAt, locale)}</td>
                     <td>{e.subject}</td>
                     <td className="num">{e.sentCount}</td>
                     <td className="num">{e.failedCount}</td>

@@ -14,6 +14,7 @@ import { money } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
 import { RelatedDocuments } from "../../../../../components/related-documents";
+import { LoadFailed, useLoadError } from "../../../../../components/load-failed";
 
 interface Part {
   productId: string;
@@ -74,6 +75,7 @@ export default function MaintenanceRequestPage() {
   const search = useSearchParams();
   const router = useRouter();
   const { l, locale } = useI18n();
+  const [loadError, failLoad] = useLoadError();
   const me = useMe();
   const isNew = params.id === "new";
   const [data, setData] = useState<Detail | null>(null);
@@ -131,9 +133,7 @@ export default function MaintenanceRequestPage() {
 
   const load = useCallback(() => {
     if (isNew) return;
-    api<Detail>(`/maintenance-requests/${params.id}`)
-      .then(fill)
-      .catch((e: Error) => toast.error(e.message));
+    api<Detail>(`/maintenance-requests/${params.id}`).then(fill).catch(failLoad);
   }, [isNew, params.id, fill]);
   useEffect(load, [load]);
 
@@ -265,7 +265,12 @@ export default function MaintenanceRequestPage() {
     else if (r) load();
   }
 
-  if (!isNew && !data) return <p className="muted">{l("Memuat…", "Loading…")}</p>;
+  if (!isNew && !data)
+    return loadError ? (
+      <LoadFailed message={loadError} />
+    ) : (
+      <p className="muted">{l("Memuat…", "Loading…")}</p>
+    );
 
   return (
     <>

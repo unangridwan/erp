@@ -8,6 +8,7 @@ import { openPdf } from "../../../../../components/hr/contract-document";
 import { api } from "../../../../../lib/api";
 import { formatDate, money } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
+import { LoadFailed, useLoadError } from "../../../../../components/load-failed";
 
 interface Trace {
   id: string;
@@ -41,13 +42,17 @@ interface Trace {
 export default function LotTracePage() {
   const { id } = useParams<{ id: string }>();
   const { l, locale } = useI18n();
+  const [loadError, failLoad] = useLoadError();
   const [t, setT] = useState<Trace | null>(null);
   useEffect(() => {
-    api<Trace>(`/stock-lots/${id}/trace`)
-      .then(setT)
-      .catch((e: Error) => toast.error(e.message));
+    api<Trace>(`/stock-lots/${id}/trace`).then(setT).catch(failLoad);
   }, [id]);
-  if (!t) return <p className="muted">{l("Memuat…", "Loading…")}</p>;
+  if (!t)
+    return loadError ? (
+      <LoadFailed message={loadError} />
+    ) : (
+      <p className="muted">{l("Memuat…", "Loading…")}</p>
+    );
   const kind = (m: Trace["moves"][number]) =>
     m.isInventory
       ? l("Penyesuaian / opname", "Adjustment / count")

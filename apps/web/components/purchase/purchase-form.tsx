@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../lib/api";
-import { formatDate, money, today } from "../../lib/format";
+import { formatDate, money, parseNumberInput, today } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
 import {
   can,
@@ -225,9 +225,9 @@ export function PurchaseForm({ id }: { id: string }) {
       .map((x) => ({
         productId: orNull(x.productId),
         name: x.name || undefined,
-        quantity: x.quantity || "0",
-        priceUnit: x.priceUnit === "" ? null : x.priceUnit,
-        discount: x.discount || "0",
+        quantity: parseNumberInput(x.quantity, locale) || "0",
+        priceUnit: x.priceUnit === "" ? null : parseNumberInput(x.priceUnit, locale),
+        discount: parseNumberInput(x.discount, locale) || "0",
         taxIds: x.taxIds ?? undefined,
         uomId: orNull(x.uomId),
         contractLineId: header.contractId ? orNull(x.contractLineId) : null,

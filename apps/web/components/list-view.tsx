@@ -155,7 +155,7 @@ export function ListView({ resource, role }: { resource: Resource; role?: string
     if (field?.type === "number" && v !== null && v !== undefined && v !== "" && !Number.isNaN(Number(v)))
       return money(v as string | number, locale);
     if (field?.type === "date" && typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v))
-      return formatDate(v.slice(0, 10), locale);
+      return formatDate(v, locale);
     if (typeof v === "boolean") return v ? l("Ya", "Yes") : l("Tidak", "No");
     return cell(row, name);
   };

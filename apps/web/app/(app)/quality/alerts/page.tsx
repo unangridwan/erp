@@ -8,7 +8,7 @@ import { toast } from "../../../../components/feedback";
 import { useMe } from "../../../../components/me-context";
 import { QualityBadge } from "../../../../components/quality/quality-ui";
 import { api } from "../../../../lib/api";
-import { formatDate } from "../../../../lib/format";
+import { formatDate, localDay } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
 
@@ -67,8 +67,8 @@ export default function QualityAlertsPage() {
               key: "createdAt",
               label: l("Tanggal", "Date"),
               type: "date",
-              value: (r) => r.createdAt.slice(0, 10),
-              text: (r) => formatDate(r.createdAt.slice(0, 10), locale),
+              value: (r) => localDay(r.createdAt),
+              text: (r) => formatDate(r.createdAt, locale),
             },
             {
               key: "state",

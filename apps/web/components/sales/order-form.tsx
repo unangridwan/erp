@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../lib/api";
-import { formatDate, money, today } from "../../lib/format";
+import { formatDate, money, parseNumberInput, today } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
 import {
   can,
@@ -48,6 +48,8 @@ interface OrderLine {
 interface Order {
   id: string;
   custom?: CustomValues;
+  businessUnitId?: string | null;
+  profitCenterId?: string | null;
   name: string;
   state: "draft" | "sent" | "sale" | "cancel";
   partnerId: string;
@@ -230,6 +232,10 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
       clientOrderRef: orNull(header.clientOrderRef),
       note: orNull(header.note),
       branchId: orNull(header.branchId),
+      // Tidak diedit di form ini, tetapi wajib dikirim ulang: server mengganti nilai yang tidak dikirim dengan kosong.
+      ...(order
+        ? { businessUnitId: order.businessUnitId ?? null, profitCenterId: order.profitCenterId ?? null }
+        : {}),
       warehouseId: header.warehouseId || undefined,
       ...(customDefs.length ? { custom: customPayload(customDefs, custom) } : {}),
       lines: lines
@@ -237,9 +243,9 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
         .map((x) => ({
           productId: orNull(x.productId),
           name: x.name || undefined,
-          quantity: x.quantity || "0",
-          priceUnit: x.priceUnit === "" ? null : x.priceUnit,
-          discount: x.discount || "0",
+          quantity: parseNumberInput(x.quantity, locale) || "0",
+          priceUnit: x.priceUnit === "" ? null : parseNumberInput(x.priceUnit, locale),
+          discount: parseNumberInput(x.discount, locale) || "0",
           taxIds: x.taxIds ?? undefined,
           uomId: orNull(x.uomId),
           dropship: x.dropship ?? undefined,
@@ -804,6 +810,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                       {confirmed && <td className="num">{saved ? num(saved.qtyInvoiced) : ""}</td>}
                       <td>
                         <input
+                          disabled={!editable}
                           className="num"
                           inputMode="decimal"
                           placeholder={p ? money(p.priceUnit, locale, 4) : l("otomatis", "auto")}

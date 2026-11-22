@@ -241,7 +241,7 @@ function PortalAccessPanel({ id }: { id: string }) {
           {access.lastLoginAt && (
             <span className="muted">
               {" "}
-              · {l("terakhir masuk", "last login")} {formatDate(access.lastLoginAt.slice(0, 10), locale)}
+              · {l("terakhir masuk", "last login")} {formatDate(access.lastLoginAt, locale)}
             </span>
           )}
         </p>

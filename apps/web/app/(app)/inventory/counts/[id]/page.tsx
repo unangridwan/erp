@@ -13,6 +13,7 @@ import { api, ApiError } from "../../../../../lib/api";
 import { formatDate, money } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
+import { LoadFailed, useLoadError } from "../../../../../components/load-failed";
 
 interface Line {
   id: string;
@@ -58,6 +59,7 @@ function CountForm() {
   const { id } = useParams<{ id: string }>();
   const me = useMe();
   const { l, locale } = useI18n();
+  const [loadError, failLoad] = useLoadError();
   const [doc, setDoc] = useState<Count | null>(null);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<"all" | "uncounted" | "variance">("all");
@@ -75,7 +77,7 @@ function CountForm() {
         setDoc(c);
         setEdits({});
       })
-      .catch((e: Error) => toast.error(e.message));
+      .catch(failLoad);
   }, [id]);
   useEffect(load, [load]);
 
@@ -191,7 +193,12 @@ function CountForm() {
     });
   }, [doc, edits, filter, q]);
 
-  if (!doc) return <p className="muted">{l("Memuat…", "Loading…")}</p>;
+  if (!doc)
+    return loadError ? (
+      <LoadFailed message={loadError} />
+    ) : (
+      <p className="muted">{l("Memuat…", "Loading…")}</p>
+    );
   const m = (v: string) => money(v, locale);
 
   return (

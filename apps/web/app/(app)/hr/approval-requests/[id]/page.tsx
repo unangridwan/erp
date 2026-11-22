@@ -171,8 +171,7 @@ export default function ApprovalRequestPage() {
       {error && <p className="error">{error}</p>}
       <p className="muted">
         {request.category.name} · {l("Pemohon", "Requester")}: {request.requesterName ?? "—"}
-        {request.submittedAt &&
-          ` · ${l("diajukan", "submitted")} ${formatDate(request.submittedAt.slice(0, 10), locale)}`}
+        {request.submittedAt && ` · ${l("diajukan", "submitted")} ${formatDate(request.submittedAt, locale)}`}
       </p>
       {editing ? (
         <ApprovalRequestForm
@@ -276,7 +275,7 @@ export default function ApprovalRequestPage() {
                         <>
                           {s.decidedByName}
                           {s.delegated && ` (${l("delegasi", "delegate")})`}
-                          {s.decidedAt && ` · ${formatDate(s.decidedAt.slice(0, 10), locale)}`}
+                          {s.decidedAt && ` · ${formatDate(s.decidedAt, locale)}`}
                         </>
                       )}
                     </td>

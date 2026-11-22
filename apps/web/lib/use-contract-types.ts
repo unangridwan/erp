@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { api } from "./api";
+import { api, onSessionReset } from "./api";
 
 /** Jenis kontrak dari master (SDM › Konfigurasi › Jenis Kontrak). */
 /** Aturan penggajian jenis kontrak (0054). */
@@ -38,6 +38,7 @@ let cache: Promise<ContractType[]> | null = null;
 export function invalidateContractTypes() {
   cache = null;
 }
+onSessionReset(invalidateContractTypes);
 
 /**
  * Daftar jenis kontrak (dimuat sekali per halaman) + bantuan label & aturan. `options(current)` = jenis aktif, ditambah

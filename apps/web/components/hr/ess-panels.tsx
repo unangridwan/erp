@@ -404,7 +404,7 @@ export function AnnouncementsFeed() {
               {a.pinned ? "📌 " : ""}
               {a.title}
             </button>
-            <small className="muted"> {formatDate(a.publishedAt.slice(0, 10), locale)}</small>
+            <small className="muted"> {formatDate(a.publishedAt, locale)}</small>
             {open === a.id && <p className="announcement-body">{a.body}</p>}
           </li>
         ))}
@@ -746,7 +746,7 @@ export function NotesPanel({ employeeId }: { employeeId: string }) {
           <li key={n.id}>
             <p>{n.body}</p>
             <small className="muted">
-              {n.authorName} · {formatDate(n.createdAt.slice(0, 10), locale)} ·{" "}
+              {n.authorName} · {formatDate(n.createdAt, locale)} ·{" "}
               {n.visibility === "hr" ? l("terlihat HR", "visible to HR") : l("privat", "private")}
               {n.mine && (
                 <>
