@@ -804,6 +804,17 @@ export const MESSAGES_EN: Record<string, string> = {
   "Peran tidak ditemukan": "Role not found",
   "Tidak dapat memberi akses ke perusahaan yang tidak bisa Anda akses":
     "You cannot grant access to a company you cannot access",
+  "Tidak dapat memberi akses ke perusahaan yang tidak Anda kelola":
+    "You cannot grant access to a company you do not manage",
+  "Hak penuh untuk semua perusahaan hanya dapat diberikan admin semua perusahaan":
+    "Full access to all companies can only be granted by an all-company administrator",
+  "Akun dengan email ini sudah tertaut ke karyawan lain":
+    "The account with this email is already linked to another employee",
+  "Email ini milik akun lain dan tidak tercatat di data karyawan":
+    "This email belongs to another account and is not recorded on the employee",
+  "Simpan email ini di data karyawan terlebih dahulu": "Save this email on the employee record first",
+  "Email belum diverifikasi di penyedia identitas (klaim email_verified wajib bernilai true)":
+    "Email is not verified by the identity provider (the email_verified claim must be true)",
   "Perusahaan default harus termasuk yang dipilih":
     "The default company must be one of the selected companies",
   "Peran per perusahaan hanya untuk perusahaan yang boleh diakses pengguna ini":

@@ -277,8 +277,12 @@ export class SsoService {
     if (claims.nonce !== state.nonce) throw new UnauthorizedException("ID token tidak valid (nonce)");
     const email = claims.email?.trim().toLowerCase();
     if (!email) throw new UnauthorizedException("Penyedia identitas tidak mengirim email");
-    if (claims.email_verified === false || claims.email_verified === "false")
-      throw new UnauthorizedException("Email belum diverifikasi di penyedia identitas");
+    // Akun dicocokkan lewat email, jadi email harus dinyatakan terverifikasi oleh penyedia identitas. Klaim yang tidak
+    // dikirim dianggap belum terverifikasi (sebagian IdP membiarkan user mengisi atribut email sendiri).
+    if (claims.email_verified !== true && claims.email_verified !== "true")
+      throw new UnauthorizedException(
+        "Email belum diverifikasi di penyedia identitas (klaim email_verified wajib bernilai true)",
+      );
     return this.signIn(state.tid, state.slug, sso, email, claims.name, meta);
   }
 

@@ -1,6 +1,8 @@
 import { BadRequestException } from "@nestjs/common";
 import { and, asc, eq, gte, inArray, schema, sql, type Db, type PgColumn, type SQL } from "@erp/db";
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const E = schema.employees;
 const D = schema.departments;
 
@@ -76,7 +78,8 @@ function page(q: PageQuery) {
   if (q.cursor) {
     const [at, id] = Buffer.from(q.cursor, "base64url").toString("utf8").split("|");
     const date = new Date(at ?? "");
-    if (!id || Number.isNaN(date.getTime())) throw new BadRequestException("cursor tidak valid");
+    if (!id || !UUID.test(id) || Number.isNaN(date.getTime()))
+      throw new BadRequestException("cursor tidak valid");
     after = { at: date, id };
   }
   return { limit, since, after };

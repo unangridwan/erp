@@ -216,6 +216,9 @@ describe.skipIf(!hasDb)("Aplikasi terhubung (OIDC, akun layanan, webhook)", () =
     const asUser = client(app, t.access_token);
     await asUser.get("/auth/me").expect(200);
     await asUser.get("/employees").expect(403);
+    // Data gaji & kompensasi tidak pernah untuk aplikasi terhubung, walau scope employee diberikan.
+    await asUser.get("/me/payslips").expect(403);
+    await asUser.get("/me/total-rewards").expect(403);
 
     const next = (await token({ grant_type: "refresh_token", refresh_token: t.refresh_token }).expect(200))
       .body;
@@ -230,6 +233,47 @@ describe.skipIf(!hasDb)("Aplikasi terhubung (OIDC, akun layanan, webhook)", () =
       .send({ grant_type: "client_credentials", client_id: clientId, client_secret: "salah" })
       .expect(401);
     expect(bad.body.error).toBe("invalid_client");
+  });
+
+  it("token tanpa scope employee tidak bisa membaca portal karyawan; input rusak → 4xx, bukan 500", async () => {
+    const p = pkce();
+    const res = await a
+      .post("/oauth/authorize", {
+        clientId,
+        redirectUri: REDIRECT,
+        responseType: "code",
+        scope: "openid",
+        codeChallenge: p.challenge,
+        codeChallengeMethod: "S256",
+      })
+      .expect(200);
+    const code = new URL(res.body.redirectTo).searchParams.get("code")!;
+    const t = (
+      await token({
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: REDIRECT,
+        code_verifier: p.verifier,
+      }).expect(200)
+    ).body;
+    const asUser = client(app, t.access_token);
+    await asUser.get("/auth/me").expect(200);
+    await asUser.get("/me/announcements").expect(403);
+
+    const broken = await request(app.getHttpServer())
+      .post("/oauth/token")
+      .type("form")
+      .set("Authorization", `Basic ${Buffer.from("%E0%A4%A:x").toString("base64")}`)
+      .send({ grant_type: "client_credentials" })
+      .expect(401);
+    expect(broken.body.error).toBe("invalid_client");
+
+    const svc = client(
+      app,
+      (await token({ grant_type: "client_credentials" }).expect(200)).body.access_token,
+    );
+    const cursor = Buffer.from("2024-01-01T00:00:00.000Z|bukan-uuid").toString("base64url");
+    await svc.get(`/integrations/employees?cursor=${cursor}`).expect(400);
   });
 
   it("hanya peran yang diizinkan boleh masuk ke aplikasi", async () => {

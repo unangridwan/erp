@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Inject,
   NotFoundException,
@@ -20,7 +21,7 @@ import { assertRefsVisible } from "../common/crud.js";
 import { issueTenantToken } from "../common/crypto.js";
 import { TenantDb } from "../common/database.js";
 import { Mailer } from "../common/mailer.js";
-import { currentContext } from "../common/request-context.js";
+import { companiesWith, currentContext, hasAllCompanies } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { CONFIG, type AppConfig } from "../config.js";
 import { AccessService } from "./access.controller.js";
@@ -101,7 +102,7 @@ export class UsersController {
     const input = parse(userCreateSchema, body);
     const passwordHash = await hashPassword(input.password);
     return this.tenantDb.run(async (tx) => {
-      await this.assertRolesDelegable(tx, input.roleIds);
+      await this.assertGrantable(tx, input.roleIds, input.companyIds);
       const user = await this.users.create(tx, { ...input, passwordHash });
       await this.activity.log(tx, { resModel: "user", resId: user.id, action: "create" });
       return user;
@@ -117,7 +118,7 @@ export class UsersController {
     const { token, hash } = issueTenantToken(tenantId);
     const invitation = await this.tenantDb.run(async (tx) => {
       await assertUserLimit(tx);
-      await this.assertRolesDelegable(tx, input.roleIds);
+      await this.assertGrantable(tx, input.roleIds, input.companyIds);
       for (const roleId of input.roleIds) await assertRefsVisible(tx, { roleId: schema.roles }, { roleId });
       for (const companyId of input.companyIds) {
         await assertRefsVisible(tx, { companyId: schema.companies }, { companyId });
@@ -176,6 +177,19 @@ export class UsersController {
         .from(schema.users)
         .where(eq(schema.users.email, email));
       if (existing) {
+        // Menautkan ke akun yang sudah ada memberi akun itu akses data pribadi karyawan (slip gaji, dll.), jadi hanya
+        // boleh bila email itu memang tercatat di data karyawan, dan akun belum tertaut ke karyawan lain.
+        const recorded = [employee.workEmail, employee.personalEmail].map((e) => e?.toLowerCase());
+        if (!recorded.includes(email))
+          throw new BadRequestException({
+            message: "Email ini milik akun lain dan tidak tercatat di data karyawan",
+            errors: [{ path: "email", message: "Simpan email ini di data karyawan terlebih dahulu" }],
+          });
+        const [linked] = await tx
+          .select({ id: E.id })
+          .from(E)
+          .where(and(eq(E.userId, existing.id), eq(E.companyId, employee.companyId)));
+        if (linked) throw new BadRequestException("Akun dengan email ini sudah tertaut ke karyawan lain");
         await tx
           .update(E)
           .set({ userId: existing.id, updatedAt: sql`now()` })
@@ -184,7 +198,7 @@ export class UsersController {
         return { status: "linked" as const, email };
       }
       await assertUserLimit(tx);
-      await this.assertRolesDelegable(tx, input.roleIds);
+      await this.assertGrantable(tx, input.roleIds, [employee.companyId]);
       for (const roleId of input.roleIds) await assertRefsVisible(tx, { roleId: schema.roles }, { roleId });
       // Undangan lama yang belum diterima untuk karyawan ini dibatalkan (diganti yang baru).
       await tx
@@ -241,8 +255,15 @@ export class UsersController {
   }
 
   /** Admin terdelegasi hanya boleh memberi peran yang seluruh haknya ia miliki. */
-  private async assertRolesDelegable(tx: Db, roleIds: string[]) {
+  /**
+   * Akun baru hanya boleh diberi akses ke perusahaan tempat pemanggil berhak mengelola pengguna, dan peran (berlaku
+   * di semua perusahaan akun itu) harus bisa didelegasikan pemanggil di tiap perusahaan tersebut.
+   */
+  private async assertGrantable(tx: Db, roleIds: string[], companyIds: string[]) {
+    const manageable = new Set(companiesWith("user.write", "/users", "POST"));
+    if (!hasAllCompanies() && companyIds.some((c) => !manageable.has(c)))
+      throw new ForbiddenException("Tidak dapat memberi akses ke perusahaan yang tidak Anda kelola");
     const perms = await this.access.rolePermissions(tx, roleIds);
-    this.access.assertDelegable([...perms.values()].flat());
+    this.access.assertDelegableIn([...perms.values()].flat(), null, companyIds);
   }
 }

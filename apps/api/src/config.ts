@@ -6,7 +6,10 @@ export interface AppConfig {
   refreshTtlDays: number;
   /** Kunci untuk enkripsi kolom sensitif (secret 2FA, dst.). */
   encryptionKey: string;
+  /** Asal web utama (pertama dari WEB_ORIGIN), dipakai untuk tautan email & redirect. */
   webOrigin: string;
+  /** Semua asal web yang diizinkan (CORS); WEB_ORIGIN boleh dipisah koma. */
+  webOrigins: string[];
   /** URL publik API (untuk redirect URI SSO), mis. https://api.erpku.id. */
   apiOrigin: string;
   /** "smtp://host:port" atau "json" (tidak mengirim, untuk test). */
@@ -63,7 +66,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     accessTtl: env.ACCESS_TOKEN_TTL ?? "15m",
     refreshTtlDays: Number(env.REFRESH_TOKEN_TTL_DAYS ?? 30),
     encryptionKey: secret(env, "ENCRYPTION_KEY"),
-    webOrigin: env.WEB_ORIGIN ?? "http://localhost:3000",
+    ...webOrigins(env.WEB_ORIGIN ?? "http://localhost:3000"),
     apiOrigin: (env.API_ORIGIN ?? `http://localhost:${env.PORT ?? 3001}`).replace(/\/+$/, ""),
     mailTransport: env.MAIL_TRANSPORT ?? "smtp://localhost:1025",
     mailFrom: env.MAIL_FROM ?? "ERP <no-reply@erp.local>",
@@ -124,3 +127,11 @@ function assertProductionSecrets(env: NodeJS.ProcessEnv) {
 }
 
 export const CONFIG = Symbol("CONFIG");
+
+function webOrigins(raw: string) {
+  const list = raw
+    .split(",")
+    .map((o) => o.trim().replace(/\/+$/, ""))
+    .filter(Boolean);
+  return { webOrigin: list[0] ?? "http://localhost:3000", webOrigins: list };
+}

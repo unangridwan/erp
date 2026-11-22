@@ -31,7 +31,6 @@ import {
   type SQL,
 } from "@erp/db";
 import {
-  ALL_PERMISSIONS,
   customColumnName,
   LIST_LOAD_LIMIT,
   parseCsv,
@@ -44,7 +43,7 @@ import { z } from "zod";
 import { ActivityService, registerActivityModel } from "../activity/activity.service.js";
 import { RequirePermission } from "../auth/decorators.js";
 import { TenantDb } from "./database.js";
-import { companiesWith, currentContext } from "./request-context.js";
+import { companiesWith, currentContext, hasAllCompanies } from "./request-context.js";
 import { coerceCsvRow, exportColumns, parseXlsx, toXlsx, type AnyZodObject } from "./csv-import.js";
 import { parse } from "./zod.js";
 import {
@@ -150,12 +149,18 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
   const hasActive = "active" in table;
   const hasUpdatedAt = "updatedAt" in table;
 
-  const companyFilter = (): SQL | undefined => {
+  /**
+   * Batas perusahaan. Hak `*` di perusahaan aktif tidak berarti akses ke perusahaan lain: hak dihitung per perusahaan
+   * lewat `companiesWith`. Untuk ubah/hapus, baris perusahaan lain hanya boleh bila hak tulis ada di perusahaan itu.
+   */
+  const companyFilter = (mode: "read" | "write" = "read"): SQL | undefined => {
     const ctx = currentContext();
     if (opts.companyColumn && opts.perCompany) return eq(opts.companyColumn, ctx.companyId);
-    if (!opts.companyColumn || ctx.permissions.includes(ALL_PERMISSIONS)) return undefined;
-    // Baris perusahaan lain hanya terlihat bila pemanggil juga punya hak baca resource ini di perusahaan itu.
-    const readable = companiesWith(opts.read, `/${opts.path}`);
+    if (!opts.companyColumn || hasAllCompanies()) return undefined;
+    const readable =
+      mode === "write"
+        ? companiesWith(opts.write, `/${opts.path}`, "PATCH")
+        : companiesWith(opts.read, `/${opts.path}`);
     return readable.length
       ? or(isNull(opts.companyColumn), inArray(opts.companyColumn, readable))
       : isNull(opts.companyColumn);
@@ -309,7 +314,7 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
             assertCompanyAllowed(values);
             await assertRefsVisible(tx, opts.refs ?? {}, values);
             if (id) {
-              const before = await this.find(tx, id);
+              const before = await this.find(tx, id, "write");
               if (opts.perCompany) delete values.companyId;
               const custom = opts.customModel && customFromImportRow(defs, raw);
               if (custom)
@@ -422,7 +427,7 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
       );
       assertCompanyAllowed(sent);
       return this.tenantDb.run(async (tx) => {
-        const before = await this.find(tx, id);
+        const before = await this.find(tx, id, "write");
         await assertRefsVisible(tx, opts.refs ?? {}, sent);
         await opts.beforeSave?.(tx, { companyId: before.companyId, ...sent }, id);
         if (hasCustom(body))
@@ -454,18 +459,18 @@ export function createCrudController<T extends Table>(opts: CrudOptions<T>): Typ
     @RequirePermission(opts.write)
     remove(@Param("id", ParseUUIDPipe) id: string) {
       return this.tenantDb.run(async (tx) => {
-        const row = await this.find(tx, id);
+        const row = await this.find(tx, id, "write");
         await opts.beforeDelete?.(tx, row);
         await tx.delete(table).where(eq(table.id, id));
         await this.activity.log(tx, { resModel: opts.model, resId: id, action: "delete" });
       });
     }
 
-    async find(tx: Db, id: string): Promise<Record<string, unknown>> {
+    async find(tx: Db, id: string, mode: "read" | "write" = "read"): Promise<Record<string, unknown>> {
       const [row] = await tx
         .select()
         .from(table)
-        .where(and(eq(table.id, id), companyFilter()));
+        .where(and(eq(table.id, id), companyFilter(mode)));
       if (!row) throw new NotFoundException("Data tidak ditemukan");
       return row as Record<string, unknown>;
     }
