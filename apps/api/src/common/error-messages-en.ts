@@ -804,6 +804,10 @@ export const MESSAGES_EN: Record<string, string> = {
   "Peran tidak ditemukan": "Role not found",
   "Tidak dapat memberi akses ke perusahaan yang tidak bisa Anda akses":
     "You cannot grant access to a company you cannot access",
+  "Dokumen piutang dan utang tidak dapat dilunasi dalam satu pembayaran":
+    "Receivable and payable documents cannot be settled in a single payment",
+  "Hanya nota retur draft yang bisa dibatalkan; yang sudah dilaporkan tidak":
+    "Only draft return notes can be cancelled; reported ones cannot",
   "Tidak dapat memberi akses ke perusahaan yang tidak Anda kelola":
     "You cannot grant access to a company you do not manage",
   "Hak penuh untuk semua perusahaan hanya dapat diberikan admin semua perusahaan":

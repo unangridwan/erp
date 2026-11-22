@@ -332,7 +332,14 @@ export class BillingService implements OnApplicationBootstrap, OnApplicationShut
         status: "active" as const,
         billingCycle: invoice.billingCycle,
         currentPeriodStart: continues,
-        currentPeriodEnd: addPeriod(continues, invoice.billingCycle),
+        currentPeriodEnd: addPeriod(
+          continues,
+          invoice.billingCycle,
+          // Perpanjangan: tanggal jatuh tempo asli ada di awal atau akhir periode lama (yang tidak terpotong).
+          continues === sub?.currentPeriodEnd && sub.currentPeriodStart
+            ? Math.max(sub.currentPeriodStart.getUTCDate(), sub.currentPeriodEnd.getUTCDate())
+            : undefined,
+        ),
         cancelAtPeriodEnd: false,
         updatedAt: sql`now()`,
       };

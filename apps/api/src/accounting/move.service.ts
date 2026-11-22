@@ -105,7 +105,7 @@ export class MoveService {
     @Inject(FxService) private readonly fx: FxService,
     // Pick: lihat catatan di ReconcileService tentang ketergantungan melingkar.
     @Inject(forwardRef(() => ReconcileService))
-    private readonly reconcile: Pick<ReconcileService, "reconcileLines">,
+    private readonly reconcile: Pick<ReconcileService, "reconcileLines" | "unreconcileMove">,
     @Inject(ActivityService) private readonly activity: ActivityService,
   ) {}
 
@@ -469,6 +469,9 @@ export class MoveService {
       .from(schema.accountMoves)
       .where(eq(schema.accountMoves.reversedEntryId, id));
     if (already) throw new ConflictException("Entri ini sudah pernah dibalik");
+    // Lepas dulu pelunasan entri ini (mis. pembayaran yang melunasi faktur): tanpa ini dokumen pasangannya tetap
+    // berstatus lunas padahal entri pelunasnya sudah dibalik, dan baris pembalik menjadi sisa terbuka tanpa pasangan.
+    await this.reconcile.unreconcileMove(tx, id);
 
     // Faktur/tagihan ditangguhkan: draft pengakuan dihapus, pengakuan yang sudah diposting ikut dibalik.
     const children = await tx

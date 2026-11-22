@@ -62,6 +62,19 @@ describe("status langganan", () => {
     );
   });
 
+  it("perpanjangan berulang kembali ke tanggal jatuh tempo asli setelah bulan pendek", () => {
+    // 31 Jan → 28 Feb → 31 Mar → 30 Apr → 31 Mei (bukan terus tanggal 28).
+    let start = new Date("2026-01-31T00:00:00Z");
+    let end = addPeriod(start, "monthly");
+    const ends = [end.toISOString().slice(0, 10)];
+    for (let i = 0; i < 3; i++) {
+      const anchor = Math.max(start.getUTCDate(), end.getUTCDate());
+      [start, end] = [end, addPeriod(end, "monthly", anchor)];
+      ends.push(end.toISOString().slice(0, 10));
+    }
+    expect(ends).toEqual(["2026-02-28", "2026-03-31", "2026-04-30", "2026-05-31"]);
+  });
+
   it("PPN 11% efektif", () => {
     expect(billingAmounts("499000")).toEqual({ amount: "499000.00", tax: "54890.00", total: "553890.00" });
   });
