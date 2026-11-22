@@ -9,7 +9,7 @@ import {
   type CustomRefModel,
 } from "@erp/shared";
 import { useEffect, useState } from "react";
-import { api, ApiError } from "../lib/api";
+import { api, ApiError, onSessionReset } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { can } from "../lib/resources";
 import { toast } from "./feedback";
@@ -23,6 +23,8 @@ const cache = new Map<string, Promise<CustomDef[]>>();
 
 /** Hapus cache definisi (setelah admin mengubah field kustom). */
 export const resetCustomFieldCache = () => cache.clear();
+// Sesi berganti (logout/login user lain di tab yang sama): definisi tenant sebelumnya tidak boleh terbawa.
+onSessionReset(resetCustomFieldCache);
 
 /** Definisi field kustom aktif untuk satu model (di-cache per halaman). */
 export function useCustomFields(model: CustomFieldModel | undefined) {

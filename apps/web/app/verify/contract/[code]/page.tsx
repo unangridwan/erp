@@ -42,13 +42,10 @@ export default function VerifyContractPage() {
   }, [code]);
 
   const time = (iso: string) =>
-    `${formatDate(iso.slice(0, 10), locale)} ${new Date(iso).toLocaleTimeString(
-      locale === "en" ? "en-GB" : "id-ID",
-      {
-        hour: "2-digit",
-        minute: "2-digit",
-      },
-    )}`;
+    `${formatDate(iso, locale)} ${new Date(iso).toLocaleTimeString(locale === "en" ? "en-GB" : "id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`;
   const valid = result && !result.cancelled && result.signatures.every((s) => s.intact);
 
   return (

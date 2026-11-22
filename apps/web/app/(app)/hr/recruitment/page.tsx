@@ -236,7 +236,7 @@ function Recruitment() {
                   )}
                   {a.nextInterview && (
                     <small>
-                      {l("Wawancara", "Interview")} {formatDate(a.nextInterview.slice(0, 10), locale)}
+                      {l("Wawancara", "Interview")} {formatDate(a.nextInterview, locale)}
                     </small>
                   )}
                   {stage !== "hired" && stage !== "refused" && (

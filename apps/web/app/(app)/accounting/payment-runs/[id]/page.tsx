@@ -13,6 +13,7 @@ import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
 import { RUN_STATE } from "../../../../../components/accounting/payment-run-state";
 import { RelatedDocuments } from "../../../../../components/related-documents";
+import { LoadFailed, useLoadError } from "../../../../../components/load-failed";
 
 interface Bank {
   id: string;
@@ -70,6 +71,7 @@ export default function PaymentRunPage() {
   const { id } = useParams<{ id: string }>();
   const me = useMe();
   const { l, locale } = useI18n();
+  const [loadError, failLoad] = useLoadError();
   const m = (v: string) => money(v, locale);
   const [run, setRun] = useState<Run | null>(null);
   const [draft, setDraft] = useState<
@@ -90,17 +92,16 @@ export default function PaymentRunPage() {
       ),
     );
   };
-  const load = useCallback(
-    () =>
-      api<Run>(`/payment-runs/${id}`)
-        .then(apply)
-        .catch((e: Error) => toast.error(e.message)),
-    [id],
-  );
+  const load = useCallback(() => api<Run>(`/payment-runs/${id}`).then(apply).catch(failLoad), [id]);
   useEffect(() => {
     void load();
   }, [load]);
-  if (!run) return <p className="muted">{l("Memuat…", "Loading…")}</p>;
+  if (!run)
+    return loadError ? (
+      <LoadFailed message={loadError} />
+    ) : (
+      <p className="muted">{l("Memuat…", "Loading…")}</p>
+    );
 
   const editable = run.state === "draft" && write;
   const dirty = run.lines.some((x) => {

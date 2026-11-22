@@ -108,7 +108,7 @@ function StockCard() {
               </tr>
               {card.lines.map((x) => (
                 <tr key={x.id}>
-                  <td>{formatDate(x.date.slice(0, 10), locale)}</td>
+                  <td>{formatDate(x.date, locale)}</td>
                   <td>
                     {x.pickingId ? (
                       <Link href={`/inventory/pickings/${x.pickingId}`}>{x.reference}</Link>

@@ -15,7 +15,7 @@ import {
 } from "../../../../../components/hr/manpower-plan";
 import { api } from "../../../../../lib/api";
 import { download } from "../../../../../lib/download";
-import { money } from "../../../../../lib/format";
+import { money, parseNumberInput } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { ask } from "../../../../../components/feedback";
 
@@ -167,7 +167,10 @@ export default function ManpowerPlanPage() {
         startMonth: Number(x.startMonth || 1),
         endMonth: x.endMonth ? Number(x.endMonth) : null,
         ...(d?.showCost
-          ? { monthlyWage: x.monthlyWage || 0, monthlyAllowance: x.monthlyAllowance || 0 }
+          ? {
+              monthlyWage: parseNumberInput(x.monthlyWage, locale) || 0,
+              monthlyAllowance: parseNumberInput(x.monthlyAllowance, locale) || 0,
+            }
           : {}),
         reason: x.reason || null,
         replacesEmployeeId: x.kind === "replacement" ? x.replacesEmployeeId || null : null,
@@ -490,7 +493,7 @@ export default function ManpowerPlanPage() {
                             className="num-input"
                             value={x.monthlyWage}
                             onChange={(e) =>
-                              set(x.key, { monthlyWage: e.target.value.replace(/[^\d.]/g, "") })
+                              set(x.key, { monthlyWage: e.target.value.replace(/[^\d.,]/g, "") })
                             }
                           />
                         </td>
@@ -503,7 +506,7 @@ export default function ManpowerPlanPage() {
                             className="num-input"
                             value={x.monthlyAllowance}
                             onChange={(e) =>
-                              set(x.key, { monthlyAllowance: e.target.value.replace(/[^\d.]/g, "") })
+                              set(x.key, { monthlyAllowance: e.target.value.replace(/[^\d.,]/g, "") })
                             }
                           />
                         </td>

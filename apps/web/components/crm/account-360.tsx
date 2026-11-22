@@ -404,7 +404,7 @@ export function Account360({ id }: { id: string }) {
                       <td>
                         <span className="badge">{l(...TICKET_STATUS_LABEL[x.status]!)}</span>
                       </td>
-                      <td>{formatDate(x.createdAt.slice(0, 10), locale)}</td>
+                      <td>{formatDate(x.createdAt, locale)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -423,7 +423,7 @@ export function Account360({ id }: { id: string }) {
               .slice(0, 10)
               .map((a) => (
                 <li key={a.id}>
-                  {formatDate(a.doneAt!.slice(0, 10), locale)} · {activityLabel(a.activityType)} · {a.summary}
+                  {formatDate(a.doneAt!, locale)} · {activityLabel(a.activityType)} · {a.summary}
                   {a.userName ? ` (${a.userName})` : ""}
                 </li>
               ))}

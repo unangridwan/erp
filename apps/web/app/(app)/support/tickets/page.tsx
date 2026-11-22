@@ -15,7 +15,7 @@ import { DataTable, type DataColumn } from "../../../../components/data-table";
 import { useMe } from "../../../../components/me-context";
 import { SlaBadge } from "../../../../components/support/sla-badge";
 import { api, ApiError } from "../../../../lib/api";
-import { formatDate } from "../../../../lib/format";
+import { formatDate, localDay } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
 import { truncatedNote, useListData } from "../../../../lib/use-list-data";
@@ -138,8 +138,8 @@ export default function TicketsPage() {
         key: "createdAt",
         label: l("Dibuat", "Created"),
         type: "date",
-        value: (x) => x.createdAt.slice(0, 10),
-        text: (x) => formatDate(x.createdAt.slice(0, 10), locale),
+        value: (x) => localDay(x.createdAt),
+        text: (x) => formatDate(x.createdAt, locale),
       },
     ];
   }, [l, locale]);

@@ -1,5 +1,6 @@
 "use client";
 
+import { LIST_LOAD_LIMIT } from "@erp/shared";
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 
@@ -20,7 +21,9 @@ export function RefSelect(props: {
   const key = props.valueKey ?? "id";
 
   useEffect(() => {
-    api<{ items: Row[] } | Row[]>(`/${props.resource}${props.resource.includes("?") ? "&" : "?"}limit=200`)
+    api<{ items: Row[] } | Row[]>(
+      `/${props.resource}${props.resource.includes("?") ? "&" : "?"}limit=${LIST_LOAD_LIMIT}`,
+    )
       .then((data) => setOptions(Array.isArray(data) ? data : data.items))
       .catch(() => setOptions([]));
   }, [props.resource]);

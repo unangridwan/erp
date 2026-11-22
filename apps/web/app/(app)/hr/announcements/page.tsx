@@ -202,7 +202,7 @@ export default function AnnouncementsPage() {
                 <td>{a.departmentName ?? l("Semua karyawan", "Everyone")}</td>
                 <td>
                   {a.publishedAt ? (
-                    formatDate(a.publishedAt.slice(0, 10), locale)
+                    formatDate(a.publishedAt, locale)
                   ) : (
                     <span className="muted">{l("draft", "draft")}</span>
                   )}

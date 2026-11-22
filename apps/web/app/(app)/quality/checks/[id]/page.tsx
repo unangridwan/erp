@@ -11,6 +11,7 @@ import { api, ApiError, apiRaw } from "../../../../../lib/api";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
 import { RelatedDocuments } from "../../../../../components/related-documents";
+import { LoadFailed, useLoadError } from "../../../../../components/load-failed";
 
 interface Result {
   label: string;
@@ -62,6 +63,7 @@ const toBase64 = (file: File) =>
 export default function QualityCheckPage() {
   const { id } = useParams<{ id: string }>();
   const { l, locale } = useI18n();
+  const [loadError, failLoad] = useLoadError();
   const me = useMe();
   const i = locale === "id" ? 0 : 1;
   const [d, setD] = useState<Detail | null>(null);
@@ -76,7 +78,7 @@ export default function QualityCheckPage() {
     setNote(x.note ?? "");
   }, []);
   const load = useCallback(() => {
-    api<Detail>(`/quality-checks/${id}`).then(fill, (e: Error) => toast.error(e.message));
+    api<Detail>(`/quality-checks/${id}`).then(fill, failLoad);
   }, [id, fill]);
   useEffect(load, [load]);
 
@@ -101,7 +103,12 @@ export default function QualityCheckPage() {
     };
   }, [d, id]);
 
-  if (!d) return <p className="muted">{l("Memuat…", "Loading…")}</p>;
+  if (!d)
+    return loadError ? (
+      <LoadFailed message={loadError} />
+    ) : (
+      <p className="muted">{l("Memuat…", "Loading…")}</p>
+    );
   const editable = d.state === "pending" && can(me.permissions, "quality.write");
 
   async function run<T>(fn: () => Promise<T>, ok?: string) {

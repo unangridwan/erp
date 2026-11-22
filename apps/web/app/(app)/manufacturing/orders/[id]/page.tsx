@@ -19,6 +19,7 @@ import { formatDate, money, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { can } from "../../../../../lib/resources";
 import { RelatedDocuments } from "../../../../../components/related-documents";
+import { LoadFailed, useLoadError } from "../../../../../components/load-failed";
 
 interface Component {
   id: string;
@@ -222,6 +223,7 @@ function OrderForm({ id }: { id: string }) {
   const router = useRouter();
   const me = useMe();
   const { l, locale } = useI18n();
+  const [loadError, failLoad] = useLoadError();
   const [doc, setDoc] = useState<Order | null>(null);
   const [busy, setBusy] = useState(false);
   const [produce, setProduce] = useState<{
@@ -234,9 +236,7 @@ function OrderForm({ id }: { id: string }) {
   const write = can(me.permissions, "mrp.write");
   const manage = can(me.permissions, "mrp.manage");
   const load = useCallback(() => {
-    api<Order>(`/production-orders/${id}`)
-      .then(setDoc)
-      .catch((e: Error) => toast.error(e.message));
+    api<Order>(`/production-orders/${id}`).then(setDoc).catch(failLoad);
   }, [id]);
   useEffect(load, [load]);
   const run = async (fn: () => Promise<void>) => {
@@ -257,7 +257,12 @@ function OrderForm({ id }: { id: string }) {
   };
   const post = (path: string, body: object = {}) =>
     run(async () => setDoc(await api<Order>(`/production-orders/${id}/${path}`, { method: "POST", body })));
-  if (!doc) return <p className="muted">{l("Memuat…", "Loading…")}</p>;
+  if (!doc)
+    return loadError ? (
+      <LoadFailed message={loadError} />
+    ) : (
+      <p className="muted">{l("Memuat…", "Loading…")}</p>
+    );
   const open = doc.state === "confirmed" || doc.state === "in_progress";
   const m = (v: string) => money(v, locale);
   const startProduce = () =>

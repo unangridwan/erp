@@ -7,7 +7,7 @@ import { DataTable } from "../../../../components/data-table";
 import { toast } from "../../../../components/feedback";
 import { QualityBadge } from "../../../../components/quality/quality-ui";
 import { api } from "../../../../lib/api";
-import { formatDate } from "../../../../lib/format";
+import { formatDate, localDay } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 
 interface Row {
@@ -82,8 +82,8 @@ export default function QualityChecksPage() {
               key: "createdAt",
               label: l("Tanggal", "Date"),
               type: "date",
-              value: (r) => r.createdAt.slice(0, 10),
-              text: (r) => formatDate(r.createdAt.slice(0, 10), locale),
+              value: (r) => localDay(r.createdAt),
+              text: (r) => formatDate(r.createdAt, locale),
             },
             {
               key: "state",

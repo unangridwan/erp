@@ -131,7 +131,7 @@ export default function ReportsPage() {
                       </td>
                       <td>{datasets[r.dataset] ?? r.dataset}</td>
                       <td>{r.mine ? l("Saya", "Me") : (r.ownerName ?? "—")}</td>
-                      <td>{formatDate(r.updatedAt.slice(0, 10), locale)}</td>
+                      <td>{formatDate(r.updatedAt, locale)}</td>
                     </tr>
                   ))}
                   {table.rows.length === 0 && (

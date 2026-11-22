@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { formatDate, money } from "../../lib/format";
+import { formatDate, money, localDay } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
 import { can, LEAD_SOURCES, LEAD_STATE_LABEL } from "../../lib/resources";
 import { truncatedNote, useListData } from "../../lib/use-list-data";
@@ -109,8 +109,8 @@ export function LeadList({ type }: { type?: "lead" | "opportunity" }) {
         key: "createdAt",
         label: l("Dibuat", "Created"),
         type: "date",
-        value: (x) => x.createdAt.slice(0, 10),
-        text: (x) => formatDate(x.createdAt.slice(0, 10), locale),
+        value: (x) => localDay(x.createdAt),
+        text: (x) => formatDate(x.createdAt, locale),
       },
       {
         key: "state",

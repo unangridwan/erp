@@ -449,7 +449,7 @@ export function StageHistoryPanel(props: {
           <tbody>
             {props.history.map((h) => (
               <tr key={h.id}>
-                <td>{formatDate(h.changedAt.slice(0, 10), locale)}</td>
+                <td>{formatDate(h.changedAt, locale)}</td>
                 <td>
                   {h.fromStageName && h.fromStageName !== h.toStageName ? `${h.fromStageName} → ` : ""}
                   {h.toStageName ?? "—"}

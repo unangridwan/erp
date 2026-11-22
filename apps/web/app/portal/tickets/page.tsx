@@ -119,7 +119,7 @@ export default function PortalTicketsPage() {
                   <td>
                     <span className="badge">{l(...TICKET_STATUS_LABEL[t.status]!)}</span>
                   </td>
-                  <td>{formatDate(t.createdAt.slice(0, 10), locale)}</td>
+                  <td>{formatDate(t.createdAt, locale)}</td>
                 </tr>
               ))}
             </tbody>

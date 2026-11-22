@@ -170,7 +170,7 @@ export default function ArticlesPage() {
                       </span>
                     </td>
                     <td className="num">{a.views}</td>
-                    <td>{formatDate(a.updatedAt.slice(0, 10), locale)}</td>
+                    <td>{formatDate(a.updatedAt, locale)}</td>
                     <td>
                       {editable && (
                         <>

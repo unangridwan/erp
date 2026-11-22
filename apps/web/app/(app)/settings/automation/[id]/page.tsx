@@ -22,6 +22,7 @@ import { ask, toast } from "../../../../../components/feedback";
 import { api, ApiError } from "../../../../../lib/api";
 import { useI18n } from "../../../../../lib/i18n";
 import { RUN_STATUS } from "../../../../../components/automation/run-status";
+import { LoadFailed, useLoadError } from "../../../../../components/load-failed";
 
 type ActionType = AutomationAction["type"];
 interface Option {
@@ -122,6 +123,7 @@ export default function AutomationRulePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { l, locale } = useI18n();
+  const [loadError, failLoad] = useLoadError();
   const i = locale === "id" ? 0 : 1;
   const [id, setId] = useState(params.id === "new" ? null : params.id);
   const [rule, setRule] = useState<Rule | null>(params.id === "new" ? EMPTY : null);
@@ -162,7 +164,7 @@ export default function AutomationRulePage() {
           monthday: r.monthday ?? 1,
         }),
       )
-      .catch((e: Error) => toast.error(e.message));
+      .catch(failLoad);
   }, [id]);
 
   const model = rule?.model;
@@ -192,7 +194,12 @@ export default function AutomationRulePage() {
     return () => clearTimeout(t);
   }, [id, q]);
 
-  if (!rule) return <p className="muted">{l("Memuat…", "Loading…")}</p>;
+  if (!rule)
+    return loadError ? (
+      <LoadFailed message={loadError} />
+    ) : (
+      <p className="muted">{l("Memuat…", "Loading…")}</p>
+    );
 
   const set = <K extends keyof Rule>(k: K, v: Rule[K]) => setRule((r) => (r ? { ...r, [k]: v } : r));
   const setAction = (idx: number, patch: Partial<AutomationAction>) =>

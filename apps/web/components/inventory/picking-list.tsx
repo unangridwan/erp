@@ -62,7 +62,7 @@ export function PickingList({ kind }: { kind: PickingKind }) {
         label: l("Selesai", "Done"),
         type: "date",
         value: (p) => p.dateDone?.slice(0, 10) ?? null,
-        text: (p) => (p.dateDone ? formatDate(p.dateDone.slice(0, 10), locale) : ""),
+        text: (p) => (p.dateDone ? formatDate(p.dateDone, locale) : ""),
       },
       {
         key: "state",
