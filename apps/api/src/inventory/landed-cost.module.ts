@@ -46,11 +46,12 @@ export class LandedCostService {
     @Inject(StockService) private readonly stock: StockService,
   ) {}
 
-  private async find(tx: Db, id: string) {
-    const [row] = await tx
+  private async find(tx: Db, id: string, lock = false) {
+    const q = tx
       .select()
       .from(LC)
       .where(and(eq(LC.id, id), eq(LC.companyId, currentContext().companyId)));
+    const [row] = lock ? await q.for("update") : await q;
     if (!row) throw new NotFoundException("Landed cost tidak ditemukan");
     return row;
   }
@@ -299,7 +300,7 @@ export class LandedCostService {
    * barang yang sudah keluar dibebankan ke HPP. Jurnal: Dr persediaan + Dr HPP / Cr akun lawan per baris biaya.
    */
   async post(tx: Db, id: string) {
-    const lc = await this.find(tx, id);
+    const lc = await this.find(tx, id, true); // dikunci: posting ganda membuat dua jurnal & penyesuaian lapisan
     if (lc.state !== "draft") throw new BadRequestException("Landed cost sudah diposting atau dibatalkan");
     const c = await this.compute(tx, lc);
     if (c.errors.length) throw new BadRequestException(c.errors.join("; "));

@@ -262,7 +262,7 @@ describe.skipIf(!hasDb)("Fase 3: pembelian & persediaan", () => {
       await a.post(`/sale-orders/${so}/cancel`).expect(400);
     });
 
-    it("retur pelanggan kembali dengan biaya aslinya; retur ke pemasok dinilai rata-rata", async () => {
+    it("retur pelanggan kembali dengan biaya aslinya; retur ke pemasok: persediaan rata-rata, GRNI harga PO", async () => {
       const done = (await a.get(`/pickings/${delivery}`).expect(200)).body;
       await a
         .post(`/pickings/${delivery}/return`, { lines: [{ moveId: done.moves[0].id, quantity: "60" }] })
@@ -291,9 +291,12 @@ describe.skipIf(!hasDb)("Fase 3: pembelian & persediaan", () => {
           .expect(201)
       ).body;
       const sent = (await a.post(`/pickings/${back.id}/validate`, {}).expect(200)).body;
+      // Persediaan keluar sebesar biaya rata-rata (10.500), Barang Diterima Belum Ditagih didebit sebesar nilai
+      // penerimaan asal (harga PO 9.000) — sama dengan kredit nota debit pemasok — selisihnya ke Selisih Harga.
       expect(await entry(sent.accountMoveId)).toEqual([
         ["1-1400", "0.00", "105000.00"],
-        ["2-1800", "105000.00", "0.00"],
+        ["2-1800", "90000.00", "0.00"],
+        ["5-1100", "15000.00", "0.00"],
       ]);
       const po = (await a.get(`/purchase-orders/${po1}`).expect(200)).body;
       expect(po.lines[0].qtyReceived).toBe("90.0000");

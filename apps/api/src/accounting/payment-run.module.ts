@@ -135,11 +135,12 @@ export class PaymentRunService {
 
   // ---- Payment run ----
 
-  private async find(tx: Db, id: string): Promise<Run> {
-    const [run] = await tx
+  private async find(tx: Db, id: string, lock = false): Promise<Run> {
+    const q = tx
       .select()
       .from(RUN)
       .where(and(eq(RUN.id, id), eq(RUN.companyId, currentContext().companyId)));
+    const [run] = lock ? await q.for("update") : await q;
     if (!run) throw new NotFoundException("Payment run tidak ditemukan");
     return this.sync(tx, run);
   }
@@ -457,7 +458,8 @@ export class PaymentRunService {
    * (sudah lunas/sisa berkurang) ditandai gagal dan tidak dibayar.
    */
   async execute(tx: Db, id: string) {
-    const run = await this.find(tx, id);
+    // Dikunci: dua eksekusi bersamaan tidak boleh sama-sama membaca "approved" lalu membayar pemasok dua kali.
+    const run = await this.find(tx, id, true);
     if (run.state !== "approved")
       throw new BadRequestException("Payment run harus disetujui sebelum dieksekusi");
     const lines = await tx

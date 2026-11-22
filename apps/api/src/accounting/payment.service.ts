@@ -30,13 +30,16 @@ export class PaymentService {
     if (!journal.defaultAccountId) throw fieldError("journalId", "Jurnal kas/bank belum punya akun");
     const partner = await assertPartner(tx, companyId, input.partnerId);
     const inbound = input.paymentType === "inbound";
-    const counterpartAccountId = partner.icCompanyId
+    const defaultCounterpart = partner.icCompanyId
       ? inbound
         ? books.settings.icReceivableAccountId
         : books.settings.icPayableAccountId
       : inbound
         ? books.settings.receivableAccountId
         : books.settings.payableAccountId;
+    // Akun lawan mengikuti dokumen yang dilunasi: nota kredit pemasok (in_refund) ada di akun utang walau uangnya
+    // masuk, nota kredit pelanggan (out_refund) di akun piutang walau uangnya keluar.
+    const counterpartAccountId = (await this.documentAccount(tx, input.moveIds)) ?? defaultCounterpart;
 
     const currencyCode = input.currencyCode ?? books.currencyCode;
     let amount = new Decimal(input.amount);
@@ -139,6 +142,15 @@ export class PaymentService {
           ),
         );
       if (!termLines.length) continue;
+      const [termAccount] = await tx
+        .select({ accountId: schema.accountMoveLines.accountId })
+        .from(schema.accountMoveLines)
+        .where(eq(schema.accountMoveLines.id, termLines[0]!.id));
+      if (termAccount?.accountId !== counterpartAccountId)
+        throw fieldError(
+          `moveIds.${i}`,
+          "Dokumen piutang dan utang tidak dapat dilunasi dalam satu pembayaran",
+        );
       const residuals = await this.reconcile.reconcileLines(tx, [
         paymentLine!.id,
         ...termLines.map((l) => l.id),
@@ -147,5 +159,21 @@ export class PaymentService {
     }
     if (!paymentLine) throw new BadRequestException("Baris pembayaran tidak ditemukan");
     return { ...payment!, moveName: name };
+  }
+
+  /** Akun piutang/utang dokumen pertama yang dilunasi (baris termin), bila ada. */
+  private async documentAccount(tx: Db, moveIds: string[]): Promise<string | undefined> {
+    if (!moveIds.length) return undefined;
+    const [line] = await tx
+      .select({ accountId: schema.accountMoveLines.accountId })
+      .from(schema.accountMoveLines)
+      .where(
+        and(
+          eq(schema.accountMoveLines.moveId, moveIds[0]!),
+          eq(schema.accountMoveLines.displayType, "payment_term"),
+        ),
+      )
+      .limit(1);
+    return line?.accountId;
   }
 }

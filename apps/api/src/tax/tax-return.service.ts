@@ -215,7 +215,13 @@ export class TaxReturnService {
   }
 
   async cancel(tx: Db, id: string) {
-    await this.find(tx, id);
+    const doc = await this.find(tx, id);
+    // Nota retur yang sudah dilaporkan (punya nomor Coretax) tidak dibatalkan di sini: membatalkannya membuat nota
+    // yang sama terbit lagi saat generate berikutnya dan kredit pajak masukan periode itu terhitung lebih.
+    if (doc.state !== "draft")
+      throw new BadRequestException(
+        "Hanya nota retur draft yang bisa dibatalkan; yang sudah dilaporkan tidak",
+      );
     await tx
       .update(R)
       .set({ state: "cancelled", updatedAt: sql`now()` })

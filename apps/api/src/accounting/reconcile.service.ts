@@ -114,13 +114,15 @@ export class ReconcileService {
             .insert(schema.partialReconciles)
             .values({ debitLineId: d.id, creditLineId: c.id, amount: amount.toFixed(2) });
         }
+        const before = { d: d.res, c: c.res };
         d.res = d.res.minus(amount);
         c.res = c.res.plus(amount);
         if (foreign) {
           d.resCur = d.resCur.minus(amountCur);
           c.resCur = c.resCur.plus(amountCur);
         } else {
-          for (const l of [d, c]) l.resCur = this.syncCurrencyResidual(l, books.currencyCode);
+          d.resCur = this.syncCurrencyResidual(d, before.d, books.currencyCode);
+          c.resCur = this.syncCurrencyResidual(c, before.c, books.currencyCode);
         }
         d.changed = c.changed = true;
       }
@@ -156,10 +158,11 @@ export class ReconcileService {
   }
 
   /** Sisa valas mengikuti sisa rupiah secara proporsional (pemasangan campuran mata uang). */
-  private syncCurrencyResidual(l: OpenLine, companyCurrency: string): Decimal {
-    if (l.currencyCode === companyCurrency || l.res.isZero())
-      return l.currencyCode === companyCurrency ? l.res : dec(0);
-    return l.resCur;
+  private syncCurrencyResidual(l: OpenLine, resBefore: Decimal, companyCurrency: string): Decimal {
+    if (l.currencyCode === companyCurrency) return l.res;
+    if (l.res.isZero()) return dec(0);
+    if (resBefore.isZero()) return l.resCur;
+    return round2(l.resCur.times(l.res).div(resBefore));
   }
 
   private async writeExchangeDifference(

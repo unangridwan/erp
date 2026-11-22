@@ -707,20 +707,8 @@ export class PayrollService {
     if (!correction && contract.wageType !== "monthly") {
       let days = 0;
       if (contract.wageType === "daily") {
-        const rows = await tx
-          .select({ checkIn: schema.attendances.checkIn })
-          .from(schema.attendances)
-          .where(
-            and(
-              eq(schema.attendances.employeeId, employee.id),
-              eq(schema.attendances.state, "validated"),
-              gte(schema.attendances.checkIn, new Date(`${from}T00:00:00Z`)),
-              lte(schema.attendances.checkIn, new Date(`${to}T23:59:59Z`)),
-            ),
-          );
-        days = new Set(
-          rows.map((r) => localDate(r.checkIn, settings.timezone)).filter((x) => x >= from && x <= to),
-        ).size;
+        // Sama dengan hari hadir: absen dini hari waktu lokal (mis. 06:30 WIB = 23:30Z hari sebelumnya) ikut dihitung.
+        days = await this.presentDays(tx, employee.id, from, to, settings.timezone);
         wage = d(contract.wage).times(days);
       } else {
         const entries = await tx

@@ -57,6 +57,7 @@ import { StockService, type LinkedDocument } from "../inventory/stock.service.js
 import { SequenceService } from "../sequences/sequence.service.js";
 import { renderOrderPdf } from "./order-pdf.js";
 import { PricelistService } from "./pricelist.service.js";
+import { companyToday } from "../common/company-date.js";
 
 export type OrderInput = z.infer<typeof saleOrderSchema>;
 export type InvoiceFromOrderInput = z.infer<typeof createInvoiceFromOrderSchema>;
@@ -68,7 +69,6 @@ const O = schema.saleOrders;
 const OL = schema.saleOrderLines;
 const scope = () => ownedScope(O.companyId, O.userId, "sales.all");
 const dec = (v: Decimal.Value) => new Decimal(v);
-const today = () => new Date().toISOString().slice(0, 10);
 
 /**
  * Kuantitas tertagih per baris pesanan: faktur menambah, nota kredit (termasuk pembalikan faktur) mengurangi.
@@ -532,7 +532,7 @@ export class SaleOrderService implements OnModuleInit {
     if (order.state !== "sale") throw new BadRequestException("Konfirmasi pesanan sebelum membuat faktur");
     const books = await loadBooks(tx, order.companyId);
     const lines = await this.lines(tx, id);
-    const date = input.date ?? today();
+    const date = input.date ?? (await companyToday(tx, order.companyId));
     const decimals = await this.currencyDecimals(tx, order.currencyCode);
 
     type InvLine = {
@@ -715,7 +715,7 @@ export class SaleOrderService implements OnModuleInit {
       return qty.gt(0) && over.gt(0) ? [{ l, qty: over }] : [];
     });
     if (!refund.length) return null;
-    const date = today();
+    const date = await companyToday(tx, order.companyId);
     const moveId = await this.moves.createInvoice(
       tx,
       {

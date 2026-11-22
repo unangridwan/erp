@@ -61,6 +61,7 @@ import {
   storedSteps,
   userRoleIds,
 } from "../approval-rules/resolver.js";
+import { companyToday } from "../common/company-date.js";
 
 export type PurchaseInput = z.infer<typeof purchaseOrderSchema>;
 export type Order = typeof schema.purchaseOrders.$inferSelect;
@@ -70,7 +71,6 @@ export type ConfirmHook = (tx: Db, order: Order) => Promise<void>;
 const O = schema.purchaseOrders;
 const OL = schema.purchaseOrderLines;
 const d = (v: Decimal.Value) => new Decimal(v ?? 0);
-const today = () => new Date().toISOString().slice(0, 10);
 
 /**
  * Kuantitas diterima per baris PO dalam satuan baris: penerimaan menambah, retur ke pemasok mengurangi
@@ -668,7 +668,7 @@ export class PurchaseOrderService implements OnModuleInit {
       throw new BadRequestException("Tidak ada kuantitas yang perlu ditagih (barang belum diterima?)");
     if (billLines.some((x) => x.l.productType === "storable") && !books.settings.stockInputAccountId)
       throw new BadRequestException("Akun Barang Diterima Belum Ditagih belum diatur");
-    const date = input.date ?? today();
+    const date = input.date ?? (await companyToday(tx, order.companyId));
     const term = order.paymentTermId ? await assertPaymentTerm(tx, order.paymentTermId) : null;
     const moveId = await this.moves.createInvoice(
       tx,
@@ -915,7 +915,7 @@ export class PurchaseOrderService implements OnModuleInit {
       return qty.gt(0) && over.gt(0) ? [{ l, qty: over }] : [];
     });
     if (!refund.length) return null;
-    const date = today();
+    const date = await companyToday(tx, order.companyId);
     const moveId = await this.moves.createInvoice(
       tx,
       {

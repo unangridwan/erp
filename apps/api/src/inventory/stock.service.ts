@@ -18,6 +18,7 @@ import { currentContext } from "../common/request-context.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { virtualLocation } from "./setup.js";
 import { assertNotTemplate } from "../master/variant.service.js";
+import { companyTimezone, dateInZone } from "../common/company-date.js";
 
 type Picking = typeof schema.stockPickings.$inferSelect;
 type Move = typeof schema.stockMoves.$inferSelect;
@@ -1026,10 +1027,25 @@ export class StockService {
             .returning({ id: schema.stockValuationLayers.id });
           layerIds.push(layer!.id);
           const account = counterpart(dest.usage);
+          // Retur ke pemasok: Barang Diterima Belum Ditagih didebit sebesar nilai penerimaan asal (harga PO), sama
+          // dengan yang dikredit nota debit pemasok; selisih terhadap biaya persediaan saat ini ke Selisih Harga.
+          const returnValue =
+            dest.usage === "supplier" && move.originReturnMoveId && move.priceUnit != null
+              ? money(qty.times(d(move.priceUnit)))
+              : value;
+          const diff = value.minus(returnValue);
+          if (!diff.isZero() && s.priceDifferenceAccountId)
+            journalLines.push({
+              accountId: s.priceDifferenceAccountId,
+              debit: diff.gt(0) ? diff : d(0),
+              credit: diff.lt(0) ? diff.negated() : d(0),
+              name: `Selisih harga retur ${product.name}`,
+              partnerId: null,
+            });
           journalLines.push(
             {
               accountId: account,
-              debit: value,
+              debit: s.priceDifferenceAccountId ? returnValue : value,
               credit: d(0),
               name: `${product.name} (${qty.toFixed(0)})`,
               partnerId: dest.usage === "supplier" ? ctx.partnerId : null,
@@ -1060,7 +1076,8 @@ export class StockService {
 
     const lines = journalLines.filter((l) => l.debit.gt(0) || l.credit.gt(0));
     if (!lines.length || !s.stockJournalId) return null;
-    const date = ctx.date.toISOString().slice(0, 10);
+    // Tanggal jurnal menurut zona waktu perusahaan (tanggal input disimpan pukul 12:00Z, jadi tidak bergeser).
+    const date = dateInZone(ctx.date, await companyTimezone(tx, companyId));
     const moveId = await this.moves.createEntry(
       tx,
       {
