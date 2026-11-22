@@ -20,7 +20,7 @@ import { RequirePermission } from "../auth/decorators.js";
 import { assertRefsVisible } from "../common/crud.js";
 import { encrypt, randomToken, sha256 } from "../common/crypto.js";
 import { OWNER_DB, TenantDb } from "../common/database.js";
-import { currentContext } from "../common/request-context.js";
+import { companiesWith, currentContext } from "../common/request-context.js";
 import { assertPublicUrl } from "../common/safe-fetch.js";
 import { parse, parsePartial } from "../common/zod.js";
 import { CONFIG, type AppConfig } from "../config.js";
@@ -282,13 +282,17 @@ export class ConnectedAppsController {
   @Get("integrations/employees")
   @RequirePermission("hr.read")
   employees(@Query() q: Record<string, string>) {
-    return this.tenantDb.run((tx) => employeePage(tx, { ...q, companyIds: currentContext().companyIds }));
+    return this.tenantDb.run((tx) =>
+      employeePage(tx, { ...q, companyIds: companiesWith("hr.read", "/employees") }),
+    );
   }
 
   @Get("integrations/departments")
   @RequirePermission("hr.read")
   departments(@Query() q: Record<string, string>) {
-    return this.tenantDb.run((tx) => departmentPage(tx, { ...q, companyIds: currentContext().companyIds }));
+    return this.tenantDb.run((tx) =>
+      departmentPage(tx, { ...q, companyIds: companiesWith("hr.read", "/departments") }),
+    );
   }
 
   private async find(tx: Db, id: string) {

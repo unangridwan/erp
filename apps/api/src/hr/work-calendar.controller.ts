@@ -1,15 +1,10 @@
 import { BadRequestException, Body, Controller, Get, Inject, Post, Query } from "@nestjs/common";
 import { and, asc, eq, gte, inArray, isNull, lte, or, schema } from "@erp/db";
-import {
-  ALL_PERMISSIONS,
-  holidayImportSchema,
-  ID_NATIONAL_HOLIDAYS,
-  leaveDaysPreviewSchema,
-} from "@erp/shared";
+import { holidayImportSchema, ID_NATIONAL_HOLIDAYS, leaveDaysPreviewSchema } from "@erp/shared";
 import { ActivityService } from "../activity/activity.service.js";
 import { RequirePermission } from "../auth/decorators.js";
 import { TenantDb } from "../common/database.js";
-import { currentContext } from "../common/request-context.js";
+import { currentContext, hasAllCompanies } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { EmployeeService } from "./employee.service.js";
 import { LeaveService } from "./leave.service.js";
@@ -53,7 +48,7 @@ export class WorkCalendarController {
             lte(H.date, `${year}-12-31`),
             companyId
               ? or(isNull(H.companyId), eq(H.companyId, companyId))
-              : ctx.permissions.includes(ALL_PERMISSIONS)
+              : hasAllCompanies()
                 ? undefined
                 : or(isNull(H.companyId), inArray(H.companyId, ctx.companyIds)),
           ),

@@ -16,6 +16,8 @@ export interface RequestContext {
    * sistem (job terjadwal, portal): di sana hak perusahaan aktif dipakai untuk semua `companyIds`.
    */
   permissionsByCompany?: Record<string, string[]>;
+  /** Admin ('*') tanpa batas perusahaan: boleh melihat semua perusahaan grup, termasuk yang nonaktif. */
+  allCompanies?: boolean;
 }
 
 const storage = new AsyncLocalStorage<{ ctx?: RequestContext }>();
@@ -46,6 +48,15 @@ export function contextSlot(): { ctx?: RequestContext } | undefined {
  * Perusahaan tempat pemanggil punya `permission` (dinilai seperti guard: hak modul atau hak fitur pemilik `path`).
  * Dipakai untuk menyaring data lintas perusahaan: akses ke perusahaan saja tidak cukup, harus ada hak baca di sana.
  */
+/**
+ * Pemanggil berhak atas semua perusahaan: admin global, atau konteks sistem dengan hak '*'. Hak '*' yang hanya berlaku
+ * di perusahaan aktif TIDAK termasuk — batas perusahaan tetap dihitung per perusahaan lewat `companiesWith`.
+ */
+export function hasAllCompanies(): boolean {
+  const ctx = currentContext();
+  return !!ctx.allCompanies || (!ctx.permissionsByCompany && ctx.permissions.includes("*"));
+}
+
 export function companiesWith(permission: string, path: string, method = "GET"): string[] {
   const ctx = currentContext();
   return ctx.companyIds.filter((id) =>

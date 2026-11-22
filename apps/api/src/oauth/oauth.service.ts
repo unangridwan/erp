@@ -73,7 +73,7 @@ export class OAuthService {
   }
 
   get webOrigin() {
-    return this.config.webOrigin.split(",")[0]!.trim().replace(/\/+$/, "");
+    return this.config.webOrigin;
   }
 
   discovery() {
@@ -303,11 +303,16 @@ export class OAuthService {
     if (basic) {
       const decoded = Buffer.from(basic, "base64").toString("utf8");
       const i = decoded.indexOf(":");
-      if (i > 0)
-        return {
-          clientId: decodeURIComponent(decoded.slice(0, i)),
-          secret: decodeURIComponent(decoded.slice(i + 1)),
-        };
+      if (i > 0) {
+        try {
+          return {
+            clientId: decodeURIComponent(decoded.slice(0, i)),
+            secret: decodeURIComponent(decoded.slice(i + 1)),
+          };
+        } catch {
+          throw new OAuthError(401, "invalid_client", "Header Authorization Basic tidak valid");
+        }
+      }
     }
     if (params.client_id && params.client_secret)
       return { clientId: params.client_id, secret: params.client_secret };

@@ -11,9 +11,18 @@ export async function hashPassword(password: string): Promise<string> {
   return `scrypt$${salt.toString("base64")}$${hash.toString("base64")}`;
 }
 
-export async function verifyPassword(password: string, stored: string | null): Promise<boolean> {
+const DUMMY_SALT = randomBytes(16);
+
+/**
+ * Cocokkan password. Bila akun tidak ada / tanpa password (`stored` null), hash tetap dihitung agar waktu jawab sama
+ * dan keberadaan email tidak bisa ditebak dari lamanya respons.
+ */
+export async function verifyPassword(password: string, stored: string | null | undefined): Promise<boolean> {
   const [scheme, salt, hash] = stored?.split("$") ?? [];
-  if (scheme !== "scrypt" || !salt || !hash) return false;
+  if (scheme !== "scrypt" || !salt || !hash) {
+    await scrypt(password, DUMMY_SALT, KEY_LEN);
+    return false;
+  }
   const expected = Buffer.from(hash, "base64");
   const actual = await scrypt(password, Buffer.from(salt, "base64"), expected.length);
   return timingSafeEqual(actual, expected);

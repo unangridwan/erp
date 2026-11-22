@@ -18,7 +18,6 @@ import {
 } from "@nestjs/common";
 import { and, eq, schema, sql, type Db } from "@erp/db";
 import {
-  ALL_PERMISSIONS,
   allowedFor,
   CUSTOM_FIELD_MODELS,
   customFieldSchema,
@@ -28,7 +27,7 @@ import {
 import { ActivityService } from "../activity/activity.service.js";
 import { RequirePermission } from "../auth/decorators.js";
 import { TenantDb } from "../common/database.js";
-import { currentContext } from "../common/request-context.js";
+import { currentContext, hasAllCompanies } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { CUSTOM_TABLES, customKeyUsed, loadCustomDefs, normalizeCustom } from "./custom-values.js";
 
@@ -170,7 +169,7 @@ export class CustomFieldsController {
       const [row] = (await tx.select().from(t).where(eq(t.id, id))) as unknown as Record<string, unknown>[];
       if (!row) throw new NotFoundException("Data tidak ditemukan");
       const companyId = (row.companyId as string | null | undefined) ?? null;
-      const all = ctx.permissions.includes(ALL_PERMISSIONS);
+      const all = hasAllCompanies();
       if (companyId && !all && !ctx.companyIds.includes(companyId))
         throw new NotFoundException("Data tidak ditemukan");
       // Lead & pesanan milik salesperson lain hanya bisa diubah dengan hak melihat semua.
@@ -217,7 +216,7 @@ export class CustomFieldsController {
 
   private assertCompany(companyId: string | null | undefined) {
     const ctx = currentContext();
-    if (companyId && !ctx.permissions.includes(ALL_PERMISSIONS) && !ctx.companyIds.includes(companyId))
+    if (companyId && !hasAllCompanies() && !ctx.companyIds.includes(companyId))
       throw new NotFoundException("Perusahaan tidak ditemukan");
   }
 

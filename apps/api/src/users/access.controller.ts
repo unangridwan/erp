@@ -34,7 +34,7 @@ import { ActivityService } from "../activity/activity.service.js";
 import { AuthService } from "../auth/auth.service.js";
 import { RequirePermission } from "../auth/decorators.js";
 import { TenantDb } from "../common/database.js";
-import { currentContext } from "../common/request-context.js";
+import { currentContext, hasAllCompanies } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 
 const R = schema.roles;
@@ -54,14 +54,37 @@ export class AccessService {
     @Inject(ActivityService) private readonly activity: ActivityService,
   ) {}
 
-  /** Pemberi (user saat ini) boleh memberi/mencabut semua kode ini? */
-  assertDelegable(codes: Iterable<string>) {
-    const perms = currentContext().permissions;
+  /** Pemberi (user saat ini) boleh memberi/mencabut semua kode ini? (hak di perusahaan aktif) */
+  assertDelegable(codes: Iterable<string>, perms: readonly string[] = currentContext().permissions) {
     const blocked = [...new Set(codes)].filter((c) => !canDelegate(perms, c));
     if (blocked.length)
       throw new ForbiddenException(
         `Anda tidak dapat memberi atau mencabut hak yang tidak Anda miliki: ${blocked.slice(0, 5).join(", ")}`,
       );
+  }
+
+  /** Hak pemanggil di sebuah perusahaan (kosong bila perusahaan itu di luar aksesnya). */
+  permissionsAt(companyId: string): readonly string[] {
+    const ctx = currentContext();
+    if (!ctx.companyIds.includes(companyId)) return [];
+    return ctx.permissionsByCompany?.[companyId] ?? ctx.permissions;
+  }
+
+  /**
+   * Hak yang diberikan/dicabut berlaku di `companyId`, atau — bila null — di semua `targetCompanies` milik pengguna
+   * sasaran. Pemberi harus memegang hak itu di setiap perusahaan tersebut. Hak penuh ('*') tanpa batas perusahaan
+   * menjadikan sasaran admin semua perusahaan, jadi hanya boleh diberikan admin semua perusahaan.
+   */
+  assertDelegableIn(codes: Iterable<string>, companyId: string | null, targetCompanies: Iterable<string>) {
+    if (hasAllCompanies()) return this.assertDelegable(codes);
+    const list = [...new Set(codes)];
+    if (!list.length) return;
+    if (companyId === null && list.includes(ALL_PERMISSIONS))
+      throw new ForbiddenException(
+        "Hak penuh untuk semua perusahaan hanya dapat diberikan admin semua perusahaan",
+      );
+    for (const c of companyId === null ? new Set(targetCompanies) : [companyId])
+      this.assertDelegable(list, this.permissionsAt(c));
   }
 
   async rolePermissions(tx: Db, roleIds: string[]) {
@@ -96,13 +119,23 @@ export class AccessService {
     const ctx = currentContext();
     if (targetId === ctx.userId)
       throw new ForbiddenException("Hak akses dan status akun sendiri tidak dapat diubah sendiri");
-    if (isAdmin(ctx.permissions)) return;
-    const target = effectivePermissions(await this.auth.accessGrants(tx, targetId), ctx.companyId);
-    const held = new Set(ctx.permissions);
-    if (target.some((p) => !held.has(p)))
-      throw new ForbiddenException(
-        "Akun ini memiliki hak di atas hak Anda; hanya admin penuh yang dapat mengubahnya",
-      );
+    if (hasAllCompanies()) return;
+    // Hak sasaran dibandingkan di setiap perusahaannya, bukan hanya di perusahaan aktif pemanggil.
+    const grants = await this.auth.accessGrants(tx, targetId);
+    const companies = (
+      await tx.select({ companyId: UC.companyId }).from(UC).where(eq(UC.userId, targetId))
+    ).map((r) => r.companyId);
+    for (const companyId of new Set([ctx.companyId, ...companies])) {
+      const target = effectivePermissions(grants, companyId);
+      if (!target.length) continue;
+      const held = this.permissionsAt(companyId);
+      if (isAdmin(held)) continue;
+      const heldSet = new Set(held);
+      if (target.some((p) => !heldSet.has(p)))
+        throw new ForbiddenException(
+          "Akun ini memiliki hak di atas hak Anda; hanya admin penuh yang dapat mengubahnya",
+        );
+    }
   }
 
   /** Minimal satu pengguna aktif tetap admin penuh di semua perusahaan. */
@@ -489,7 +522,8 @@ export class UserAccessController {
       const added = wanted.filter((w) => !before.some((b) => key(b) === key(w)));
       const removed = before.filter((b) => !wanted.some((w) => key(w) === key(b)));
       const perms = await this.access.rolePermissions(tx, roleIds);
-      this.access.assertDelegable([...added, ...removed].flatMap((r) => perms.get(r.roleId) ?? []));
+      for (const r of [...added, ...removed])
+        this.access.assertDelegableIn(perms.get(r.roleId) ?? [], r.companyId, companies);
       for (const r of removed) await tx.delete(UR).where(eq(UR.id, r.id));
       if (added.length)
         await tx.insert(UR).values(
@@ -529,7 +563,6 @@ export class UserAccessController {
         ...wanted.filter((w) => !before.some((b) => key(b) === key(w) && b.effect === w.effect)),
         ...before.filter((b) => !wanted.some((w) => key(w) === key(b) && w.effect === b.effect)),
       ];
-      this.access.assertDelegable(changed.map((c) => c.permission));
       const companies = new Set(
         (await tx.select({ companyId: UC.companyId }).from(UC).where(eq(UC.userId, id))).map(
           (r) => r.companyId,
@@ -539,6 +572,7 @@ export class UserAccessController {
         throw new BadRequestException(
           "Hak khusus per perusahaan hanya untuk perusahaan yang boleh diakses pengguna ini",
         );
+      for (const c of changed) this.access.assertDelegableIn([c.permission], c.companyId ?? null, companies);
       await tx.delete(UO).where(eq(UO.userId, id));
       if (wanted.length)
         await tx.insert(UO).values(

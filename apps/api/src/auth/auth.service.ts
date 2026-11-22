@@ -36,6 +36,8 @@ export interface TokenClaims {
   typ?: "oauth" | "service";
   /** id aplikasi terhubung (oauth_clients.id). */
   cid?: string;
+  /** Scope token login aplikasi (mis. "openid profile employee"). */
+  scope?: string;
 }
 
 /** Asal permintaan login, dicatat untuk daftar sesi aktif. */
@@ -63,6 +65,8 @@ export interface Principal {
   /** Hak efektif per perusahaan yang boleh diakses (peran bisa berlaku di sebagian perusahaan saja). */
   permissionsByCompany: Record<string, string[]>;
   companies: { id: string; code: string; name: string; isDefault: boolean }[];
+  /** Admin ('*') tanpa batas perusahaan. */
+  allCompanies: boolean;
   /** Aplikasi terhubung pemilik token akun layanan (oauth_clients.id). */
   clientId?: string;
 }
@@ -124,7 +128,7 @@ export class AuthService {
         .select()
         .from(schema.users)
         .where(and(eq(schema.users.email, input.email), eq(schema.users.active, true)));
-      if (!user || !(await verifyPassword(input.password, user.passwordHash))) throw invalid;
+      if (!(await verifyPassword(input.password, user?.passwordHash)) || !user) throw invalid;
       await this.assertPasswordLoginAllowed(tx, user.id);
 
       if (user.totpEnabled) {
@@ -369,7 +373,13 @@ export class AuthService {
       // Token portal pelanggan tidak berlaku untuk API internal.
       if (payload.typ === "portal") throw new Error("token portal");
       if (payload.typ === "oauth" || payload.typ === "service")
-        return { sub: payload.sub, tid: payload.tid, typ: payload.typ, cid: String(payload.cid ?? "") };
+        return {
+          sub: payload.sub,
+          tid: payload.tid,
+          typ: payload.typ,
+          cid: String(payload.cid ?? ""),
+          ...(typeof payload.scope === "string" ? { scope: payload.scope } : {}),
+        };
       if (payload.typ !== undefined) throw new Error("jenis token tidak dikenal");
       return { sub: payload.sub, tid: payload.tid };
     } catch {
@@ -432,6 +442,7 @@ export class AuthService {
           companies.map((c) => [c.id, effectivePermissions(grants, c.id)]),
         ),
         companies,
+        allCompanies: globalAdmin,
         ...(claims.typ === "service" && claims.cid ? { clientId: claims.cid } : {}),
       };
     });

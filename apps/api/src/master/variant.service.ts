@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { and, asc, eq, inArray, schema, type Db } from "@erp/db";
-import { ALL_PERMISSIONS, type generateVariantsSchema } from "@erp/shared";
+import { type generateVariantsSchema } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
-import { currentContext } from "../common/request-context.js";
+import { currentContext, hasAllCompanies } from "../common/request-context.js";
 
 type Value = {
   id: string;
@@ -124,12 +124,7 @@ export class VariantService {
   private async template(tx: Db, id: string) {
     const [product] = await tx.select().from(schema.products).where(eq(schema.products.id, id));
     const ctx = currentContext();
-    if (
-      !product ||
-      (product.companyId &&
-        !ctx.companyIds.includes(product.companyId) &&
-        !ctx.permissions.includes(ALL_PERMISSIONS))
-    )
+    if (!product || (product.companyId && !ctx.companyIds.includes(product.companyId) && !hasAllCompanies()))
       throw new NotFoundException("Produk tidak ditemukan");
     return product;
   }

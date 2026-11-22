@@ -18,6 +18,17 @@ export const COMPANY_HEADER = "x-company-id";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 /** Path yang boleh diakses token login aplikasi (`typ: oauth`): profil & portal karyawan (baca). */
 const OAUTH_USER_PATHS = /^\/(auth\/me|me)(\/|$)/;
+/** Portal karyawan (`/me/*`) butuh scope `employee`; data gaji & kompensasi tidak pernah untuk aplikasi terhubung. */
+const OAUTH_EMPLOYEE_PATHS = /^\/me(\/|$)/;
+const OAUTH_DENIED_PATHS =
+  /^\/me\/(payslips|payslip-pin|team-compensation|total-rewards|loans|benefits)(\/|$)/;
+
+function oauthAllows(method: string, path: string, scope: string | undefined): boolean {
+  if (method !== "GET" || !OAUTH_USER_PATHS.test(path)) return false;
+  if (OAUTH_DENIED_PATHS.test(path)) return false;
+  if (OAUTH_EMPLOYEE_PATHS.test(path)) return (scope ?? "").split(" ").includes("employee");
+  return true;
+}
 
 /** Guard global: verifikasi JWT, muat principal, tetapkan perusahaan aktif, cek permission. */
 @Injectable()
@@ -38,7 +49,7 @@ export class AuthGuard implements CanActivate {
 
     const claims = await this.auth.verifyToken(token);
     // Token login aplikasi terhubung hanya untuk membaca profil sendiri; API memakai token akun layanan.
-    if (claims.typ === "oauth" && !(req.method === "GET" && OAUTH_USER_PATHS.test(req.path)))
+    if (claims.typ === "oauth" && !oauthAllows(req.method, req.path, claims.scope))
       throw new ForbiddenException("Token aplikasi hanya untuk profil; gunakan akun layanan untuk API");
     const requested = req.headers[COMPANY_HEADER];
     const principal = await this.auth.loadPrincipal(
@@ -61,6 +72,7 @@ export class AuthGuard implements CanActivate {
       companyId,
       permissions: principal.permissions,
       permissionsByCompany: principal.permissionsByCompany,
+      allCompanies: principal.allCompanies,
     });
 
     const required = this.reflector.getAllAndOverride<Permission | undefined>(REQUIRED_PERMISSION, targets);

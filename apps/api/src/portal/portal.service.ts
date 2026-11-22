@@ -145,7 +145,7 @@ export class PortalService {
         .where(
           and(sql`lower(${schema.portalUsers.email}) = ${input.email}`, eq(schema.portalUsers.active, true)),
         );
-      if (!user || !(await verifyPassword(input.password, user.passwordHash))) throw invalid;
+      if (!(await verifyPassword(input.password, user?.passwordHash)) || !user) throw invalid;
       await tx
         .update(schema.portalUsers)
         .set({ lastLoginAt: sql`now()` })
