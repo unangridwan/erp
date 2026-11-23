@@ -3731,6 +3731,42 @@ dialog.palette {
   border: 1px solid var(--border);
   border-radius: 4px;
 }
+/* Ringkasan angka bisnis di beranda. */
+.home-kpis {
+  display: grid;
+  /* Dua kolom di ponsel, lima di layar lebar. */
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.home-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  color: var(--fg);
+}
+.home-kpi:hover {
+  text-decoration: none;
+  border-color: var(--accent);
+}
+.home-kpi strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-kpi .kpi-warn {
+  color: var(--danger);
+}
+.home-setup {
+  margin-bottom: 16px;
+}
 .home-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

@@ -5,12 +5,13 @@ import { useEffect, useState } from "react";
 import { AppIcon } from "../../components/app-icon";
 import { openCommandPalette } from "../../components/command-palette";
 import { PinnedDashboards } from "../../components/bi/pinned-dashboards";
+import { HomeKpis } from "../../components/home-kpis";
 import { useMe } from "../../components/me-context";
 import { api, ApiError } from "../../lib/api";
 import { rememberApp, visibleApps } from "../../lib/apps";
 import { useI18n } from "../../lib/i18n";
 import { toggleFavorite, useFavorites, useRecent } from "../../lib/recent";
-import { canCreate, RESOURCES } from "../../lib/resources";
+import { can, canCreate, RESOURCES } from "../../lib/resources";
 
 interface Pending {
   model: string;
@@ -35,6 +36,24 @@ export default function Home() {
   const [pending, setPending] = useState<Pending[] | null>(null);
   const [unread, setUnread] = useState(0);
   const [pendingFailed, setPendingFailed] = useState(false);
+  // PO yang menunggu persetujuan saya (bukan hanya persetujuan SDM).
+  const [poPending, setPoPending] = useState<{ id: string; name: string; partnerName: string | null }[]>([]);
+  useEffect(() => {
+    if (!can(me.permissions, "purchase.read")) return;
+    api<{ id: string; name: string; partnerName: string | null }[]>("/purchase-orders/pending-approval").then(
+      setPoPending,
+      () => setPoPending([]),
+    );
+  }, [me.permissions]);
+  // Perusahaan baru: arahkan ke Panduan Awal sampai selesai.
+  const [setupLeft, setSetupLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (!can(me.permissions, "company.write")) return;
+    api<{ remaining: number; completedAt: string | null }>("/onboarding").then(
+      (s) => setSetupLeft(s.completedAt ? null : s.remaining),
+      () => setSetupLeft(null),
+    );
+  }, [me.permissions]);
   useEffect(() => {
     // Tanpa hak persetujuan (403) = memang tidak ada yang menunggu; galat lain jangan ditampilkan sebagai "kosong".
     api<Pending[]>("/approvals/pending").then(setPending, (e: unknown) => {
@@ -69,6 +88,18 @@ export default function Home() {
         </button>
       </header>
 
+      {setupLeft !== null && setupLeft > 0 && (
+        <div className="banner home-setup">
+          {l(
+            `Lengkapi pengaturan awal perusahaan: ${setupLeft} langkah lagi.`,
+            `Finish setting up your company: ${setupLeft} steps left.`,
+          )}{" "}
+          <Link href="/onboarding">{l("Lanjutkan Panduan Awal", "Continue Getting Started")}</Link>
+        </div>
+      )}
+
+      <HomeKpis me={me} />
+
       <PinnedDashboards />
 
       <div className="home-cards">
@@ -76,8 +107,16 @@ export default function Home() {
           <h2>{l("Perlu tindakan saya", "Needs my action")}</h2>
           {pending === null ? (
             <p className="muted small">{l("Memuat…", "Loading…")}</p>
-          ) : pending.length || unread ? (
+          ) : pending.length || unread || poPending.length ? (
             <ul className="home-list">
+              {poPending.slice(0, 5).map((o) => (
+                <li key={`po:${o.id}`}>
+                  <Link href={`/purchase/orders/${o.id}`}>
+                    {l(`Setujui PO ${o.name}`, `Approve PO ${o.name}`)}
+                  </Link>
+                  <span className="muted small">{o.partnerName ?? ""}</span>
+                </li>
+              ))}
               {pending.slice(0, 5).map((p) => (
                 <li key={`${p.model}:${p.id}`}>
                   <Link href="/hr/approvals">{p.summary}</Link>
@@ -154,10 +193,22 @@ export default function Home() {
           )}
         </section>
 
-        {quick.length > 0 && (
+        {(quick.length > 0 ||
+          can(me.permissions, "sales.write") ||
+          can(me.permissions, "accounting.write")) && (
           <section className="home-card">
             <h2>{l("Buat cepat", "Quick create")}</h2>
             <div className="home-quick">
+              {can(me.permissions, "sales.write") && (
+                <Link className="button" href="/sales/orders/new">
+                  + {l("Penawaran", "Quotation")}
+                </Link>
+              )}
+              {can(me.permissions, "accounting.write") && (
+                <Link className="button" href="/accounting/moves/new?type=out_invoice">
+                  + {l("Faktur", "Invoice")}
+                </Link>
+              )}
               {quick.map((r) => (
                 <Link key={r.path} className="button" href={`/${r.path}/new`}>
                   + {tx(r.singular)}

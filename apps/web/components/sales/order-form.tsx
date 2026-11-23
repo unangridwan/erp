@@ -395,6 +395,13 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
       <div className="stack-wide">
         <form className="panel" onSubmit={onSubmit}>
           <header className="toolbar">
+            <Crumb
+              to={
+                (order?.state === "sale"
+                  ? ["/sales/orders", l("Pesanan Penjualan", "Sales Orders")]
+                  : ["/sales/quotations", l("Penawaran", "Quotations")]) as [string, string]
+              }
+            />
             <h1>{title}</h1>
             {order && (
               <span className={`badge state-${order.state}`}>{tx(ORDER_STATE_LABEL[order.state]!)}</span>
@@ -1041,5 +1048,15 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
       </div>
       {order && <Chatter model="sale_order" id={order.id} version={version} labels={{}} />}
     </div>
+  );
+}
+
+/** Tautan kembali ke daftar asal dokumen. */
+function Crumb({ to: [href, label] }: { to: [string, string] }) {
+  return (
+    <nav className="breadcrumb" aria-label="Breadcrumb">
+      <Link href={href}>{label}</Link>
+      <span aria-hidden>/</span>
+    </nav>
   );
 }

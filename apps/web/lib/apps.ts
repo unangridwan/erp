@@ -135,7 +135,7 @@ export const APPS: App[] = [
         VENDORS,
       ]),
       group("Penagihan", "Billing", [
-        link("Perlu Ditagihkan", "To Bill", "/purchase/to-bill", "purchase.read"),
+        link("Perlu Ditagih", "To Bill", "/purchase/to-bill", "purchase.read"),
         link("Pencocokan 3 Arah", "3-way Matching", "/purchase/matching", "purchase.read"),
       ]),
       group("Produk", "Products", [
@@ -211,7 +211,7 @@ export const APPS: App[] = [
       ]),
       group("Pemasok", "Vendors", [
         link("Tagihan Pembelian", "Bills", "/accounting/bills", "accounting.read"),
-        link("Payment Run", "Payment Runs", "/accounting/payment-runs", "accounting.read"),
+        link("Pembayaran Massal", "Payment Runs", "/accounting/payment-runs", "accounting.read"),
         VENDORS,
       ]),
       group("Akuntansi", "Accounting", [
@@ -252,7 +252,12 @@ export const APPS: App[] = [
       group("Laporan", "Reporting", [link("Rekap PPN", "VAT Summary", "/tax/vat", "tax.read")]),
       group("Konfigurasi", "Configuration", [
         link("Pajak", "Taxes", "/taxes", "accounting.read"),
-        link("Profil Perusahaan & Pajak", "Company & Tax Profile", "/onboarding", "company.write"),
+        link(
+          "Panduan Awal (Profil & Pajak)",
+          "Getting Started (Company & Tax)",
+          "/onboarding",
+          "company.write",
+        ),
         link("NSFP e-Faktur lama", "Legacy e-Faktur serials", "/tax/nsfp", "tax.read"),
       ]),
     ],
@@ -288,6 +293,9 @@ export const APPS: App[] = [
         link("Surat Peringatan", "Warning Letters", "/hr/warnings", "hr.manage"),
         link("Checklist Onboarding/Offboarding", "Onboarding/Offboarding", "/hr/checklists", "hr.read"),
         link("Perubahan Data", "Data Changes", "/hr/change-requests", "hr.manage"),
+        link("Masa Percobaan", "Probations", "/hr/probations", "hr.read"),
+        link("Pengingat", "Reminders", "/hr/reminders", "hr.read"),
+        link("Struktur Organisasi", "Org Chart", "/hr/org-chart", "hr.read"),
       ]),
       group("Kehadiran", "Attendance", [
         link("Absensi", "Attendances", "/hr/attendance", "hr.read"),
@@ -302,6 +310,7 @@ export const APPS: App[] = [
         link("Pengajuan Cuti", "Time Off Requests", "/hr/leaves", "hr.read"),
         link("Jatah Cuti", "Allocations", "/leave-allocations", "hr.read"),
         link("Saldo Cuti", "Time Off Balances", "/hr/leave-balances", "hr.read"),
+        link("Siapa yang Cuti", "Who's Off", "/hr/whos-off", "hr.read"),
         link("Klaim Biaya", "Expenses", "/hr/expenses", "hr.read"),
       ]),
       group("Persetujuan", "Approvals", [
@@ -312,25 +321,21 @@ export const APPS: App[] = [
       group("Talenta", "Talent", [
         link("Pelamar", "Applicants", "/hr/recruitment", "hr.read"),
         link("Lowongan", "Job Openings", "/job-openings", "hr.read"),
-        link("Laporan Rekrutmen & Turnover", "Recruitment & Turnover", "/hr/recruitment-report", "hr.read"),
         link("Penilaian Kinerja", "Appraisals", "/hr/appraisals", "hr.read"),
         link("Sasaran & KRA", "Goals & KRAs", "/hr/goals", "hr.read"),
         link("Pengumuman", "Announcements", "/hr/announcements", "hr.read"),
         link("Pelatihan", "Trainings", "/hr/trainings", "hr.read"),
       ]),
       group("Perencanaan", "Planning", [
-        link("Man Power Planning", "Manpower Planning", "/hr/manpower-plans", "hr.read"),
+        link("Perencanaan Tenaga Kerja", "Manpower Planning", "/hr/manpower-plans", "hr.read"),
         link("Usulan Penambahan (FPK)", "Hiring Requests", "/hr/hiring-requests", "hr.read"),
         link("Anggaran Tenaga Kerja", "Manpower Budget", "/hr/manpower-budget", "hr.read"),
       ]),
+      // Hanya laporan & analitik; daftar operasional (pengingat, masa percobaan, siapa cuti) ada di grupnya.
       group("Laporan", "Reporting", [
-        link("Pembuat Laporan", "Report Builder", "/bi/reports", "hr.read"),
         link("Dashboard & Analitik SDM", "HR Dashboard & Analytics", "/hr/analytics", "hr.read"),
-        link("Struktur Organisasi", "Org Chart", "/hr/org-chart", "hr.read"),
-        link("Pengingat", "Reminders", "/hr/reminders", "hr.read"),
-        link("Masa Percobaan", "Probations", "/hr/probations", "hr.read"),
-        link("Log Akses Data Pribadi", "Personal Data Access Log", "/hr/privacy-log", "hr.manage"),
-        link("Siapa yang Cuti", "Who's Off", "/hr/whos-off", "hr.read"),
+        link("Laporan Rekrutmen & Turnover", "Recruitment & Turnover", "/hr/recruitment-report", "hr.read"),
+        link("Pembuat Laporan", "Report Builder", "/bi/reports", "hr.read"),
       ]),
       group("Konfigurasi", "Configuration", [
         ...section("Karyawan", "Employees", [
@@ -367,17 +372,18 @@ export const APPS: App[] = [
         ]),
         ...section("Data", "Data", [
           link("Impor & Ekspor Data", "Data Import & Export", "/hr/data", "hr.read"),
+          link("Log Akses Data Pribadi", "Personal Data Access Log", "/hr/privacy-log", "hr.manage"),
         ]),
       ]),
     ],
   },
   {
     id: "payroll",
-    name: L("Payroll", "Payroll"),
+    name: L("Penggajian", "Payroll"),
     home: "/payroll/runs",
     prefixes: ["/payroll", "/salary-components"],
     menu: [
-      link("Penggajian", "Payslip Batches", "/payroll/runs", "payroll.read"),
+      link("Proses Gaji", "Payslip Batches", "/payroll/runs", "payroll.read"),
       link("Pinjaman Karyawan", "Employee Loans", "/payroll/loans", "payroll.read"),
       link("Biaya Tenaga Kerja", "Labour Cost", "/payroll/cost", "payroll.read"),
       link("Kenaikan Gaji", "Salary Review", "/payroll/compensation", "payroll.read"),
@@ -436,7 +442,7 @@ export const APPS: App[] = [
   },
   {
     id: "maintenance",
-    name: L("Maintenance", "Maintenance"),
+    name: L("Pemeliharaan", "Maintenance"),
     home: "/maintenance/requests",
     prefixes: ["/maintenance", "/equipment", "/maintenance-plans", "/maintenance-teams"],
     menu: [

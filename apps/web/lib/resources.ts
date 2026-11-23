@@ -77,10 +77,10 @@ export const SALES = L("Penjualan", "Sales");
 export const INVENTORY = L("Persediaan", "Inventory");
 export const PURCHASE = L("Pembelian", "Purchase");
 export const HR = L("SDM", "Employees");
-export const PAYROLL = L("Payroll", "Payroll");
+export const PAYROLL = L("Penggajian", "Payroll");
 export const FLEET = L("Armada", "Fleet");
 export const MANUFACTURING = L("Manufaktur", "Manufacturing");
-export const MAINTENANCE = L("Maintenance", "Maintenance");
+export const MAINTENANCE = L("Pemeliharaan", "Maintenance");
 
 const VEHICLE_STATES: [string, Text][] = [
   ["new_request", L("Permintaan baru", "New request")],
@@ -2984,7 +2984,7 @@ export const PURCHASE_KINDS = {
     title: L("Permintaan Penawaran", "Requests for Quotation"),
   },
   orders: { state: "purchase", billStatus: "", title: L("Pesanan Pembelian", "Purchase Orders") },
-  "to-bill": { state: "purchase", billStatus: "to_invoice", title: L("Perlu Ditagihkan", "To Bill") },
+  "to-bill": { state: "purchase", billStatus: "to_invoice", title: L("Perlu Ditagih", "To Bill") },
 } as const;
 export type PurchaseKind = keyof typeof PURCHASE_KINDS;
 
