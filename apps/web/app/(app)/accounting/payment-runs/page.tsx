@@ -58,7 +58,7 @@ export default function PaymentRunsPage() {
   return (
     <>
       <header className="toolbar">
-        <h1>{l("Payment run", "Payment runs")}</h1>
+        <h1>{l("Pembayaran Massal", "Payment runs")}</h1>
       </header>
       <p className="muted">
         {l(

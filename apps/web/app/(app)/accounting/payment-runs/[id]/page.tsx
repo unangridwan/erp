@@ -196,7 +196,7 @@ export default function PaymentRunPage() {
     <div className="stack-wide">
       <header className="toolbar">
         <h1>
-          <Link href="/accounting/payment-runs">{l("Payment run", "Payment runs")}</Link> / {run.name}
+          <Link href="/accounting/payment-runs">{l("Pembayaran Massal", "Payment runs")}</Link> / {run.name}
         </h1>
         <span className={`pill ${run.state === "done" || run.state === "approved" ? "ok" : ""}`}>
           {l(...(RUN_STATE[run.state] ?? [run.state, run.state]))}
@@ -278,7 +278,7 @@ export default function PaymentRunPage() {
                 void action(
                   "cancel",
                   l(`Batalkan ${run.name}?`, `Cancel ${run.name}?`),
-                  l("Payment run dibatalkan", "Payment run cancelled"),
+                  l("Pembayaran massal dibatalkan", "Payment run cancelled"),
                   true,
                 )
               }

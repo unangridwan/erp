@@ -325,6 +325,13 @@ export function PurchaseForm({ id }: { id: string }) {
       <div className="stack-wide">
         <form className="panel" onSubmit={onSubmit}>
           <header className="toolbar">
+            <Crumb
+              to={
+                (order?.state === "purchase"
+                  ? ["/purchase/orders", l("Pesanan Pembelian", "Purchase Orders")]
+                  : ["/purchase/rfq", l("Permintaan Penawaran", "RFQs")]) as [string, string]
+              }
+            />
             <h1>{order?.name ?? l("RFQ baru", "New RFQ")}</h1>
             {order && (
               <span className={`badge state-${order.state}`}>{tx(PURCHASE_STATE_LABEL[order.state]!)}</span>
@@ -888,5 +895,15 @@ export function PurchaseForm({ id }: { id: string }) {
       </div>
       {order && <Chatter model="purchase_order" id={order.id} version={version} labels={{}} />}
     </div>
+  );
+}
+
+/** Tautan kembali ke daftar asal dokumen. */
+function Crumb({ to: [href, label] }: { to: [string, string] }) {
+  return (
+    <nav className="breadcrumb" aria-label="Breadcrumb">
+      <Link href={href}>{label}</Link>
+      <span aria-hidden>/</span>
+    </nav>
   );
 }

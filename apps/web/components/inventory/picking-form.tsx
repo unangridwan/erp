@@ -400,6 +400,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
       <div className="stack-wide">
         <form className="panel" onSubmit={save}>
           <header className="toolbar">
+            <Crumb to={["/inventory/overview", l("Transfer", "Transfers")] as [string, string]} />
             <h1>{title}</h1>
             {picking && (
               <span className={`badge state-${picking.state === "done" ? "posted" : picking.state}`}>
@@ -953,5 +954,15 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
       {picking && picking.state === "done" && <QualityChecksPanel pickingId={picking.id} />}
       {picking && <Chatter model="stock_picking" id={picking.id} version={version} labels={{}} />}
     </div>
+  );
+}
+
+/** Tautan kembali ke daftar asal dokumen. */
+function Crumb({ to: [href, label] }: { to: [string, string] }) {
+  return (
+    <nav className="breadcrumb" aria-label="Breadcrumb">
+      <Link href={href}>{label}</Link>
+      <span aria-hidden>/</span>
+    </nav>
   );
 }

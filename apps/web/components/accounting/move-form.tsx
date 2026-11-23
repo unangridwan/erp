@@ -396,6 +396,15 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
       <div className="stack-wide">
         <form className="panel" onSubmit={onSubmit}>
           <header className="toolbar">
+            <Crumb
+              to={
+                (isEntry
+                  ? ["/accounting/entries", l("Jurnal", "Journal Entries")]
+                  : sale
+                    ? ["/accounting/invoices", l("Faktur Penjualan", "Customer Invoices")]
+                    : ["/accounting/bills", l("Tagihan Pemasok", "Vendor Bills")]) as [string, string]
+              }
+            />
             <h1>{title}</h1>
             {move && <StateBadge state={move.state} />}
             {move?.state === "posted" && !isEntry && <PaymentBadge state={move.paymentState} />}
@@ -1121,5 +1130,15 @@ function DeferralSchedule({ moveId, version }: { moveId: string; version: number
         </table>
       </div>
     </section>
+  );
+}
+
+/** Tautan kembali ke daftar asal dokumen. */
+function Crumb({ to: [href, label] }: { to: [string, string] }) {
+  return (
+    <nav className="breadcrumb" aria-label="Breadcrumb">
+      <Link href={href}>{label}</Link>
+      <span aria-hidden>/</span>
+    </nav>
   );
 }

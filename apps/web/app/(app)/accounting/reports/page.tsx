@@ -294,7 +294,9 @@ function ReportsView() {
           .map((c) => c.name)
           .join(", ")}{" "}
         · {tabs.find(([k]) => k === tab)?.[1]} ·{" "}
-        {POINT_IN_TIME.includes(tab) ? filters.dateTo : `${filters.dateFrom} – ${filters.dateTo}`}
+        {POINT_IN_TIME.includes(tab)
+          ? formatDate(filters.dateTo, locale)
+          : `${formatDate(filters.dateFrom, locale)} – ${formatDate(filters.dateTo, locale)}`}
       </p>
       <nav role="tablist" className="tabs no-print">
         {tabs.map(([key, label]) => (

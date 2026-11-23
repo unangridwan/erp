@@ -267,6 +267,13 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
       <div className="stack-wide">
         <form className="panel" onSubmit={save}>
           <header className="toolbar">
+            <Crumb
+              to={
+                (leadType === "lead"
+                  ? ["/crm/leads", l("Lead", "Leads")]
+                  : ["/crm/opportunities", l("Peluang", "Opportunities")]) as [string, string]
+              }
+            />
             <h1>{title}</h1>
             {lead && <span className={`badge state-${lead.state}`}>{tx(LEAD_STATE_LABEL[lead.state]!)}</span>}
             <span className="badge">
@@ -821,5 +828,15 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
       </div>
       {lead && <Chatter model="crm_lead" id={lead.id} version={version} labels={{}} />}
     </div>
+  );
+}
+
+/** Tautan kembali ke daftar asal dokumen. */
+function Crumb({ to: [href, label] }: { to: [string, string] }) {
+  return (
+    <nav className="breadcrumb" aria-label="Breadcrumb">
+      <Link href={href}>{label}</Link>
+      <span aria-hidden>/</span>
+    </nav>
   );
 }
