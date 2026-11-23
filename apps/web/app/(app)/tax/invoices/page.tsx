@@ -149,7 +149,11 @@ export default function TaxInvoicesPage() {
           "Drafts are built from posted sales invoices with VAT. Export XML and import it in Coretax (e-Faktur → Import). Once approved, record the number or import the Coretax list.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {message && <p className="success">{message}</p>}
       {canWrite && (
         <div className="inline-panel">
@@ -248,7 +252,7 @@ export default function TaxInvoicesPage() {
       )}
       {problems && (
         <div className="panel">
-          <p className="error">
+          <p className="error" role="alert">
             {l("Perbaiki sebelum diunggah ke Coretax:", "Fix before uploading to Coretax:")}
           </p>
           <ul>
@@ -268,7 +272,7 @@ export default function TaxInvoicesPage() {
           </p>
           {result.skipped.length > 0 && (
             <>
-              <p className="error">
+              <p className="error" role="alert">
                 {l("Dilewati — lengkapi datanya lalu ulangi:", "Skipped — complete the data and retry:")}
               </p>
               <ul>
@@ -496,7 +500,11 @@ function EditPanel({ doc, onClose, onSaved }: { doc: TaxInvoice; onClose: () => 
       }}
     >
       <h2>{doc.ref}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <label className="field">
         <span>{l("Kode transaksi", "Transaction code")}</span>
         <select value={trxCode} onChange={(e) => setTrxCode(e.target.value)}>

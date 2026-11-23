@@ -122,7 +122,11 @@ export default function LoansPage() {
       <header className="toolbar">
         <h1>{l("Pinjaman Karyawan", "Employee Loans")}</h1>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {writable && (
         <form className="inline-panel" onSubmit={submit}>
           <label className="field">

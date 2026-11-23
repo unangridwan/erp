@@ -190,7 +190,11 @@ export default function RetirementPage() {
             "Retirement policy of the active company (per company regulation/CLA). Precedence: employee-specific age (on the employee) → job position → grade → department → default age. Contracts cannot run past the retirement date; employees nearing retirement appear in HR Reminders.",
           )}
         </p>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {notice && <p className="success">{notice}</p>}
         {policy && (
           <>

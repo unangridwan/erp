@@ -39,7 +39,11 @@ interface Stage {
 }
 
 export const Stars = ({ n }: { n: number }) =>
-  n > 0 ? <span className="stars">{"★".repeat(n)}</span> : null;
+  n > 0 ? (
+    <span className="stars" role="img" aria-label={`Prioritas ${n} dari 3 / Priority ${n} of 3`}>
+      {"★".repeat(n)}
+    </span>
+  ) : null;
 
 /** Kanban peluang per tahap; kartu bisa diseret ke tahap lain. */
 export function Pipeline() {
@@ -119,7 +123,11 @@ export function Pipeline() {
           </Link>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="kanban">
         {stages.map((stage) => {
           const cards = leads.filter((x) => x.stageId === stage.id);

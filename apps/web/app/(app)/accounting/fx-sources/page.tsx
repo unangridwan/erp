@@ -85,7 +85,11 @@ export default function FxSourcesPage() {
           "European Central Bank reference rates (via the Frankfurter API) are stored as daily rates (IDR per unit). For tax purposes (KMK rates) enter them manually — the Ministry of Finance offers no official API.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="notice">{notice}</p>}
       <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }} disabled={!writable}>
         <label className="field">

@@ -100,7 +100,11 @@ export default function AppraisalTemplatesPage() {
           "Final score = weighted average of 1–5 scores. Without a template the built-in KPIs are used.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {edit ? (
         <div className="stack">
           <div className="inline-panel">

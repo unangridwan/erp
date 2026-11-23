@@ -90,7 +90,11 @@ export default function RoleFormPage() {
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="success">{notice}</p>}
       <section className="panel">
         <div className="fields">

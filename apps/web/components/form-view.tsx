@@ -160,7 +160,14 @@ export function FormView({ resource, id, role }: { resource: Resource; id: strin
     }
   }
 
-  if (!loaded) return error ? <p className="error">{error}</p> : <Skeleton form rows={6} />;
+  if (!loaded)
+    return error ? (
+      <p className="error" role="alert">
+        {error}
+      </p>
+    ) : (
+      <Skeleton form rows={6} />
+    );
 
   const set = (name: string, value: unknown) => setValues((v) => ({ ...v, [name]: value }));
 
@@ -213,7 +220,11 @@ export function FormView({ resource, id, role }: { resource: Resource; id: strin
       <div className="form-layout">
         <div className="stack-wide">
           <form id="record-form" ref={formRef} className="panel" onSubmit={onSubmit} noValidate>
-            {error && <p className="error">{error}</p>}
+            {error && (
+              <p className="error" role="alert">
+                {error}
+              </p>
+            )}
             <fieldset disabled={!editable} className="fields">
               {resource.fields.map((f) => [
                 f.section && (

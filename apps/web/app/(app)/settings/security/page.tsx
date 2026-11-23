@@ -80,7 +80,11 @@ export default function SecurityPage() {
           <button className="danger">{t("security.disable")}</button>
         </form>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <Sessions />
     </div>
   );
@@ -129,7 +133,11 @@ function Sessions() {
           "Revoke sessions you don't recognise. That device must sign in again (at the latest when its access token expires).",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <ul className="steps">
         {(sessions ?? []).map((s) => (
           <li key={s.id}>

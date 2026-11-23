@@ -59,7 +59,11 @@ export function HrCostActivity({ year }: { year: number }) {
           <input type="checkbox" checked={table} onChange={(e) => setTable(e.target.checked)} />
           {l("Tampilkan tabel per bulan", "Show monthly table")}
         </label>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {d && (
           <ul className="grid">
             {(

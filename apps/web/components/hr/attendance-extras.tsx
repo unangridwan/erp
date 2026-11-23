@@ -145,7 +145,11 @@ export function MyAttendance() {
         </button>
       </header>
       {notice && <p className="notice">{notice}</p>}
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <ul className="grid">
         {SUMMARY_ITEMS.map(([k, label]) => (
           <li key={k} className="card">

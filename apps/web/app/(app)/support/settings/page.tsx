@@ -83,7 +83,11 @@ export default function SupportSettingsPage() {
       <header className="toolbar">
         <h1>{l("Pengaturan Layanan", "Helpdesk Settings")}</h1>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
 
       <section className="panel">
         <header className="toolbar">

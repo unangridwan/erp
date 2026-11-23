@@ -181,7 +181,11 @@ function HiringRequests() {
             <Link href="/hr/hiring-requests">{l("Tampilkan semua", "Show all")}</Link>
           </p>
         )}
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {form && (
           <form className="inline-panel" onSubmit={save}>
             <p>

@@ -72,7 +72,11 @@ export default function MatchingPage() {
           "Confirmed PO lines where the billed quantity differs from the received (goods) or ordered (services) quantity.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {rows && <TableTools view={table} />}
       {rows && (
         <div className="table-wrap">

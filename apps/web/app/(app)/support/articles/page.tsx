@@ -81,7 +81,11 @@ export default function ArticlesPage() {
           "Published articles appear in the customer portal (Help), so customers can find answers before opening a ticket.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {draft && (
         <section className="panel stack">
           <div className="fields">

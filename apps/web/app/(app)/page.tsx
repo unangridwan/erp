@@ -6,7 +6,7 @@ import { AppIcon } from "../../components/app-icon";
 import { openCommandPalette } from "../../components/command-palette";
 import { PinnedDashboards } from "../../components/bi/pinned-dashboards";
 import { useMe } from "../../components/me-context";
-import { api } from "../../lib/api";
+import { api, ApiError } from "../../lib/api";
 import { rememberApp, visibleApps } from "../../lib/apps";
 import { useI18n } from "../../lib/i18n";
 import { toggleFavorite, useFavorites, useRecent } from "../../lib/recent";
@@ -34,8 +34,13 @@ export default function Home() {
   const favorites = useFavorites();
   const [pending, setPending] = useState<Pending[] | null>(null);
   const [unread, setUnread] = useState(0);
+  const [pendingFailed, setPendingFailed] = useState(false);
   useEffect(() => {
-    api<Pending[]>("/approvals/pending").then(setPending, () => setPending([]));
+    // Tanpa hak persetujuan (403) = memang tidak ada yang menunggu; galat lain jangan ditampilkan sebagai "kosong".
+    api<Pending[]>("/approvals/pending").then(setPending, (e: unknown) => {
+      setPending([]);
+      if (!(e instanceof ApiError && e.status === 403)) setPendingFailed(true);
+    });
     api<{ unread: number }>("/me/notifications/count").then(
       (r) => setUnread(r.unread),
       () => setUnread(0),
@@ -97,7 +102,14 @@ export default function Home() {
               )}
             </ul>
           ) : (
-            <p className="muted small">{l("Tidak ada yang menunggu. 🎉", "Nothing waiting. 🎉")}</p>
+            <p className="muted small">
+              {pendingFailed
+                ? l(
+                    "Daftar persetujuan tidak dapat dimuat saat ini.",
+                    "The approval list could not be loaded right now.",
+                  )
+                : l("Tidak ada yang menunggu. 🎉", "Nothing waiting. 🎉")}
+            </p>
           )}
         </section>
 

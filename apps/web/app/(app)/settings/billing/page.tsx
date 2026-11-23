@@ -122,7 +122,14 @@ export default function BillingPage() {
     else setInstructions(result.instructions);
   }
 
-  if (!data) return error ? <p className="error">{error}</p> : <p className="muted">…</p>;
+  if (!data)
+    return error ? (
+      <p className="error" role="alert">
+        {error}
+      </p>
+    ) : (
+      <p className="muted">…</p>
+    );
   const { subscription: sub, plan, usage } = data;
   const banner =
     sub.status === "expired" || sub.status === "suspended" ? "bad" : sub.status === "past_due" ? "warn" : "";
@@ -132,7 +139,11 @@ export default function BillingPage() {
       <header className="toolbar">
         <h1>{l("Langganan", "Subscription")}</h1>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <div className={`banner ${banner}`}>
         <strong>
           {l("Paket", "Plan")} {plan.name}
@@ -185,11 +196,21 @@ export default function BillingPage() {
 
       <div className="toolbar">
         <h2>{l("Pilih paket", "Choose a plan")}</h2>
-        <div className="tabs">
-          <button className={cycle === "monthly" ? "primary" : ""} onClick={() => setCycle("monthly")}>
+        <div role="tablist" className="tabs">
+          <button
+            role="tab"
+            aria-selected={cycle === "monthly"}
+            className={cycle === "monthly" ? "primary" : ""}
+            onClick={() => setCycle("monthly")}
+          >
             {l("Bulanan", "Monthly")}
           </button>
-          <button className={cycle === "yearly" ? "primary" : ""} onClick={() => setCycle("yearly")}>
+          <button
+            role="tab"
+            aria-selected={cycle === "yearly"}
+            className={cycle === "yearly" ? "primary" : ""}
+            onClick={() => setCycle("yearly")}
+          >
             {l("Tahunan (hemat 2 bulan)", "Yearly (2 months free)")}
           </button>
         </div>

@@ -26,7 +26,8 @@ import { RelatedDocuments } from "../related-documents";
 import { ActivitiesPanel } from "../crm/activities-panel";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
-import { ask } from "../feedback";
+import { ask, toast } from "../feedback";
+import { useFormSnapshot } from "../../lib/use-form-guard";
 
 interface OrderLine {
   id: string;
@@ -217,6 +218,8 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
 
   const editable =
     (isNew || order?.state === "draft" || order?.state === "sent") && can(me.permissions, "sales.write");
+  // Peringatan saat meninggalkan form yang belum disimpan (tautan, tombol Kembali, tutup tab).
+  useFormSnapshot({ header, lines, custom }, order, editable);
 
   function payload() {
     const defaultable = (f: Defaultable) => (isNew && !touched.has(f) ? undefined : orNull(header[f]));
@@ -315,6 +318,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
     e.preventDefault();
     void run(async () => {
       if ((await save()) !== null) setVersion((v) => v + 1);
+      toast.success(l("Pesanan tersimpan", "Order saved"));
     });
   };
 
@@ -368,7 +372,12 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
 
   if (!isNew && !order) return <p className="muted">{error ?? l("Memuat…", "Loading…")}</p>;
 
-  const err = (path: string) => fieldErrors[path] && <small className="error">{fieldErrors[path]}</small>;
+  const err = (path: string) =>
+    fieldErrors[path] && (
+      <small className="error" role="alert">
+        {fieldErrors[path]}
+      </small>
+    );
   const setLine = (i: number, patch: Partial<FormLine>) =>
     setLines((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const setDefaultable = (f: Defaultable, v: string) => {
@@ -480,7 +489,11 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
           {order && order.state !== "cancel" && props.id && (
             <OrderCreditBanner orderId={props.id} refreshKey={version} />
           )}
-          {error && <p className="error">{error}</p>}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
           {order?.icPurchaseOrderId && (
             <p className="notice">
               {l(
@@ -738,6 +751,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                     <tr key={i}>
                       <td>
                         <select
+                          aria-label={l("Produk", "Product")}
                           disabled={!editable}
                           value={x.productId}
                           onChange={(e) => {
@@ -763,6 +777,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                       </td>
                       <td>
                         <input
+                          aria-label={l("Deskripsi", "Description")}
                           disabled={!editable}
                           value={x.name}
                           onChange={(e) => setLine(i, { name: e.target.value })}
@@ -771,6 +786,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                       </td>
                       <td>
                         <input
+                          aria-label={l("Kuantitas", "Quantity")}
                           disabled={!editable}
                           className="num short"
                           inputMode="decimal"
@@ -810,6 +826,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                       {confirmed && <td className="num">{saved ? num(saved.qtyInvoiced) : ""}</td>}
                       <td>
                         <input
+                          aria-label={l("Harga satuan", "Unit price")}
                           disabled={!editable}
                           className="num"
                           inputMode="decimal"
@@ -821,6 +838,7 @@ export function OrderForm(props: { id: string; leadId?: string; partnerId?: stri
                       </td>
                       <td>
                         <input
+                          aria-label={l("Diskon %", "Discount %")}
                           disabled={!editable}
                           className="num short"
                           inputMode="decimal"

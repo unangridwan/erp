@@ -93,15 +93,25 @@ export default function AdjustmentsPage() {
     <>
       <header className="toolbar">
         <h1>{l("Stock Opname & Penyesuaian", "Physical Inventory & Adjustments")}</h1>
-        <select value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+        <select
+          aria-label={l("Lokasi", "Location")}
+          value={locationId}
+          onChange={(e) => setLocationId(e.target.value)}
+        >
           {locations.map((x) => (
             <option key={x.id} value={x.id}>
               {x.completeName}
             </option>
           ))}
         </select>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <input
+          type="date"
+          aria-label={l("Tanggal", "Date")}
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+        />
+        <input
+          aria-label={l("Alasan", "Reason")}
           placeholder={l("Alasan (mis. opname Q3)", "Reason (e.g. Q3 count)")}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
@@ -111,7 +121,11 @@ export default function AdjustmentsPage() {
         </button>
       </header>
       <CountTabs />
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {message && <p className="notice">{message}</p>}
       <div className="table-wrap">
         <table className="lines">

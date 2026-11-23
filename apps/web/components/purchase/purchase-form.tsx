@@ -29,7 +29,8 @@ import { RelatedDocuments } from "../related-documents";
 import { UomPick } from "../uom-pick";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
-import { ask } from "../feedback";
+import { ask, toast } from "../feedback";
+import { useFormSnapshot } from "../../lib/use-form-guard";
 
 interface Line {
   id: string;
@@ -208,6 +209,8 @@ export function PurchaseForm({ id }: { id: string }) {
 
   const editable =
     (isNew || order?.state === "draft" || order?.state === "sent") && can(me.permissions, "purchase.write");
+  // Peringatan saat meninggalkan form yang belum disimpan (tautan, tombol Kembali, tutup tab).
+  useFormSnapshot({ header, lines, custom }, order, editable);
 
   const payload = () => ({
     partnerId: header.partnerId,
@@ -287,6 +290,7 @@ export function PurchaseForm({ id }: { id: string }) {
     e.preventDefault();
     void run(async () => {
       if (await save()) setVersion((v) => v + 1);
+      toast.success(l("Pesanan pembelian tersimpan", "Purchase order saved"));
     });
   };
   const action = (path: string, bodyArg?: object) =>
@@ -303,7 +307,12 @@ export function PurchaseForm({ id }: { id: string }) {
 
   if (!isNew && !order) return <p className="muted">{error ?? l("Memuat…", "Loading…")}</p>;
 
-  const err = (path: string) => fieldErrors[path] && <small className="error">{fieldErrors[path]}</small>;
+  const err = (path: string) =>
+    fieldErrors[path] && (
+      <small className="error" role="alert">
+        {fieldErrors[path]}
+      </small>
+    );
   const setLine = (i: number, patch: Partial<FormLine>) =>
     setLines((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const confirmed = order?.state === "purchase";
@@ -414,7 +423,11 @@ export function PurchaseForm({ id }: { id: string }) {
                 </button>
               )}
           </header>
-          {error && <p className="error">{error}</p>}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
           {order?.icSaleOrderId && (
             <p className="notice">
               {l(
@@ -652,6 +665,7 @@ export function PurchaseForm({ id }: { id: string }) {
                     <tr key={i}>
                       <td>
                         <select
+                          aria-label={l("Produk", "Product")}
                           value={x.productId}
                           onChange={(e) => {
                             const product = products.find((pr) => pr.id === e.target.value);
@@ -674,11 +688,16 @@ export function PurchaseForm({ id }: { id: string }) {
                         {err(`lines.${i}.productId`)}
                       </td>
                       <td>
-                        <input value={x.name} onChange={(e) => setLine(i, { name: e.target.value })} />
+                        <input
+                          aria-label={l("Deskripsi", "Description")}
+                          value={x.name}
+                          onChange={(e) => setLine(i, { name: e.target.value })}
+                        />
                         {err(`lines.${i}.name`)}
                       </td>
                       <td>
                         <input
+                          aria-label={l("Kuantitas", "Quantity")}
                           className="num short"
                           inputMode="decimal"
                           value={x.quantity}
@@ -699,6 +718,7 @@ export function PurchaseForm({ id }: { id: string }) {
                       </td>
                       <td>
                         <input
+                          aria-label={l("Harga satuan", "Unit price")}
                           className="num"
                           inputMode="decimal"
                           placeholder={p ? money(p.priceUnit, locale, 4) : l("harga pemasok", "vendor price")}
@@ -712,6 +732,7 @@ export function PurchaseForm({ id }: { id: string }) {
                       </td>
                       <td>
                         <input
+                          aria-label={l("Diskon %", "Discount %")}
                           className="num short"
                           inputMode="decimal"
                           value={x.discount}

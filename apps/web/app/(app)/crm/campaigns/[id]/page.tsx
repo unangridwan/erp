@@ -214,7 +214,11 @@ export default function CampaignPage() {
           </>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
 
       <ul className="grid">
         <li className="card">

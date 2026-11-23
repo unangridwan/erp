@@ -121,7 +121,11 @@ export default function FxRevaluationPage() {
           "Open foreign-currency receivables/payables and foreign-currency account balances are revalued at the daily rate on that date. Differences go to the unrealized exchange difference accounts (4-9110 / 7-1110) and are reversed automatically the next day, so realized differences on payment are still measured against the original transaction value.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {preview && (
         <div className="table-wrap">
           <table>

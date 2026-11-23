@@ -261,7 +261,11 @@ export function ApprovalRequestForm(props: {
         </label>
       )}
       {category?.description && <p className="muted">{category.description}</p>}
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="form-actions">
         <button type="submit" disabled={busy}>
           {l("Simpan draft", "Save draft")}

@@ -155,7 +155,11 @@ export function OffersPanel({
   return (
     <section className="panel">
       <h2>{l("Penawaran kerja", "Job offer")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {offers.length > 0 && (
         <div className="table-wrap">
           <table>

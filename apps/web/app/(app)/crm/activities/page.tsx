@@ -61,7 +61,11 @@ export default function MyActivitiesPage() {
       <header className="toolbar">
         <h1>{l("Aktivitas Saya", "My Activities")}</h1>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {items?.length === 0 && (
         <p className="muted">{l("Tidak ada aktivitas terbuka.", "No open activities.")}</p>
       )}

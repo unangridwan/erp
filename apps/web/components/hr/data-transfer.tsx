@@ -169,7 +169,11 @@ function DatasetCard({ d, runId }: { d: DatasetInfo; runId: string }) {
           {l("Pilih periode payroll terlebih dahulu.", "Choose a payroll period first.")}
         </small>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {saved && (
         <p className="notice">
           {l("Impor selesai", "Import finished")}: {saved.created} {l("dibuat", "created")}, {saved.updated}{" "}
@@ -204,7 +208,7 @@ function DatasetCard({ d, runId }: { d: DatasetInfo; runId: string }) {
             </>
           ) : (
             <>
-              <p className="error">
+              <p className="error" role="alert">
                 {l(
                   `${result.errors.length} kesalahan — perbaiki berkas lalu impor ulang (tidak ada data yang disimpan).`,
                   `${result.errors.length} errors — fix the file and import again (nothing was saved).`,
@@ -320,7 +324,11 @@ export function DataTransferPanel({
             </select>
           </label>
         )}
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
       </section>
       {datasets === null ? (
         <p className="muted">{l("Memuat…", "Loading…")}</p>

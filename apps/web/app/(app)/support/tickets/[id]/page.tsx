@@ -155,7 +155,11 @@ export default function TicketPage() {
               </button>
             )}
           </header>
-          {error && <p className="error">{error}</p>}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
           <p className="filters">
             <SlaBadge state={t.firstResponseState} label={l("Respons pertama", "First response")} />
             <SlaBadge state={t.resolutionState} label={l("Penyelesaian", "Resolution")} />
@@ -174,14 +178,18 @@ export default function TicketPage() {
           </ul>
           {editable && t.status !== "closed" && (
             <div className="stack">
-              <div className="tabs">
+              <div role="tablist" className="tabs">
                 <button
+                  role="tab"
+                  aria-selected={reply.kind === "public"}
                   className={reply.kind === "public" ? "active" : ""}
                   onClick={() => setReply({ ...reply, kind: "public" })}
                 >
                   {l("Balas pelanggan", "Reply")}
                 </button>
                 <button
+                  role="tab"
+                  aria-selected={reply.kind === "internal"}
                   className={reply.kind === "internal" ? "active" : ""}
                   onClick={() => setReply({ ...reply, kind: "internal" })}
                 >

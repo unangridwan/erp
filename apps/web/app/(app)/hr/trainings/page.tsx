@@ -116,7 +116,11 @@ export default function TrainingsPage() {
       <header className="toolbar">
         <h1>{l("Pelatihan & Sertifikasi", "Training & Certification")}</h1>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <form className="inline-panel" onSubmit={create}>
         <label className="field">
           <span>{l("Nama pelatihan *", "Training name *")}</span>

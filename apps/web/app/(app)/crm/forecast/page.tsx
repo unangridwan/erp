@@ -141,7 +141,11 @@ export default function ForecastPage() {
           </select>
         </label>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {data && (
         <>
           <ul className="grid">

@@ -212,7 +212,11 @@ export default function PayrollSettingsPage() {
     <>
       <form className="panel narrow stack" onSubmit={save}>
         <h1>{l("Pengaturan Payroll", "Payroll Settings")}</h1>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {notice && <p className="notice">{notice}</p>}
         <label className="field">
           <span>{l("Tarif JKK (kelompok risiko)", "JKK rate (risk group)")}</span>

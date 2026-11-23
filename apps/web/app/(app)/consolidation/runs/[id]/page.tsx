@@ -230,7 +230,14 @@ export default function ConsolidationRunPage() {
     }
   }
 
-  if (!run) return error ? <p className="error">{error}</p> : <p className="muted">…</p>;
+  if (!run)
+    return error ? (
+      <p className="error" role="alert">
+        {error}
+      </p>
+    ) : (
+      <p className="muted">…</p>
+    );
   const name = (companyId: string | null) =>
     companyId ? (run.entities.find((e) => e.companyId === companyId)?.name ?? "") : l("(grup)", "(group)");
   const KIND: Record<string, string> = {
@@ -371,15 +378,25 @@ export default function ConsolidationRunPage() {
           </>
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {run.warnings.map((w) => (
         <div key={w} className="banner warn">
           ⚠ {w}
         </div>
       ))}
-      <div className="tabs no-print">
+      <div role="tablist" className="tabs no-print">
         {TABS.map((t) => (
-          <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
+          <button
+            key={t}
+            role="tab"
+            aria-selected={tab === t}
+            className={tab === t ? "active" : ""}
+            onClick={() => setTab(t)}
+          >
             {
               {
                 report: l("Laporan konsolidasian", "Consolidated statements"),
@@ -1106,7 +1123,11 @@ function ManualEntry({
       }}
     >
       <h2>{l("Jurnal penyesuaian manual", "Manual adjustment")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <label className="field">
         <span>{l("Keterangan", "Description")}</span>
         <input required value={description} onChange={(e) => setDescription(e.target.value)} />

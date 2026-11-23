@@ -19,11 +19,13 @@ export function CountTabs() {
     tabs.push(["/inventory/adjustments", l("Penyesuaian cepat", "Quick adjustment")]);
   if (tabs.length < 2) return null;
   return (
-    <nav className="tabs" aria-label={l("Koreksi stok", "Stock correction")}>
+    <nav role="tablist" className="tabs" aria-label={l("Koreksi stok", "Stock correction")}>
       {tabs.map(([href, label]) => (
         <Link
           key={href}
           href={href}
+          role="tab"
+          aria-selected={path.startsWith(href)}
           className={path.startsWith(href) ? "active" : ""}
           aria-current={path.startsWith(href) ? "page" : undefined}
         >

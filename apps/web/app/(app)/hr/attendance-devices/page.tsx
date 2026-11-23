@@ -115,7 +115,11 @@ export default function AttendanceDevicesPage() {
             "Devices send logs to POST /attendance-devices/push with header X-Device-Key and body { punches: [{ code, timestamp }] } (code = badge or employee no.). Re-sending the same log is safe.",
           )}
         </p>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {notice && <p className="notice">{notice}</p>}
         {key && (
           <div className="notice">

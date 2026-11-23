@@ -282,7 +282,11 @@ export default function ReportEditorPage() {
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="notice">{notice}</p>}
 
       <section className="panel stack proj-panel report-editor">
@@ -847,7 +851,11 @@ function Schedules({
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {open && (
         <div className="inline-panel">
           <label className="field">

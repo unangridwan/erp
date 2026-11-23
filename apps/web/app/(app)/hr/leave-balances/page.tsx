@@ -144,7 +144,11 @@ export default function LeaveBalancesPage() {
             "Balance = allocations valid on that date − time off taken. The allocation that expires first (e.g. last year's carry-over) is used first. Click a balance to see the ledger.",
           )}
         </p>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {report && <TableTools view={table} placeholder={l("Cari karyawan…", "Search employee…")} />}
         {report && (
           <div className="table-wrap">

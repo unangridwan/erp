@@ -99,7 +99,11 @@ export default function PaymentsPage() {
       <header className="toolbar">
         <h1>{l("Pembayaran", "Payments")}</h1>
       </header>
-      {list.error && <p className="error">{list.error}</p>}
+      {list.error && (
+        <p className="error" role="alert">
+          {list.error}
+        </p>
+      )}
       <DataTable
         rows={list.rows}
         columns={columns}
@@ -178,7 +182,11 @@ export default function PaymentsPage() {
             </label>
           </div>
           <button className="primary">{l("Catat pembayaran", "Create payment")}</button>
-          {error && <p className="error">{error}</p>}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
         </form>
       )}
     </>

@@ -104,7 +104,18 @@ export default function HiringRequestPage() {
     }
   };
 
-  if (!d) return <div className="stack-wide">{error ? <p className="error">{error}</p> : <p>…</p>}</div>;
+  if (!d)
+    return (
+      <div className="stack-wide">
+        {error ? (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        ) : (
+          <p>…</p>
+        )}
+      </div>
+    );
   const wage =
     d.wageMin || d.wageMax
       ? `${money(d.wageMin ?? d.wageMax ?? 0, locale, 0)} – ${money(d.wageMax ?? d.wageMin ?? 0, locale, 0)}`
@@ -174,7 +185,11 @@ export default function HiringRequestPage() {
           )}
           <Link href="/hr/hiring-requests">{l("Kembali", "Back")}</Link>
         </header>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
 
         <ol className="hiring-steps" aria-label={l("Alur penambahan karyawan", "Hiring flow")}>
           {STEPS.map(([key, id_, en]) => {

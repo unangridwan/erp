@@ -21,7 +21,7 @@ import { RelatedDocuments } from "../related-documents";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
 import { ActivitiesPanel } from "./activities-panel";
-import { ask } from "../feedback";
+import { ask, toast } from "../feedback";
 import {
   ContactRolesPanel,
   DuplicatesPanel,
@@ -31,6 +31,7 @@ import {
   type LeadProduct,
   type StageHistoryRow,
 } from "./opportunity-panels";
+import { useFormSnapshot } from "../../lib/use-form-guard";
 
 interface Lead {
   id: string;
@@ -175,9 +176,16 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
   }, [id, isNew, version, me.permissions]);
 
   const editable = can(me.permissions, "crm.write");
+  // Peringatan saat meninggalkan form yang belum disimpan (tautan, tombol Kembali, tutup tab).
+  useFormSnapshot({ values, custom }, lead, editable);
   const leadType = lead?.leadType ?? (newType === "lead" ? "lead" : "opportunity");
   const set = (patch: Partial<Values>) => setValues((v) => ({ ...v, ...patch }));
-  const err = (path: string) => fieldErrors[path] && <small className="error">{fieldErrors[path]}</small>;
+  const err = (path: string) =>
+    fieldErrors[path] && (
+      <small className="error" role="alert">
+        {fieldErrors[path]}
+      </small>
+    );
 
   async function run(fn: () => Promise<void>) {
     setBusy(true);
@@ -228,6 +236,7 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
         await api(`/leads/${id}`, { method: "PATCH", body: payload() });
         setVersion((v) => v + 1);
       }
+      toast.success(l("Tersimpan", "Saved"));
     });
   };
 
@@ -347,7 +356,11 @@ export function LeadForm({ id, newType }: { id: string; newType: string }) {
               </button>
             )}
           </header>
-          {error && <p className="error">{error}</p>}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
 
           {lead && open && (
             <DuplicatesPanel

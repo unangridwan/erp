@@ -107,7 +107,11 @@ export function OffboardingPanel({ employeeId }: { employeeId: string }) {
   return (
     <section className="panel offboarding">
       <h2>{l("Offboarding", "Offboarding")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="notice">{notice}</p>}
       {left ? (
         <p>

@@ -98,7 +98,11 @@ export default function ProbationsPage() {
           "Probation is set when creating a permanent contract (max. 3 months). Open the contract to record pass/fail and print the appointment letter.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {rows === null ? (
         <Skeleton rows={4} />
       ) : (

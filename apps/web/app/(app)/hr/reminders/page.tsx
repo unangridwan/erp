@@ -58,7 +58,11 @@ export default function RemindersPage() {
           "Users with hr.manage also receive this summary by email daily.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {r && (
         <>
           <h2>{l("Kontrak PKWT berakhir", "Fixed-term contracts ending")}</h2>

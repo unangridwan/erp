@@ -13,7 +13,7 @@ import { money, today } from "../../../../../lib/format";
 import { useI18n } from "../../../../../lib/i18n";
 import { APPLICANT_STAGE_LABEL, can } from "../../../../../lib/resources";
 import { useContractTypes } from "../../../../../lib/use-contract-types";
-import { ask } from "../../../../../components/feedback";
+import { ask, Modal } from "../../../../../components/feedback";
 
 interface Applicant {
   consentAt: string | null;
@@ -79,6 +79,32 @@ function Applicant() {
     ptkpStatus: "TK/0",
   });
   const [accepted, setAccepted] = useState(false);
+  // Catat hasil wawancara: formulir dengan skor 1–5 (sebelumnya prompt() — Batal tetap menyimpan "selesai").
+  const [resultFor, setResultFor] = useState<{
+    i: Applicant["interviews"][number];
+    result: string;
+    score: string;
+  } | null>(null);
+  const saveResult = async () => {
+    if (!resultFor) return;
+    setError(null);
+    await api(`/applicants/${id}/interviews/${resultFor.i.id}`, {
+      method: "PUT",
+      body: {
+        scheduledAt: resultFor.i.scheduledAt,
+        location: resultFor.i.location,
+        result: resultFor.result.trim() || null,
+        score: resultFor.score ? Number(resultFor.score) : null,
+        done: true,
+      },
+    }).then(
+      () => {
+        setResultFor(null);
+        load();
+      },
+      (e) => setError(errorText(e)),
+    );
+  };
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -125,6 +151,56 @@ function Applicant() {
 
   return (
     <div className="stack-wide">
+      <Modal
+        open={!!resultFor}
+        title={l("Hasil wawancara", "Interview result")}
+        onClose={() => setResultFor(null)}
+        footer={
+          <>
+            <button type="button" onClick={() => setResultFor(null)}>
+              {l("Batal", "Cancel")}
+            </button>
+            <button type="submit" form="interview-result" className="primary">
+              {l("Simpan hasil", "Save result")}
+            </button>
+          </>
+        }
+      >
+        {resultFor && (
+          <form
+            id="interview-result"
+            className="stack"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveResult();
+            }}
+          >
+            <label className="field">
+              <span>{l("Skor (1–5)", "Score (1–5)")}</span>
+              <select
+                required
+                value={resultFor.score}
+                onChange={(e) => setResultFor({ ...resultFor, score: e.target.value })}
+              >
+                <option value="">—</option>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <option key={n} value={n}>
+                    {n} {"★".repeat(n)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>{l("Catatan hasil", "Result notes")}</span>
+              <textarea
+                rows={4}
+                value={resultFor.result}
+                onChange={(e) => setResultFor({ ...resultFor, result: e.target.value })}
+              />
+            </label>
+          </form>
+        )}
+      </Modal>
       <section className="panel">
         <header className="toolbar">
           <h1>
@@ -177,13 +253,17 @@ function Applicant() {
             </span>
           )}
         </p>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         <p className="muted">
           {[a.email, a.phone].filter(Boolean).join(" · ")}
           {a.expectedWage ? ` · ${l("harapan gaji", "expected wage")} ${money(a.expectedWage, locale)}` : ""}
         </p>
         {(a.refuseReasonName || a.refuseReason) && (
-          <p className="error">
+          <p className="error" role="alert">
             {l("Ditolak:", "Refused:")} {[a.refuseReasonName, a.refuseReason].filter(Boolean).join(" — ")}
           </p>
         )}
@@ -213,21 +293,7 @@ function Applicant() {
                       <button
                         type="button"
                         className="link"
-                        onClick={async () => {
-                          const result = prompt(l("Hasil wawancara", "Interview result")) ?? "";
-                          const score = Number(prompt(l("Skor 1–5", "Score 1–5")) || 0) || null;
-                          setError(null);
-                          await api(`/applicants/${id}/interviews/${i.id}`, {
-                            method: "PUT",
-                            body: {
-                              scheduledAt: i.scheduledAt,
-                              location: i.location,
-                              result,
-                              score,
-                              done: true,
-                            },
-                          }).then(load, (e) => setError(errorText(e)));
-                        }}
+                        onClick={() => setResultFor({ i, result: i.result ?? "", score: "" })}
                       >
                         {l("Catat hasil", "Record result")}
                       </button>

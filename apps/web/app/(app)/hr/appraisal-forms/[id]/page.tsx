@@ -130,7 +130,11 @@ export default function AppraisalFormPage() {
           </>
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="table-scroll">
         <table className="lines">
           <thead>

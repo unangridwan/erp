@@ -168,7 +168,11 @@ export default function ApprovalRequestPage() {
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <p className="muted">
         {request.category.name} · {l("Pemohon", "Requester")}: {request.requesterName ?? "—"}
         {request.submittedAt && ` · ${l("diajukan", "submitted")} ${formatDate(request.submittedAt, locale)}`}

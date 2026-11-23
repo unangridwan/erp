@@ -191,7 +191,11 @@ export default function BenefitPlansPage() {
           "Private health insurance, pension funds (DPLK), and perks (car, phone, housing). The taxable employer portion becomes a benefit in kind for PPh 21; employee DPLK contributions reduce PPh 21.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
 
       {form && (
         <form className="panel stack benefit-form" onSubmit={submit}>

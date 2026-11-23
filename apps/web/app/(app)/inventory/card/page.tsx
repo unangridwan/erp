@@ -82,7 +82,11 @@ function StockCard() {
           {l("Cetak", "Print")}
         </button>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {card && productId && (
         <div className="table-wrap">
           <table>

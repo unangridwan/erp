@@ -56,11 +56,13 @@ export default function SalesReportPage() {
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </label>
       </header>
-      <div className="tabs">
+      <div role="tablist" className="tabs">
         {GROUPS.map((g) => (
           <button
             key={g}
             type="button"
+            role="tab"
+            aria-selected={groupBy === g}
             className={groupBy === g ? "active" : ""}
             onClick={() => setGroupBy(g)}
           >
@@ -68,7 +70,11 @@ export default function SalesReportPage() {
           </button>
         ))}
       </div>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {rows && (
         <div className="table-wrap">
           <table>

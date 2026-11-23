@@ -50,7 +50,11 @@ export default function VatReportPage() {
           <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
         </label>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {report && (
         <>
           <div className="cards">

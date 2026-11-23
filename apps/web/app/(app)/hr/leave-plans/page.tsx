@@ -97,7 +97,11 @@ export default function LeavePlansPage() {
           "Allocations grow automatically (runs hourly, safe to repeat). Indonesian law example: 12 days per year after 12 months of continuous service.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <TableTools view={table} />
       <div className="table-wrap">
         <table>

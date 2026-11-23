@@ -169,7 +169,11 @@ export default function PayslipPage() {
           PDF
         </button>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {slip.holdReason && (
         <p className={slip.releasedAt ? "notice" : "error"}>
           {slip.releasedAt

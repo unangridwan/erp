@@ -188,7 +188,11 @@ function HrAnalytics() {
             {l("Biaya & aktivitas", "Cost & activity")}
           </button>
         </nav>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {tab === "analytics" && s && (
           <>
             <ul className="grid">

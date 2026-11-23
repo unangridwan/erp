@@ -121,17 +121,37 @@ export default function WithholdingPage() {
     <>
       <header className="toolbar">
         <h1>{l("Bukti Potong", "Withholding Slips")}</h1>
-        <div className="tabs">
-          <button className={kind === "bppu" ? "primary" : ""} onClick={() => setKind("bppu")}>
+        <div role="tablist" className="tabs">
+          <button
+            role="tab"
+            aria-selected={kind === "bppu"}
+            className={kind === "bppu" ? "primary" : ""}
+            onClick={() => setKind("bppu")}
+          >
             {l("Unifikasi (PPh 23/4(2))", "Unified (art. 23/4(2))")}
           </button>
-          <button className={kind === "bpmp" ? "primary" : ""} onClick={() => setKind("bpmp")}>
+          <button
+            role="tab"
+            aria-selected={kind === "bpmp"}
+            className={kind === "bpmp" ? "primary" : ""}
+            onClick={() => setKind("bpmp")}
+          >
             {l("PPh 21 bulanan", "Monthly PPh 21")}
           </button>
-          <button className={kind === "bp21" ? "primary" : ""} onClick={() => setKind("bp21")}>
+          <button
+            role="tab"
+            aria-selected={kind === "bp21"}
+            className={kind === "bp21" ? "primary" : ""}
+            onClick={() => setKind("bp21")}
+          >
             {l("PPh 21 tidak tetap & bukan pegawai", "PPh 21 non-permanent & non-employee")}
           </button>
-          <button className={kind === "bpa1" ? "primary" : ""} onClick={() => setKind("bpa1")}>
+          <button
+            role="tab"
+            aria-selected={kind === "bpa1"}
+            className={kind === "bpa1" ? "primary" : ""}
+            onClick={() => setKind("bpa1")}
+          >
             {l("A1 tahunan", "Annual A1")}
           </button>
         </div>
@@ -161,7 +181,11 @@ export default function WithholdingPage() {
                   "Built from posted payroll (permanent employees, code 21-100-01). The final period (December/resignation) uses the A1 slip in Coretax.",
                 )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {message && <p className="success">{message}</p>}
       {canWrite && (
         <div className="inline-panel">

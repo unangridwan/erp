@@ -120,7 +120,11 @@ export default function InputTaxPage() {
           "Download the input invoice list from Coretax (save as CSV) and import it here. Invoices are matched to vendors (NPWP) and bills with the same VAT. Input VAT can be credited up to 3 periods after the invoice period.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {message && <p className="success">{message}</p>}
       {canWrite && (
         <div className="inline-panel">

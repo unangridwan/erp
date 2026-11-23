@@ -244,7 +244,11 @@ export default function ConnectedAppPage() {
       )}
 
       <form className="panel stack narrow" onSubmit={save}>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {notice && <p className="notice">{notice}</p>}
         <label className="field">
           <span>{l("Nama aplikasi", "App name")} *</span>

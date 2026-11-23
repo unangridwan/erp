@@ -89,7 +89,11 @@ export default function LeadRulesPage() {
       <header className="toolbar">
         <h1>{l("Skor & Penugasan Lead", "Lead Scoring & Assignment")}</h1>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
 
       <section className="panel">
         <header className="toolbar">

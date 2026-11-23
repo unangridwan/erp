@@ -76,7 +76,11 @@ export default function PrivacyLogPage() {
           "Recorded automatically: opening employee records with ID/tax/bank data, viewing another employee's payslip, and exporting personal-data columns. Employees viewing their own data are not logged.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {rows === null ? (
         <Skeleton rows={5} />
       ) : (

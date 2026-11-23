@@ -339,7 +339,11 @@ export function ExportDialog({
           </button>
         </div>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <footer className="form-actions">
         <label className="check">
           <input

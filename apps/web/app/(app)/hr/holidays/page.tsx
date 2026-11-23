@@ -190,7 +190,11 @@ export default function HolidaysPage() {
           )}{" "}
           <Link href="/hr/leaves">{l("Cuti massal", "Bulk leave")}</Link>
         </p>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {notice && <p className="success">{notice}</p>}
         {d && (
           <ul className="grid">

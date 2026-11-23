@@ -92,7 +92,11 @@ export default function PayrollRunsPage() {
       <header className="toolbar">
         <h1>{l("Penggajian", "Payroll Runs")}</h1>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {can(me.permissions, "payroll.write") && (
         <form className="inline-panel" onSubmit={create}>
           <label className="field">

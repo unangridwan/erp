@@ -151,7 +151,11 @@ export default function AttendanceRequestsPage() {
       <header className="toolbar">
         <h1>{l("Koreksi Absensi & Tukar Shift", "Attendance Corrections & Shift Changes")}</h1>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <section className="panel">
         <h2>{l("Koreksi absensi", "Attendance corrections")}</h2>
         <TableTools view={corrTable} />

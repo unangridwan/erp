@@ -33,7 +33,12 @@ export function TotalRewardsPanel({ employeeId, mine = false }: { employeeId?: s
       .catch((e: Error) => setError(e.message));
   }, [base, year]);
 
-  if (error) return mine ? null : <p className="error">{error}</p>;
+  if (error)
+    return mine ? null : (
+      <p className="error" role="alert">
+        {error}
+      </p>
+    );
   if (mine && data && data.months === 0 && year === thisYear) return null;
 
   const rows = (items: { name: string; amount: string }[]) =>

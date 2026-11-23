@@ -60,7 +60,11 @@ export default function PortalTicketPage() {
   return (
     <main className="shell">
       <PortalHeader title={t?.number} />
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {!t ? (
         !error && <p className="muted">{l("Memuat…", "Loading…")}</p>
       ) : (

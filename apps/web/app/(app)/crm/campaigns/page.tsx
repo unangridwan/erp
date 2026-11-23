@@ -136,7 +136,11 @@ export default function CampaignsPage() {
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {form && (
         <div className="inline-panel">
           <label className="field">

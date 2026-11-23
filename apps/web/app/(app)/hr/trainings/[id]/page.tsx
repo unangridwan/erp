@@ -77,7 +77,11 @@ export default function TrainingPage() {
           ? ` · ${l(`sertifikat berlaku ${t.certificateValidMonths} bulan`, `certificate valid ${t.certificateValidMonths} months`)}`
           : ""}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="inline-panel">
         <label className="field">
           <span>{l("Tambah peserta", "Add participant")}</span>

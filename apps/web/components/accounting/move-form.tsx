@@ -22,7 +22,8 @@ import {
   type ProductOption,
   type TaxOption,
 } from "./use-options";
-import { ask } from "../feedback";
+import { ask, toast } from "../feedback";
+import { useFormSnapshot } from "../../lib/use-form-guard";
 
 interface MoveLine {
   id: string;
@@ -224,6 +225,8 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
   }, [id, isNew, version]);
 
   const editable = (isNew || move?.state === "draft") && can(me.permissions, "accounting.write");
+  // Peringatan saat meninggalkan form yang belum disimpan (tautan, tombol Kembali, tutup tab).
+  useFormSnapshot({ header, invoiceLines, entryLines, custom }, move, editable);
   const usableTaxes = taxes.filter((t) => t.typeTaxUse === (sale ? "sale" : "purchase"));
   const decimals = currencies.find((c) => c.code === (header.currencyCode || "IDR"))?.decimals ?? 2;
   const accountLabel = (accountId: string) => {
@@ -329,6 +332,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
         : await api<Move>(`/moves/${id}`, { method: "PATCH", body: payload() });
       if (isNew) router.replace(`/accounting/moves/${saved.id}`);
       else setVersion((v) => v + 1);
+      toast.success(l("Draft tersimpan", "Draft saved"));
       return saved;
     });
 
@@ -337,12 +341,25 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
     await save();
   }
 
-  const postMove = () =>
-    run(async () => {
+  const postMove = async () => {
+    // Posting masuk buku besar dan tidak bisa diubah lagi (hanya dibalik): minta penegasan.
+    const ok = await ask({
+      title: l("Posting dokumen ini?", "Post this document?"),
+      message: l(
+        "Setelah diposting, dokumen masuk buku besar dan tidak bisa diubah atau dihapus — hanya bisa dibalik.",
+        "Once posted, the document is recorded in the ledger and can no longer be edited or deleted — only reversed.",
+      ),
+      confirmLabel: l("Posting", "Post"),
+      danger: false,
+    });
+    if (!ok) return;
+    await run(async () => {
       await api(`/moves/${id}`, { method: "PATCH", body: payload() });
       await api(`/moves/${id}/post`, { method: "POST" });
       setVersion((v) => v + 1);
+      toast.success(l("Dokumen diposting", "Document posted"));
     });
+  };
 
   const remove = () =>
     run(async () => {
@@ -363,7 +380,12 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
 
   const title =
     move?.name ?? `${tx(MOVE_TYPE_LABEL[moveType] ?? MOVE_TYPE_LABEL.entry!)} ${l("baru", "new")}`;
-  const err = (path: string) => fieldErrors[path] && <small className="error">{fieldErrors[path]}</small>;
+  const err = (path: string) =>
+    fieldErrors[path] && (
+      <small className="error" role="alert">
+        {fieldErrors[path]}
+      </small>
+    );
   const setInv = (i: number, patch: Partial<InvoiceLine>) =>
     setInvoiceLines((rows) => rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const setEnt = (i: number, patch: Partial<EntryLine>) =>
@@ -378,7 +400,10 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
             {move && <StateBadge state={move.state} />}
             {move?.state === "posted" && !isEntry && <PaymentBadge state={move.paymentState} />}
             {editable && (
-              <button className="primary" disabled={busy}>
+              <button
+                className={isNew || !can(me.permissions, "accounting.post") ? "primary" : undefined}
+                disabled={busy}
+              >
                 {l("Simpan draft", "Save draft")}
               </button>
             )}
@@ -400,7 +425,11 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                 </button>
               )}
           </header>
-          {error && <p className="error">{error}</p>}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
 
           <fieldset disabled={!editable} className="fields">
             {!isEntry && (
@@ -535,6 +564,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                       <tr key={i}>
                         <td>
                           <select
+                            aria-label={l("Akun", "Account")}
                             disabled={!editable}
                             value={x.accountId}
                             onChange={(e) => setEnt(i, { accountId: e.target.value })}
@@ -551,6 +581,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                         </td>
                         <td>
                           <input
+                            aria-label={l("Deskripsi", "Description")}
                             disabled={!editable}
                             value={x.name}
                             onChange={(e) => setEnt(i, { name: e.target.value })}
@@ -568,6 +599,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                         </td>
                         <td>
                           <select
+                            aria-label={l("Cabang", "Branch")}
                             disabled={!editable}
                             value={x.branchId}
                             onChange={(e) => setEnt(i, { branchId: e.target.value })}
@@ -600,6 +632,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                         )}
                         <td>
                           <input
+                            aria-label={l("Debit", "Debit")}
                             disabled={!editable}
                             className="num"
                             inputMode="decimal"
@@ -611,6 +644,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                         </td>
                         <td>
                           <input
+                            aria-label={l("Kredit", "Credit")}
                             disabled={!editable}
                             className="num"
                             inputMode="decimal"
@@ -682,6 +716,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                       <tr key={i}>
                         <td>
                           <select
+                            aria-label={l("Produk", "Product")}
                             disabled={!editable}
                             value={x.productId}
                             onChange={(e) => {
@@ -704,6 +739,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                         </td>
                         <td>
                           <input
+                            aria-label={l("Deskripsi", "Description")}
                             disabled={!editable}
                             required
                             value={x.name}
@@ -736,6 +772,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                         </td>
                         <td>
                           <select
+                            aria-label={l("Akun", "Account")}
                             disabled={!editable}
                             value={x.accountId}
                             onChange={(e) => setInv(i, { accountId: e.target.value })}
@@ -790,6 +827,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                         </td>
                         <td>
                           <input
+                            aria-label={l("Kuantitas", "Quantity")}
                             disabled={!editable}
                             className="num short"
                             inputMode="decimal"
@@ -799,6 +837,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                         </td>
                         <td>
                           <input
+                            aria-label={l("Harga satuan", "Unit price")}
                             disabled={!editable}
                             className="num"
                             inputMode="decimal"
@@ -809,6 +848,7 @@ export function MoveForm({ id, newType }: { id: string; newType: string }) {
                         </td>
                         <td>
                           <input
+                            aria-label={l("Diskon %", "Discount %")}
                             disabled={!editable}
                             className="num short"
                             inputMode="decimal"
@@ -1020,7 +1060,11 @@ function PaymentPanel({
       <button className="primary" disabled={busy}>
         {l("Catat pembayaran", "Create payment")}
       </button>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
     </form>
   );
 }

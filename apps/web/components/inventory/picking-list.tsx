@@ -92,7 +92,11 @@ export function PickingList({ kind }: { kind: PickingKind }) {
           </Link>
         )}
       </header>
-      {list.error && <p className="error">{list.error}</p>}
+      {list.error && (
+        <p className="error" role="alert">
+          {list.error}
+        </p>
+      )}
       {!list.loading || list.rows.length ? (
         <DataTable
           customModel="stock_picking"

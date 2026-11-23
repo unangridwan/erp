@@ -114,7 +114,7 @@ export default function AllocationPage() {
         )}
         <Link href="/accounting/controlling">{l("Laporan controlling", "Controlling report")}</Link>
       </p>
-      <nav className="tabs">
+      <nav role="tablist" className="tabs">
         {(
           [
             ["run", l("Jalankan", "Run")],
@@ -122,7 +122,13 @@ export default function AllocationPage() {
             ["keys", l("Kunci statistik", "Statistical keys")],
           ] as [Tab, string][]
         ).map(([k, label]) => (
-          <button key={k} className={tab === k ? "active" : ""} onClick={() => setTab(k)}>
+          <button
+            key={k}
+            role="tab"
+            aria-selected={tab === k}
+            className={tab === k ? "active" : ""}
+            onClick={() => setTab(k)}
+          >
             {label}
           </button>
         ))}

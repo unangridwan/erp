@@ -175,7 +175,11 @@ export default function BankStatementsPage() {
       <header className="toolbar">
         <h1>{l("Mutasi bank", "Bank statements")}</h1>
       </header>
-      {list.error && <p className="error">{list.error}</p>}
+      {list.error && (
+        <p className="error" role="alert">
+          {list.error}
+        </p>
+      )}
       <DataTable
         rows={list.rows}
         columns={columns}
@@ -273,7 +277,11 @@ export default function BankStatementsPage() {
           <button className="primary" disabled={!csv}>
             {l("Impor", "Import")}
           </button>
-          {error && <p className="error">{error}</p>}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
           {rowErrors.length > 0 && (
             <ul className="error">
               {rowErrors.slice(0, 20).map((e, i) => (

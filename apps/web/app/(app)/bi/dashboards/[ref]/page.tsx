@@ -243,7 +243,11 @@ export default function DashboardPage() {
       {typeof doc.description === "string" && doc.description && !editing && (
         <p className="muted">{doc.description}</p>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <DashboardGrid
         widgets={widgets}
         results={results}

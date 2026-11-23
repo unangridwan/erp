@@ -75,7 +75,11 @@ export default function AppraisalCyclePage() {
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="notice">{notice}</p>}
       <div className="table-wrap">
         <table>

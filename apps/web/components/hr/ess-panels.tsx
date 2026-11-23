@@ -193,7 +193,11 @@ export function GoalTree({ path, allowCreate }: { path: string; allowCreate: boo
 
   return (
     <div>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {allowCreate && !form && (
         <button
           type="button"
@@ -451,7 +455,11 @@ export function FeedbackInbox() {
   return (
     <section className="panel">
       <h2>{l("Permintaan feedback", "Feedback requests")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <ul className="plain-list">
         {pending.map((r) => (
           <li key={r.id}>
@@ -586,7 +594,11 @@ export function FeedbackPanel({ employeeId }: { employeeId: string }) {
   return (
     <section className="panel">
       <h2>{l("Feedback 360", "360 feedback")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="notice">{notice}</p>}
       <div className="inline-panel">
         <label className="field">
@@ -740,7 +752,11 @@ export function NotesPanel({ employeeId }: { employeeId: string }) {
     <section className="panel">
       <h2>{l("Catatan atasan / HR", "Manager & HR notes")}</h2>
       <p className="muted">{l("Tidak pernah terlihat oleh karyawan.", "Never visible to the employee.")}</p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <ul className="notes">
         {rows.map((n) => (
           <li key={n.id}>

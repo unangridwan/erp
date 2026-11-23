@@ -41,7 +41,11 @@ export default function PortalHelpPage() {
   return (
     <main className="shell">
       <PortalHeader title={l("Bantuan", "Help")} />
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <section className="panel stack">
         <input
           aria-label={l("Cari bantuan", "Search help")}

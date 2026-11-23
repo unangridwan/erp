@@ -63,7 +63,11 @@ export default function AcceptInvitePage() {
             </button>
           </>
         )}
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
       </form>
     </main>
   );

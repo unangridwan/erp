@@ -46,11 +46,13 @@ export default function PurchaseReportPage() {
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
       </header>
-      <div className="tabs">
+      <div role="tablist" className="tabs">
         {GROUPS.map((g) => (
           <button
             key={g}
             type="button"
+            role="tab"
+            aria-selected={groupBy === g}
             className={groupBy === g ? "active" : ""}
             onClick={() => setGroupBy(g)}
           >
@@ -58,7 +60,11 @@ export default function PurchaseReportPage() {
           </button>
         ))}
       </div>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {rows && (
         <div className="table-wrap">
           <table>

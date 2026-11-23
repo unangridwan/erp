@@ -165,15 +165,29 @@ export default function QuotasPage() {
           </button>
         )}
       </header>
-      <div className="tabs">
-        <button className={tab === "quota" ? "active" : ""} onClick={() => setTab("quota")}>
+      <div role="tablist" className="tabs">
+        <button
+          role="tab"
+          aria-selected={tab === "quota"}
+          className={tab === "quota" ? "active" : ""}
+          onClick={() => setTab("quota")}
+        >
           {l("Kuota", "Quotas")}
         </button>
-        <button className={tab === "attainment" ? "active" : ""} onClick={() => setTab("attainment")}>
+        <button
+          role="tab"
+          aria-selected={tab === "attainment"}
+          className={tab === "attainment" ? "active" : ""}
+          onClick={() => setTab("attainment")}
+        >
           {l("Pencapaian", "Attainment")}
         </button>
       </div>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {tab === "quota" ? (
         <>
           {!editable && (

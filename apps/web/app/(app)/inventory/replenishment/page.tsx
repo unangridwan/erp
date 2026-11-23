@@ -96,7 +96,11 @@ export default function ReplenishmentPage() {
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {result && (
         <p className="notice">
           {l(`${result.orderIds.length} RFQ dibuat.`, `${result.orderIds.length} RFQ(s) created.`)}{" "}

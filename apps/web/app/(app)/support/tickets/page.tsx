@@ -183,7 +183,11 @@ export default function TicketsPage() {
           </button>
         )}
       </header>
-      {(error || list.error) && <p className="error">{error ?? list.error}</p>}
+      {(error || list.error) && (
+        <p className="error" role="alert">
+          {error ?? list.error}
+        </p>
+      )}
       {draft && (
         <section className="panel">
           <div className="fields">

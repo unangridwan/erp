@@ -109,7 +109,14 @@ export default function OnboardingPage() {
     );
   }
 
-  if (!status) return error ? <p className="error">{error}</p> : <p className="muted">…</p>;
+  if (!status)
+    return error ? (
+      <p className="error" role="alert">
+        {error}
+      </p>
+    ) : (
+      <p className="muted">…</p>
+    );
   const c = status.company;
   const debit = lines.reduce((s, x) => s + Number(x.debit), 0);
   const credit = lines.reduce((s, x) => s + Number(x.credit), 0);
@@ -124,7 +131,11 @@ export default function OnboardingPage() {
             : l("Semua langkah selesai", "All steps done")}
         </span>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {message && <p className="success">{message}</p>}
       <ol className="steps">
         {status.steps.map((s) => (

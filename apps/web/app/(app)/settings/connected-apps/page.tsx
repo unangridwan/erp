@@ -100,7 +100,11 @@ export default function ConnectedAppsPage() {
           "Other apps (e.g. a project management app) can use ERP accounts to sign in (OpenID Connect), read employee data through the API with a service account, and receive webhooks when employee data changes.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {apps && apps.length === 0 && (
         <p className="muted">{l("Belum ada aplikasi terhubung.", "No connected apps yet.")}</p>
       )}

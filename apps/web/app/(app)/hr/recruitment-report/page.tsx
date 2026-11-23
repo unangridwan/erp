@@ -77,7 +77,11 @@ export default function RecruitmentReportPage() {
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </label>
         </header>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {r && (
           <>
             <ul className="grid">

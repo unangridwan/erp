@@ -4,7 +4,8 @@
   --fg: #1b2430;
   --card: #ffffff;
   --border: #d9dee6;
-  --border-strong: #b9c1cd;
+  /* Batas field/tombol ≥ 3:1 terhadap kartu & latar (WCAG 1.4.11). */
+  --border-strong: #868e9c;
   --muted: #55606e;
   --label: #3b4552;
   --accent: #1f5fbf;
@@ -44,7 +45,7 @@
   --fg: #e6eaf0;
   --card: #171d26;
   --border: #2b3441;
-  --border-strong: #3d4858;
+  --border-strong: #717c8c;
   --muted: #9ba6b5;
   --label: #c3cbd6;
   --accent: #5b8def;
@@ -78,7 +79,7 @@
     --fg: #e6eaf0;
     --card: #171d26;
     --border: #2b3441;
-    --border-strong: #3d4858;
+    --border-strong: #717c8c;
     --muted: #9ba6b5;
     --label: #c3cbd6;
     --accent: #5b8def;
@@ -133,6 +134,14 @@ a {
 }
 a:hover {
   text-decoration: underline;
+}
+/* Tautan di dalam kalimat dibedakan tidak hanya dengan warna (WCAG 1.4.1). */
+p a,
+.notice a,
+.muted a,
+.hint a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 h1 {
   font-size: 22px;
@@ -228,10 +237,12 @@ button:hover:not(:disabled),
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
+/* Field juga memakai cincin fokus yang sama (sebelumnya hanya garis tepi 1px yang nyaris tak terlihat). */
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: none;
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }
 button:disabled {
   opacity: 0.55;
@@ -818,8 +829,12 @@ tr.detail td {
 .overdue {
   color: var(--danger);
 }
+/* Status jangan hanya lewat warna: tambahkan penanda ⚠ (WCAG 1.4.1). */
+.overdue::before {
+  content: "⚠ ";
+}
 .stars {
-  color: #d4a017;
+  color: #9a6a00;
   letter-spacing: 1px;
 }
 .inline-panel {
@@ -2523,7 +2538,6 @@ fieldset.bare {
   width: 100%;
 }
 .emp-name:focus {
-  outline: none;
   border-bottom-color: var(--accent);
 }
 .emp-job select,
@@ -2556,8 +2570,7 @@ fieldset.bare {
 }
 .emp-icon-row input:hover,
 .emp-icon-row input:focus {
-  border-bottom-color: var(--border);
-  outline: none;
+  border-bottom-color: var(--border-strong);
 }
 .emp-head-side {
   display: flex;
@@ -3297,11 +3310,7 @@ th .th-sort:hover {
   }
 }
 
-/* ---- Umpan balik: toast, modal, dialog konfirmasi, skeleton, fokus ---- */
-:focus-visible {
-  outline: 2px solid var(--link);
-  outline-offset: 2px;
-}
+/* ---- Umpan balik: toast, modal, dialog konfirmasi, skeleton ---- */
 .toasts {
   position: fixed;
   right: 16px;
@@ -3429,6 +3438,12 @@ dialog.modal::backdrop {
 }
 :root[data-theme="dark"] .danger-fill {
   color: #111;
+}
+/* Mode gelap "ikuti sistem" (bawaan): teks gelap di atas merah terang; putih hanya 2,3:1. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .danger-fill {
+    color: #111;
+  }
 }
 .skeleton {
   display: flex;
@@ -3588,7 +3603,8 @@ dialog.palette {
   background: var(--card);
 }
 .palette-input:focus-visible {
-  outline: none;
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
 }
 .palette-list {
   list-style: none;

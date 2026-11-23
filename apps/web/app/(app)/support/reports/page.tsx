@@ -117,7 +117,11 @@ export default function SupportReportsPage() {
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </label>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {data && (
         <>
           <ul className="grid">

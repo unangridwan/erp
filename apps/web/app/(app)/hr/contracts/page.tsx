@@ -132,7 +132,11 @@ function Contracts() {
           <Link href="/hr/contracts">{l("Tampilkan semua", "Show all")}</Link>
         </p>
       )}
-      {list.error && <p className="error">{list.error}</p>}
+      {list.error && (
+        <p className="error" role="alert">
+          {list.error}
+        </p>
+      )}
       {!list.loading || list.rows.length ? (
         <DataTable
           key={employeeId ?? "all"}

@@ -93,7 +93,11 @@ export default function CommissionsPage() {
           "Commission base = net sales before tax per invoice (credit notes deduct), in company currency. The salesperson comes from the sales order, or the customer's salesperson. Plans are matched in order: salesperson, sales team, then the default plan.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {report && (
         <>
           <div className="table-wrap">

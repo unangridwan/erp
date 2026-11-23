@@ -48,7 +48,11 @@ export default function PayrollCostPage() {
         <input type="month" value={from} onChange={(e) => setFrom(e.target.value)} />
         <input type="month" value={to} onChange={(e) => setTo(e.target.value)} />
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {report && (
         <div className="table-wrap">
           <table>

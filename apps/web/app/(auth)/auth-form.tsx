@@ -106,7 +106,11 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             />
           </label>
         )}
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {mode === "login" && sso?.enabled && !needCode && (
           <>
             <button

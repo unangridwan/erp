@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useI18n } from "../lib/i18n";
 
 /**
@@ -190,6 +190,8 @@ export function Modal({
   side?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const closeLabel = useI18n().l("Tutup", "Close");
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
@@ -199,6 +201,7 @@ export function Modal({
   return (
     <dialog
       ref={ref}
+      aria-labelledby={titleId}
       className={`modal${wide ? " wide" : ""}${side ? " side" : ""}`}
       onCancel={(e) => {
         e.preventDefault();
@@ -209,8 +212,8 @@ export function Modal({
       }}
     >
       <header className="modal-head">
-        <h2>{title}</h2>
-        <button type="button" className="toast-close" aria-label="×" onClick={onClose}>
+        <h2 id={titleId}>{title}</h2>
+        <button type="button" className="toast-close" aria-label={closeLabel} onClick={onClose}>
           ×
         </button>
       </header>

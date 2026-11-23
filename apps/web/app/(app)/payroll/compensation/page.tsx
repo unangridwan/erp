@@ -121,7 +121,11 @@ export default function CompensationCyclesPage() {
           "Per-employee raise proposals come from the latest performance appraisal, are limited by a budget, approved through Approvals, then applied as new wage contracts (backdated → retro pay in the next payroll).",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {open && (
         <form className="inline-panel" onSubmit={submit}>
           <label className="field">

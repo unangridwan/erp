@@ -164,7 +164,11 @@ export default function ContractTemplatesPage() {
             'Contract text uses placeholders such as {nama} or {gaji}, filled from employee & contract data. Separate paragraphs with a blank line; "Pasal N" lines become article headings. The PDF can be printed for wet signatures, sent to an e-sign service, or signed in the app from the contract page.',
           )}
         </p>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {notice && <p className="success">{notice}</p>}
       </section>
 

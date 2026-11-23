@@ -146,7 +146,11 @@ export default function ConsolidationMappingPage() {
         )}
       </p>
       {message && <div className="banner">{message}</div>}
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="inline-panel">
         <label className="field">
           <span>{l("Perusahaan", "Company")}</span>

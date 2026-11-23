@@ -160,7 +160,11 @@ export default function ApprovalDelegationsPage() {
           {l("Tambah delegasi", "Add delegation")}
         </button>
       </form>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <TableTools view={table} />
       <div className="table-wrap">
         <table>

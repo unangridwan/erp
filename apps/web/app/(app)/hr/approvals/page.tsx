@@ -191,7 +191,11 @@ export default function ApprovalsPage() {
           "Time off, overtime and claims: step 1 is the direct manager, step 2 the manager's manager, step 3 HR (number of steps in Payroll Settings). Overtime from attendance can be reduced before approving. Approval requests follow their category's approvers. Active delegations show up here too.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {rows && <TableTools view={table} />}
       {rows && (
         <div className="table-wrap">

@@ -81,7 +81,7 @@ export function PayslipPinGate({ onUnlocked }: { onUnlocked: () => void }) {
             )}
       </p>
       {status.lockedUntil && (
-        <p className="error">
+        <p className="error" role="alert">
           {l(
             "PIN terkunci sementara karena terlalu banyak salah; coba lagi nanti atau minta HR mengatur ulang.",
             "PIN temporarily locked after too many attempts; try later or ask HR to reset it.",
@@ -95,7 +95,11 @@ export function PayslipPinGate({ onUnlocked }: { onUnlocked: () => void }) {
           {status.hasPin ? l("Buka slip", "Open payslips") : l("Simpan PIN", "Save PIN")}
         </button>
       </div>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
     </form>
   );
 }

@@ -95,7 +95,11 @@ export default function ExpensesPage() {
         )}
         <Link href="/expense-categories">{l("Kategori klaim", "Expense categories")}</Link>
       </header>
-      {list.error && <p className="error">{list.error}</p>}
+      {list.error && (
+        <p className="error" role="alert">
+          {list.error}
+        </p>
+      )}
       {open && (
         <ExpenseClaimForm
           categories={categories}

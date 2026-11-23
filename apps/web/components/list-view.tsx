@@ -433,7 +433,11 @@ export function ListView({ resource, role }: { resource: Resource; role?: string
         </div>
       </header>
       {notice && <p className="notice">{notice}</p>}
-      {(error ?? list.error) && <p className="error">{error ?? list.error}</p>}
+      {(error ?? list.error) && (
+        <p className="error" role="alert">
+          {error ?? list.error}
+        </p>
+      )}
       <TableTools
         view={table}
         placeholder={t("list.search")}

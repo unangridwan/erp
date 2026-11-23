@@ -66,7 +66,11 @@ export default function RecruitmentSettingsPage() {
 
   return (
     <div className="stack-wide">
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <section className="panel">
         <header className="toolbar">
           <h1>{l("Alasan Penolakan Pelamar", "Applicant Refusal Reasons")}</h1>
