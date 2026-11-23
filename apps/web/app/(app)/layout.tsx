@@ -11,6 +11,7 @@ import { setErrorUser } from "../../lib/error-reporting";
 import { appForPath, rememberApp, rememberedApp, visibleApps } from "../../lib/apps";
 import { useI18n } from "../../lib/i18n";
 import { can } from "../../lib/resources";
+import { useCardTables } from "../../lib/use-card-tables";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -44,6 +45,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [drawer, setDrawer] = useState(false);
   useEffect(() => setDrawer(false), [pathname]);
   const closeDrawer = useCallback(() => setDrawer(false), []);
+  // Daftar tampil sebagai kartu di ponsel (semua tabel data, termasuk yang dibuat halaman sendiri).
+  useCardTables();
   const apps = useMemo(() => (me ? visibleApps(me) : []), [me]);
   // Aplikasi aktif dari URL; halaman bersama (Produk, Kontak) mengikuti aplikasi yang terakhir dibuka.
   const app = pathname === "/" ? null : appForPath(apps, pathname, rememberedApp());
