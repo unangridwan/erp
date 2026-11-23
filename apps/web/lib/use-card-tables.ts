@@ -7,8 +7,9 @@ const SKIP = ["lines", "mpp-lines", "perm-table", "budget-grid", "attendance-mat
 
 /**
  * Daftar sebagai kartu di layar sempit: setiap sel diberi `data-label` dari judul kolomnya dan tabel diberi kelas
- * `cards`; CSS (`@media (max-width: 640px)`) menyusun tiap baris jadi kartu "Label: nilai". Berlaku otomatis untuk
- * semua tabel ≥ 3 kolom di dalam `root` (termasuk tabel yang dibuat halaman sendiri), dan baris yang dimuat belakangan.
+ * `data-cards` (bukan `cards`: nama itu sudah dipakai grid kartu global sehingga tabel desktop ikut rusak); CSS
+ * (`@media (max-width: 640px)`) menyusun tiap baris jadi kartu "Label: nilai". Berlaku otomatis untuk semua tabel
+ * ≥ 3 kolom di halaman (termasuk tabel yang dibuat halaman sendiri) dan baris yang dimuat belakangan.
  */
 export function useCardTables() {
   useEffect(() => {
@@ -29,8 +30,8 @@ export function useCardTables() {
           for (let i = 0; i < th.colSpan; i++) headers.push(text);
         }
         if (headers.length < 3) continue;
-        if (!table.classList.contains("cards")) {
-          table.classList.add("cards");
+        if (!table.classList.contains("data-cards")) {
+          table.classList.add("data-cards");
           // display:block di CSS kartu menghapus semantik tabel di sebagian browser; pertahankan lewat role ARIA.
           table.setAttribute("role", "table");
           for (const section of [table.tHead, ...table.tBodies]) section?.setAttribute("role", "rowgroup");

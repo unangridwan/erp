@@ -83,8 +83,8 @@ export default function ReportsPage() {
       </header>
       <p className="muted">
         {l(
-          "Susun laporan sendiri dari data SDM & payroll: pilih kolom, filter, kelompokkan & jumlahkan, tampilkan grafik, simpan, lalu kirim otomatis lewat email sesuai jadwal.",
-          "Build your own reports from HR & payroll data: choose columns, filter, group & total, chart, save, then email them on a schedule.",
+          "Susun laporan sendiri dari data SDM, penggajian, penjualan, pembelian, persediaan, akuntansi, CRM, dan operasional: pilih kolom, filter, kelompokkan & jumlahkan, tampilkan grafik, simpan, lalu kirim otomatis lewat email sesuai jadwal.",
+          "Build your own reports from HR, payroll, sales, purchasing, inventory, accounting, CRM and operations data: choose columns, filter, group & total, chart, save, then email them on a schedule.",
         )}
       </p>
       {error && (

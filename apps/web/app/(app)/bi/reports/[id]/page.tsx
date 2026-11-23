@@ -170,8 +170,27 @@ export default function ReportEditorPage() {
       c.aggregates = [];
     } else c.columns = [];
     if (ds?.needsRun && !c.filters.runId) c.filters = { ...c.filters, runId: "latest" };
+    // Urutan & grafik hanya boleh memakai kolom yang ada di hasil mode sekarang. Tanpa ini, mengganti mode
+    // (Rincian ↔ Ringkasan) atau kolom membuat pratinjau gagal terus ("Kolom laporan tidak dikenal" / "Validasi gagal").
+    const keys = new Set(
+      mode === "detail"
+        ? c.columns.length
+          ? c.columns
+          : (ds?.columns ?? []).map((x) => x.key)
+        : [...c.groupBy, ...c.aggregates.map((a) => `${a.fn}__${a.column}`)],
+    );
+    if (c.sort && !keys.has(c.sort.column)) c.sort = null;
+    if (c.chart && !(c.chart.x && c.chart.y && keys.has(c.chart.x) && keys.has(c.chart.y))) c.chart = null;
+    if (c.limit !== null && c.limit !== undefined && !(c.limit >= 1)) c.limit = null;
     return c;
   };
+  /** Pesan galat yang bisa dipahami: galat kolom pertama dari server, bukan sekadar "Validasi gagal". */
+  const errorText = (e: unknown) =>
+    e instanceof ApiError
+      ? (Object.values(e.fieldErrors)[0] ?? e.message)
+      : e instanceof Error
+        ? e.message
+        : String(e);
   const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
   /** Klik kelompok (ringkasan) → baris data penyusunnya. */
   const drillRow = (r: Record<string, unknown>) => {
@@ -195,7 +214,7 @@ export default function ReportEditorPage() {
       );
     } catch (e) {
       setResult(null);
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorText(e));
     }
   }, [meta.dataset, config, mode, ds]);
   // Pratinjau otomatis setelah konfigurasi berhenti berubah sejenak.
@@ -224,7 +243,7 @@ export default function ReportEditorPage() {
         setNotice(l("Laporan tersimpan.", "Report saved."));
       }
     } catch (e) {
-      setError(e instanceof ApiError ? (Object.values(e.fieldErrors)[0] ?? e.message) : String(e));
+      setError(errorText(e));
     }
   };
   const remove = async () => {
@@ -663,9 +682,11 @@ export default function ReportEditorPage() {
                 className="num"
                 inputMode="numeric"
                 value={config.limit ?? ""}
-                onChange={(e) =>
-                  set("limit", e.target.value ? Math.max(1, Number(e.target.value) || 1) : null)
-                }
+                onChange={(e) => {
+                  // Hanya angka; teks lain dibuang (sebelumnya "abc" diam-diam menjadi 1).
+                  const digits = e.target.value.replace(/\D/g, "");
+                  set("limit", digits ? Math.min(10_000, Math.max(1, Number(digits))) : null);
+                }}
               />
             </label>
             <label className="field">
@@ -674,9 +695,14 @@ export default function ReportEditorPage() {
                 value={config.chart?.type ?? ""}
                 onChange={(e) => {
                   const type = e.target.value as "bar" | "line" | "pie" | "";
-                  const x = resultColumns.find((c) => !c.numeric)?.key ?? "";
-                  const y = resultColumns.find((c) => c.numeric)?.key ?? "";
-                  set("chart", type ? { type, x: config.chart?.x ?? x, y: config.chart?.y ?? y } : null);
+                  const has = (k: string | undefined) => !!k && resultColumns.some((c) => c.key === k);
+                  const x = has(config.chart?.x)
+                    ? config.chart!.x
+                    : (resultColumns.find((c) => !c.numeric)?.key ?? "");
+                  const y = has(config.chart?.y)
+                    ? config.chart!.y
+                    : (resultColumns.find((c) => c.numeric)?.key ?? "");
+                  set("chart", type ? { type, x, y } : null);
                 }}
               >
                 <option value="">{l("Tanpa grafik", "No chart")}</option>
@@ -730,19 +756,21 @@ export default function ReportEditorPage() {
               {result.rows.length < result.total && `, ${l("tampil", "showing")} ${result.rows.length}`})
             </small>
           </h2>
-          {config.chart && result.columns.some((c) => c.key === config.chart!.y) && (
-            <ReportChart
-              type={config.chart.type}
-              rows={result.rows.slice(0, 60)}
-              x={config.chart.x}
-              y={config.chart.y}
-              yLabel={result.columns.find((c) => c.key === config.chart!.y)?.header ?? ""}
-              locale={locale}
-              empty={l("Tidak ada data untuk grafik.", "No data to chart.")}
-              other={l("Lainnya", "Other")}
-              onSelect={mode === "summary" && config.groupBy.length ? drillRow : undefined}
-            />
-          )}
+          {config.chart &&
+            result.columns.some((c) => c.key === config.chart!.y) &&
+            result.columns.some((c) => c.key === config.chart!.x) && (
+              <ReportChart
+                type={config.chart.type}
+                rows={result.rows.slice(0, 60)}
+                x={config.chart.x}
+                y={config.chart.y}
+                yLabel={result.columns.find((c) => c.key === config.chart!.y)?.header ?? ""}
+                locale={locale}
+                empty={l("Tidak ada data untuk grafik.", "No data to chart.")}
+                other={l("Lainnya", "Other")}
+                onSelect={mode === "summary" && config.groupBy.length ? drillRow : undefined}
+              />
+            )}
           <div className="table-wrap">
             <table>
               <thead>

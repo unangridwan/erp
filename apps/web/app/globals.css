@@ -4422,20 +4422,20 @@ button.kpi-value {
   outline-offset: 2px;
 }
 
-/* ---- Daftar sebagai kartu di ponsel (kelas `cards` & `data-label` dipasang lib/use-card-tables.ts) ---- */
+/* ---- Daftar sebagai kartu di ponsel (kelas `data-cards` & `data-label` dipasang lib/use-card-tables.ts) ---- */
 @media (max-width: 640px) {
-  .table-wrap:has(table.cards) {
+  .table-wrap:has(table.data-cards) {
     overflow-x: visible;
     background: transparent;
     border: none;
   }
-  table.cards,
-  table.cards tbody,
-  table.cards tr,
-  table.cards td {
+  table.data-cards,
+  table.data-cards tbody,
+  table.data-cards tr,
+  table.data-cards td {
     display: block;
   }
-  table.cards thead {
+  table.data-cards thead {
     /* Tetap dibaca pembaca layar, tidak tampil. */
     position: absolute;
     width: 1px;
@@ -4443,7 +4443,7 @@ button.kpi-value {
     overflow: hidden;
     clip-path: inset(50%);
   }
-  table.cards tbody tr {
+  table.data-cards tbody tr {
     display: flex;
     flex-direction: column;
     margin-bottom: 10px;
@@ -4453,10 +4453,10 @@ button.kpi-value {
     border-radius: var(--radius);
     box-shadow: var(--shadow);
   }
-  table.cards tbody tr:hover td {
+  table.data-cards tbody tr:hover td {
     background: transparent;
   }
-  table.cards td {
+  table.data-cards td {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
@@ -4468,7 +4468,7 @@ button.kpi-value {
     text-align: right;
     overflow-wrap: anywhere;
   }
-  table.cards td[data-label]:not([data-label=""])::before {
+  table.data-cards td[data-label]:not([data-label=""])::before {
     content: attr(data-label);
     flex: none;
     margin-right: auto;
@@ -4478,7 +4478,7 @@ button.kpi-value {
     text-align: left;
   }
   /* Baris pertama kartu = judul (nomor/nama dokumen), tanpa label. */
-  table.cards td.card-title {
+  table.data-cards td.card-title {
     order: -1;
     justify-content: flex-start;
     padding-bottom: 6px;
@@ -4486,25 +4486,25 @@ button.kpi-value {
     font-size: 16px;
     text-align: left;
   }
-  table.cards td.card-title::before {
+  table.data-cards td.card-title::before {
     display: none;
   }
-  table.cards td[colspan] {
+  table.data-cards td[colspan] {
     display: block;
     text-align: center;
   }
-  table.cards tbody tr:has(td.col-check) {
+  table.data-cards tbody tr:has(td.col-check) {
     position: relative;
   }
-  table.cards td.col-check {
+  table.data-cards td.col-check {
     position: absolute;
     top: 8px;
     right: 0;
   }
-  table.cards tfoot {
+  table.data-cards tfoot {
     display: block;
   }
-  table.cards tfoot td {
+  table.data-cards tfoot td {
     display: flex;
   }
 }
