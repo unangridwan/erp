@@ -15,7 +15,7 @@ import {
   type OnApplicationShutdown,
 } from "@nestjs/common";
 import { and, desc, eq, inArray, lte, schema, sql, type Db } from "@erp/db";
-import { BASE_CURRENCY, convertAmount, fxFetchSchema, fxSettingsSchema } from "@erp/shared";
+import { BASE_CURRENCY, convertAmount, fxFetchSchema, fxSettingsSchema, businessToday } from "@erp/shared";
 import { z } from "zod";
 import { RequirePermission } from "../auth/decorators.js";
 import { CONFIG, type AppConfig } from "../config.js";
@@ -52,7 +52,7 @@ const convertQuery = z.object({
   date: z
     .string()
     .date()
-    .default(() => new Date().toISOString().slice(0, 10)),
+    .default(() => businessToday()),
 });
 
 @Controller("fx")

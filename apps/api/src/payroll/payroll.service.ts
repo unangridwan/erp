@@ -25,6 +25,7 @@ import {
   type payrollCorrectionSchema,
   type payrollRunSchema,
   type payrollSettingsSchema,
+  businessToday,
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
@@ -166,7 +167,7 @@ export class PayrollService {
       .returning();
     // Batas & tarif yang diubah di sini berlaku untuk parameter yang sedang berlaku hari ini; perubahan mulai tanggal
     // tertentu (mis. batas JP tahun depan) ditambahkan lewat parameter per tanggal.
-    const today = new Date().toISOString().slice(0, 10);
+    const today = businessToday();
     const current = parameterOn(await tx.select().from(PARAM).where(eq(PARAM.companyId, companyId)), today);
     const caps = { jkkRate: input.jkkRate, kesWageCap: input.kesWageCap, jpWageCap: input.jpWageCap };
     if (current)
@@ -248,7 +249,7 @@ export class PayrollService {
   /** Nilai di Pengaturan Payroll mengikuti parameter yang berlaku hari ini (dipakai tampilan & modul lain). */
   private async syncCurrentParameter(tx: Db, companyId: string) {
     const rows = await tx.select().from(PARAM).where(eq(PARAM.companyId, companyId));
-    const today = new Date().toISOString().slice(0, 10);
+    const today = businessToday();
     const current = parameterOn(rows, today);
     if (!current) return;
     await tx

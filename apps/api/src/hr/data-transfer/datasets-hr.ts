@@ -9,6 +9,7 @@ import {
   localTime,
   overtimeSchema,
   zonedToUtc,
+  businessToday,
 } from "@erp/shared";
 import { localDate } from "../schedule.service.js";
 import type { ChecklistService } from "../checklist.service.js";
@@ -53,7 +54,7 @@ const EMP_NAME: Column = {
 };
 
 const get = (row: Row, key: string) => (row[key] ?? "").trim();
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 
 export interface HrServices {
   employees: EmployeeService;

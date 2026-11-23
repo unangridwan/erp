@@ -33,6 +33,7 @@ import {
   refuseReasonSchema,
   renderOfferTemplate,
   type SettlementKind,
+  businessToday,
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { Request, Response } from "express";
@@ -62,7 +63,7 @@ const JO = schema.jobOffers;
 const AP = schema.applicants;
 const OP = schema.jobOpenings;
 const EI = schema.exitInterviews;
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 const longDate = (d: string) =>
   new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeZone: "UTC" }).format(new Date(`${d}T00:00:00Z`));
 const rupiah = (v: Decimal.Value) =>

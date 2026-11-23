@@ -24,6 +24,7 @@ import {
   dunningSendSchema,
   dunningSettingsSchema,
   partnerCreditSchema,
+  businessToday,
 } from "@erp/shared";
 import type { Response } from "express";
 import { z } from "zod";
@@ -207,7 +208,7 @@ export class DunningScheduler implements OnApplicationBootstrap, OnApplicationSh
    * Proses semua perusahaan yang mengaktifkan dunning (atau tenant tertentu). Aman dijalankan berkali-kali sehari:
    * faktur yang sudah mencapai tingkatnya tidak ditagih lagi. Mengembalikan jumlah surat yang dibuat.
    */
-  async runDue(date = new Date().toISOString().slice(0, 10), tenantIds?: string[]) {
+  async runDue(date = businessToday(), tenantIds?: string[]) {
     const tenants =
       tenantIds ??
       (await this.ownerDb.select({ id: schema.tenants.id }).from(schema.tenants)).map((t) => t.id);

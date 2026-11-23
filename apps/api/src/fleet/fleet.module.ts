@@ -46,6 +46,7 @@ import {
   fleetVehicleSchema,
   groupFleetCosts,
   hasPermission,
+  businessToday,
 } from "@erp/shared";
 import { z } from "zod";
 import { AccountingModule } from "../accounting/accounting.module.js";
@@ -70,7 +71,7 @@ const S = schema.fleetServices;
 const O = schema.fleetOdometers;
 const DA = schema.fleetDriverAssignments;
 const E = schema.employees;
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 
 type Vehicle = typeof V.$inferSelect;
 

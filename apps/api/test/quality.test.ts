@@ -2,8 +2,9 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { client, createApp, hasDb, signup } from "./helpers.js";
+import { businessToday } from "@erp/shared";
 
-const today = new Date().toISOString().slice(0, 10);
+const today = businessToday();
 const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
   "base64",

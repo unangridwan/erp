@@ -1,6 +1,6 @@
 import type { INestApplication } from "@nestjs/common";
 import { schema } from "@erp/db";
-import { addDays } from "@erp/shared";
+import { addDays, businessToday } from "@erp/shared";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { TenantDb } from "../src/common/database.js";
@@ -10,7 +10,7 @@ import { client, createApp, hasDb, signup } from "./helpers.js";
 
 type Api = ReturnType<typeof client>;
 const PDF = Buffer.from("%PDF-1.4\n%uji\n").toString("base64");
-const today = new Date().toISOString().slice(0, 10);
+const today = businessToday();
 
 describe.skipIf(!hasDb)("HR: rekrutmen, dokumen, checklist, pengingat", () => {
   let app: INestApplication;

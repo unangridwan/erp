@@ -23,6 +23,7 @@ import {
   contractUsage,
   purchaseContractSchema,
   type PurchaseContractInput,
+  businessToday,
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import { AccountingModule } from "../accounting/accounting.module.js";
@@ -47,7 +48,7 @@ const C = schema.purchaseContracts;
 const CL = schema.purchaseContractLines;
 const REQ = schema.approvalRequests;
 const d = (v: Decimal.Value | null | undefined) => new Decimal(v ?? 0);
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 
 @Injectable()
 export class PurchaseContractService {

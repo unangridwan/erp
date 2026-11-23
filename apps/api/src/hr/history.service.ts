@@ -1,12 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { asc, desc, eq, schema, type Db } from "@erp/db";
 import { currentContext } from "../common/request-context.js";
+import { businessToday } from "@erp/shared";
 
 type Employee = typeof schema.employees.$inferSelect;
 type Kind = (typeof schema.EMPLOYEE_HISTORY_KINDS)[number];
 type Table = "departments" | "jobPositions" | "branches" | "employees" | "salaryGrades";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 
 /** Riwayat karir karyawan: masuk, mutasi departemen/cabang, ganti jabatan/atasan, perubahan upah, keluar. */
 @Injectable()

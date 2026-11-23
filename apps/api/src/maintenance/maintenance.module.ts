@@ -34,6 +34,7 @@ import {
   planDue,
   planHasInterval,
   reliability,
+  businessToday,
 } from "@erp/shared";
 import { z } from "zod";
 import { AccountingModule } from "../accounting/accounting.module.js";
@@ -62,7 +63,7 @@ const MR = schema.equipmentMeterReadings;
 type Request = typeof RQ.$inferSelect;
 type Equipment = typeof EQ.$inferSelect;
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 const EXPENSE_CODE = "6-8000";
 
 async function findEquipment(tx: Db, id: unknown, companyId?: unknown): Promise<Equipment> {
@@ -469,7 +470,7 @@ export class MaintenanceService {
     if (input.meter != null && meter > Number(equipment!.meter)) {
       await tx.insert(MR).values({
         equipmentId: equipment!.id,
-        date: finishedAt.toISOString().slice(0, 10),
+        date: businessToday(finishedAt),
         value: meter.toFixed(1),
         createdBy: currentContext().userId,
       });
@@ -494,7 +495,7 @@ export class MaintenanceService {
       await tx
         .update(PL)
         .set({
-          lastDoneDate: finishedAt.toISOString().slice(0, 10),
+          lastDoneDate: businessToday(finishedAt),
           lastDoneMeter: meter.toFixed(1),
           updatedAt: new Date(),
         })
@@ -617,7 +618,7 @@ export class MaintenanceService {
       {
         moveType: "in_invoice",
         partnerId: request.vendorId,
-        date: (request.finishedAt ?? new Date()).toISOString().slice(0, 10),
+        date: businessToday(request.finishedAt ?? new Date()),
         dueDate: null,
         ref: `${request.name} ${equipment!.code}`,
         narration: request.title,

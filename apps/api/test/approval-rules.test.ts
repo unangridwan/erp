@@ -2,8 +2,9 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { client, createApp, hasDb, signup } from "./helpers.js";
+import { businessToday } from "@erp/shared";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 /** Senin ≥ 5 minggu dari sekarang (+ offset hari). */
 const monday = (weeks: number, offset = 0) => {
   const d = new Date(Date.now() + weeks * 7 * 86_400_000);

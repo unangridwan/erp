@@ -4,6 +4,7 @@ import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { TenantDb } from "../src/common/database.js";
 import { client, createApp, hasDb, signup } from "./helpers.js";
+import { businessToday } from "@erp/shared";
 
 const msg = (res: { body: { message: string; errors?: { message: string }[] } }) =>
   res.body.errors?.[0]?.message ?? res.body.message;
@@ -152,7 +153,7 @@ describe.skipIf(!hasDb)("SDM: absensi lanjutan", () => {
     expect((await a.post("/attendance/kiosk", { code: "B001", pin: "1234" }).expect(200)).body.action).toBe(
       "out",
     );
-    const today = new Date().toISOString().slice(0, 10);
+    const today = businessToday();
     const rows = (await a.get(`/attendance?employeeId=${emp}&from=${today}&to=${today}`).expect(200)).body;
     const kiosk = rows.find((r: { source: string }) => r.source === "kiosk");
     expect(kiosk.state).toBe("draft");

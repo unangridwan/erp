@@ -31,6 +31,7 @@ import {
   trainingSchema,
   turnoverRate,
   weightedScore,
+  businessToday,
 } from "@erp/shared";
 import type { z } from "zod";
 import { fieldError } from "../accounting/context.js";
@@ -878,7 +879,7 @@ class HrInsightsController {
           bpjsTkCost: Number(cost.get(mm)?.tk ?? 0).toFixed(0),
         };
       });
-      const today = new Date().toISOString().slice(0, 10);
+      const today = businessToday();
       const current = activeOn(today);
       const count = (values: (string | null)[]) => {
         const m = new Map<string, number>();

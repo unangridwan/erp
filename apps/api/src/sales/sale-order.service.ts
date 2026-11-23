@@ -28,6 +28,7 @@ import {
   computeInvoice,
   type createInvoiceFromOrderSchema,
   type saleOrderSchema,
+  businessToday,
 } from "@erp/shared";
 import { customPdfRows, normalizeCustom } from "../customization/custom-values.js";
 import { Decimal } from "decimal.js";
@@ -320,7 +321,7 @@ export class SaleOrderService implements OnModuleInit {
       throw new BadRequestException("Tambahkan produk pada peluang sebelum membuat penawaran");
     return this.create(tx, {
       partnerId: lead.partnerId,
-      dateOrder: input.dateOrder ?? new Date().toISOString().slice(0, 10),
+      dateOrder: input.dateOrder ?? businessToday(),
       validityDate: input.validityDate ?? null,
       leadId,
       userId: lead.userId,

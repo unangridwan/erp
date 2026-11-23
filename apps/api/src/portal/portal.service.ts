@@ -12,6 +12,7 @@ import {
   computeInvoice,
   type portalInviteSchema,
   type portalLoginSchema,
+  businessToday,
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import { jwtVerify, SignJWT } from "jose";
@@ -467,7 +468,7 @@ export class PortalService {
   }
 
   private acceptable(order: typeof schema.saleOrders.$inferSelect) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = businessToday();
     return order.state === "sent" && (!order.validityDate || order.validityDate >= today);
   }
 

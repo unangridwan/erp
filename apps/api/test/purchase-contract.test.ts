@@ -2,9 +2,10 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { client, createApp, hasDb, signup } from "./helpers.js";
+import { businessToday } from "@erp/shared";
 
 type Api = ReturnType<typeof client>;
-const today = new Date().toISOString().slice(0, 10);
+const today = businessToday();
 const year = today.slice(0, 4);
 const shift = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 

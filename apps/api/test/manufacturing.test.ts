@@ -1,8 +1,9 @@
 import type { INestApplication } from "@nestjs/common";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp, hasDb, signup } from "./helpers.js";
+import { businessToday } from "@erp/shared";
 
-const today = new Date().toISOString().slice(0, 10);
+const today = businessToday();
 interface Comp {
   id: string;
   productId: string;

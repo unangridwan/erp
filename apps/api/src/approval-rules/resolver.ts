@@ -6,6 +6,7 @@ import {
   withinLimit,
   type ApprovalLimitDoc,
   type ApprovalRuleDoc,
+  businessToday,
 } from "@erp/shared";
 
 /**
@@ -26,7 +27,7 @@ export interface ResolvedStep {
   label: string | null;
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 const gone = (e: Employee) => !e.active || (!!e.resignDate && e.resignDate < today());
 
 export async function rulesFor(tx: Db, companyId: string, docType: ApprovalRuleDoc) {

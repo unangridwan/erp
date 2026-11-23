@@ -15,6 +15,7 @@ import {
   weightedRevenue,
   type contactRolesSchema,
   type leadProductsSchema,
+  businessToday,
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
@@ -674,7 +675,7 @@ export class SalesCloudService {
         )
         .orderBy(desc(M.date))
         .limit(50);
-      const today = new Date().toISOString().slice(0, 10);
+      const today = businessToday();
       const unpaid = invoices.filter((i) => i.moveType === "out_invoice" && Number(i.amountResidual) > 0);
       invoicing = {
         invoices,

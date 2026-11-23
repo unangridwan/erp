@@ -24,6 +24,7 @@ import {
   recurringDates,
   recurringEntrySchema,
   type RecurringEntryInput,
+  businessToday,
 } from "@erp/shared";
 import { z } from "zod";
 import { RequirePermission } from "../auth/decorators.js";
@@ -37,7 +38,7 @@ import { MoveService } from "./move.service.js";
 
 const R = schema.recurringEntries;
 const M = schema.accountMoves;
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 /** Batas pembuatan sekaligus (catch-up) per template per jalan. */
 const CATCH_UP = 24;
 

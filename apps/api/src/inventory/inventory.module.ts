@@ -24,6 +24,7 @@ import {
   stockAdjustmentSchema,
   validatePickingSchema,
   warehouseSchema,
+  businessToday,
 } from "@erp/shared";
 import { z } from "zod";
 import { AccountingModule } from "../accounting/accounting.module.js";
@@ -378,7 +379,7 @@ class StockController {
   @RequirePermission("inventory.read")
   valuation(@Query("date") at?: string) {
     const input = parse(
-      date.default(() => new Date().toISOString().slice(0, 10)),
+      date.default(() => businessToday()),
       at,
     );
     return this.tenantDb.run((tx) => this.query.valuation(tx, input));

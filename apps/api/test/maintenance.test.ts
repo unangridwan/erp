@@ -3,8 +3,9 @@ import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MaintenanceScheduler } from "../src/maintenance/maintenance.module.js";
 import { client, createApp, hasDb, signup } from "./helpers.js";
+import { businessToday } from "@erp/shared";
 
-const today = new Date().toISOString().slice(0, 10);
+const today = businessToday();
 const addDays = (d: string, n: number) => {
   const x = new Date(`${d}T00:00:00Z`);
   x.setUTCDate(x.getUTCDate() + n);

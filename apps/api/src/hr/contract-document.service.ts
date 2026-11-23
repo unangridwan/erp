@@ -7,6 +7,7 @@ import {
   renderContractTemplate,
   tanggalPanjang,
   type ContractDocInput,
+  businessToday,
 } from "@erp/shared";
 import { createHash, randomBytes } from "node:crypto";
 import { ActivityService } from "../activity/activity.service.js";
@@ -513,7 +514,7 @@ export class ContractDocumentService {
     const signer = { name: tpl.signerName ?? null, title: tpl.signerTitle ?? null, city: tpl.city ?? null };
     let input: ContractDocInput;
     let number = "KTR/CONTOH/0001";
-    let date = new Date().toISOString().slice(0, 10);
+    let date = businessToday();
     if (employeeId) {
       const employee = await this.employees.find(tx, employeeId);
       const [latest] = await tx

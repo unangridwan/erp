@@ -4,6 +4,7 @@ import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { TenantDb } from "../src/common/database.js";
 import { client, createApp, hasDb, signup } from "./helpers.js";
+import { businessToday } from "@erp/shared";
 
 type Api = ReturnType<typeof client>;
 interface Line {
@@ -12,7 +13,7 @@ interface Line {
   credit: string;
 }
 
-const today = new Date().toISOString().slice(0, 10);
+const today = businessToday();
 
 describe.skipIf(!hasDb)("Fase 3: pembelian & persediaan", () => {
   let app: INestApplication;

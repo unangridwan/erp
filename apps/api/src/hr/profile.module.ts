@@ -30,6 +30,7 @@ import {
   suggestedPtkp,
   warningActive,
   warningValidUntil,
+  businessToday,
 } from "@erp/shared";
 import type { Request, Response } from "express";
 import type { z } from "zod";
@@ -53,7 +54,7 @@ const ED = schema.employeeEducation;
 const EX = schema.employeeExperiences;
 const MV = schema.employeeMovements;
 const WR = schema.employeeWarnings;
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 const companyId = () => currentContext().companyId;
 
 type Family = typeof FA.$inferSelect;

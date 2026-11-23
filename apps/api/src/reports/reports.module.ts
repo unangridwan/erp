@@ -34,6 +34,7 @@ import {
   type ReportConfig,
   type ReportResult,
   type ReportScheduleInput,
+  businessToday,
 } from "@erp/shared";
 import type { Response } from "express";
 import PDFDocument from "pdfkit";
@@ -249,7 +250,7 @@ export class ReportsService {
   }
 
   filename(name: string, format: Format) {
-    return `${name.replace(/[^\w-]+/g, "_").slice(0, 60) || "laporan"}-${new Date().toISOString().slice(0, 10)}.${format}`;
+    return `${name.replace(/[^\w-]+/g, "_").slice(0, 60) || "laporan"}-${businessToday()}.${format}`;
   }
 }
 

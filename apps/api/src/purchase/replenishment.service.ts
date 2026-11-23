@@ -1,12 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { and, eq, inArray, isNull, or, schema, sql, type Db } from "@erp/db";
-import { pickSupplier, reorderQuantity } from "@erp/shared";
+import { pickSupplier, reorderQuantity, businessToday } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import { currentContext } from "../common/request-context.js";
 import { PurchaseOrderService } from "./purchase-order.service.js";
 
 const d = (v: Decimal.Value) => new Decimal(v ?? 0);
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 
 /**
  * Pemesanan ulang otomatis (min/max): perkiraan stok gudang = tersedia + akan masuk − akan keluar + RFQ terbuka.
@@ -110,7 +110,7 @@ export class ReplenishmentService {
     for (const rules of groups.values()) {
       const first = rules[0]!;
       const delay = Math.max(...rules.map((r) => r.delayDays));
-      const planned = new Date(Date.now() + delay * 86_400_000).toISOString().slice(0, 10);
+      const planned = businessToday(new Date(Date.now() + delay * 86_400_000));
       const order = await this.orders.create(tx, {
         partnerId: first.supplierId!,
         dateOrder: today(),

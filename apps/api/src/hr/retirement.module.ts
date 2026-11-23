@@ -7,6 +7,7 @@ import {
   retirementDate,
   retirementPolicySchema,
   type RetirementDateRule,
+  businessToday,
 } from "@erp/shared";
 import { fieldError } from "../accounting/context.js";
 import { RequirePermission } from "../auth/decorators.js";
@@ -159,7 +160,7 @@ class RetirementController {
   upcoming(@Query("months") months?: string) {
     return this.tenantDb.run(async (tx) => {
       const n = Math.min(Math.max(Number(months) || 12, 1), 120);
-      const until = addDays(new Date().toISOString().slice(0, 10), Math.round(n * 30.44));
+      const until = addDays(businessToday(), Math.round(n * 30.44));
       return upcomingRetirements(tx, currentContext().companyId, until);
     });
   }
