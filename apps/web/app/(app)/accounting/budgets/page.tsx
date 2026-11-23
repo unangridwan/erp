@@ -68,7 +68,11 @@ export default function BudgetsPage() {
           </Link>
         )}
       </header>
-      {list.error && <p className="error">{list.error}</p>}
+      {list.error && (
+        <p className="error" role="alert">
+          {list.error}
+        </p>
+      )}
       <DataTable
         rows={list.rows}
         columns={columns}

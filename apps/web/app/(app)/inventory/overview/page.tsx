@@ -116,7 +116,11 @@ export default function StockOverviewPage() {
           ))}
         </select>
       </header>
-      {list.error && <p className="error">{list.error}</p>}
+      {list.error && (
+        <p className="error" role="alert">
+          {list.error}
+        </p>
+      )}
       {!list.loading || list.rows.length ? (
         <DataTable
           rows={list.rows}

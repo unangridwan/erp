@@ -92,7 +92,11 @@ export default function WageScalePage() {
           "Required of employers (PP 36/2021). Grades are set on job positions; running monthly contract wages are compared with the grade range.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {report && (
         <>
           <div className="table-wrap">

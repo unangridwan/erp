@@ -194,7 +194,11 @@ export default function AssetPage() {
             </button>
           )}
         </header>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         <fieldset disabled={!editable} className="fields">
           <label className="field">
             <span>{l("Kode", "Code")}</span>
@@ -454,7 +458,11 @@ function DisposeForm({ assetId, onDone }: { assetId: string; onDone: () => void 
       }}
     >
       <h2>{l("Pelepasan aset", "Dispose asset")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {result && <p className="notice">{result}</p>}
       <div className="fields">
         <label className="field">

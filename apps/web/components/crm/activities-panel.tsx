@@ -89,7 +89,11 @@ export function ActivitiesPanel(props: {
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {adding && (
         <form className="inline-panel" onSubmit={add}>
           <label className="field">

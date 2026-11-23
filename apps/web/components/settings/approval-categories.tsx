@@ -86,7 +86,11 @@ export function ApprovalCategories() {
           "Documents such as payroll runs, transfer decrees, salary reviews, payment runs, and stock counts are submitted through system categories; other categories serve ad-hoc requests. Each category sets required fields and approvers. Approver amount thresholds form the authority matrix: a step applies only when the amount reaches the threshold. Without approvers, HR decides.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <TableTools view={table} />
       <div className="table-wrap">
         <table>

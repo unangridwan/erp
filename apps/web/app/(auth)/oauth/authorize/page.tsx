@@ -96,7 +96,9 @@ export default function OAuthAuthorizePage() {
         )}
         {error ? (
           <>
-            <p className="error">{error}</p>
+            <p className="error" role="alert">
+              {error}
+            </p>
             {(wrongTenant || me) && info && (
               <button type="button" onClick={switchAccount}>
                 {l("Masuk dengan akun lain", "Use another account")}

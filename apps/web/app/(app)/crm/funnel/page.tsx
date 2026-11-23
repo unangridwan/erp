@@ -124,7 +124,11 @@ export default function FunnelPage() {
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </label>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {funnel && velocity && (
         <>
           <ul className="grid">

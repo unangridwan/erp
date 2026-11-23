@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ask } from "../components/feedback";
 
 /**
@@ -12,6 +12,7 @@ export function useDirtyGuard(dirty: boolean, message?: string) {
   const router = useRouter();
   const ref = useRef(dirty);
   ref.current = dirty;
+  const guarded = useRef(false);
   useEffect(() => {
     const onUnload = (e: BeforeUnloadEvent) => {
       if (!ref.current) return;
@@ -43,13 +44,86 @@ export function useDirtyGuard(dirty: boolean, message?: string) {
         router.push(url.pathname + url.search + url.hash);
       });
     };
+    // Tombol Kembali browser: saat form kotor, sisipkan satu entri riwayat penjaga. Kembali → entri itu terlepas,
+    // kita tanya dulu; batal → pasang lagi penjaganya, setuju → lanjut mundur ke halaman sebelumnya.
+    const onPop = () => {
+      if (!guarded.current) return;
+      guarded.current = false;
+      if (!ref.current) {
+        window.history.back();
+        return;
+      }
+      void ask({
+        title: document.documentElement.lang === "en" ? "Unsaved changes" : "Perubahan belum disimpan",
+        message:
+          message ??
+          (document.documentElement.lang === "en"
+            ? "Leave this page and discard your changes?"
+            : "Tinggalkan halaman ini dan buang perubahan?"),
+        confirmLabel: document.documentElement.lang === "en" ? "Discard & leave" : "Buang & tinggalkan",
+        danger: true,
+      }).then((ok) => {
+        if (ok) {
+          ref.current = false;
+          window.history.back();
+        } else {
+          window.history.pushState({ dirtyGuard: true }, "", window.location.href);
+          guarded.current = true;
+        }
+      });
+    };
     window.addEventListener("beforeunload", onUnload);
+    window.addEventListener("popstate", onPop);
     document.addEventListener("click", onClick, true);
     return () => {
       window.removeEventListener("beforeunload", onUnload);
+      window.removeEventListener("popstate", onPop);
       document.removeEventListener("click", onClick, true);
     };
   }, [router, message]);
+
+  useEffect(() => {
+    if (dirty && !guarded.current) {
+      window.history.pushState({ dirtyGuard: true }, "", window.location.href);
+      guarded.current = true;
+    }
+  }, [dirty]);
+}
+
+/**
+ * Form dokumen (pesanan, faktur, transfer, …): kotor bila nilai form berbeda dari saat terakhir dimuat/disimpan.
+ * `loadedKey` berubah tiap kali dokumen (ulang) dimuat; saat itu nilai form sekarang menjadi patokan baru.
+ * Memasang `useDirtyGuard` dan mengembalikan status kotor.
+ */
+export function useFormSnapshot(values: unknown, loadedKey: unknown, enabled = true) {
+  const current = JSON.stringify(values);
+  const currentRef = useRef(current);
+  currentRef.current = current;
+  const [baseline, setBaseline] = useState<string | null>(null);
+  // Nilai bawaan yang diisi otomatis setelah dimuat (jurnal, gudang, …) bukan perubahan pengguna: kotor hanya bila
+  // pengguna benar-benar mengetik/memilih sesuatu sejak patokan diambil.
+  const [touched, setTouched] = useState(false);
+  useEffect(() => {
+    setBaseline(currentRef.current);
+    setTouched(false);
+    // Ditunda: setState sinkron di dalam event input (sebelum onChange React) membuat input terkontrol kembali ke
+    // nilai lama dan ketikan hilang.
+    let marked = false;
+    const onInput = () => {
+      if (marked) return;
+      marked = true;
+      setTimeout(() => setTouched(true), 0);
+    };
+    document.addEventListener("input", onInput, true);
+    document.addEventListener("change", onInput, true);
+    return () => {
+      document.removeEventListener("input", onInput, true);
+      document.removeEventListener("change", onInput, true);
+    };
+  }, [loadedKey]);
+  const dirty = enabled && touched && baseline !== null && baseline !== current;
+  useDirtyGuard(dirty);
+  return dirty;
 }
 
 /** Ctrl/⌘+S menjalankan `onSave` (mis. submit form) bila `enabled`. */

@@ -58,7 +58,11 @@ export function MyClaims() {
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {categories.some((c) => c.annualLimit !== null) && (
         <p className="muted claim-limits">
           {l("Sisa plafon tahun ini", "Remaining limit this year")}:{" "}
@@ -188,7 +192,11 @@ export function MyOvertime() {
         </label>
         <button className="primary">{l("Ajukan lembur", "Request overtime")}</button>
       </form>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="table-scroll">
         <table>
           <tbody>
@@ -356,7 +364,11 @@ export function MyChangeRequest() {
           <button className="primary">{l("Ajukan perubahan", "Request change")}</button>
         </form>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="notice">{notice}</p>}
       {rows.length > 0 && (
         <div className="table-scroll">
@@ -456,7 +468,11 @@ export function MyChecklistTasks() {
   return (
     <section className="panel">
       <h2>{l("Tugas onboarding/offboarding", "Onboarding/offboarding tasks")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="table-scroll">
         <table>
           <tbody>
@@ -579,7 +595,11 @@ export function MyProfile({ name }: { name: string }) {
   return (
     <section className="panel">
       <h2>{l("Profil saya", "My profile")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="profile-head">
         {p && <PhotoBox path="/me/photo" name={name} editable hasPhoto={p.hasPhoto} />}
         {p && (

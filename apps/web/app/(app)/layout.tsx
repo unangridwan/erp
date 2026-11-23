@@ -6,7 +6,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } f
 import { CommandPalette } from "../../components/command-palette";
 import { MeContext } from "../../components/me-context";
 import { Navbar, Sidebar } from "../../components/navbar";
-import { api, ApiError, API_URL, session, type Me } from "../../lib/api";
+import { api, ApiError, session, type Me } from "../../lib/api";
 import { setErrorUser } from "../../lib/error-reporting";
 import { appForPath, rememberApp, rememberedApp, visibleApps } from "../../lib/apps";
 import { useI18n } from "../../lib/i18n";
@@ -43,6 +43,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   // Laci sidebar di layar sempit; tertutup setiap pindah halaman.
   const [drawer, setDrawer] = useState(false);
   useEffect(() => setDrawer(false), [pathname]);
+  const closeDrawer = useCallback(() => setDrawer(false), []);
   const apps = useMemo(() => (me ? visibleApps(me) : []), [me]);
   // Aplikasi aktif dari URL; halaman bersama (Produk, Kontak) mengikuti aplikasi yang terakhir dibuka.
   const app = pathname === "/" ? null : appForPath(apps, pathname, rememberedApp());
@@ -72,7 +73,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       .catch((e: unknown) => {
         if (done) return;
         // Jaringan gagal/API tidak jalan bukan berarti sesi tidak sah: jangan logout, beri tahu & tawarkan coba lagi.
-        if (!(e instanceof ApiError)) {
+        if (!(e instanceof ApiError) || e.status === 0 || e.status >= 500) {
           setOffline(true);
           return;
         }
@@ -93,8 +94,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <h1>{l("Tidak dapat terhubung ke server", "Cannot reach the server")}</h1>
         <p className="muted">
           {l(
-            `Server API (${API_URL}) tidak merespons. Pastikan API berjalan (mis. \`pnpm dev\`; periksa error di terminal API), lalu coba lagi.`,
-            `The API server (${API_URL}) is not responding. Make sure the API is running (e.g. \`pnpm dev\`; check the API terminal for errors), then try again.`,
+            "Aplikasi tidak bisa menghubungi server saat ini. Periksa koneksi internet Anda lalu coba lagi. Bila masalah berlanjut, hubungi administrator.",
+            "The app cannot reach the server right now. Check your internet connection and try again. If the problem persists, contact your administrator.",
           )}
         </p>
         <button type="button" className="primary" onClick={() => setAttempt((n) => n + 1)}>
@@ -115,13 +116,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             me={me}
             app={app}
             open={drawer}
-            onClose={() => setDrawer(false)}
+            onClose={closeDrawer}
             collapsed={collapsed}
             onToggleCollapse={toggleCollapsed}
           />
         </Suspense>
         <div className="app-main">
-          <Navbar me={me} app={app} onMenu={() => setDrawer(true)} />
+          <Navbar me={me} app={app} onMenu={() => setDrawer(true)} menuOpen={drawer} />
           <CommandPalette me={me} />
           <main className="content" id="main">
             <SubscriptionBanner me={me} home={pathname === "/"} />

@@ -372,7 +372,7 @@ export function EmployeeForm({ id }: { id: string }) {
   if (isNew && !manage)
     return (
       <section className="panel">
-        <p className="error">
+        <p className="error" role="alert">
           {l(
             "Menambah karyawan memerlukan hak kelola kontrak kerja (hr.manage), karena tanggal masuk diisi di kontrak kerja.",
             "Adding employees requires the contract management right (hr.manage), because the join date is set on the employment contract.",
@@ -541,7 +541,11 @@ export function EmployeeForm({ id }: { id: string }) {
           )}
 
           <div className="panel emp-sheet">
-            {error && <p className="error">{error}</p>}
+            {error && (
+              <p className="error" role="alert">
+                {error}
+              </p>
+            )}
             {notice && <p className="notice">{notice}</p>}
             <fieldset disabled={!editable} className="bare">
               <div className="emp-head">

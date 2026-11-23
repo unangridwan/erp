@@ -22,7 +22,7 @@ const MESSAGES = {
   "auth.login": L("Masuk", "Sign in"),
   "auth.signup": L("Daftar perusahaan baru", "Register a new company"),
   "auth.signupButton": L("Daftar", "Register"),
-  "auth.tenant": L("ID perusahaan (slug)", "Company ID (slug)"),
+  "auth.tenant": L("Kode perusahaan", "Company code"),
   "auth.companyName": L("Nama perusahaan / holding", "Company / holding name"),
   "auth.name": L("Nama Anda", "Your name"),
   "auth.email": L("Email", "Email"),

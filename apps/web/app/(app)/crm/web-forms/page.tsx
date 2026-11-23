@@ -144,7 +144,11 @@ export default function WebFormsPage() {
           "Submissions become new leads (source, campaign, territory, score and owner filled automatically). An email matching an open lead does not create a duplicate.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
 
       {shown && (
         <section className="panel">

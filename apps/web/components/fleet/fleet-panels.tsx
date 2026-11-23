@@ -108,13 +108,22 @@ export function VehicleExtras({ id }: { id: string }) {
       setError(errorText(e));
     }
   }
-  if (!o) return error ? <p className="error">{error}</p> : null;
+  if (!o)
+    return error ? (
+      <p className="error" role="alert">
+        {error}
+      </p>
+    ) : null;
   const unit = o.vehicle.odometerUnit;
   return (
     <>
       <section className="panel">
         <h2>{l("Ringkasan kendaraan", "Vehicle summary")}</h2>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         <div className="cards">
           <div className="card">
             <span>{l("Model", "Model")}</span>
@@ -388,7 +397,11 @@ export function ContractActions({ id }: { id: string }) {
   return (
     <section className="panel">
       <h2>{l("Tindakan kontrak", "Contract actions")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="success">{notice}</p>}
       <div className="form-actions">
         {c.endDate && (
@@ -432,7 +445,11 @@ export function ServiceBillPanel({ id }: { id: string }) {
   return (
     <section className="panel">
       <h2>{l("Tagihan vendor", "Vendor bill")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {s.moveId ? (
         <p>
           <Link href={`/accounting/moves/${s.moveId}`}>{l("Buka tagihan vendor", "Open vendor bill")}</Link>
@@ -536,7 +553,11 @@ export function MyVehiclesPanel() {
   return (
     <section className="panel">
       <h2>{l("Kendaraan saya", "My vehicles")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="success">{notice}</p>}
       {rows.map((v) => (
         <div key={v.id} className="my-vehicle">
@@ -675,7 +696,11 @@ export function FleetReports() {
             </select>
           </label>
         </div>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {costs && (
           <div className="table-wrap">
             <table>
@@ -806,7 +831,11 @@ export function FleetReminders() {
           />
         </label>
       </div>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {rows.length ? (
         <div className="table-wrap">
           <table>
@@ -857,11 +886,20 @@ export function FleetSettingsForm() {
   useEffect(() => {
     api<NonNullable<typeof s>>("/fleet/settings").then(setS, (e) => setError(errorText(e)));
   }, []);
-  if (!s) return error ? <p className="error">{error}</p> : null;
+  if (!s)
+    return error ? (
+      <p className="error" role="alert">
+        {error}
+      </p>
+    ) : null;
   return (
     <section className="panel">
       <h2>{l("Pengaturan Armada", "Fleet Settings")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="success">{notice}</p>}
       <form
         className="stack"

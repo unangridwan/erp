@@ -141,7 +141,11 @@ export function PricelistForm({ id }: { id: string }) {
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <fieldset className="fields" disabled={!editable}>
         <label className="field">
           <span>{l("Nama *", "Name *")}</span>

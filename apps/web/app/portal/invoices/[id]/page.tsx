@@ -44,7 +44,11 @@ export default function PortalInvoicePage() {
   return (
     <main className="shell">
       <PortalHeader />
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {inv && (
         <section className="panel">
           <header className="toolbar control-panel">

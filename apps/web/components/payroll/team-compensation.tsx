@@ -63,7 +63,11 @@ export function TeamCompensation() {
   return (
     <section className="panel stack proj-panel">
       <h2>{l("Usulan kenaikan gaji tim", "Team salary review")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {cycles.map((c) => (
         <div key={c.id} className="stack" style={{ alignSelf: "stretch" }}>
           <p>

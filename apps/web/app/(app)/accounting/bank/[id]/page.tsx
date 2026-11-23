@@ -85,7 +85,11 @@ export default function StatementPage() {
             : `${open} ${l("baris belum dicocokkan", "lines to reconcile")}`}
         </span>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="table-wrap">
         <table>
           <thead>
@@ -248,7 +252,11 @@ function LineRow(props: {
               <button className="primary" onClick={reconcile} disabled={remaining > 0 && !accountId}>
                 {l("Rekonsiliasi", "Reconcile")}
               </button>
-              {error && <p className="error">{error}</p>}
+              {error && (
+                <p className="error" role="alert">
+                  {error}
+                </p>
+              )}
             </div>
           </td>
         </tr>

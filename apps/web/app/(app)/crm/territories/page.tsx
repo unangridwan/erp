@@ -153,7 +153,11 @@ export default function TerritoriesPage() {
           </>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <p className="muted">
         {l(
           "Lead dan akun baru otomatis masuk wilayah pertama (urutan terkecil) yang aturannya cocok. Lead tanpa penanggung jawab dibagi bergiliran ke anggota wilayah saat aturan diterapkan.",

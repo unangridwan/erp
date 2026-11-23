@@ -116,7 +116,11 @@ export default function ExpenseClaimPage() {
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <p className="muted">
         {formatDate(claim.date, locale)}
         {claim.description ? ` · ${claim.description}` : ""} ·{" "}

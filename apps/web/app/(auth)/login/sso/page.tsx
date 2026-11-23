@@ -36,7 +36,7 @@ export default function SsoReturnPage() {
         <h1>{l("Masuk dengan SSO", "Single sign-on")}</h1>
         {error ? (
           <>
-            <p className="error">
+            <p className="error" role="alert">
               {error === "missing" ? l("Tautan SSO tidak lengkap.", "The SSO link is incomplete.") : error}
             </p>
             <a href="/login">{l("Kembali ke halaman masuk", "Back to sign in")}</a>

@@ -85,7 +85,11 @@ function VariantsPanel({ id }: { id: string }) {
   return (
     <section className="panel">
       <h2>{l("Varian", "Variants")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {data.variants.length > 0 ? (
         <div className="table-wrap">
           <table>
@@ -229,7 +233,11 @@ function PortalAccessPanel({ id }: { id: string }) {
   return (
     <section className="panel">
       <h2>{l("Portal pelanggan", "Customer portal")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {access ? (
         <p>
           {access.name} &lt;{access.email}&gt; ·{" "}
@@ -381,7 +389,11 @@ export function SeverancePanel({ id }: { id: string }) {
   return (
     <section className="panel">
       <h2>{l("Pesangon & hak akhir (PP 35/2021)", "Severance & final settlement (PP 35/2021)")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {rows.length > 0 && (
         <div className="table-scroll">
           <table className="lines">
@@ -567,7 +579,11 @@ function ExpenseLimitsPanel({ id }: { id: string }) {
           "Empty = use the category annual limit. E.g. glasses Rp 1m for staff, Rp 2.5m for managers.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {saved && <p className="muted">{l("Tersimpan.", "Saved.")}</p>}
       <div className="table-wrap">
         <table>

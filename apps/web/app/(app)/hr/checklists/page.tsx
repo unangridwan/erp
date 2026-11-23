@@ -80,7 +80,11 @@ export default function ChecklistsPage() {
         <h1>{l("Checklist Onboarding & Offboarding", "Onboarding & Offboarding")}</h1>
         <Link href="/hr/checklist-templates">{l("Template", "Templates")}</Link>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <TableTools view={table} />
       <div className="table-wrap">
         <table>

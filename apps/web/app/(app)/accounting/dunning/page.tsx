@@ -206,7 +206,11 @@ function PreviewTab({ onSent }: { onSent: () => void }) {
           </button>
         )}
       </div>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {!rows ? (
         <p className="muted">{l("Memuat…", "Loading…")}</p>
       ) : rows.length === 0 ? (
@@ -388,7 +392,12 @@ function LettersTab({ partnerId }: { partnerId: string | null }) {
     [l, locale, writable, load],
   );
 
-  if (error) return <p className="error">{error}</p>;
+  if (error)
+    return (
+      <p className="error" role="alert">
+        {error}
+      </p>
+    );
   if (!rows) return <p className="muted">{l("Memuat…", "Loading…")}</p>;
   return (
     <DataTable
@@ -612,7 +621,12 @@ function SettingsTab({ writable }: { writable: boolean }) {
     api<Settings>("/dunning/settings").then(setSettings, (e: unknown) => setError(errorText(e)));
   }, []);
 
-  if (error) return <p className="error">{error}</p>;
+  if (error)
+    return (
+      <p className="error" role="alert">
+        {error}
+      </p>
+    );
   if (!settings) return <p className="muted">{l("Memuat…", "Loading…")}</p>;
 
   const save = async () => {

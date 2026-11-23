@@ -65,7 +65,11 @@ export default function ChangeRequestsPage() {
           "Submitted by employees from the portal. Once approved the employee record is updated (account numbers stay encrypted).",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {rows?.length === 0 && <p className="muted">{l("Tidak ada pengajuan.", "No requests.")}</p>}
       {rows?.map((r) => (
         <section key={r.id} className="card stack">

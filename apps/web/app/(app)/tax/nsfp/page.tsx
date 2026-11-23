@@ -86,7 +86,11 @@ export default function NsfpPage() {
           "Only for taxpayers still on the e-Faktur 3.x desktop app (pre-Coretax) or correcting past invoices. Register the 13-digit serial-number ranges from DJP; numbers are used in order when exporting the legacy CSV from Output Invoices.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {manage && (
         <form className="inline-panel" onSubmit={submit}>
           <label className="field">

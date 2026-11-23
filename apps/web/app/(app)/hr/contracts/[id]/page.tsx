@@ -392,7 +392,11 @@ function Contract() {
               </>
             )}
           </div>
-          {error && <p className="error">{error}</p>}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
           {!ending.exit && (
             <p className="muted small">
               {l(
@@ -443,7 +447,11 @@ function Contract() {
               </button>
             )}
         </header>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {isNew && !presetEmployee && (
           <p className="muted">
             {l(

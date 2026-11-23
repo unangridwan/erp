@@ -56,7 +56,7 @@ export default function VerifyContractPage() {
           {l("Kode verifikasi", "Verification code")}: <strong>{code.toUpperCase()}</strong>
         </p>
         {failed && (
-          <p className="error">
+          <p className="error" role="alert">
             {l(
               "Kode verifikasi tidak dikenal. Periksa kembali kode pada dokumen.",
               "Unknown verification code. Check the code on the document again.",

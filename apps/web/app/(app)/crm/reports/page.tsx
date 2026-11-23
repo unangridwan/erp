@@ -75,7 +75,11 @@ export default function PipelineReportPage() {
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </label>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {data && totals && (
         <>
           <ul className="grid">

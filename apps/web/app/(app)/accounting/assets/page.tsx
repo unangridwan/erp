@@ -150,7 +150,11 @@ export default function AssetsPage() {
         )}
       </header>
       {notice && <p className="notice">{notice}</p>}
-      {(error ?? list.error) && <p className="error">{error ?? list.error}</p>}
+      {(error ?? list.error) && (
+        <p className="error" role="alert">
+          {error ?? list.error}
+        </p>
+      )}
       <DataTable
         rows={list.rows}
         columns={columns}

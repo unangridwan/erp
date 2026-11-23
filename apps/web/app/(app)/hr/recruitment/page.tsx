@@ -138,7 +138,11 @@ function Recruitment() {
           ))}
         <Link href="/job-openings">{l("Kelola lowongan", "Manage openings")}</Link>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {openings.length === 0 && (
         <p className="muted">
           {l("Buat lowongan dulu di menu Lowongan.", "Create a job opening first.")}{" "}

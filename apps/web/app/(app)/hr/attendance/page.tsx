@@ -280,7 +280,11 @@ export default function AttendancePage() {
           {l(`Absensi s.d. ${lock} terkunci (tidak bisa diubah).`, `Attendance up to ${lock} is locked.`)}
         </p>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="success">{notice}</p>}
 
       {tab === "list" && (

@@ -132,7 +132,11 @@ export default function TaxReturnsPage() {
           "Built from posted debit notes (purchase returns/bill reversals) with VAT. In Coretax the buyer creates returns under Input VAT Returns; invoices with legacy e-Faktur numbers (16 digits) can be exported as RM CSV. Reported returns reduce input VAT in the VAT summary.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {message && <p className="success">{message}</p>}
       {canWrite && (
         <div className="inline-panel">

@@ -52,7 +52,11 @@ export default function PortalTicketsPage() {
   return (
     <main className="shell">
       <PortalHeader title={l("Tiket bantuan", "Support tickets")} />
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <form className="panel stack" onSubmit={submit}>
         <h2>{l("Ajukan pertanyaan atau keluhan", "Ask a question or report a problem")}</h2>
         <p className="muted">

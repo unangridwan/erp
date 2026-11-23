@@ -379,7 +379,11 @@ export default function PayrollRunPage() {
           </>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="notice">{notice}</p>}
       {run.state !== "cancel" && <PayrollWarnings runId={run.id} version={version} />}
       {correction && (

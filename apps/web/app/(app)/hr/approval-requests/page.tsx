@@ -141,7 +141,11 @@ function Requests() {
           ))}
         </div>
       </div>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <TableTools
         view={table}
         placeholder={l("Cari nomor, subjek, pemohon…", "Search number, subject, requester…")}

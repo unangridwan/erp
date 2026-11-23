@@ -153,7 +153,11 @@ export function ProfileHeader({ employeeId }: { employeeId: string }) {
   }, [employeeId, tick]);
   return (
     <section className="panel">
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="profile-head">
         <PhotoBox
           key={String(s?.hasPhoto)}
@@ -296,7 +300,11 @@ function RowsPanel({
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {edit && (
         <form className="inline-panel" onSubmit={save}>
           {cols.map((c) => {
@@ -593,7 +601,11 @@ export function WarningsPanel({ employeeId }: { employeeId?: string }) {
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {form && (
         <form className="inline-panel" onSubmit={save}>
           {!employeeId && (
@@ -882,7 +894,11 @@ export function MovementsPanel({ employeeId }: { employeeId?: string }) {
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {form && (
         <form className="inline-panel" onSubmit={save}>
           {!employeeId && ref("employeeId", L("Karyawan *", "Employee *"), "employees")}

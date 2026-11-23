@@ -69,7 +69,11 @@ export default function RolesPage() {
           "Roles define which modules, features and actions (view, export, edit, delete, manage) can be used. Roles can be assigned per company on the user page, and each account's permissions can be granted or revoked individually.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <TableTools view={table} />
       <div className="table-wrap">
         <table>

@@ -193,7 +193,11 @@ export default function LeavePlanPage() {
             </>
           )}
         </header>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {notice && <p className="notice">{notice}</p>}
         <fieldset disabled={!manage} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
           <div className="grid-2">

@@ -168,7 +168,11 @@ export default function CompensationCyclePage() {
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="notice">{notice}</p>}
 
       <section className="panel stack proj-panel">

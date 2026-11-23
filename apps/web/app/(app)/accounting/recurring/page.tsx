@@ -336,7 +336,11 @@ function Recurring() {
               </button>
             )}
           </header>
-          {detail?.lastError && <p className="error">{detail.lastError}</p>}
+          {detail?.lastError && (
+            <p className="error" role="alert">
+              {detail.lastError}
+            </p>
+          )}
           <fieldset className="fields" disabled={!writable}>
             <label className="field">
               <span>{l("Nama *", "Name *")}</span>

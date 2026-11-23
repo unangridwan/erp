@@ -122,7 +122,11 @@ export default function PublicWebFormPage() {
               value={values.website_url ?? ""}
               onChange={(e) => setValues({ ...values, website_url: e.target.value })}
             />
-            {failure && <p className="error">{failure}</p>}
+            {failure && (
+              <p className="error" role="alert">
+                {failure}
+              </p>
+            )}
             <button className="primary" disabled={busy}>
               {l("Kirim", "Submit")}
             </button>

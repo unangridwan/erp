@@ -138,7 +138,11 @@ function ManpowerPlans() {
             "Each department plans its positions for the year (existing, new, replacement). Once approved, the plan fills the Manpower Budget per job × month and the accounting “HR Budget” (salary & BPJS expense); new positions can then become job openings.",
           )}
         </p>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {d && (
           <ul className="grid">
             {(

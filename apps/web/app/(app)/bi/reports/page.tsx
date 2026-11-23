@@ -87,7 +87,11 @@ export default function ReportsPage() {
           "Build your own reports from HR & payroll data: choose columns, filter, group & total, chart, save, then email them on a schedule.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <section className="panel stack proj-panel">
         {!rows ? (
           <p className="muted">{l("Memuat…", "Loading…")}</p>

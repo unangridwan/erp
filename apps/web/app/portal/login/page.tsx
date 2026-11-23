@@ -53,7 +53,11 @@ export default function PortalLoginPage() {
         <button className="primary" disabled={busy}>
           {busy ? l("Memproses…", "Processing…") : l("Masuk", "Sign in")}
         </button>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
       </form>
     </main>
   );

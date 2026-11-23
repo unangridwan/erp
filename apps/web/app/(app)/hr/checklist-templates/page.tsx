@@ -96,7 +96,11 @@ export default function ChecklistTemplatesPage() {
           "Without a default template the built-in checklist is used.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {edit ? (
         <div className="stack">
           <div className="inline-panel">

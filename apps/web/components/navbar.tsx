@@ -75,6 +75,17 @@ export function Sidebar({
   onToggleCollapse?: () => void;
 }) {
   const pathname = usePathname();
+  const asideRef = useRef<HTMLElement>(null);
+  // Laci di layar sempit: fokus masuk ke menu saat dibuka, Esc menutup (aksesibilitas keyboard).
+  useEffect(() => {
+    if (!open) return;
+    asideRef.current?.querySelector<HTMLElement>("a[href], button")?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
   const params = useSearchParams();
   const search = new URLSearchParams(params.toString());
   const active = (href: string) => isActive(pathname, href, search);
@@ -110,7 +121,12 @@ export function Sidebar({
 
   return (
     <>
-      <aside className={`sidebar${open ? " open" : ""}`} aria-label={l("Navigasi utama", "Main navigation")}>
+      <aside
+        ref={asideRef}
+        id="main-nav"
+        className={`sidebar${open ? " open" : ""}`}
+        aria-label={l("Navigasi utama", "Main navigation")}
+      >
         <div className="side-head">
           <Link href="/" className="side-brand" title={l("Beranda", "Home")}>
             <span className="side-logo" aria-hidden>
@@ -262,7 +278,17 @@ function HomeGlyph() {
 }
 
 /** Bilah atas: tombol menu (layar sempit), judul aplikasi aktif, pencarian, perusahaan, notifikasi, profil. */
-export function Navbar({ me, app, onMenu }: { me: Me; app: App | null; onMenu: () => void }) {
+export function Navbar({
+  me,
+  app,
+  onMenu,
+  menuOpen = false,
+}: {
+  me: Me;
+  app: App | null;
+  onMenu: () => void;
+  menuOpen?: boolean;
+}) {
   const router = useRouter();
   const { tx, l, locale, setLocale } = useI18n();
   const [theme, setTheme] = useTheme();
@@ -271,7 +297,14 @@ export function Navbar({ me, app, onMenu }: { me: Me; app: App | null; onMenu: (
   const toggle = (key: string) => setOpen(open === key ? null : key);
   return (
     <header className="topbar" ref={ref}>
-      <button type="button" className="top-burger" aria-label={l("Buka menu", "Open menu")} onClick={onMenu}>
+      <button
+        type="button"
+        className="top-burger"
+        aria-label={l("Buka menu", "Open menu")}
+        aria-expanded={menuOpen}
+        aria-controls="main-nav"
+        onClick={onMenu}
+      >
         <svg
           viewBox="0 0 24 24"
           width="22"

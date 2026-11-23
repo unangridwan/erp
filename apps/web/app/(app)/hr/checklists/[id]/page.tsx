@@ -70,7 +70,11 @@ export default function ChecklistPage() {
         {c.kind === "onboarding" ? l("Tanggal masuk", "Start date") : l("Tanggal keluar", "Leaving date")}:{" "}
         {formatDate(c.baseDate, locale)}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="table-scroll">
         <table>
           <thead>

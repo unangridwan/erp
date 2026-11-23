@@ -75,7 +75,11 @@ export default function LatenessPage() {
           "Based on the first check-in per workday against the employee's schedule (shift assignments override the default). Public holidays are excluded.",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {rows && <TableTools view={table} />}
       {rows && (
         <div className="table-wrap">

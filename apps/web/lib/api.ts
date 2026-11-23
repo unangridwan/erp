@@ -154,6 +154,25 @@ if (typeof window !== "undefined") {
   });
 }
 
+const en = () => read("erp.locale") === "en";
+
+/** Pesan untuk status HTTP tanpa pesan dari server (mis. 502 dari proxy berupa halaman HTML). */
+function statusMessage(status: number): string {
+  if (status === 0)
+    return en()
+      ? "Cannot reach the server. Check your connection and try again."
+      : "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.";
+  if (status >= 500)
+    return en()
+      ? "The server is temporarily unavailable. Please try again shortly."
+      : "Server sedang tidak tersedia. Coba lagi sebentar lagi.";
+  if (status === 403) return en() ? "You do not have access to this." : "Anda tidak punya akses untuk ini.";
+  if (status === 404) return en() ? "Data not found." : "Data tidak ditemukan.";
+  if (status === 429)
+    return en() ? "Too many requests. Please wait a moment." : "Terlalu banyak permintaan. Tunggu sebentar.";
+  return en() ? `Request failed (${status}).` : `Permintaan gagal (${status}).`;
+}
+
 /** Request ke API dengan token & perusahaan aktif; access token kedaluwarsa diperbarui otomatis sekali. */
 export async function apiRaw(
   path: string,
@@ -161,10 +180,15 @@ export async function apiRaw(
 ): Promise<Response> {
   const method = init.method ?? "GET";
   const isPublic = PUBLIC_AUTH.has(path);
-  let res = await rawFetch(path, method, init.body);
+  // Galat jaringan dari browser ("Failed to fetch", "Load failed", …) diganti pesan yang bisa dipahami pengguna.
+  const send = () =>
+    rawFetch(path, method, init.body).catch(() => {
+      throw new ApiError(0, statusMessage(0));
+    });
+  let res = await send();
   if (res.status !== 401 || isPublic) return res;
   const refreshed = await refreshSession();
-  if (refreshed === "ok") res = await rawFetch(path, method, init.body);
+  if (refreshed === "ok") res = await send();
   // Hanya sesi yang benar-benar berakhir yang dikeluarkan; gangguan jaringan sesaat tidak menghapus form yang terisi.
   if (refreshed === "expired" && typeof window !== "undefined") {
     session.clear();
@@ -182,7 +206,9 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
   if (!res.ok) {
     const errors = (data.errors ?? []) as { path: string; message: string }[];
     const fieldErrors = Object.fromEntries(errors.map((e) => [e.path, e.message]));
-    throw new ApiError(res.status, data.message ?? res.statusText, fieldErrors, data);
+    const message =
+      typeof data.message === "string" && data.message ? data.message : statusMessage(res.status);
+    throw new ApiError(res.status, message, fieldErrors, data);
   }
   return data as T;
 }

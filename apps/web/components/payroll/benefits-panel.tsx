@@ -201,7 +201,11 @@ export function BenefitEnrollments({
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
 
       {form && (
         <form className="inline-panel" onSubmit={submit}>

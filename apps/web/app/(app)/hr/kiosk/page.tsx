@@ -130,7 +130,11 @@ export default function KioskPage() {
               OK
             </button>
           </div>
-          {error && <p className="error">{error}</p>}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
           <label className="check">
             <input type="checkbox" checked={camera} onChange={(e) => setCamera(e.target.checked)} />
             {l("Ambil foto saat absen", "Take a photo on punch")}

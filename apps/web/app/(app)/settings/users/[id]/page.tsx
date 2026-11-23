@@ -108,7 +108,12 @@ export default function UserDetailPage() {
   const options = useMemo(() => (catalog ? permissionOptions(catalog) : []), [catalog]);
   const current = access.find((a) => a.company.id === company);
 
-  if (!user) return error ? <p className="error">{error}</p> : null;
+  if (!user)
+    return error ? (
+      <p className="error" role="alert">
+        {error}
+      </p>
+    ) : null;
   return (
     <>
       <header className="toolbar">
@@ -165,7 +170,11 @@ export default function UserDetailPage() {
           </button>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="success">{notice}</p>}
 
       <section className="panel">
@@ -233,7 +242,7 @@ export default function UserDetailPage() {
         )}
       </section>
 
-      <nav className="tabs">
+      <nav role="tablist" className="tabs">
         {(
           [
             ["roles", l("Peran", "Roles")],
@@ -243,7 +252,14 @@ export default function UserDetailPage() {
             ["log", l("Riwayat akses", "Access history")],
           ] as [Tab, string][]
         ).map(([k, t]) => (
-          <button key={k} type="button" className={tab === k ? "active" : ""} onClick={() => setTab(k)}>
+          <button
+            key={k}
+            type="button"
+            role="tab"
+            aria-selected={tab === k}
+            className={tab === k ? "active" : ""}
+            onClick={() => setTab(k)}
+          >
             {t}
           </button>
         ))}

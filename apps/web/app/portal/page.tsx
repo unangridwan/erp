@@ -68,7 +68,11 @@ export default function PortalHome() {
   return (
     <main className="shell">
       <PortalHeader />
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {me && (
         <section className="panel">
           <h1>

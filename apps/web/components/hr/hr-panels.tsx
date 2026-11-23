@@ -234,7 +234,11 @@ export function DocumentsPanel({ employeeId, applicantId }: { employeeId?: strin
           {l("Unggah", "Upload")}
         </button>
       </form>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
     </section>
   );
 }
@@ -280,7 +284,11 @@ export function ChecklistsPanel({ employeeId }: { employeeId: string }) {
           {l("Mulai offboarding", "Start offboarding")}
         </button>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {rows.length === 0 ? (
         <p className="muted">{l("Belum ada checklist.", "No checklists yet.")}</p>
       ) : (
@@ -366,7 +374,11 @@ export function CareerPanel({ employeeId }: { employeeId: string }) {
   return (
     <section className="panel">
       <h2>{l("Riwayat karir", "Career history")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {c && (
         <>
           {c.history.length === 0 ? (

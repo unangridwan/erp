@@ -16,6 +16,7 @@ import { RelatedDocuments } from "../related-documents";
 import { useMe } from "../me-context";
 import { RefSelect } from "../ref-select";
 import { ask, toast } from "../feedback";
+import { useFormSnapshot } from "../../lib/use-form-guard";
 
 interface Move {
   id: string;
@@ -189,9 +190,16 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
   const writable = can(me.permissions, "inventory.write");
   const editable =
     writable && (isNew || (picking?.state === "draft" && !picking.saleOrderId && !picking.purchaseOrderId));
+  // Peringatan saat meninggalkan form yang belum disimpan (tautan, tombol Kembali, tutup tab).
+  useFormSnapshot({ header, lines, custom }, picking, editable);
   // Transfer draft manual diedit dulu; validasi (isi kuantitas & lot/serial) setelah ditandai siap.
   const workable = writable && (picking?.state === "ready" || (picking?.state === "draft" && !editable));
-  const err = (path: string) => fieldErrors[path] && <small className="error">{fieldErrors[path]}</small>;
+  const err = (path: string) =>
+    fieldErrors[path] && (
+      <small className="error" role="alert">
+        {fieldErrors[path]}
+      </small>
+    );
 
   async function run(fn: () => Promise<void>) {
     setBusy(true);
@@ -237,11 +245,23 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
         if (updated.id !== id) router.replace(`/inventory/pickings/${updated.id}`);
         else setVersion((v) => v + 1);
       }
+      toast.success(l("Transfer tersimpan", "Transfer saved"));
     });
   };
 
-  const validate = () =>
-    run(async () => {
+  const validate = async () => {
+    // Validasi memindahkan stok dan membuat jurnal persediaan: tidak bisa dibatalkan selain lewat retur.
+    const ok = await ask({
+      title: l("Validasi transfer ini?", "Validate this transfer?"),
+      message: l(
+        "Stok akan dipindahkan dan jurnal persediaan dibuat. Setelah divalidasi, koreksi hanya lewat retur.",
+        "Stock will be moved and inventory entries posted. After validation, corrections are only possible via a return.",
+      ),
+      confirmLabel: l("Validasi", "Validate"),
+      danger: false,
+    });
+    if (!ok) return;
+    await run(async () => {
       if (!picking) return;
       const body = {
         createBackorder: backorder,
@@ -278,8 +298,10 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
         toast.info(
           l("Sisa kuantitas dibuat sebagai backorder.", "The remaining quantity was moved to a backorder."),
         );
+      else toast.success(l("Transfer divalidasi", "Transfer validated"));
       setVersion((v) => v + 1);
     });
+  };
 
   const action = (path: string) =>
     run(async () => {
@@ -475,7 +497,11 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
               </button>
             )}
           </header>
-          {error && <p className="error">{error}</p>}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
           {documents.map((d) => (
             <p key={d.id} className="notice">
               {l(
@@ -643,6 +669,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
                     <tr key={i}>
                       <td>
                         <select
+                          aria-label={l("Produk", "Product")}
                           value={x.productId}
                           onChange={(e) =>
                             setLines((r) =>
@@ -661,6 +688,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
                       </td>
                       <td>
                         <input
+                          aria-label={l("Kuantitas", "Quantity")}
                           className="num short"
                           inputMode="decimal"
                           value={x.quantity}
@@ -675,6 +703,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
                       {type === "incoming" && (
                         <td>
                           <input
+                            aria-label={l("Harga satuan", "Unit price")}
                             className="num"
                             inputMode="decimal"
                             value={x.priceUnit}
@@ -780,6 +809,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
                             <td className="num">
                               {active ? (
                                 <input
+                                  aria-label={l("Kuantitas selesai", "Done quantity")}
                                   className="num short"
                                   inputMode="decimal"
                                   value={w.quantityDone}
@@ -797,6 +827,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
                                     <span key={j}>
                                       {type === "incoming" ? (
                                         <input
+                                          aria-label={l("Nama lot/serial", "Lot/serial name")}
                                           placeholder={
                                             m.tracking === "serial"
                                               ? l("No. serial", "Serial no.")
@@ -807,6 +838,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
                                         />
                                       ) : (
                                         <select
+                                          aria-label={l("Lot/serial", "Lot/serial")}
                                           value={x.lotId}
                                           onChange={(e) => setLot(m.id, j, { lotId: e.target.value })}
                                         >
@@ -820,6 +852,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
                                       )}
                                       {m.tracking === "lot" && (
                                         <input
+                                          aria-label={l("Kuantitas", "Quantity")}
                                           className="num short"
                                           inputMode="decimal"
                                           value={x.quantity}
@@ -828,6 +861,7 @@ export function PickingForm({ id, newType }: { id: string; newType: string }) {
                                       )}
                                       {type === "incoming" && (
                                         <input
+                                          aria-label={l("Tanggal kedaluwarsa", "Expiry date")}
                                           type="date"
                                           title={l("Kedaluwarsa", "Expiration")}
                                           value={x.expirationDate}

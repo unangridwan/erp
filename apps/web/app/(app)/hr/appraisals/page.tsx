@@ -80,7 +80,11 @@ export default function AppraisalCyclesPage() {
         <h1>{l("Penilaian Kinerja", "Performance Appraisals")}</h1>
         <Link href="/hr/appraisal-templates">{l("Template KPI", "KPI templates")}</Link>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <form className="inline-panel" onSubmit={create}>
         <label className="field">
           <span>{l("Nama siklus", "Cycle name")}</span>

@@ -164,7 +164,11 @@ export function DrilldownPanel({
 
   return (
     <Modal open={!!request} title={request?.title ?? ""} onClose={onClose} side>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {!data && !error && <p className="muted">{l("Memuat…", "Loading…")}</p>}
       {data && (
         <>
@@ -332,7 +336,11 @@ export function DatasetDrillPanel({
         : String(v);
   return (
     <Modal open={!!request} title={request?.title ?? ""} onClose={onClose} side>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {!data && !error && <p className="muted">{l("Memuat…", "Loading…")}</p>}
       {data && (
         <>

@@ -49,7 +49,12 @@ export function ApprovalSummary({ url }: { url: string }) {
   useEffect(() => {
     api<Summary>(url).then(setData, (e: Error) => setError(e.message));
   }, [url]);
-  if (error) return <p className="error">{error}</p>;
+  if (error)
+    return (
+      <p className="error" role="alert">
+        {error}
+      </p>
+    );
   if (!data) return <p className="muted">{l("Memuat…", "Loading…")}</p>;
   const amount = (v: number | string | null | undefined) =>
     v === null || v === undefined ? l("Tanpa batas", "Unlimited") : money(v, locale, 0);

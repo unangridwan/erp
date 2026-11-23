@@ -48,7 +48,11 @@ export default function PortalOrderPage() {
   return (
     <main className="shell">
       <PortalHeader />
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {order && (
         <section className="panel">
           <header className="toolbar control-panel">

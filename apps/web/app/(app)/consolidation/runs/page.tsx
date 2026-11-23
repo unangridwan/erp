@@ -100,7 +100,11 @@ export default function ConsolidationRunsPage() {
           "Consolidation combines the parent and subsidiaries per the Ownership structure: currency translation, investment & intercompany eliminations, NCI, and the equity method for associates. Set up the group chart & account mapping first (Configuration → Account Mapping).",
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {details.length > 0 && (
         <ul className="error small">
           {details.slice(0, 20).map((d) => (

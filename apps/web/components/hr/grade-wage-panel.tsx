@@ -126,7 +126,7 @@ export function GradeBaseWagePanel({ id }: { id: string }) {
       {impact && (
         <>
           {!impact.grade.baseWage && (
-            <p className="error">
+            <p className="error" role="alert">
               {l("Isi dan simpan gaji pokok golongan dulu.", "Fill in and save the grade base wage first.")}
             </p>
           )}

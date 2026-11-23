@@ -135,7 +135,11 @@ export default function BudgetPage() {
           <h1>{isNew ? l("Anggaran baru", "New budget") : header.name}</h1>
           {editable && <button className="primary">{l("Simpan", "Save")}</button>}
         </header>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {source === "manpower" && (
           <p className="muted">
             <span className="pill ok">{l("Dikelola MPP", "Managed by MPP")}</span>{" "}

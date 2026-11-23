@@ -242,11 +242,25 @@ function ApprovalRules() {
         )}
       </section>
 
-      <nav className="tabs" aria-label={l("Bagian aturan persetujuan", "Approval rule sections")}>
-        <Link href="/settings/approval-rules" className={tab === "documents" ? "active" : ""}>
+      <nav
+        role="tablist"
+        className="tabs"
+        aria-label={l("Bagian aturan persetujuan", "Approval rule sections")}
+      >
+        <Link
+          href="/settings/approval-rules"
+          role="tab"
+          aria-selected={tab === "documents"}
+          className={tab === "documents" ? "active" : ""}
+        >
           {l("Alur dokumen", "Document flows")}
         </Link>
-        <Link href="/settings/approval-rules?tab=categories" className={tab === "categories" ? "active" : ""}>
+        <Link
+          href="/settings/approval-rules?tab=categories"
+          role="tab"
+          aria-selected={tab === "categories"}
+          className={tab === "categories" ? "active" : ""}
+        >
           {l("Kategori & dokumen sistem", "Categories & system documents")}
         </Link>
       </nav>
@@ -264,14 +278,25 @@ function ApprovalRules() {
   function documentFlows() {
     return (
       <>
-        <nav className="tabs">
+        <nav role="tablist" className="tabs">
           {DOCS.map((d) => (
-            <button key={d} type="button" className={doc === d ? "active" : ""} onClick={() => setDoc(d)}>
+            <button
+              key={d}
+              type="button"
+              role="tab"
+              aria-selected={doc === d}
+              className={doc === d ? "active" : ""}
+              onClick={() => setDoc(d)}
+            >
               {l(...docLabel(d))}
             </button>
           ))}
         </nav>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {notice && <p className="notice">{notice}</p>}
 
         {hasRules(doc) && (

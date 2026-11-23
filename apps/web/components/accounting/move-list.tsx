@@ -141,7 +141,11 @@ export function MoveList({ kind }: { kind: MoveKind }) {
           </Link>
         )}
       </header>
-      {list.error && <p className="error">{list.error}</p>}
+      {list.error && (
+        <p className="error" role="alert">
+          {list.error}
+        </p>
+      )}
       {!list.loading || list.rows.length ? (
         <DataTable
           customModel="account_move"

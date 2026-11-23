@@ -174,7 +174,11 @@ export default function SsoSettingsPage() {
           {copyField("Redirect URI", config.redirectUri)}
         </>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="notice">{notice}</p>}
       <label className="field">
         <span>{l("Teks tombol", "Button label")}</span>

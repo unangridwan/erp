@@ -220,7 +220,18 @@ export default function ManpowerPlanPage() {
     }
   };
 
-  if (!d) return <div className="stack-wide">{error ? <p className="error">{error}</p> : <p>…</p>}</div>;
+  if (!d)
+    return (
+      <div className="stack-wide">
+        {error ? (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        ) : (
+          <p>…</p>
+        )}
+      </div>
+    );
   const s = d.summary;
   const compact = (v: number) =>
     new Intl.NumberFormat(locale === "id" ? "id-ID" : "en-US", {
@@ -295,7 +306,11 @@ export default function ManpowerPlanPage() {
             {l("Ekspor Excel", "Export Excel")}
           </button>
         </header>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {notice && <p className="muted">{notice}</p>}
         {d.warnings.map((w) => (
           <p key={w} className="error">

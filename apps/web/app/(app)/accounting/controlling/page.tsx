@@ -125,11 +125,21 @@ export default function ControllingPage() {
         <Link href="/cost-centers">{l("Kelola cost center", "Manage cost centers")}</Link> ·{" "}
         <Link href="/profit-centers">{l("Kelola profit center", "Manage profit centers")}</Link>
       </p>
-      <nav className="tabs no-print">
-        <button className={tab === "cost-centers" ? "active" : ""} onClick={() => setTab("cost-centers")}>
+      <nav role="tablist" className="tabs no-print">
+        <button
+          role="tab"
+          aria-selected={tab === "cost-centers"}
+          className={tab === "cost-centers" ? "active" : ""}
+          onClick={() => setTab("cost-centers")}
+        >
           {l("Biaya per cost center", "Cost by cost center")}
         </button>
-        <button className={tab === "profit-centers" ? "active" : ""} onClick={() => setTab("profit-centers")}>
+        <button
+          role="tab"
+          aria-selected={tab === "profit-centers"}
+          className={tab === "profit-centers" ? "active" : ""}
+          onClick={() => setTab("profit-centers")}
+        >
           {l("Laba rugi per profit center", "P&L by profit center")}
         </button>
       </nav>
@@ -154,7 +164,11 @@ export default function ControllingPage() {
           </select>
         </label>
       </div>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
 
       {tab === "cost-centers" && cost && (
         <div className="table-wrap report">

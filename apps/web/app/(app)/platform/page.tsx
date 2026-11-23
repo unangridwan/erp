@@ -243,7 +243,11 @@ export default function PlatformPage() {
   }
 
   if (!me.platformAdmin)
-    return <p className="error">{l("Khusus admin platform.", "Platform admins only.")}</p>;
+    return (
+      <p className="error" role="alert">
+        {l("Khusus admin platform.", "Platform admins only.")}
+      </p>
+    );
 
   const patch = (t: Tenant, body: object, done?: string) =>
     run(() => api(`/platform/tenants/${t.id}/subscription`, { method: "PATCH", body }), done);
@@ -338,7 +342,7 @@ export default function PlatformPage() {
           {l("Buat tagihan perpanjangan", "Generate renewal invoices")}
         </button>
       </header>
-      <nav className="tabs">
+      <nav role="tablist" className="tabs">
         {(
           [
             ["tenants", l("Tenant", "Tenants")],
@@ -346,12 +350,23 @@ export default function PlatformPage() {
             ["invoices", `${l("Tagihan terbuka", "Open invoices")} (${invoices.length})`],
           ] as [Tab, string][]
         ).map(([k, t]) => (
-          <button key={k} type="button" className={tab === k ? "active" : ""} onClick={() => setTab(k)}>
+          <button
+            key={k}
+            type="button"
+            role="tab"
+            aria-selected={tab === k}
+            className={tab === k ? "active" : ""}
+            onClick={() => setTab(k)}
+          >
             {t}
           </button>
         ))}
       </nav>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="notice">{notice}</p>}
 
       {tab === "invoices" && <TableTools view={invoiceTable} />}

@@ -293,7 +293,11 @@ export default function ContractTypesPage() {
             "Employment agreement types selectable on contracts, hiring requests, job offers and contract templates. The “fixed term” rule (end date required, included in expiry reminders) and the maximum contract length are checked when a contract is saved — change them here when regulations change. The code is stored on documents and cannot be changed; types in use cannot be deleted, deactivate them instead.",
           )}
         </p>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {notice && <p className="success">{notice}</p>}
       </section>
 

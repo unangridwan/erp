@@ -201,7 +201,11 @@ function SignForm({
           )}
         </span>
       </label>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="row-actions">
         <button
           type="button"
@@ -325,7 +329,12 @@ export function ContractDocumentPanel({
     }
   };
 
-  if (!doc) return error ? <p className="error">{error}</p> : null;
+  if (!doc)
+    return error ? (
+      <p className="error" role="alert">
+        {error}
+      </p>
+    ) : null;
   const locked = doc.signatures.length > 0 || !!doc.signedFile;
   const signed = (role: "company" | "employee") => doc.signatures.some((s) => s.role === role);
   const options = templates.filter(
@@ -349,7 +358,11 @@ export function ContractDocumentPanel({
         </span>
         {doc.signMethod && <span className="muted">{l(...SIGN_METHOD_LABEL[doc.signMethod])}</span>}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="success">{notice}</p>}
 
       <fieldset className="fields" disabled={locked || busy}>
@@ -783,13 +796,22 @@ export function MyContracts() {
   useEffect(() => {
     void load();
   }, [load]);
-  if (!rows?.length) return error ? <p className="error">{error}</p> : null;
+  if (!rows?.length)
+    return error ? (
+      <p className="error" role="alert">
+        {error}
+      </p>
+    ) : null;
   const open = (path: string, name: string) => openPdf(path, name).catch((e) => setError(errorText(e)));
 
   return (
     <section className="panel">
       <h2>{l("Kontrak kerja saya", "My employment contracts")}</h2>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {notice && <p className="success">{notice}</p>}
       <div className="table-scroll">
         <table>

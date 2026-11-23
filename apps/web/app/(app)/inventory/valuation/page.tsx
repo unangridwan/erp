@@ -80,7 +80,11 @@ export default function ValuationPage() {
           {l("Cetak", "Print")}
         </button>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {data && <TableTools view={table} />}
       {data && (
         <div className="table-wrap">

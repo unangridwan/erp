@@ -245,7 +245,11 @@ export default function ManpowerBudgetPage() {
             </>
           )}
         </header>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
         {notice && <p className="muted">{notice}</p>}
         {budgets.some((b) => b.sourcePlanId) && (
           <p className="muted">

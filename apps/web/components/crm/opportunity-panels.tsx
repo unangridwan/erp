@@ -140,7 +140,11 @@ export function ProductsPanel(props: {
           </>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {lines.length === 0 ? (
         <p className="muted">
           {l(
@@ -327,7 +331,11 @@ export function ContactRolesPanel(props: {
           </>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {rows.length === 0 ? (
         <p className="muted">
           {l(

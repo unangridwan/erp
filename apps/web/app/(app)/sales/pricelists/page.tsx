@@ -50,7 +50,11 @@ export default function PricelistsPage() {
           </Link>
         )}
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {rows && <TableTools view={table} />}
       {rows && (
         <div className="table-wrap">

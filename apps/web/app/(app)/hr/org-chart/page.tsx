@@ -58,7 +58,11 @@ export default function OrgChartPage() {
           'Built from the "Manager" field of active employees.',
         )}
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {tree && (
         <ul className="org-tree">
           {tree.map((n) => (

@@ -296,9 +296,15 @@ function ReportsView() {
         · {tabs.find(([k]) => k === tab)?.[1]} ·{" "}
         {POINT_IN_TIME.includes(tab) ? filters.dateTo : `${filters.dateFrom} – ${filters.dateTo}`}
       </p>
-      <nav className="tabs no-print">
+      <nav role="tablist" className="tabs no-print">
         {tabs.map(([key, label]) => (
-          <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
+          <button
+            key={key}
+            role="tab"
+            aria-selected={tab === key}
+            className={tab === key ? "active" : ""}
+            onClick={() => setTab(key)}
+          >
             {label}
           </button>
         ))}
@@ -422,7 +428,11 @@ function ReportsView() {
           </fieldset>
         )}
       </div>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {tab === "general-ledger" && !filters.accountId && (
         <p className="muted">{l("Pilih akun.", "Select an account.")}</p>
       )}
@@ -487,7 +497,9 @@ function ReportsView() {
       {data && tab === "balance-sheet" && (
         <div className="table-wrap report">
           {!data.balanced && (
-            <p className="error">{l("Neraca tidak seimbang!", "Balance sheet does not balance!")}</p>
+            <p className="error" role="alert">
+              {l("Neraca tidak seimbang!", "Balance sheet does not balance!")}
+            </p>
           )}
           <table>
             <tbody>
@@ -887,7 +899,7 @@ function CashFlowTable({
   return (
     <div className="table-wrap report">
       {Number(data.difference) !== 0 && (
-        <p className="error">
+        <p className="error" role="alert">
           {l(
             `Ada selisih ${money(data.difference, locale)} yang belum terklasifikasi. Periksa kelompok arus kas akun di Bagan Akun.`,
             `There is an unclassified difference of ${money(data.difference, locale)}. Check the accounts' cash flow category in the Chart of Accounts.`,

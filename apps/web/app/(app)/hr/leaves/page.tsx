@@ -141,7 +141,11 @@ export default function LeavesPage() {
         )}
         <Link href="/hr/leave-balances">{l("Saldo cuti", "Balances")}</Link>
       </header>
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {writable && bulkOpen && (
         <section className="panel">
           <h2>{l("Cuti bersama / massal", "Mass time off")}</h2>
