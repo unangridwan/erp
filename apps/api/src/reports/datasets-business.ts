@@ -20,6 +20,7 @@ import {
   REQUEST_STATE_LABEL,
   type CustomFieldModel,
   type RecordModel,
+  businessToday,
 } from "@erp/shared";
 import { fleetCostRows } from "../fleet/fleet-costs.js";
 import { loadCustomDefs } from "../customization/custom-values.js";
@@ -425,7 +426,7 @@ function invoices(): Dataset {
           ),
         )
         .orderBy(asc(M.date));
-      const today = new Date().toISOString().slice(0, 10);
+      const today = businessToday();
       return rows.map(({ m, partner }) => {
         const sign = m.moveType.endsWith("refund") ? -1 : 1;
         const residual = (n(m.amountResidual) ?? 0) * sign;
@@ -1141,7 +1142,7 @@ function fleetCosts(): Dataset {
       col("amount", "Jumlah", "Nilai", true),
     ],
     async rows(tx, ctx, q) {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = businessToday();
       const from = q.from && ISO.test(q.from) ? q.from : `${today.slice(0, 4)}-01-01`;
       const to = q.to && ISO.test(q.to) ? q.to : today;
       const rows = await fleetCostRows(tx, ctx.companyId, from, to);

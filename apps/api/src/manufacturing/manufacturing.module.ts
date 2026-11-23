@@ -34,6 +34,7 @@ import {
   productionUnitCost,
   workCenterSchema,
   type BomNode,
+  businessToday,
 } from "@erp/shared";
 import { normalizeCustom } from "../customization/custom-values.js";
 import { Decimal } from "decimal.js";
@@ -66,7 +67,7 @@ const MOP = schema.productionOperations;
 const P = schema.products;
 type Order = typeof MO.$inferSelect;
 const d = (v: Decimal.Value | null | undefined) => new Decimal(v ?? 0);
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 
 const WorkCentersController = createCrudController({
   path: "work-centers",
@@ -727,7 +728,7 @@ export class ManufacturingService {
         tx,
         {
           journalId: s.stockJournalId,
-          date: date.toISOString().slice(0, 10),
+          date: businessToday(date),
           ref: `${order.name}: biaya konversi`,
           lines: [
             {
@@ -781,7 +782,7 @@ export class ManufacturingService {
         tx,
         {
           journalId: s.stockJournalId,
-          date: date.toISOString().slice(0, 10),
+          date: businessToday(date),
           ref: `${order.name}: selisih pembulatan`,
           lines: [
             {
@@ -887,7 +888,7 @@ export class ManufacturingService {
 
 const RUN = schema.mrpRuns;
 const PR = schema.mrpProposals;
-const plusDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+const plusDays = (days: number) => businessToday(new Date(Date.now() + days * 86_400_000));
 
 /** Perencanaan kebutuhan bahan (MRP) per gudang: usulan order produksi & pembelian dari kebutuhan bersih. */
 @Injectable()

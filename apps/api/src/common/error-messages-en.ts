@@ -13,6 +13,7 @@ export const MESSAGES_EN: Record<string, string> = {
   "Satuan tidak ditemukan": "Unit of measure not found",
   "Satuan harus sekategori dengan satuan produk": "The unit must be in the same category as the product unit",
   "Maksimal {} baris per impor": "At most {0} rows per import",
+  'Nilai filter "{}" tidak valid': 'Invalid value for filter "{0}"',
   'Tanggal tidak valid: "{}"': 'Invalid date: "{0}"',
   "Jumlah tidak valid": "Invalid amount",
   "Tanggal akhir sebelum tanggal awal": "End date is before start date",

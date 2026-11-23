@@ -1,6 +1,7 @@
 import type { INestApplication } from "@nestjs/common";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { client, createApp, hasDb, signup } from "./helpers.js";
+import { businessToday } from "@erp/shared";
 
 type Api = ReturnType<typeof client>;
 interface Product {
@@ -11,7 +12,7 @@ interface Product {
   soldPortion: string;
 }
 
-const today = new Date().toISOString().slice(0, 10);
+const today = businessToday();
 
 describe.skipIf(!hasDb)("Landed cost: biaya angkut/bea masuk ke nilai persediaan", () => {
   let app: INestApplication;

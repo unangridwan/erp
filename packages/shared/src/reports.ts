@@ -121,17 +121,43 @@ const toNumber = (v: unknown) => {
   return Number.isFinite(n) ? n : NaN;
 };
 
+/**
+ * Angka ketikan pengguna di syarat laporan: format Indonesia ("100.000.000", "1.500,5") maupun biasa ("1500.5").
+ * Sebelumnya titik ribuan membuat angka tidak terbaca dan syarat diam-diam tidak cocok dengan baris mana pun.
+ */
+export function parseConditionNumber(raw: string): number {
+  const v = raw.trim().replace(/\s|Rp/gi, "");
+  if (!v) return NaN;
+  let normalized = v;
+  if (v.includes(",") && /^-?\d{1,3}(\.\d{3})*(,\d+)?$/.test(v))
+    normalized = v.replace(/\./g, "").replace(",", ".");
+  else if (/^-?[1-9]\d{0,2}(\.\d{3})+$/.test(v)) normalized = v.replace(/\./g, "");
+  else normalized = v.replace(/,/g, "");
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+/** Tanggal ketikan pengguna "D/M/YYYY" (atau "D-M-YYYY", "D.M.YYYY") → "YYYY-MM-DD" agar sebanding dengan data. */
+export function normalizeConditionDate(raw: string): string {
+  const m = raw.trim().match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+  if (!m) return raw.trim();
+  return `${m[3]}-${m[2]!.padStart(2, "0")}-${m[1]!.padStart(2, "0")}`;
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}/;
+
 function matches(value: unknown, op: ReportOperator, target: string, numeric: boolean) {
   if (op === "empty") return isEmpty(value);
   if (op === "notEmpty") return !isEmpty(value);
   if (numeric && op !== "contains") {
     const a = toNumber(value);
-    const b = toNumber(target);
+    const b = parseConditionNumber(target);
     if (Number.isNaN(a) || Number.isNaN(b)) return op === "ne";
     return { eq: a === b, ne: a !== b, gt: a > b, gte: a >= b, lt: a < b, lte: a <= b }[op];
   }
   const a = String(value ?? "").toLowerCase();
-  const b = target.toLowerCase();
+  // Kolom tanggal (nilai ISO) dibandingkan dengan tanggal yang dinormalkan dari format D/M/YYYY.
+  const b = (ISO_DATE.test(String(value ?? "")) ? normalizeConditionDate(target) : target).toLowerCase();
   switch (op) {
     case "eq":
       return a === b;
@@ -241,9 +267,11 @@ export function runReport(
     }));
   }
 
-  if (config.sort) {
-    const col = columns.find((c) => c.key === config.sort!.column);
-    if (!col) throw new Error(`Kolom laporan tidak dikenal: ${config.sort.column}`);
+  // Urutan pada kolom yang tidak ada di hasil (mis. laporan diubah dari rincian ke ringkasan) diabaikan, agar laporan
+  // tersimpan tetap bisa dijalankan.
+  const sortCol = config.sort ? columns.find((c) => c.key === config.sort!.column) : undefined;
+  if (config.sort && sortCol) {
+    const col = sortCol;
     const dir = config.sort.dir === "desc" ? -1 : 1;
     rows = [...rows].sort((a, b) => {
       const x = a[col.key];

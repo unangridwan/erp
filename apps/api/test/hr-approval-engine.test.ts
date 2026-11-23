@@ -4,8 +4,9 @@ import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { TenantDb } from "../src/common/database.js";
 import { client, createApp, hasDb, signup } from "./helpers.js";
+import { businessToday } from "@erp/shared";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 const shift = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 /** Hari kerja terdekat setelah `days` hari dari sekarang (cuti di Sabtu/Minggu bernilai 0 hari kerja → ditolak). */
 const workday = (days: number) => {

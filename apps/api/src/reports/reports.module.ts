@@ -34,6 +34,7 @@ import {
   type ReportConfig,
   type ReportResult,
   type ReportScheduleInput,
+  businessToday,
 } from "@erp/shared";
 import type { Response } from "express";
 import PDFDocument from "pdfkit";
@@ -126,6 +127,7 @@ export class ReportsService {
   ): Promise<ReportResult & { title: string }> {
     const d = this.registry.get(datasetKey);
     const filters = { ...config.filters };
+    validateFilters(d.filters ?? [], filters);
     if (d.needsRun && (filters.runId === "latest" || !filters.runId))
       filters.runId = await this.registry.latestRunId(tx);
     const ctx = await this.registry.ctx(tx, d, filters.runId);
@@ -248,7 +250,7 @@ export class ReportsService {
   }
 
   filename(name: string, format: Format) {
-    return `${name.replace(/[^\w-]+/g, "_").slice(0, 60) || "laporan"}-${new Date().toISOString().slice(0, 10)}.${format}`;
+    return `${name.replace(/[^\w-]+/g, "_").slice(0, 60) || "laporan"}-${businessToday()}.${format}`;
   }
 }
 
@@ -666,3 +668,30 @@ class ReportsController {
   exports: [ReportsService, ReportDatasets],
 })
 export class ReportsModule {}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Nilai filter dataset harus sesuai jenisnya (tanggal sah, UUID, opsi yang tersedia); sebelumnya nilai rusak
+ * diteruskan ke query dan berakhir sebagai galat server 500.
+ */
+function validateFilters(
+  defs: { key: string; label: string; type: string; options?: [string, string][] }[],
+  filters: Record<string, string>,
+) {
+  for (const f of defs) {
+    const v = filters[f.key];
+    if (v === undefined || v === "") continue;
+    const ok =
+      f.type === "date"
+        ? /^\d{4}-\d{2}-\d{2}$/.test(v) &&
+          !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) &&
+          new Date(`${v}T00:00:00Z`).toISOString().startsWith(v)
+        : f.type === "ref"
+          ? UUID_RE.test(v)
+          : f.type === "select" && f.options
+            ? f.options.some(([o]) => o === v)
+            : true;
+    if (!ok) throw new BadRequestException(`Nilai filter "${f.label}" tidak valid`);
+  }
+}

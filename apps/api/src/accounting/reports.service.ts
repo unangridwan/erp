@@ -9,12 +9,13 @@ import {
   PROFIT_LOSS_GROUPS,
   PROFIT_LOSS_TYPES,
   type CashFlowCategory,
+  businessToday,
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import { z } from "zod";
 import { companiesWith, currentContext } from "../common/request-context.js";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 
 export const reportQuery = z.object({
   /** Daftar perusahaan dipisah koma; default perusahaan aktif. Hasil = penjumlahan (belum eliminasi konsolidasi). */

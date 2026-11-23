@@ -47,6 +47,7 @@ import {
   workEntrySchema,
   workScheduleSchema,
   LIST_LOAD_LIMIT,
+  businessToday,
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { Request, Response } from "express";
@@ -817,7 +818,7 @@ class EmployeesController {
         newValue: employee.joinDate,
       });
       // Onboarding otomatis untuk karyawan baru (bukan impor data lama).
-      if (employee.joinDate >= addDays(new Date().toISOString().slice(0, 10), -30))
+      if (employee.joinDate >= addDays(businessToday(), -30))
         await this.checklists.autoStart(tx, employee.id, "onboarding");
       if (!contract) return employee;
       const contractId = await this.contracts.create(
@@ -1107,7 +1108,7 @@ class ContractsController {
       const contract = await this.find(tx, id);
       const input = parse(contractEndSchema, {
         ...raw,
-        dateEnd: raw.dateEnd ?? contract.dateEnd ?? new Date().toISOString().slice(0, 10),
+        dateEnd: raw.dateEnd ?? contract.dateEnd ?? businessToday(),
       });
       await this.contracts.end(tx, id, input);
       return this.load(tx, id);
@@ -1267,7 +1268,7 @@ class ProbationsController {
           ),
         )
         .orderBy(asc(C.probationEnd));
-      const today = new Date().toISOString().slice(0, 10);
+      const today = businessToday();
       return rows.map((r) => ({
         ...r,
         daysLeft: Math.round((Date.parse(r.probationEnd!) - Date.parse(today)) / 86_400_000),

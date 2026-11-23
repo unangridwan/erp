@@ -28,6 +28,7 @@ import {
   goalProgress,
   goalSchema,
   hasPermission,
+  businessToday,
 } from "@erp/shared";
 import type { z } from "zod";
 import { fieldError } from "../accounting/context.js";
@@ -46,7 +47,7 @@ const NT = schema.employeeNotes;
 const AN = schema.announcements;
 const AR = schema.announcementReads;
 const E = schema.employees;
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 const addDays = (d: string, n: number) =>
   new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 

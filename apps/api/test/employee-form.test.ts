@@ -3,6 +3,7 @@ import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Mailer } from "../src/common/mailer.js";
 import { client, createApp, hasDb, signup } from "./helpers.js";
+import { businessToday } from "@erp/shared";
 
 /** Form karyawan: tag, ringkasan (statistik, kontrak berjalan, akun portal), undang ke portal. */
 describe.skipIf(!hasDb)("Form karyawan", () => {
@@ -57,7 +58,7 @@ describe.skipIf(!hasDb)("Form karyawan", () => {
         .expect(201)
     ).body;
     await a.post(`/contracts/${contract.id}/start`).expect(200);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = businessToday();
     await a
       .post("/attendance", {
         employeeId,

@@ -32,6 +32,7 @@ import {
   hrDocumentSchema,
   interviewSchema,
   jobOpeningSchema,
+  businessToday,
 } from "@erp/shared";
 import type { Response } from "express";
 import { z } from "zod";
@@ -56,7 +57,7 @@ import { retirementPolicy, upcomingRetirements } from "./retirement.module.js";
 const D = schema.hrDocuments;
 const AP = schema.applicants;
 const IV = schema.applicantInterviews;
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 
 // ---- Dokumen ----
 

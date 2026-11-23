@@ -28,6 +28,7 @@ import {
   leaveAccrualPlanSchema,
   leaveBlockDateSchema,
   leaveLedger,
+  businessToday,
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import type { z } from "zod";
@@ -49,7 +50,7 @@ const A = schema.leaveAllocations;
 const E = schema.employees;
 type PlanInput = z.infer<typeof leaveAccrualPlanSchema>;
 type Plan = typeof P.$inferSelect;
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 
 /**
  * Rencana akrual cuti: jatah bertambah per bulan/tahun setelah masa kerja tertentu, dibatasi saldo maksimum, dan sisa

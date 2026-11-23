@@ -91,6 +91,44 @@ describe("pembuat laporan", () => {
     expect(() => runReport(data, columns, cfg({ columns: ["salary"] }))).toThrow(/tidak dikenal: salary/);
   });
 
+  it("syarat menerima angka format Indonesia dan tanggal D/M/YYYY", () => {
+    const big = runReport(
+      data,
+      columns,
+      cfg({ columns: ["name"], conditions: [{ column: "wage", op: "gt", value: "10.000.000" }] }),
+    );
+    expect(big.rows.map((r) => r.name)).toEqual(["Budi", "Cici"]);
+    const dec = runReport(
+      data,
+      columns,
+      cfg({ columns: ["name"], conditions: [{ column: "wage", op: "lte", value: "8.000.000,5" }] }),
+    );
+    expect(dec.rows.map((r) => r.name)).toEqual(["Ani"]);
+    const dated = [
+      { name: "A", date: "2025-12-31" },
+      { name: "B", date: "2026-01-15" },
+    ];
+    const cols = [
+      { key: "name", header: "Nama" },
+      { key: "date", header: "Tanggal" },
+    ];
+    const r = runReport(dated, cols, cfg({ conditions: [{ column: "date", op: "gte", value: "1/1/2026" }] }));
+    expect(r.rows.map((x) => x.name)).toEqual(["B"]);
+  });
+
+  it("urutan pada kolom yang tidak ada di hasil diabaikan (laporan diubah ke ringkasan)", () => {
+    const r = runReport(
+      data,
+      columns,
+      cfg({
+        groupBy: ["dept"],
+        aggregates: [{ column: "*", fn: "count" }],
+        sort: { column: "name", dir: "asc" },
+      }),
+    );
+    expect(r.rows).toHaveLength(2);
+  });
+
   it("jadwal: kejadian terakhir & berikutnya sesuai zona waktu, kunci periode", () => {
     const tz = "Asia/Jakarta";
     // Rabu 29 Okt 2026 10:00 WIB = 03:00Z.

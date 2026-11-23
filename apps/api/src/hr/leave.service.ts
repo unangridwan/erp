@@ -21,6 +21,7 @@ import {
   dayBreakdown,
   type leaveRequestSchema,
   LIST_LOAD_LIMIT,
+  businessToday,
 } from "@erp/shared";
 import { randomUUID } from "node:crypto";
 import { Decimal } from "decimal.js";
@@ -40,7 +41,7 @@ const R = schema.leaveRequests;
 const A = schema.leaveAllocations;
 const T = schema.leaveTypes;
 const d = (v: Decimal.Value | null | undefined) => new Decimal(v ?? 0);
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 
 /** Kolom pengajuan cuti tanpa isi lampiran (bytea). */
 const REQUEST_COLUMNS = {

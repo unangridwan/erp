@@ -2,8 +2,9 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { client, createApp, hasDb, signup } from "./helpers.js";
+import { businessToday } from "@erp/shared";
 
-const today = new Date().toISOString().slice(0, 10);
+const today = businessToday();
 const month = today.slice(0, 7);
 const lastYear = `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`;
 
@@ -155,6 +156,17 @@ describe.skipIf(!hasDb)("Laporan semua modul & dashboard BI", () => {
     expect(aging.rows[0]).toMatchObject({ aging: "3. 31-60 hari", amountResidual: expect.any(Number) });
     expect(Number(aging.rows[0].overdueDays)).toBeGreaterThanOrEqual(40);
     await sales.post("/saved-reports/preview", { dataset: "invoices", config: {} }).expect(403);
+    // Nilai filter rusak → 400 dengan nama filter (sebelumnya 500).
+    const badDate = await a
+      .post("/saved-reports/preview", {
+        dataset: "sales_orders",
+        config: { filters: { from: "2026-13-45" } },
+      })
+      .expect(400);
+    expect(badDate.body.message).toContain("Dari tanggal");
+    await a
+      .post("/saved-reports/preview", { dataset: "employees", config: { filters: { departmentId: "xyz" } } })
+      .expect(400);
   });
 
   it("dashboard bawaan: widget sesuai hak, KPI dengan pembanding periode", async () => {

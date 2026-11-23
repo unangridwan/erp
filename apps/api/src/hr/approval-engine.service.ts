@@ -16,6 +16,7 @@ import {
   missingApprovalFields,
   requestOutcome,
   LIST_LOAD_LIMIT,
+  businessToday,
 } from "@erp/shared";
 import type { z } from "zod";
 import { fieldError } from "../accounting/context.js";
@@ -49,7 +50,7 @@ type RequestInput = z.infer<typeof approvalRequestSchema>;
 type DelegationInput = z.infer<typeof approvalDelegationSchema>;
 type Employee = typeof E.$inferSelect;
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 
 /** Karyawan sudah keluar: tidak aktif atau tanggal resign sudah lewat. */
 export function hasLeft(employee: Pick<Employee, "active" | "resignDate">) {

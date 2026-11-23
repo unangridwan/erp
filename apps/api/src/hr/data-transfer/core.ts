@@ -1,6 +1,7 @@
 import { and, eq, schema, type Db } from "@erp/db";
 import type { Permission } from "@erp/shared";
 import type { ZodTypeAny, z } from "zod";
+import { businessToday } from "@erp/shared";
 
 /** Kolom dataset impor/ekspor. `header` = judul kolom berkas (Bahasa Indonesia). */
 export interface Column {
@@ -364,7 +365,7 @@ export function employeeFilter(companyId: string, query: Record<string, string |
 
 /** Periode filter (YYYY-MM-DD); bawaan bulan berjalan. */
 export function period(query: Record<string, string | undefined>) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = businessToday();
   const from = query.from || `${today.slice(0, 7)}-01`;
   const [y, m] = from.split("-").map(Number);
   const to = query.to || new Date(Date.UTC(y!, m!, 0)).toISOString().slice(0, 10);

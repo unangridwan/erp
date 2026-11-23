@@ -7,6 +7,7 @@ import {
   type returnPickingSchema,
   type stockAdjustmentSchema,
   type validatePickingSchema,
+  businessToday,
 } from "@erp/shared";
 import { normalizeCustom } from "../customization/custom-values.js";
 import { Decimal } from "decimal.js";
@@ -18,7 +19,6 @@ import { currentContext } from "../common/request-context.js";
 import { SequenceService } from "../sequences/sequence.service.js";
 import { virtualLocation } from "./setup.js";
 import { assertNotTemplate } from "../master/variant.service.js";
-import { companyTimezone, dateInZone } from "../common/company-date.js";
 
 type Picking = typeof schema.stockPickings.$inferSelect;
 type Move = typeof schema.stockMoves.$inferSelect;
@@ -558,7 +558,7 @@ export class StockService {
       partnerId: picking.partnerId,
       locationId: picking.locationDestId,
       locationDestId: picking.locationId,
-      scheduledDate: new Date().toISOString().slice(0, 10),
+      scheduledDate: businessToday(),
       origin: `Retur ${picking.name}`,
       saleOrderId: picking.saleOrderId,
       purchaseOrderId: picking.purchaseOrderId,
@@ -1076,8 +1076,8 @@ export class StockService {
 
     const lines = journalLines.filter((l) => l.debit.gt(0) || l.credit.gt(0));
     if (!lines.length || !s.stockJournalId) return null;
-    // Tanggal jurnal menurut zona waktu perusahaan (tanggal input disimpan pukul 12:00Z, jadi tidak bergeser).
-    const date = dateInZone(ctx.date, await companyTimezone(tx, companyId));
+    // Tanggal jurnal menurut zona bisnis (sama dengan default tanggal lain; input disimpan pukul 12:00Z, tidak bergeser).
+    const date = businessToday(ctx.date);
     const moveId = await this.moves.createEntry(
       tx,
       {

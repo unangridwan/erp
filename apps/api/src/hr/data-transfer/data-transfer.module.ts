@@ -16,7 +16,7 @@ import {
   Res,
 } from "@nestjs/common";
 import { and, desc, eq, or, schema, sql, type Db } from "@erp/db";
-import { hasPermission, parseCsv, toCsv, type Permission } from "@erp/shared";
+import { hasPermission, parseCsv, toCsv, type Permission, businessToday } from "@erp/shared";
 import type { Response } from "express";
 import { z } from "zod";
 import { importBody, MAX_IMPORT_ROWS } from "../../common/crud.js";
@@ -232,7 +232,7 @@ class DataTransferController {
         throw e;
       }
     });
-    const name = `${d.key}-${new Date().toISOString().slice(0, 10)}`;
+    const name = `${d.key}-${businessToday()}`;
     if (query.format === "csv") return this.sendCsv(res, name, columns, rows);
     const totals =
       columns.some((c) => c.numeric) && d.key === "payslips" ? this.totals(columns, rows) : undefined;

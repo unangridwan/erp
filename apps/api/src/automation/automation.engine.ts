@@ -20,6 +20,7 @@ import {
   type AutomationAction,
   type AutomationCondition,
   type CustomFieldModel,
+  businessToday,
 } from "@erp/shared";
 import { randomUUID } from "node:crypto";
 import { loadAccessGrants } from "../auth/auth.service.js";
@@ -532,7 +533,7 @@ export class AutomationEngine implements OnApplicationBootstrap, OnApplicationSh
           const created = await this.approvals.createRequest(tx, {
             categoryId: action.categoryId,
             subject: `${rule.name}: ${String(rec.name ?? rec.license_plate ?? rec.id)}`.slice(0, 200),
-            date: new Date().toISOString().slice(0, 10),
+            date: businessToday(),
             description,
             reference: String(rec.name ?? "").slice(0, 200) || null,
             amount: Number.isFinite(amount) ? amount.toFixed(2) : null,

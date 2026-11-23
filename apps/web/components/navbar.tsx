@@ -88,10 +88,14 @@ export function Sidebar({
   }, [open, onClose]);
   const params = useSearchParams();
   const search = new URLSearchParams(params.toString());
-  const active = (href: string) => isActive(pathname, href, search);
   const { tx, l } = useI18n();
   const apps = visibleApps(me);
   const menu = app ? visibleMenu(me, app) : [];
+  // Hanya tautan yang paling spesifik yang aktif: di /bi/reports, "Pembuat Laporan" — bukan juga "Dashboard" (/bi).
+  const menuHrefs = menu.flatMap((e) => ("items" in e ? e.items.map((i) => i.href) : [e.href]));
+  const matching = menuHrefs.filter((h) => isActive(pathname, h, search));
+  const best = Math.max(0, ...matching.map((h) => h.split("?")[0]!.length));
+  const active = (href: string) => isActive(pathname, href, search) && href.split("?")[0]!.length >= best;
   // Kelompok menu yang terbuka (per aplikasi); bawaannya kelompok yang berisi halaman aktif.
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   const groupKey = (g: MenuGroup) => `${app?.id}:${g.label.id}`;

@@ -8,6 +8,7 @@ import {
   type DunningDue,
   type DunningLevelInput,
   type PartnerCreditInput,
+  businessToday,
 } from "@erp/shared";
 import { Decimal } from "decimal.js";
 import { Mailer } from "../common/mailer.js";
@@ -19,7 +20,7 @@ const L = schema.partnerCreditLimits;
 const DL = schema.dunningLevels;
 const LT = schema.dunningLetters;
 const dec = (v: Decimal.Value | null | undefined) => new Decimal(v ?? 0);
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessToday();
 const fmtMoney = (code: string, v: Decimal.Value) =>
   `${code} ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(v))}`;
 const fmtDate = (d: string) =>

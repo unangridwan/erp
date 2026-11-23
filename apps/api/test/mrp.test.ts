@@ -1,8 +1,9 @@
 import type { INestApplication } from "@nestjs/common";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp, hasDb, signup } from "./helpers.js";
+import { businessToday } from "@erp/shared";
 
-const today = new Date().toISOString().slice(0, 10);
+const today = businessToday();
 const plus = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 interface Proposal {
   id: string;

@@ -16,7 +16,12 @@ import {
   Res,
 } from "@nestjs/common";
 import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, schema, sql, type Db } from "@erp/db";
-import { benefitEnrollmentSchema, benefitPlanSchema, type BenefitEnrollmentInput } from "@erp/shared";
+import {
+  benefitEnrollmentSchema,
+  benefitPlanSchema,
+  type BenefitEnrollmentInput,
+  businessToday,
+} from "@erp/shared";
 import type { Response } from "express";
 import { z } from "zod";
 import { AccountingModule } from "../accounting/accounting.module.js";
@@ -311,7 +316,7 @@ class BenefitsController {
     return this.tenantDb.run(async (tx) => {
       const employee = await this.employees.mine(tx);
       const rows = await this.enrollmentRows(tx, eq(EN.employeeId, employee.id));
-      return rows.filter((r) => !r.dateEnd || r.dateEnd >= new Date().toISOString().slice(0, 10));
+      return rows.filter((r) => !r.dateEnd || r.dateEnd >= businessToday());
     });
   }
 
