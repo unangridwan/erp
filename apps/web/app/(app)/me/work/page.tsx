@@ -46,6 +46,7 @@ interface Work {
     tickets: number;
     ticketsLate: number;
     mentionsUnread: number;
+    alertsUnread: number;
   };
   documents: Doc[];
   departmentQueue: Doc[];
@@ -72,6 +73,14 @@ interface Work {
   mentions: {
     id: string;
     kind: string;
+    title: string;
+    body: string | null;
+    link: string | null;
+    readAt: string | null;
+    createdAt: string;
+  }[];
+  alerts: {
+    id: string;
     title: string;
     body: string | null;
     link: string | null;
@@ -108,7 +117,7 @@ interface Approval {
 }
 
 type Preset = "this_month" | "last_month" | "this_quarter" | "this_year";
-type Tab = "docs" | "dept" | "activities" | "tickets" | "mentions" | "approvals";
+type Tab = "docs" | "dept" | "activities" | "tickets" | "mentions" | "approvals" | "alerts";
 
 function presetRange(preset: Preset): { from: string; to: string } {
   const today = businessToday();
@@ -197,17 +206,19 @@ export default function MyWorkPage() {
   const active: Tab =
     tab ??
     (s
-      ? s.documentsLate
-        ? "docs"
-        : s.activitiesOverdue || s.activitiesToday
-          ? "activities"
-          : approvals.length
-            ? "approvals"
-            : s.departmentLate
-              ? "dept"
-              : s.mentionsUnread
-                ? "mentions"
-                : "docs"
+      ? s.alertsUnread
+        ? "alerts"
+        : s.documentsLate
+          ? "docs"
+          : s.activitiesOverdue || s.activitiesToday
+            ? "activities"
+            : approvals.length
+              ? "approvals"
+              : s.departmentLate
+                ? "dept"
+                : s.mentionsUnread
+                  ? "mentions"
+                  : "docs"
       : "docs");
 
   if (error) return <LoadFailed message={error} />;
@@ -256,6 +267,12 @@ export default function MyWorkPage() {
         ]
       : []),
     { key: "mentions", label: l("Sebutan", "Mentions"), count: s?.mentionsUnread ?? 0, alert: 0 },
+    {
+      key: "alerts",
+      label: l("Peringatan", "Alerts"),
+      count: work?.alerts.length ?? 0,
+      alert: s?.alertsUnread ?? 0,
+    },
   ];
 
   return (
@@ -290,7 +307,11 @@ export default function MyWorkPage() {
                 {t.alert > 0 && (
                   <span className="badge danger">
                     {n(t.alert)}{" "}
-                    {t.key === "activities" ? l("lewat jatuh tempo", "overdue") : l("terlambat", "late")}
+                    {t.key === "activities"
+                      ? l("lewat jatuh tempo", "overdue")
+                      : t.key === "alerts"
+                        ? l("baru", "new")
+                        : l("terlambat", "late")}
                   </span>
                 )}
               </button>
@@ -395,6 +416,24 @@ export default function MyWorkPage() {
               ) : (
                 <p className="muted">
                   {l("Tidak ada tiket terbuka untuk Anda.", "No open tickets assigned to you.")}
+                </p>
+              ))}
+            {active === "alerts" &&
+              (work.alerts.length ? (
+                <ul className="work-list">
+                  {work.alerts.map((m) => (
+                    <li key={m.id} className={m.readAt ? undefined : "unread late"}>
+                      <div>
+                        {m.link ? <Link href={m.link}>{m.title}</Link> : <strong>{m.title}</strong>}
+                        {m.body && <div className="muted small alert-body">{m.body}</div>}
+                      </div>
+                      <span className="muted small">{formatDate(m.createdAt.slice(0, 10), locale)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted">
+                  {l("Tidak ada peringatan dini 14 hari terakhir.", "No early warnings in the last 14 days.")}
                 </p>
               ))}
             {active === "mentions" &&

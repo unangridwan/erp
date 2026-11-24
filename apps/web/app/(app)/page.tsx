@@ -45,6 +45,7 @@ export default function Home() {
     activitiesOverdue: number;
     activitiesToday: number;
     mentionsUnread: number;
+    alertsUnread: number;
   } | null>(null);
   useEffect(() => {
     api<{ summary: NonNullable<typeof work> }>("/me/work").then(
@@ -86,7 +87,8 @@ export default function Home() {
     (work.documentsLate > 0 ||
       work.activitiesOverdue + work.activitiesToday > 0 ||
       work.departmentLate > 0 ||
-      work.mentionsUnread > 0);
+      work.mentionsUnread > 0 ||
+      work.alertsUnread > 0);
   const quick = QUICK_CREATE.map((p) => RESOURCES.find((r) => r.path === p)).filter(
     (r): r is (typeof RESOURCES)[number] => !!r && canCreate(me.permissions, r),
   );
@@ -153,6 +155,12 @@ export default function Home() {
                   <Link href="/flow/handoffs">
                     {l("pekerjaan terlambat di departemen saya", "late items in my department")}
                   </Link>
+                </li>
+              )}
+              {work.alertsUnread > 0 && (
+                <li>
+                  <span className="badge danger">{work.alertsUnread}</span>
+                  <Link href="/me/work">{l("peringatan dini baru", "new early warnings")}</Link>
                 </li>
               )}
               {work.mentionsUnread > 0 && (

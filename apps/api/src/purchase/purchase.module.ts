@@ -237,6 +237,6 @@ class ReplenishmentController {
     ReplenishmentService,
     DropshipService,
   ],
-  exports: [PurchaseOrderService],
+  exports: [PurchaseOrderService, ReplenishmentService],
 })
 export class PurchaseModule {}

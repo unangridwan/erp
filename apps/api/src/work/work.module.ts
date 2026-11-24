@@ -225,6 +225,28 @@ export class MyWorkController {
         .orderBy(desc(N.createdAt))
         .limit(30);
 
+      // Peringatan dini untuk saya (14 hari terakhir).
+      const alerts = await tx
+        .select({
+          id: N.id,
+          title: N.title,
+          body: N.body,
+          link: N.link,
+          readAt: N.readAt,
+          createdAt: N.createdAt,
+        })
+        .from(N)
+        .where(
+          and(
+            eq(N.userId, ctx.userId),
+            eq(N.companyId, c),
+            eq(N.kind, "alert"),
+            gt(N.createdAt, sql`now() - interval '14 days'`),
+          ),
+        )
+        .orderBy(desc(N.createdAt))
+        .limit(30);
+
       return {
         today,
         department: myDept ? { id: myDept, name: emp?.department ?? "" } : null,
@@ -239,12 +261,14 @@ export class MyWorkController {
           tickets: tickets.length,
           ticketsLate: tickets.filter((t) => t.late).length,
           mentionsUnread: mentions.filter((m) => !m.readAt).length,
+          alertsUnread: alerts.filter((m) => !m.readAt).length,
         },
         documents: docs.slice(0, 50).map(view),
         departmentQueue: waiting.slice(0, 20).map(view),
         activities,
         tickets,
         mentions,
+        alerts,
       };
     });
   }
