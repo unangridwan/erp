@@ -162,7 +162,7 @@ function PieChart(props: {
     <div className="viz pie">
       <div className="legend wrap">
         {slices.map((s, i) => (
-          <span key={s.label}>
+          <span key={i}>
             <i style={{ background: `var(--series-${i + 1})` }} />
             {s.label} · {pct(s.value)}
           </span>
@@ -177,7 +177,7 @@ function PieChart(props: {
           const full = s.value >= total - 1e-9;
           return (
             <path
-              key={s.label}
+              key={i}
               d={
                 full
                   ? `M${size / 2 - r},${size / 2} a${r},${r} 0 1,0 ${2 * r},0 a${r},${r} 0 1,0 ${-2 * r},0 M${size / 2 - inner},${size / 2} a${inner},${inner} 0 1,0 ${2 * inner},0 a${inner},${inner} 0 1,0 ${-2 * inner},0`
