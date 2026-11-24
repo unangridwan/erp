@@ -78,6 +78,7 @@ export * from "./dashboard.js";
 export * from "./bi.js";
 export * from "./bi-formula.js";
 export * from "./bi-layout.js";
+export * from "./flow.js";
 export * from "./automation.js";
 export * from "./maintenance.js";
 export * from "./quality.js";

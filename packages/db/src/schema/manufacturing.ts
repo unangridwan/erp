@@ -76,6 +76,9 @@ export const productionOrders = pgTable("production_orders", {
   unitCost: numeric("unit_cost", { precision: 20, scale: 4 }).notNull().default("0"),
   accountMoveId: uuid("account_move_id"),
   dateDone: timestamp("date_done", { withTimezone: true }),
+  /** Waktu dikonfirmasi & mulai dikerjakan (alur bisnis: umur & waktu siklus per tahap). */
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  startedAt: timestamp("started_at", { withTimezone: true }),
   createdBy: uuid("created_by"),
   ...audit,
 });

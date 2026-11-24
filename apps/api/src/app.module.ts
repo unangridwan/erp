@@ -50,6 +50,7 @@ import { SupportModule } from "./support/support.module.js";
 import { LinksModule } from "./links/links.module.js";
 import { AutomationModule } from "./automation/automation.module.js";
 import { DashboardsModule } from "./reports/dashboards.controller.js";
+import { FlowModule } from "./flow/flow.module.js";
 import { WorkforceModule } from "./hr/workforce.module.js";
 import { HiringRequestModule } from "./hr/hiring-request.module.js";
 import { ContractDocumentModule } from "./hr/contract-document.module.js";
@@ -116,6 +117,7 @@ import { WebhookService } from "./oauth/webhook.service.js";
     CompensationModule,
     ReportsModule,
     DashboardsModule,
+    FlowModule,
     AutomationModule,
     MaintenanceModule,
     SupportModule,

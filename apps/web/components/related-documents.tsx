@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { formatDate, money } from "../lib/format";
+import { FLOW_TRACE_MODELS, FlowTrace } from "./flow/flow-trace";
 import { useI18n } from "../lib/i18n";
 
 interface Group {
@@ -40,6 +41,7 @@ export function RelatedDocuments({
   const { l, locale } = useI18n();
   const [groups, setGroups] = useState<Group[] | null>(null);
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [trace, setTrace] = useState(false);
 
   useEffect(() => {
     api<{ groups: Group[] }>(`/links/${model}/${id}`)
@@ -53,7 +55,15 @@ export function RelatedDocuments({
   );
   return (
     <section className="panel related-docs" aria-label={l("Dokumen terkait", "Related documents")}>
-      <h2>{l("Dokumen terkait", "Related documents")}</h2>
+      <h2>
+        {l("Dokumen terkait", "Related documents")}
+        {FLOW_TRACE_MODELS.includes(model) && (
+          <button type="button" className="link small flow-trace-btn" onClick={() => setTrace(true)}>
+            {l("Jejak alur bisnis", "Business flow trace")}
+          </button>
+        )}
+      </h2>
+      {trace && <FlowTrace model={model} id={id} onClose={() => setTrace(false)} />}
       <div className="related-grid">
         {ordered.map((g) => {
           const all = open[g.key];
