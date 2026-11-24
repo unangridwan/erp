@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, pendingNext, session, type Session } from "../../../../lib/api";
@@ -39,7 +40,7 @@ export default function SsoReturnPage() {
             <p className="error" role="alert">
               {error === "missing" ? l("Tautan SSO tidak lengkap.", "The SSO link is incomplete.") : error}
             </p>
-            <a href="/login">{l("Kembali ke halaman masuk", "Back to sign in")}</a>
+            <Link href="/login">{l("Kembali ke halaman masuk", "Back to sign in")}</Link>
           </>
         ) : (
           <p className="muted">{l("Memproses…", "Signing you in…")}</p>

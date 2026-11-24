@@ -602,10 +602,10 @@ function planModule(permission: string) {
 
 /** Menu boleh tampil: user punya permission dan modulnya termasuk paket langganan. */
 export function allowed(me: Me, permission: string, href = "") {
-  const module = planModule(permission);
+  const planned = planModule(permission);
   return (
     canPath(me.permissions, permission, href.split("?")[0]!) &&
-    (!module || me.subscription.modules.includes(module))
+    (!planned || me.subscription.modules.includes(planned))
   );
 }
 
