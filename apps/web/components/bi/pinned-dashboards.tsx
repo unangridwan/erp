@@ -1,44 +1,65 @@
 "use client";
 
+import { SINGLE_VALUE_VISUALS, type BiDocument, type BiResult, type BiVisual } from "@erp/shared";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import type { DashboardDoc } from "../../lib/bi";
+import { resolvePeriod } from "../../lib/bi-period";
 import { useI18n } from "../../lib/i18n";
-import { DashboardGrid, resolvePeriod, useWidgetResults, type Widget } from "./dashboard-grid";
+import { VisualBody } from "./visual";
 
-/** Satu dashboard yang disematkan: angka KPI-nya (maks. 4) untuk periode bawaan dashboard. */
+/** Satu dashboard yang disematkan: kartu/KPI halaman pertama (maks. 4), atau dua visual pertama. */
 function Pinned({ pin }: { pin: string }) {
   const { l } = useI18n();
   const builtin = pin.startsWith("builtin:");
   const ref = builtin ? pin.slice(8) : pin;
-  const [doc, setDoc] = useState<DashboardDoc | null>(null);
+  const [doc, setDoc] = useState<{ name: string | [string, string]; document: BiDocument } | null>(null);
+  const [results, setResults] = useState<Record<string, BiResult>>({});
   useEffect(() => {
-    api<DashboardDoc>(builtin ? `/dashboards/builtin/${ref}` : `/dashboards/${ref}`).then(setDoc, () =>
-      setDoc(null),
-    );
+    let alive = true;
+    api<{ name: string | [string, string]; document: BiDocument }>(
+      builtin ? `/dashboards/builtin/${ref}` : `/dashboards/${ref}`,
+    )
+      .then((d) => {
+        if (!alive) return;
+        setDoc(d);
+        const page = d.document.pages[0];
+        if (!page) return;
+        const period = resolvePeriod(d.document.period ?? "this_month", { from: "", to: "" });
+        return api<{ visuals: BiResult[] }>("/bi/query", {
+          method: "POST",
+          body: { ...(builtin ? { builtin: ref } : { dashboardId: ref }), pageId: page.id, ...period },
+        }).then((r) => alive && setResults(Object.fromEntries(r.visuals.map((v) => [v.id, v]))));
+      })
+      .catch(() => alive && setDoc(null));
+    return () => {
+      alive = false;
+    };
   }, [builtin, ref]);
-  const period = resolvePeriod(doc?.period ?? "this_month", { from: "", to: "" });
-  const body = useMemo(
-    () => (doc ? (builtin ? { builtin: ref } : { dashboardId: ref }) : null),
-    [doc, builtin, ref],
-  );
-  const { results } = useWidgetResults(body, period);
   if (!doc) return null;
-  const kpis = (doc.widgets as Widget[]).filter((w) => w.type === "kpi" && !w.hidden).slice(0, 4);
-  const shown = (kpis.length ? kpis : (doc.widgets as Widget[]).filter((w) => !w.hidden).slice(0, 2)).map(
-    (w) => ({
-      ...w,
-      width: kpis.length ? 1 : 2,
-    }),
+  const visuals = (doc.document.pages[0]?.visuals ?? []).filter(
+    (v) => v.type !== "text" && !results[v.id]?.hidden,
   );
+  const cards = visuals.filter((v) => SINGLE_VALUE_VISUALS.includes(v.type)).slice(0, 4);
+  const shown: BiVisual[] = cards.length ? cards : visuals.slice(0, 2);
   const name = typeof doc.name === "string" ? doc.name : l(...doc.name);
   return (
     <section className="home-card home-dashboards">
       <h2>
         <Link href={`/bi/dashboards/${ref}`}>{name}</Link>
       </h2>
-      <DashboardGrid widgets={shown} results={results} period={period} />
+      <div className={`bi-pinned${cards.length ? " cards" : ""}`}>
+        {shown.map((v) => (
+          <section key={v.id} className={`bi-visual type-${v.type}`}>
+            <header>
+              <h3>{v.title}</h3>
+            </header>
+            <div className="bi-visual-body">
+              <VisualBody visual={v} result={results[v.id]} />
+            </div>
+          </section>
+        ))}
+      </div>
     </section>
   );
 }

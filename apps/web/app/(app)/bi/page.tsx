@@ -62,7 +62,11 @@ export default function DashboardsPage() {
     try {
       const d = await api<{ id: string }>("/dashboards", {
         method: "POST",
-        body: { name: l("Dashboard baru", "New dashboard"), widgets: [] },
+        body: {
+          name: l("Dashboard baru", "New dashboard"),
+          widgets: [],
+          document: { pages: [{ id: "p1", name: l("Halaman 1", "Page 1"), visuals: [] }] },
+        },
       });
       router.push(`/bi/dashboards/${d.id}?edit=1`);
     } catch (e) {

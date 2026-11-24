@@ -1,10 +1,20 @@
-import { Body, Controller, HttpCode, Inject, NotFoundException, Post } from "@nestjs/common";
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  HttpCode,
+  Inject,
+  NotFoundException,
+  Post,
+} from "@nestjs/common";
 import { and, eq, schema, type Db } from "@erp/db";
 import {
+  biDrillSchema,
   biQuerySchema,
   builtinDocument,
   businessToday,
   comparisonRange,
+  drillVisual,
   reportConfigSchema,
   reportResultToVisual,
   runVisual,
@@ -87,6 +97,39 @@ export class BiController {
       for (const v of visuals)
         results.push(await this.runOne(tx, v, input, [...docFilters, ...input.filters], cache, owner));
       return { from: input.from ?? null, to: input.to ?? null, visuals: results };
+    });
+  }
+
+  /** Lihat data: baris penyusun titik/kelompok visual (filter visual, konteks, periode, nilai yang diklik). */
+  @Post("bi/drill")
+  @HttpCode(200)
+  drill(@Body() body: unknown) {
+    const input = parse(biDrillSchema, body);
+    const v = input.visual;
+    return this.tenantDb.run(async (tx) => {
+      if (!v.dataset || !this.datasets.canRead(v.dataset))
+        throw new NotFoundException("Dataset tidak ditemukan");
+      const params = {
+        ...v.params,
+        ...(!v.ignorePeriod && input.from ? { from: input.from } : {}),
+        ...(!v.ignorePeriod && input.to ? { to: input.to } : {}),
+      };
+      const referenced = [...referencedColumns(v), ...input.match.map((m) => m.column)];
+      const loaded = await this.reports.load(tx, v.dataset, params, referenced);
+      try {
+        return {
+          ...drillVisual(
+            loaded.rows,
+            loaded.columns,
+            v,
+            { filters: input.filters.filter((f) => f.source !== v.id) },
+            input.match,
+          ),
+          title: loaded.title,
+        };
+      } catch (e) {
+        throw new BadRequestException(e instanceof Error ? e.message : String(e));
+      }
     });
   }
 
