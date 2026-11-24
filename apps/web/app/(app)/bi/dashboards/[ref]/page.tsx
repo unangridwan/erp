@@ -20,12 +20,17 @@ import {
   type Widget,
 } from "../../../../../components/bi/dashboard-grid";
 import { ask, Modal, toast } from "../../../../../components/feedback";
+import { LoadFailed, useLoadError } from "../../../../../components/load-failed";
 import { useMe } from "../../../../../components/me-context";
 import { api } from "../../../../../lib/api";
 import { DATASET_APPS, type DashboardDoc, type DatasetInfo } from "../../../../../lib/bi";
 import { useI18n } from "../../../../../lib/i18n";
+import { useDirtyGuard } from "../../../../../lib/use-form-guard";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Kolom kelompok berupa waktu: diurutkan menurut waktu, bukan nilai, dan tidak dibatasi "teratas". */
+const TIME_COLUMN = /date|month|period|created|closed|scheduled|finished|breakdown/i;
+const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const newId = () => `w${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 /** Dashboard bawaan (`/bi/dashboards/sales`) atau kustom (`/bi/dashboards/<uuid>`), dengan periode & mode ubah. */
@@ -48,6 +53,7 @@ export default function DashboardPage() {
   const [adding, setAdding] = useState(false);
   const [version, setVersion] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [loadError, failLoad] = useLoadError();
 
   useEffect(() => {
     api<DashboardDoc>(custom ? `/dashboards/${ref}` : `/dashboards/builtin/${ref}`)
@@ -62,8 +68,8 @@ export default function DashboardPage() {
           });
         if (custom && d.mine && search.get("edit")) setDraft(d.widgets);
       })
-      .catch((e: Error) => toast.error(e.message));
-  }, [ref, custom, search]);
+      .catch(failLoad);
+  }, [ref, custom, search, failLoad]);
 
   const period = resolvePeriod(preset, customRange);
   const editing = draft !== null;
@@ -72,13 +78,28 @@ export default function DashboardPage() {
     () => (!doc ? null : editing ? { widgets: draft! } : custom ? { dashboardId: ref } : { builtin: ref }),
     [doc, editing, draft, custom, ref],
   );
-  const { results, error } = useWidgetResults(
-    runBody,
-    preset === "custom" && (!customRange.from || !customRange.to) ? { from: "", to: "" } : period,
-    version,
-  );
+  // Rentang kustom dijalankan hanya bila lengkap dan tidak terbalik.
+  const rangeIssue =
+    preset !== "custom"
+      ? null
+      : !customRange.from || !customRange.to
+        ? l("Isi tanggal Dari dan Sampai untuk menampilkan data.", "Fill in From and To to show data.")
+        : customRange.from > customRange.to
+          ? l("Tanggal Dari harus sebelum tanggal Sampai.", "From must be before To.")
+          : null;
+  const { results, error } = useWidgetResults(rangeIssue ? null : runBody, period, version);
+  const dirty =
+    editing &&
+    !!doc &&
+    (JSON.stringify(draft) !== JSON.stringify(doc.widgets) ||
+      (typeof doc.name === "string" &&
+        (meta.name !== doc.name ||
+          meta.description !== ((doc.description as string) ?? "") ||
+          meta.visibility !== (doc.visibility ?? "private"))));
+  useDirtyGuard(dirty);
 
-  if (!doc) return <p className="muted">{error ?? l("Memuat…", "Loading…")}</p>;
+  if (loadError) return <LoadFailed message={loadError} />;
+  if (!doc) return <p className="muted">{l("Memuat…", "Loading…")}</p>;
   const title = typeof doc.name === "string" ? doc.name : l(...doc.name);
 
   async function save() {
@@ -98,12 +119,34 @@ export default function DashboardPage() {
   }
 
   async function duplicate() {
-    const copy = await api<{ id: string }>("/dashboards/duplicate", {
-      method: "POST",
-      body: custom ? { dashboardId: ref } : { builtin: ref },
-    });
-    toast.success(l("Salinan dibuat; Anda bisa mengubahnya.", "Copy created; you can edit it."));
-    router.push(`/bi/dashboards/${copy.id}?edit=1`);
+    try {
+      const copy = await api<{ id: string }>("/dashboards/duplicate", {
+        method: "POST",
+        body: custom ? { dashboardId: ref } : { builtin: ref },
+      });
+      toast.success(l("Salinan dibuat; Anda bisa mengubahnya.", "Copy created; you can edit it."));
+      router.push(`/bi/dashboards/${copy.id}?edit=1`);
+    } catch (e) {
+      toast.error(errorText(e));
+    }
+  }
+
+  async function cancelEdit() {
+    if (
+      dirty &&
+      !(await ask({
+        message: l("Buang perubahan dashboard ini?", "Discard changes to this dashboard?"),
+        danger: true,
+      }))
+    )
+      return;
+    setDraft(null);
+    if (typeof doc!.name === "string")
+      setMeta({
+        name: doc!.name,
+        description: (doc!.description as string) ?? "",
+        visibility: doc!.visibility ?? "private",
+      });
   }
 
   async function remove() {
@@ -114,16 +157,25 @@ export default function DashboardPage() {
       }))
     )
       return;
-    await api(`/dashboards/${ref}`, { method: "DELETE" });
-    router.replace("/bi");
+    try {
+      await api(`/dashboards/${ref}`, { method: "DELETE" });
+      toast.success(l("Dashboard dihapus.", "Dashboard deleted."));
+      router.replace("/bi");
+    } catch (e) {
+      toast.error(errorText(e));
+    }
   }
 
   async function pin() {
-    const pins = await api<string[]>("/me/dashboard-pins");
-    const key = custom ? ref : `builtin:${ref}`;
-    if (pins.includes(key)) return toast.info(l("Sudah disematkan di Beranda.", "Already pinned to Home."));
-    await api("/me/dashboard-pins", { method: "PUT", body: { refs: [...pins, key] } });
-    toast.success(l("Disematkan di Beranda.", "Pinned to Home."));
+    try {
+      const pins = await api<string[]>("/me/dashboard-pins");
+      const key = custom ? ref : `builtin:${ref}`;
+      if (pins.includes(key)) return toast.info(l("Sudah disematkan di Beranda.", "Already pinned to Home."));
+      await api("/me/dashboard-pins", { method: "PUT", body: { refs: [...pins, key] } });
+      toast.success(l("Disematkan di Beranda.", "Pinned to Home."));
+    } catch (e) {
+      toast.error(errorText(e));
+    }
   }
 
   return (
@@ -169,7 +221,7 @@ export default function DashboardPage() {
                   {l("Dibagikan ke semua pengguna perusahaan", "Shared with the company")}
                 </option>
               </select>
-              <button type="button" onClick={() => setDraft(null)}>
+              <button type="button" onClick={() => void cancelEdit()}>
                 {l("Batal", "Cancel")}
               </button>
             </>
@@ -243,10 +295,16 @@ export default function DashboardPage() {
       {typeof doc.description === "string" && doc.description && !editing && (
         <p className="muted">{doc.description}</p>
       )}
-      {error && (
-        <p className="error" role="alert">
-          {error}
+      {rangeIssue ? (
+        <p className={customRange.from && customRange.to ? "error" : "muted"} role="status">
+          {rangeIssue}
         </p>
+      ) : (
+        error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )
       )}
       <DashboardGrid
         widgets={widgets}
@@ -255,6 +313,7 @@ export default function DashboardPage() {
         onChange={setDraft}
         reportHref={(w) => ("reportId" in w.source ? `/bi/reports/${w.source.reportId}` : undefined)}
         period={period}
+        idle={!!rangeIssue}
       />
       {adding && (
         <AddWidget
@@ -276,6 +335,7 @@ function AddWidget({ onClose, onAdd }: { me: string[]; onClose: () => void; onAd
   const [mode, setMode] = useState<"quick" | "report">("quick");
   const [datasets, setDatasets] = useState<DatasetInfo[]>([]);
   const [reports, setReports] = useState<{ id: string; name: string }[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [f, setF] = useState({
     title: "",
     type: "bar" as WidgetType,
@@ -289,10 +349,13 @@ function AddWidget({ onClose, onAdd }: { me: string[]; onClose: () => void; onAd
     ignorePeriod: false,
   });
   useEffect(() => {
-    api<DatasetInfo[]>("/reports/datasets").then((d) => {
-      setDatasets(d);
-      setF((x) => ({ ...x, dataset: x.dataset || d[0]?.key || "" }));
-    });
+    api<DatasetInfo[]>("/reports/datasets").then(
+      (d) => {
+        setDatasets(d);
+        setF((x) => ({ ...x, dataset: x.dataset || d[0]?.key || "" }));
+      },
+      (e) => setLoadError(errorText(e)),
+    );
     api<{ id: string; name: string }[]>("/saved-reports").then(setReports, () => setReports([]));
   }, []);
   const ds = datasets.find((d) => d.key === f.dataset);
@@ -321,7 +384,8 @@ function AddWidget({ onClose, onAdd }: { me: string[]; onClose: () => void; onAd
     if (!column) return null;
     const aggKey = `${f.fn}__${column}`;
     const group = f.type === "kpi" ? "" : f.group;
-    const byTime = group === "month" || group.toLowerCase().includes("date");
+    // Garis = tren: selalu urut menurut kelompok.
+    const byTime = f.type === "line" || TIME_COLUMN.test(group);
     return {
       ...base,
       title:
@@ -385,6 +449,11 @@ function AddWidget({ onClose, onAdd }: { me: string[]; onClose: () => void; onAd
           {l("Dari laporan tersimpan", "From a saved report")}
         </button>
       </div>
+      {loadError && (
+        <p className="error" role="alert">
+          {loadError}
+        </p>
+      )}
       <div className="fields">
         <label className="field">
           <span>{l("Judul", "Title")}</span>

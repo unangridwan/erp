@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   BUILTIN_DASHBOARDS,
   changePercent,
+  comparisonRange,
+  dashboardRunSchema,
   dashboardSchema,
   dashboardWidgetSchema,
   kpiValue,
@@ -44,5 +46,52 @@ describe("dashboard", () => {
     }
     const ids = BUILTIN_DASHBOARDS.flatMap((d) => d.widgets.map((x) => x.id));
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("pembanding periode berjalan dipotong sepanjang bagian yang sudah lewat", () => {
+    const today = "2026-11-24";
+    expect(comparisonRange("2026-01-01", "2026-12-31", today)).toEqual({
+      from: "2025-01-01",
+      to: "2025-11-24",
+    });
+    expect(comparisonRange("2026-11-01", "2026-11-30", today)).toEqual({
+      from: "2026-10-01",
+      to: "2026-10-24",
+    });
+    expect(comparisonRange("2026-10-01", "2026-12-31", today)).toEqual({
+      from: "2026-07-01",
+      to: "2026-08-24",
+    });
+    expect(comparisonRange("2025-12-01", "2026-11-30", today)).toEqual({
+      from: "2024-12-01",
+      to: "2025-11-24",
+    });
+    // 31 Maret → Februari dipotong ke akhir bulannya.
+    expect(comparisonRange("2026-03-01", "2026-03-31", "2026-03-31")).toEqual({
+      from: "2026-02-01",
+      to: "2026-02-28",
+    });
+    expect(comparisonRange("2026-03-01", "2026-03-31", "2026-03-30")).toEqual({
+      from: "2026-02-01",
+      to: "2026-02-28",
+    });
+    // Rentang kustom berjalan: per hari.
+    expect(comparisonRange("2026-11-10", "2026-11-30", today)).toEqual({
+      from: "2026-10-20",
+      to: "2026-11-03",
+    });
+    // Periode yang sudah lewat tidak berubah.
+    expect(comparisonRange("2025-01-01", "2025-12-31", today)).toEqual({
+      from: "2024-01-01",
+      to: "2024-12-31",
+    });
+  });
+
+  it("periode run: string kosong = tanpa periode, rentang terbalik ditolak", () => {
+    const ok = dashboardRunSchema.safeParse({ builtin: "sales", from: "", to: "" });
+    expect(ok.success && ok.data.from === undefined && ok.data.to === undefined).toBe(true);
+    expect(
+      dashboardRunSchema.safeParse({ builtin: "sales", from: "2026-03-01", to: "2026-01-01" }).success,
+    ).toBe(false);
   });
 });

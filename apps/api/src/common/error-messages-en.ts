@@ -1282,6 +1282,7 @@ export const MESSAGES_EN: Record<string, string> = {
   "Kirim salah satu: dashboardId, builtin, atau widgets":
     "Send exactly one of: dashboardId, builtin, or widgets",
   "Kirim salah satu: builtin atau dashboardId": "Send exactly one of: builtin or dashboardId",
+  "Tanggal awal harus sebelum tanggal akhir": "The start date must be before the end date",
   "Id widget ganda": "Duplicate widget id",
   "Judul widget wajib diisi": "Widget title is required",
   // Aturan otomatis
