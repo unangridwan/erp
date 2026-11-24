@@ -18,12 +18,13 @@ import { and, asc, eq, or, schema, sql, type Db } from "@erp/db";
 import {
   BUILTIN_DASHBOARDS,
   builtinDashboard,
+  businessToday,
   changePercent,
+  comparisonRange,
   dashboardPinsSchema,
   dashboardRunSchema,
   dashboardSchema,
   kpiValue,
-  previousRange,
   type DashboardWidget,
   type ReportConfig,
 } from "@erp/shared";
@@ -320,7 +321,7 @@ export class DashboardsController {
       if (w.type === "kpi") {
         out.value = kpiValue(result);
         if (w.compare && !w.ignorePeriod && from && to) {
-          const prev = previousRange(from, to);
+          const prev = comparisonRange(from, to, businessToday());
           const before = await tx.transaction((sp) =>
             this.reports.execute(sp, source.dataset, withPeriod(prev.from, prev.to)),
           );

@@ -60,11 +60,16 @@ export const dashboardRunSchema = z
     dashboardId: z.string().uuid().optional(),
     builtin: z.string().max(40).optional(),
     widgets: z.array(dashboardWidgetSchema).max(40).optional(),
-    from: z.string().regex(ISO).optional(),
-    to: z.string().regex(ISO).optional(),
+    // String kosong = tanpa periode (mis. rentang kustom yang belum lengkap).
+    from: z.preprocess((v) => (v === "" ? undefined : v), z.string().regex(ISO).optional()),
+    to: z.preprocess((v) => (v === "" ? undefined : v), z.string().regex(ISO).optional()),
   })
   .refine((v) => [v.dashboardId, v.builtin, v.widgets].filter(Boolean).length === 1, {
     message: "Kirim salah satu: dashboardId, builtin, atau widgets",
+  })
+  .refine((v) => !v.from || !v.to || v.from <= v.to, {
+    message: "Tanggal awal harus sebelum tanggal akhir",
+    path: ["to"],
   });
 
 export const dashboardPinsSchema = z.object({ refs: z.array(z.string().min(1).max(80)).max(20) });
@@ -111,6 +116,30 @@ export function previousRange(from: string, to: string): { from: string; to: str
   }
   const days = Math.round((t.getTime() - f.getTime()) / 864e5) + 1;
   return { from: iso(new Date(f.getTime() - days * 864e5)), to: iso(new Date(f.getTime() - 864e5)) };
+}
+
+/**
+ * Periode pembanding KPI. Untuk periode yang masih berjalan (`to` setelah `today`, mis. "Tahun ini"), pembanding
+ * dipotong sepanjang bagian yang sudah berjalan: 1 Jan–24 Nov dibanding 1 Jan–24 Nov tahun lalu, bukan setahun penuh.
+ */
+export function comparisonRange(from: string, to: string, today: string): { from: string; to: string } {
+  const prev = previousRange(from, to);
+  if (to <= today || today < from) return prev;
+  const f = new Date(`${from}T00:00:00Z`);
+  const t = new Date(`${today}T00:00:00Z`);
+  const p = new Date(`${prev.from}T00:00:00Z`);
+  // Periode bulan penuh: geser per bulan (tanggal yang sama), selain itu per hari.
+  const monthAligned = f.getUTCDate() === 1 && prev.from.endsWith("-01");
+  const end = monthAligned
+    ? (() => {
+        const months = (t.getUTCFullYear() - f.getUTCFullYear()) * 12 + t.getUTCMonth() - f.getUTCMonth();
+        const last = utc(p.getUTCFullYear(), p.getUTCMonth() + months + 1, 0);
+        return iso(
+          utc(p.getUTCFullYear(), p.getUTCMonth() + months, Math.min(t.getUTCDate(), last.getUTCDate())),
+        );
+      })()
+    : iso(new Date(p.getTime() + (t.getTime() - f.getTime())));
+  return { from: prev.from, to: end < prev.to ? end : prev.to };
 }
 
 /** Nilai KPI: kolom angka pertama baris pertama (agregasi tanpa kelompok) — atau jumlah baris. */

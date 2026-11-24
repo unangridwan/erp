@@ -28,7 +28,12 @@ export function useWidgetResults(
   const [error, setError] = useState<string | null>(null);
   const key = JSON.stringify(body);
   useEffect(() => {
-    if (!body) return;
+    if (!body) {
+      // Tidak dijalankan (mis. rentang kustom belum lengkap): jangan tampilkan hasil periode sebelumnya.
+      setResults(null);
+      setError(null);
+      return;
+    }
     let alive = true;
     setResults(null);
     setError(null);
@@ -71,15 +76,19 @@ const groupKeys = (result: WidgetResult) => {
 function WidgetBody({
   widget,
   result,
+  idle,
   onDrill,
 }: {
   widget: Widget;
   result?: WidgetResult;
+  /** Widget tidak dijalankan (periode belum valid): tampilkan kosong, bukan memuat. */
+  idle?: boolean;
   /** Buka rincian baris: `match` = nilai kelompok (kosong = seluruh data widget). */
   onDrill?: (match: Record<string, string>, title: string) => void;
 }) {
   const { l, locale } = useI18n();
-  if (!result) return <div className="skeleton-block" aria-busy="true" />;
+  if (!result)
+    return idle ? <p className="muted small">—</p> : <div className="skeleton-block" aria-busy="true" />;
   if (result.error) return <p className="error small">{result.error}</p>;
   if (widget.type === "kpi") {
     const change = result.change;
@@ -190,6 +199,7 @@ export function DashboardGrid({
   onChange,
   reportHref,
   period,
+  idle,
 }: {
   widgets: Widget[];
   results: Record<string, WidgetResult> | null;
@@ -198,6 +208,8 @@ export function DashboardGrid({
   reportHref?: (w: Widget) => string | undefined;
   /** Periode dashboard; dipakai sebagai filter rincian (kecuali widget mengabaikan periode). */
   period?: { from: string; to: string };
+  /** Widget tidak dijalankan (mis. rentang kustom belum valid). */
+  idle?: boolean;
 }) {
   const { l } = useI18n();
   const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
@@ -293,7 +305,12 @@ export function DashboardGrid({
                 {l("Anda tidak berhak melihat data ini.", "You cannot view this data.")}
               </p>
             ) : (
-              <WidgetBody widget={w} result={results?.[w.id]} onDrill={editing ? undefined : drillFor(w)} />
+              <WidgetBody
+                widget={w}
+                result={results?.[w.id]}
+                idle={idle}
+                onDrill={editing ? undefined : drillFor(w)}
+              />
             )}
           </section>
         );

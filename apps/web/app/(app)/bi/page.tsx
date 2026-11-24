@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AppIcon } from "../../../components/app-icon";
 import { toast } from "../../../components/feedback";
+import { LoadFailed, useLoadError } from "../../../components/load-failed";
 import { api } from "../../../lib/api";
 import { formatDate } from "../../../lib/format";
 import { useI18n } from "../../../lib/i18n";
@@ -34,31 +35,39 @@ export default function DashboardsPage() {
   const { l, locale } = useI18n();
   const router = useRouter();
   const [data, setData] = useState<{ builtin: Builtin[]; custom: Custom[] } | null>(null);
+  const [loadError, failLoad] = useLoadError();
   const load = useCallback(() => {
-    api<{ builtin: Builtin[]; custom: Custom[] }>("/dashboards")
-      .then(setData)
-      .catch((e: Error) => toast.error(e.message));
-  }, []);
+    api<{ builtin: Builtin[]; custom: Custom[] }>("/dashboards").then(setData).catch(failLoad);
+  }, [failLoad]);
+  const fail = (e: unknown) => toast.error(e instanceof Error ? e.message : String(e));
   useEffect(load, [load]);
 
   async function togglePin(ref: string) {
-    const pins = await api<string[]>("/me/dashboard-pins");
-    const next = pins.includes(ref) ? pins.filter((p) => p !== ref) : [...pins, ref];
-    await api("/me/dashboard-pins", { method: "PUT", body: { refs: next } });
-    toast.success(
-      next.includes(ref)
-        ? l("Disematkan di Beranda.", "Pinned to Home.")
-        : l("Dilepas dari Beranda.", "Unpinned."),
-    );
-    load();
+    try {
+      const pins = await api<string[]>("/me/dashboard-pins");
+      const next = pins.includes(ref) ? pins.filter((p) => p !== ref) : [...pins, ref];
+      await api("/me/dashboard-pins", { method: "PUT", body: { refs: next } });
+      toast.success(
+        next.includes(ref)
+          ? l("Disematkan di Beranda.", "Pinned to Home.")
+          : l("Dilepas dari Beranda.", "Unpinned."),
+      );
+      load();
+    } catch (e) {
+      fail(e);
+    }
   }
 
   async function create() {
-    const d = await api<{ id: string }>("/dashboards", {
-      method: "POST",
-      body: { name: l("Dashboard baru", "New dashboard"), widgets: [] },
-    });
-    router.push(`/bi/dashboards/${d.id}?edit=1`);
+    try {
+      const d = await api<{ id: string }>("/dashboards", {
+        method: "POST",
+        body: { name: l("Dashboard baru", "New dashboard"), widgets: [] },
+      });
+      router.push(`/bi/dashboards/${d.id}?edit=1`);
+    } catch (e) {
+      fail(e);
+    }
   }
 
   const pin = (ref: string, pinned: boolean) => (
@@ -86,7 +95,9 @@ export default function DashboardsPage() {
           </Link>
         </div>
       </header>
-      {!data ? (
+      {loadError ? (
+        <LoadFailed message={loadError} />
+      ) : !data ? (
         <p className="muted">{l("Memuat…", "Loading…")}</p>
       ) : (
         <>

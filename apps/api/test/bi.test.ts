@@ -190,6 +190,12 @@ describe.skipIf(!hasDb)("Laporan semua modul & dashboard BI", () => {
         .expect(200)
     ).body as { widgets: WidgetResult[] };
     expect(yearly.widgets[0]).toMatchObject({ value: 150000, previous: 40000, change: 275 });
+    // Rentang kustom belum lengkap = tanpa periode; rentang terbalik ditolak dengan pesan jelas.
+    await a.post("/dashboards/run", { builtin: "sales", from: "", to: "" }).expect(200);
+    const reversed = await a
+      .post("/dashboards/run", { builtin: "sales", from: `${month}-28`, to: `${month}-01` })
+      .expect(400);
+    expect(JSON.stringify(reversed.body)).toContain("Tanggal awal harus sebelum tanggal akhir");
 
     // Pengguna sales: widget keuangan pada dashboard campuran disembunyikan, bukan error.
     const mixed = (
