@@ -184,6 +184,8 @@ export const biVisualOptionsSchema = z
     secondaryAxis: z.boolean(),
     compare: z.enum(["none", "prev_period", "last_year"]),
     slicer: z.enum(["list", "dropdown", "range"]),
+    /** Slicer berlaku untuk halaman ini saja atau semua halaman. */
+    slicerScope: z.enum(["page", "all"]),
     conditional: z
       .array(z.object({ measure: z.string().max(40), kind: z.enum(["scale", "bar", "icon"]) }))
       .max(10),

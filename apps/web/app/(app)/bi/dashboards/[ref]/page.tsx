@@ -2,6 +2,7 @@
 
 import {
   biVisualSchema,
+  toCsv,
   PERIOD_LABEL,
   PERIOD_PRESETS,
   placeNew,
@@ -28,12 +29,13 @@ import {
   PageTabs,
   VisualPane,
 } from "../../../../../components/bi/editor";
+import { SlicerView, slicerFilter, type SlicerPick } from "../../../../../components/bi/slicer";
 import { VisualBody, type VisualPoint } from "../../../../../components/bi/visual";
 import { DatasetDrillPanel, type DatasetDrillRequest } from "../../../../../components/drilldown-panel";
-import { ask, toast } from "../../../../../components/feedback";
+import { ask, Modal, toast } from "../../../../../components/feedback";
 import { LoadFailed, useLoadError } from "../../../../../components/load-failed";
 import { api, ApiError } from "../../../../../lib/api";
-import { type BiDatasetInfo } from "../../../../../lib/bi-format";
+import { categoryLabel, type BiDatasetInfo } from "../../../../../lib/bi-format";
 import { resolvePeriod } from "../../../../../lib/bi-period";
 import { useI18n } from "../../../../../lib/i18n";
 import { useDirtyGuard } from "../../../../../lib/use-form-guard";
@@ -68,13 +70,62 @@ interface DashboardResponse {
   document: BiDocument;
 }
 
+/** Pilihan filter silang: visual asal + titik yang diklik (Ctrl/⌘+klik = pilihan ganda). */
+interface Cross {
+  source: string;
+  points: VisualPoint["match"][];
+}
+interface DrillState {
+  depth: number;
+  path: string[];
+  expandAll: boolean;
+  /** Mode drill: klik titik = turun satu level (bukan filter silang). */
+  on: boolean;
+}
+/** Status tampilan yang disimpan di URL (bisa dibagikan). */
+interface ViewState {
+  p?: string;
+  c?: Cross | null;
+  s?: Record<string, SlicerPick>;
+  d?: Record<string, DrillState>;
+  pr?: Preset;
+  cr?: { from: string; to: string };
+}
+const encodeState = (v: ViewState) =>
+  btoa(unescape(encodeURIComponent(JSON.stringify(v))))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+const decodeState = (s: string): ViewState | null => {
+  try {
+    return JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, "+").replace(/_/g, "/"))))) as ViewState;
+  } catch {
+    return null;
+  }
+};
+const CHART_TYPES: VisualType[] = [
+  "column",
+  "bar",
+  "line",
+  "area",
+  "combo",
+  "pie",
+  "donut",
+  "funnel",
+  "treemap",
+];
+
 /** Visual siap dijalankan: tata letak & judul tidak memengaruhi data. */
 const dataKey = (v: BiVisual) => {
   const { layout: _layout, title: _title, ...rest } = v;
   return JSON.stringify(rest);
 };
 const hasContent = (v: BiVisual) =>
-  v.type === "text" || !!v.reportId || v.values.length > 0 || v.columns.length > 0;
+  v.type === "text" ||
+  !!v.reportId ||
+  v.values.length > 0 ||
+  v.columns.length > 0 ||
+  (v.type === "slicer" && v.axis.length > 0);
 const errorText = (e: unknown) => {
   const field = e instanceof ApiError ? Object.values(e.fieldErrors)[0] : undefined;
   return field ?? (e instanceof Error ? e.message : String(e));
@@ -109,6 +160,12 @@ export default function DashboardPage() {
   const [drill, setDrill] = useState<DatasetDrillRequest | null>(null);
   const [saving, setSaving] = useState(false);
   const [showPageFilters, setShowPageFilters] = useState(false);
+  const [cross, setCross] = useState<Cross | null>(null);
+  const [slicers, setSlicers] = useState<Record<string, SlicerPick>>({});
+  const [drillState, setDrillState] = useState<Record<string, DrillState>>({});
+  const [focus, setFocus] = useState<string | null>(null);
+  // Parameter URL dibaca sekali (perubahan status tampilan menulis URL tanpa memuat ulang dashboard).
+  const initialSearch = useRef(search);
 
   const startEdit = useCallback((doc: BiDocument, meta: Meta) => {
     history.current = { past: [], future: [], at: 0, tag: "" };
@@ -135,10 +192,20 @@ export default function DashboardPage() {
         setBase(loaded);
         setPageId(d.document.pages[0]?.id ?? "");
         if (d.document.period) setPreset(d.document.period);
-        if (custom && d.mine && search.get("edit")) startEdit(d.document, meta);
+        const q = initialSearch.current;
+        const view = q.get("v") ? decodeState(q.get("v")!) : null;
+        if (view) {
+          if (view.p && d.document.pages.some((p) => p.id === view.p)) setPageId(view.p);
+          if (view.c) setCross(view.c);
+          if (view.s) setSlicers(view.s);
+          if (view.d) setDrillState(view.d);
+          if (view.pr) setPreset(view.pr);
+          if (view.cr) setCustomRange(view.cr);
+        }
+        if (custom && d.mine && q.get("edit")) startEdit(d.document, meta);
       })
       .catch(failLoad);
-  }, [ref, custom, search, failLoad, startEdit]);
+  }, [ref, custom, failLoad, startEdit]);
 
   const editing = draft !== null;
   const doc = draft?.doc ?? base?.doc ?? null;
@@ -168,6 +235,69 @@ export default function DashboardPage() {
           ? l("Tanggal Dari harus sebelum tanggal Sampai.", "From must be before To.")
           : null;
 
+  // ---- Filter interaktif (mode lihat): filter silang & slicer ----
+  const crossFilters: BiFilter[] = useMemo(() => {
+    if (!cross) return [];
+    const byField = new Map<string, BiFilter>();
+    for (const point of cross.points)
+      for (const m of point) {
+        const k = `${m.column}@${m.level ?? ""}`;
+        const f = byField.get(k) ?? {
+          column: m.column,
+          level: m.level ?? null,
+          op: "in" as const,
+          value: "",
+          value2: "",
+          values: [],
+          source: cross.source,
+        };
+        if (!f.values.includes(m.value)) f.values.push(m.value);
+        byField.set(k, f);
+      }
+    return [...byField.values()];
+  }, [cross]);
+  const slicerFilters: BiFilter[] = useMemo(() => {
+    if (!doc || !page) return [];
+    return doc.pages
+      .flatMap((p) =>
+        p.visuals.filter((v) => v.type === "slicer" && (p.id === page.id || v.options.slicerScope === "all")),
+      )
+      .map((v) => slicerFilter(v, slicers[v.id] ?? null))
+      .filter((f): f is BiFilter => !!f);
+  }, [doc, page, slicers]);
+  const interactive = useMemo(
+    () => (editing ? [] : [...crossFilters, ...slicerFilters]),
+    [editing, crossFilters, slicerFilters],
+  );
+  const drillBody = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(drillState).map(([id, d]) => [
+          id,
+          { depth: d.depth, path: d.path, expandAll: d.expandAll },
+        ]),
+      ),
+    [drillState],
+  );
+
+  // Status tampilan ke URL (bisa dibagikan) tanpa memuat ulang halaman.
+  useEffect(() => {
+    if (!base || editing) return;
+    const state: ViewState = {
+      ...(pageId && pageId !== base.doc.pages[0]?.id ? { p: pageId } : {}),
+      ...(cross ? { c: cross } : {}),
+      ...(Object.values(slicers).some(Boolean) ? { s: slicers } : {}),
+      ...(Object.keys(drillState).length ? { d: drillState } : {}),
+      ...(preset !== (base.doc.period ?? "this_year") ? { pr: preset } : {}),
+      ...(preset === "custom" ? { cr: customRange } : {}),
+    };
+    const url = new URL(window.location.href);
+    if (Object.keys(state).length) url.searchParams.set("v", encodeState(state));
+    else url.searchParams.delete("v");
+    url.searchParams.delete("edit");
+    if (url.toString() !== window.location.href) window.history.replaceState(window.history.state, "", url);
+  }, [base, editing, pageId, cross, slicers, drillState, preset, customRange]);
+
   // ---- Menjalankan visual ----
   const ctxFilters: BiFilter[] = useMemo(
     () => (doc && page ? [...doc.filters, ...page.filters] : []),
@@ -177,8 +307,8 @@ export default function DashboardPage() {
     (v: BiVisual) =>
       editing
         ? `e|${dataKey(v)}|${JSON.stringify(ctxFilters)}|${period.from}|${period.to}`
-        : `v|${page?.id}|${v.id}|${period.from}|${period.to}`,
-    [editing, ctxFilters, period.from, period.to, page?.id],
+        : `v|${page?.id}|${v.id}|${period.from}|${period.to}|${JSON.stringify(interactive)}|${JSON.stringify(drillBody[v.id] ?? null)}`,
+    [editing, ctxFilters, period.from, period.to, page?.id, interactive, drillBody],
   );
   const runnable = useMemo(
     () => (page && !rangeIssue ? page.visuals.filter((v) => v.type !== "text" && hasContent(v)) : []),
@@ -202,6 +332,8 @@ export default function DashboardPage() {
             pageId: page.id,
             from: period.from,
             to: period.to,
+            filters: interactive,
+            drill: drillBody,
           };
       api<{ visuals: BiResult[] }>("/bi/query", { method: "POST", body })
         .then((r) => {
@@ -477,12 +609,88 @@ export default function DashboardPage() {
           filters: !v.ignorePeriod && period.from && period.to ? { from: period.from, to: period.to } : {},
         },
       });
-    else
+    else {
+      // Lingkup drill saat ini ikut menjadi kecocokan (mis. sudah turun ke tahun 2026).
+      const d = drillState[v.id];
+      const scope = d && !d.expandAll ? d.path.map((value, i) => ({ ...v.axis[i]!, value })) : [];
       setDrill({
         title: `${name}${p.label ? ` · ${p.label}` : ""}`,
         endpoint: "/bi/drill",
-        body: { visual: v, from: period.from, to: period.to, filters: ctxFilters, match: p.match },
+        body: {
+          visual: v,
+          from: period.from,
+          to: period.to,
+          filters: [...ctxFilters, ...interactive],
+          match: [...scope, ...p.match],
+        },
       });
+    }
+  };
+
+  /** Klik titik (mode lihat): mode drill → turun satu level; selain itu filter silang (Ctrl/⌘ = tambah). */
+  const onPoint = (v: BiVisual, p: VisualPoint, e: { ctrlKey: boolean; metaKey: boolean }) => {
+    const d = drillState[v.id];
+    if (d?.on && !d.expandAll && d.depth < v.axis.length - 1 && p.match[0]) {
+      setDrillState({
+        ...drillState,
+        [v.id]: { ...d, depth: d.depth + 1, path: [...d.path, p.match[0].value] },
+      });
+      return;
+    }
+    if (!p.match.length || !v.crossFilter || v.reportId) return openDrill(v, p);
+    const same = (a: VisualPoint["match"], b: VisualPoint["match"]) =>
+      JSON.stringify(a) === JSON.stringify(b);
+    if (e.ctrlKey || e.metaKey) {
+      const points = cross?.source === v.id ? cross.points : [];
+      const next = points.some((x) => same(x, p.match))
+        ? points.filter((x) => !same(x, p.match))
+        : [...points, p.match];
+      setCross(next.length ? { source: v.id, points: next } : null);
+    } else if (cross?.source === v.id && cross.points.length === 1 && same(cross.points[0]!, p.match))
+      setCross(null);
+    else setCross({ source: v.id, points: [p.match] });
+  };
+
+  /** Unduh data visual sebagai CSV (kolom & baris hasil; matriks diratakan). */
+  const exportCsv = (v: BiVisual) => {
+    const r = results.get(keyFor(v));
+    if (!r) return;
+    let headers: string[];
+    let rows: Record<string, unknown>[];
+    if (r.matrix) {
+      const dims = r.fields.filter((f) => f.kind === "dimension");
+      const measures = r.fields.filter((f) => f.kind === "measure");
+      const cols = r.matrix.columns;
+      headers = [
+        ...dims.map((d) => d.header),
+        ...cols.flatMap((c) => measures.map((m) => `${c.label} · ${m.header}`)),
+        ...measures.map((m) => `Total · ${m.header}`),
+      ];
+      rows = r.matrix.rows.map((row) =>
+        Object.fromEntries([
+          ...dims.map((d, i) => [d.header, row.path[i] ?? ""]),
+          ...cols.flatMap((c) =>
+            measures.map((m) => [`${c.label} · ${m.header}`, row.cells[c.key]?.[m.key] ?? ""]),
+          ),
+          ...measures.map((m) => [`Total · ${m.header}`, row.total[m.key] ?? ""]),
+        ]),
+      );
+    } else if (r.categories.length && r.series.length && v.legend) {
+      const dim = r.fields.find((f) => f.kind === "dimension");
+      headers = [dim?.header ?? "", ...r.series.map((x) => x.label)];
+      rows = r.categories.map((c, i) =>
+        Object.fromEntries([[headers[0]!, c.label], ...r.series.map((x) => [x.label, x.values[i] ?? ""])]),
+      );
+    } else {
+      headers = r.fields.map((f) => f.header);
+      rows = r.rows.map((row) => Object.fromEntries(r.fields.map((f) => [f.header, row[f.key] ?? ""])));
+    }
+    const blob = new Blob(["\ufeff" + toCsv(headers, rows)], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${(v.title || autoTitle(v) || "data").replace(/[^\w\- ]+/g, "").trim() || "data"}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   };
 
   /** Judul otomatis visual tanpa judul: "Ukuran per Field" dari hasil. */
@@ -505,6 +713,96 @@ export default function DashboardPage() {
           (editing ? <span className="muted">{l(...VISUAL_TYPE_LABEL[v.type])}</span> : null)
         )}
       </h3>
+      {!editing && v.type !== "text" && v.type !== "slicer" && (
+        <span className="bi-visual-actions">
+          {CHART_TYPES.includes(v.type) && v.axis.length > 1 && !v.reportId && (
+            <>
+              <button
+                type="button"
+                className="link"
+                title={l("Naik satu level", "Drill up")}
+                aria-label={l("Naik satu level", "Drill up")}
+                disabled={!drillState[v.id]?.depth}
+                onClick={() => {
+                  const d = drillState[v.id]!;
+                  const depth = d.depth - 1;
+                  setDrillState({
+                    ...drillState,
+                    [v.id]: {
+                      ...d,
+                      depth,
+                      path: d.expandAll ? [] : d.path.slice(0, depth),
+                      expandAll: d.expandAll && depth > 0,
+                    },
+                  });
+                }}
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                className={`link${drillState[v.id]?.on ? " on" : ""}`}
+                title={l(
+                  "Mode drill: klik titik untuk turun level",
+                  "Drill mode: click a point to drill down",
+                )}
+                aria-label={l("Mode drill", "Drill mode")}
+                aria-pressed={!!drillState[v.id]?.on}
+                onClick={() => {
+                  const d = drillState[v.id] ?? { depth: 0, path: [], expandAll: false, on: false };
+                  setDrillState({ ...drillState, [v.id]: { ...d, on: !d.on } });
+                }}
+              >
+                ⇣
+              </button>
+              <button
+                type="button"
+                className="link"
+                title={l("Perluas semua satu level", "Expand all down one level")}
+                aria-label={l("Perluas semua satu level", "Expand all down one level")}
+                disabled={(drillState[v.id]?.depth ?? 0) >= v.axis.length - 1}
+                onClick={() => {
+                  const d = drillState[v.id] ?? { depth: 0, path: [], expandAll: false, on: false };
+                  setDrillState({
+                    ...drillState,
+                    [v.id]: { ...d, depth: d.depth + 1, path: [], expandAll: true },
+                  });
+                }}
+              >
+                ⇊
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            className="link"
+            title={l("Lihat data", "Show data")}
+            aria-label={l("Lihat data", "Show data")}
+            onClick={() => openDrill(v, { match: [], label: "" })}
+          >
+            ☰
+          </button>
+          <button
+            type="button"
+            className="link"
+            title={l("Ekspor data (CSV)", "Export data (CSV)")}
+            aria-label={l("Ekspor data (CSV)", "Export data (CSV)")}
+            disabled={!results.get(keyFor(v))}
+            onClick={() => exportCsv(v)}
+          >
+            ⇩
+          </button>
+          <button
+            type="button"
+            className="link"
+            title={l("Mode fokus", "Focus mode")}
+            aria-label={l("Mode fokus", "Focus mode")}
+            onClick={() => setFocus(v.id)}
+          >
+            ⤢
+          </button>
+        </span>
+      )}
       {editing && (
         <span className="dash-widget-tools" onPointerDown={(e) => e.stopPropagation()}>
           <button
@@ -539,13 +837,52 @@ export default function DashboardPage() {
         </p>
       );
     if (rangeIssue && v.type !== "text") return <p className="muted small">—</p>;
+    if (v.type === "slicer")
+      return (
+        <SlicerView
+          visual={v}
+          result={results.get(keyFor(v))}
+          pick={editing ? null : (slicers[v.id] ?? null)}
+          onPick={(pick) => !editing && setSlicers((x) => ({ ...x, [v.id]: pick }))}
+        />
+      );
+    const d = drillState[v.id];
     return (
-      <VisualBody
-        visual={v}
-        result={v.type === "text" ? undefined : results.get(keyFor(v))}
-        onPoint={editing ? undefined : (p) => openDrill(v, p)}
-      />
+      <>
+        {d && d.depth > 0 && !editing && (
+          <p className="bi-drill-path muted small">
+            {d.expandAll
+              ? l(`Semua level s.d. ${d.depth + 1}`, `All levels to ${d.depth + 1}`)
+              : d.path.map((x) => categoryLabel(x, locale)).join(" › ")}
+          </p>
+        )}
+        <VisualBody
+          visual={v}
+          result={v.type === "text" ? undefined : results.get(keyFor(v))}
+          onPoint={editing ? undefined : (p, e) => onPoint(v, p, e)}
+        />
+      </>
     );
+  };
+
+  /** Label chip filter aktif: judul kolom dari hasil visual asal. */
+  const filterChips = (() => {
+    const header = (f: BiFilter) => {
+      for (const r of results.values()) {
+        const field = r.fields.find((x) => x.key === (f.level ? `${f.column}@${f.level}` : f.column));
+        if (field) return field.header;
+      }
+      return f.column;
+    };
+    const value = (f: BiFilter) =>
+      f.op === "between"
+        ? `${f.value || "…"} – ${f.value2 || "…"}`
+        : f.values.map((x) => categoryLabel(x || "(Kosong)", locale)).join(", ");
+    return interactive.map((f) => ({ f, text: `${header(f)}: ${value(f)}` }));
+  })();
+  const clearFilter = (f: BiFilter) => {
+    if (cross && f.source === cross.source) setCross(null);
+    else if (f.source) setSlicers((x) => ({ ...x, [f.source!]: null }));
   };
 
   const periodControls = (
@@ -755,6 +1092,34 @@ export default function DashboardPage() {
                 .join(" · ")}
             </p>
           )}
+          {!editing && filterChips.length > 0 && (
+            <div className="bi-chips" role="status">
+              <span className="muted small">{l("Difilter", "Filtered")}:</span>
+              {filterChips.map((c, i) => (
+                <span key={i} className="bi-filter-chip">
+                  {c.text}
+                  <button
+                    type="button"
+                    className="link"
+                    aria-label={`${l("Hapus filter", "Remove filter")} ${c.text}`}
+                    onClick={() => clearFilter(c.f)}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              <button
+                type="button"
+                className="link small"
+                onClick={() => {
+                  setCross(null);
+                  setSlicers({});
+                }}
+              >
+                {l("Hapus semua", "Clear all")}
+              </button>
+            </div>
+          )}
           {page.visuals.length === 0 && (
             <p className="muted bi-empty">
               {editing
@@ -844,6 +1209,21 @@ export default function DashboardPage() {
           ))}
       </div>
       <DatasetDrillPanel request={drill} onClose={() => setDrill(null)} />
+      {focus &&
+        (() => {
+          const v = page.visuals.find((x) => x.id === focus);
+          if (!v) return null;
+          return (
+            <Modal
+              open
+              wide
+              title={v.title || autoTitle(v) || l(...VISUAL_TYPE_LABEL[v.type])}
+              onClose={() => setFocus(null)}
+            >
+              <div className={`bi-focus bi-visual-body type-${v.type}`}>{renderBody(v)}</div>
+            </Modal>
+          );
+        })()}
     </div>
   );
 }

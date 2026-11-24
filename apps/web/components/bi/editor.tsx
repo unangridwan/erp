@@ -45,6 +45,7 @@ export const EDITOR_VISUALS: VisualType[] = [
   "scatter",
   "table",
   "matrix",
+  "slicer",
   "text",
 ];
 const VISUAL_ICON: Partial<Record<VisualType, string>> = {
@@ -65,6 +66,7 @@ const VISUAL_ICON: Partial<Record<VisualType, string>> = {
   funnel: "⏷",
   treemap: "▤",
   scatter: "⁘",
+  slicer: "☑",
 };
 const SINGLE: VisualType[] = ["card", "kpi", "multi_card", "gauge"];
 /** Ukuran awal visual baru (kolom × baris grid). */
@@ -116,7 +118,9 @@ export function addField(
   f: FieldDrag,
   well?: "axis" | "legend" | "values" | "columns",
 ): BiVisual {
-  const target = well ?? (f.numeric ? "values" : SINGLE.includes(v.type) ? "values" : "axis");
+  const target =
+    well ??
+    (v.type === "slicer" ? "axis" : f.numeric ? "values" : SINGLE.includes(v.type) ? "values" : "axis");
   if (target === "values") {
     const id = newId("m");
     const fn: BiAggregate = f.numeric ? "sum" : "count";
@@ -133,6 +137,7 @@ export function addField(
   // Kolom tanggal tanpa level dipilih → per bulan (level lain bisa diganti/ditambah di kotak isian).
   const fields: BiField[] = [{ column: f.column, level: f.level ?? (f.date ? "month" : null) }];
   if (target === "legend") return { ...v, legend: fields[fields.length > 1 ? 1 : 0] };
+  if (v.type === "slicer") return { ...v, axis: fields.slice(0, 1) };
   const axis = [
     ...v.axis,
     ...fields.filter((x) => !v.axis.some((a) => a.column === x.column && a.level === x.level)),
@@ -390,13 +395,15 @@ export function VisualPane({
     );
   };
   const axisTitle =
-    visual.type === "scatter"
-      ? l("Detail (satu titik per nilai)", "Details (one point per value)")
-      : visual.type === "table"
-        ? l("Kelompok (baris)", "Group by (rows)")
-        : visual.type === "matrix"
-          ? l("Baris", "Rows")
-          : l("Sumbu", "Axis");
+    visual.type === "slicer"
+      ? l("Kolom slicer", "Slicer field")
+      : visual.type === "scatter"
+        ? l("Detail (satu titik per nilai)", "Details (one point per value)")
+        : visual.type === "table"
+          ? l("Kelompok (baris)", "Group by (rows)")
+          : visual.type === "matrix"
+            ? l("Baris", "Rows")
+            : l("Sumbu", "Axis");
   const measureIds = visual.values.map((m) => m.id);
 
   return (
@@ -531,7 +538,9 @@ export function VisualPane({
                 </Well>
               )}
               {!single &&
-                !["table", "pie", "donut", "funnel", "treemap", "scatter"].includes(visual.type) && (
+                !["table", "pie", "donut", "funnel", "treemap", "scatter", "slicer"].includes(
+                  visual.type,
+                ) && (
                   <Well
                     title={visual.type === "matrix" ? l("Kolom", "Columns") : l("Legenda", "Legend")}
                     hint={l("Satu kolom untuk memecah seri", "One field to split series")}
@@ -545,77 +554,81 @@ export function VisualPane({
                     )}
                   </Well>
                 )}
-              <Well
-                title={
-                  visual.type === "scatter"
-                    ? l("Nilai: X, Y, ukuran titik", "Values: X, Y, bubble size")
-                    : visual.type === "gauge"
-                      ? l("Nilai (kedua = target)", "Value (second = target)")
-                      : l("Nilai", "Values")
-                }
-                hint={l("Seret kolom angka ke sini", "Drop a numeric field here")}
-                onDropField={(f) => onChange(addField(visual, f, "values"))}
-              >
-                {visual.values.map((m, i) => (
-                  <MeasureChip
-                    key={m.id}
-                    m={m}
-                    header={m.column === "*" ? l("data", "rows") : header(m.column ?? "")}
-                    numeric={!!colInfo(m.column ?? "")?.numeric}
-                    onChange={(nm) => set({ values: visual.values.map((x, j) => (j === i ? nm : x)) })}
-                    onRemove={() => set({ values: visual.values.filter((_, j) => j !== i) })}
-                    onUp={i > 0 ? () => set({ values: swap(visual.values, i, i - 1) }) : undefined}
-                  />
-                ))}
-                <p className="bi-well-actions">
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() =>
-                      set({
-                        values: [
-                          ...visual.values,
-                          {
-                            id: newId("m"),
-                            label: l("Banyaknya data", "Row count"),
-                            column: "*",
-                            fn: "count",
-                            showAs: "value",
-                            format: "auto",
-                            hidden: false,
-                          },
-                        ],
-                      })
+              {visual.type !== "slicer" && (
+                <>
+                  <Well
+                    title={
+                      visual.type === "scatter"
+                        ? l("Nilai: X, Y, ukuran titik", "Values: X, Y, bubble size")
+                        : visual.type === "gauge"
+                          ? l("Nilai (kedua = target)", "Value (second = target)")
+                          : l("Nilai", "Values")
                     }
+                    hint={l("Seret kolom angka ke sini", "Drop a numeric field here")}
+                    onDropField={(f) => onChange(addField(visual, f, "values"))}
                   >
-                    + {l("Banyaknya data", "Row count")}
-                  </button>{" "}
-                  ·{" "}
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() =>
-                      set({
-                        values: [
-                          ...visual.values,
-                          {
-                            id: newId("m"),
-                            label: l("Ukuran baru", "New measure"),
-                            column: null,
-                            fn: "sum",
-                            formula: "",
-                            showAs: "value",
-                            format: "auto",
-                            hidden: false,
-                          },
-                        ],
-                      })
-                    }
-                  >
-                    + {l("Rumus", "Formula")}
-                  </button>
-                </p>
-              </Well>
+                    {visual.values.map((m, i) => (
+                      <MeasureChip
+                        key={m.id}
+                        m={m}
+                        header={m.column === "*" ? l("data", "rows") : header(m.column ?? "")}
+                        numeric={!!colInfo(m.column ?? "")?.numeric}
+                        onChange={(nm) => set({ values: visual.values.map((x, j) => (j === i ? nm : x)) })}
+                        onRemove={() => set({ values: visual.values.filter((_, j) => j !== i) })}
+                        onUp={i > 0 ? () => set({ values: swap(visual.values, i, i - 1) }) : undefined}
+                      />
+                    ))}
+                    <p className="bi-well-actions">
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() =>
+                          set({
+                            values: [
+                              ...visual.values,
+                              {
+                                id: newId("m"),
+                                label: l("Banyaknya data", "Row count"),
+                                column: "*",
+                                fn: "count",
+                                showAs: "value",
+                                format: "auto",
+                                hidden: false,
+                              },
+                            ],
+                          })
+                        }
+                      >
+                        + {l("Banyaknya data", "Row count")}
+                      </button>{" "}
+                      ·{" "}
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() =>
+                          set({
+                            values: [
+                              ...visual.values,
+                              {
+                                id: newId("m"),
+                                label: l("Ukuran baru", "New measure"),
+                                column: null,
+                                fn: "sum",
+                                formula: "",
+                                showAs: "value",
+                                format: "auto",
+                                hidden: false,
+                              },
+                            ],
+                          })
+                        }
+                      >
+                        + {l("Rumus", "Formula")}
+                      </button>
+                    </p>
+                  </Well>
+                </>
+              )}
               {visual.type === "table" && (
                 <Well
                   title={l("Kolom rincian (tanpa ringkasan)", "Detail columns (no summary)")}
@@ -738,6 +751,43 @@ export function VisualPane({
                 />
               </label>
             </>
+          )}
+          {visual.type === "slicer" && (
+            <>
+              <label className="field">
+                <span>{l("Gaya slicer", "Slicer style")}</span>
+                <select
+                  value={visual.options.slicer ?? "list"}
+                  onChange={(e) => setOpt({ slicer: e.target.value as "list" | "dropdown" | "range" })}
+                >
+                  <option value="list">{l("Daftar centang", "Checkbox list")}</option>
+                  <option value="dropdown">{l("Dropdown", "Dropdown")}</option>
+                  <option value="range">{l("Rentang (dari–sampai)", "Range (from–to)")}</option>
+                </select>
+              </label>
+              <label className="field">
+                <span>{l("Berlaku untuk", "Applies to")}</span>
+                <select
+                  value={visual.options.slicerScope ?? "page"}
+                  onChange={(e) => setOpt({ slicerScope: e.target.value as "page" | "all" })}
+                >
+                  <option value="page">{l("Halaman ini", "This page")}</option>
+                  <option value="all">{l("Semua halaman", "All pages")}</option>
+                </select>
+              </label>
+            </>
+          )}
+          {!single && !["slicer", "text"].includes(visual.type) && !visual.reportId && (
+            <label className="field check">
+              <span>
+                {l("Klik visual ini memfilter visual lain", "Clicking this visual filters other visuals")}
+              </span>
+              <input
+                type="checkbox"
+                checked={visual.crossFilter}
+                onChange={(e) => set({ crossFilter: e.target.checked })}
+              />
+            </label>
           )}
           {visual.type === "gauge" &&
             (["min", "max", "target"] as const).map((k) => (
