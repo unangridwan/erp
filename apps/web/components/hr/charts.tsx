@@ -97,7 +97,7 @@ export function BarChart(props: {
             const x0 = pad.left + i * group + (group - (barW * series.length + 2 * (series.length - 1))) / 2;
             return (
               <g
-                key={label}
+                key={i}
                 onMouseEnter={() => setHover(i)}
                 onMouseLeave={() => setHover(null)}
                 onClick={props.onSelect ? () => props.onSelect!(i) : undefined}
@@ -174,8 +174,8 @@ export function HBarList(props: {
   const format = props.format ?? ((v: number) => String(v));
   return (
     <div className="viz hbar">
-      {props.rows.map((r) => (
-        <div key={r.label} style={{ display: "contents" }} title={`${r.label}: ${format(r.value)}`}>
+      {props.rows.map((r, i) => (
+        <div key={i} style={{ display: "contents" }} title={`${r.label}: ${format(r.value)}`}>
           <span>{r.label}</span>
           <div className="track">
             <div className="fill" style={{ width: `${(r.value / max) * 100}%` }} />
