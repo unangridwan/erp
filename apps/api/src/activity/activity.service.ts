@@ -91,6 +91,30 @@ export class ActivityService {
   }
 }
 
+/** Pemanggil boleh membaca log aktivitas model ini. */
+export function canReadActivity(model: string) {
+  const required = ACTIVITY_READ.get(model);
+  return !!required && allowedFor(currentContext().permissions, required, { path: "/", method: "GET" });
+}
+
+/** Model dengan tabel dokumen yang dikenal (nama & perusahaan bisa diperiksa). */
+export const hasDocTable = (model: string) => model in DISCUSS_DOCS;
+
+/** Nama tampilan dokumen di perusahaan aktif (untuk model yang terdaftar diskusi), per id. */
+export async function docNames(tx: Db, model: string, ids: string[]) {
+  const d = DISCUSS_DOCS[model];
+  const out = new Map<string, string>();
+  if (!d || !ids.length) return out;
+  const rows = await tx.execute<{ id: string; name: string | null }>(sql`
+    select id, ${sql.raw(d.name)} as name from ${sql.raw(d.table)}
+    where company_id = ${currentContext().companyId} and id = any(${sql`array[${sql.join(
+      ids.map((i) => sql`${i}::uuid`),
+      sql`, `,
+    )}]`})`);
+  for (const r of rows) out.set(r.id, r.name ?? "");
+  return out;
+}
+
 /** Hak baca model log aktivitas; 403 bila pemanggil tidak berhak. */
 export function activityReadPermission(model: string): Permission {
   const required = ACTIVITY_READ.get(model);

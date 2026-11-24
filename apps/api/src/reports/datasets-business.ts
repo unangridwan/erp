@@ -437,6 +437,8 @@ function invoices(): Dataset {
         return {
           ...ref("account_move", m.id),
           _partnerId: m.partnerId ?? "",
+          // Pemilik untuk KPI pribadi: yang memposting (atau pembuatnya).
+          _userId: m.postedBy ?? m.createdBy ?? "",
           name: m.name,
           moveType: MOVE_TYPE[m.moveType] ?? m.moveType,
           side: m.moveType.startsWith("out") ? "Pelanggan" : "Pemasok",
@@ -590,6 +592,8 @@ function purchaseOrders(): Dataset {
         col("partner", "Pemasok", "Pesanan"),
         col("buyer", "Pembeli", "Pesanan"),
         col("state", "Status", "Pesanan"),
+        col("receivedDate", "Tanggal diterima lengkap", "Penerimaan"),
+        col("receivedOnTime", "Diterima tepat waktu", "Penerimaan"),
         col("amountUntaxed", "Total sebelum pajak", "Nilai", true),
         col("amountTotal", "Total", "Nilai", true),
         col("currency", "Mata uang", "Nilai"),
@@ -598,28 +602,58 @@ function purchaseOrders(): Dataset {
     },
     async rows(tx, ctx, q) {
       const custom = await customValues(tx, "purchase_order", ctx);
+      // Penerimaan: lengkap bila semua penerimaan (bukan retur) selesai; tanggalnya = penerimaan terakhir.
+      const SP = schema.stockPickings;
+      const receipts = tx
+        .select({
+          po: SP.purchaseOrderId,
+          open: sql<number>`count(*) filter (where ${SP.state} not in ('done', 'cancel'))`.as("open"),
+          done: sql<number>`count(*) filter (where ${SP.state} = 'done')`.as("done"),
+          last: sql<string | null>`max(${SP.dateDone})::date::text`.as("last"),
+        })
+        .from(SP)
+        .where(
+          and(eq(SP.companyId, ctx.companyId), eq(SP.pickingType, "incoming"), sql`${SP.returnOfId} is null`),
+        )
+        .groupBy(SP.purchaseOrderId)
+        .as("receipts");
       const rows = await tx
-        .select({ o: PO, partner: P.name, user: U.name })
+        .select({
+          o: PO,
+          partner: P.name,
+          user: U.name,
+          open: receipts.open,
+          done: receipts.done,
+          last: receipts.last,
+        })
         .from(PO)
         .innerJoin(P, eq(P.id, PO.partnerId))
         .leftJoin(U, eq(U.id, PO.userId))
+        .leftJoin(receipts, eq(receipts.po, PO.id))
         .where(and(eq(PO.companyId, ctx.companyId), range(PO.dateOrder, q)))
         .orderBy(asc(PO.dateOrder));
-      return rows.map(({ o, partner, user }) => ({
-        ...ref("purchase_order", o.id),
-        _partnerId: o.partnerId,
-        name: o.name,
-        dateOrder: o.dateOrder,
-        month: month(o.dateOrder),
-        datePlanned: o.datePlanned ?? "",
-        partner,
-        buyer: user ?? "",
-        state: PO_STATE[o.state] ?? o.state,
-        amountUntaxed: n(o.amountUntaxed),
-        amountTotal: n(o.amountTotal),
-        currency: o.currencyCode,
-        ...custom(o.custom),
-      }));
+      return rows.map(({ o, partner, user, open, done, last }) => {
+        const complete = o.state === "purchase" && Number(done ?? 0) > 0 && Number(open ?? 0) === 0 && !!last;
+        const planned = o.datePlanned ? day(o.datePlanned) : "";
+        return {
+          ...ref("purchase_order", o.id),
+          _partnerId: o.partnerId,
+          _userId: o.userId ?? "",
+          name: o.name,
+          dateOrder: o.dateOrder,
+          month: month(o.dateOrder),
+          datePlanned: o.datePlanned ?? "",
+          partner,
+          buyer: user ?? "",
+          state: PO_STATE[o.state] ?? o.state,
+          receivedDate: complete ? last! : "",
+          receivedOnTime: complete && planned ? (last! <= planned ? "Ya" : "Tidak") : "",
+          amountUntaxed: n(o.amountUntaxed),
+          amountTotal: n(o.amountTotal),
+          currency: o.currencyCode,
+          ...custom(o.custom),
+        };
+      });
     },
   };
 }
@@ -890,6 +924,7 @@ function productionOrders(): Dataset {
         col("datePlanned", "Tanggal rencana", "Order"),
         col("month", "Bulan", "Order"),
         col("dateDone", "Tanggal selesai", "Order"),
+        col("onTime", "Selesai tepat waktu", "Order"),
         col("sku", "SKU", "Produk"),
         col("product", "Produk", "Produk"),
         col("state", "Status", "Order"),
@@ -913,10 +948,13 @@ function productionOrders(): Dataset {
       return rows.map(({ o, sku, product }) => ({
         ...ref("production_order", o.id),
         _productId: o.productId,
+        _userId: o.createdBy ?? "",
         name: o.name,
         datePlanned: o.datePlanned,
         month: month(o.datePlanned),
         dateDone: day(o.dateDone),
+        onTime:
+          o.state === "done" && o.dateDone ? (day(o.dateDone) <= day(o.datePlanned) ? "Ya" : "Tidak") : "",
         sku: sku ?? "",
         product,
         state: MO_STATE[o.state] ?? o.state,
@@ -1103,6 +1141,7 @@ function maintenanceRequests(): Dataset {
         return {
           ...ref("maintenance_request", r.id),
           _equipmentId: r.equipmentId,
+          _userId: r.technicianUserId ?? "",
           _kind: r.kind,
           _done: r.state === "done" ? "1" : "",
           name: r.name,

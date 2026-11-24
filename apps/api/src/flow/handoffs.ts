@@ -15,7 +15,6 @@ import {
   businessToday,
   FLOW_DEFS,
   FLOW_PROCESSES,
-  handoffItems,
   handoffRemindSchema,
   summarizeHandoffs,
   type FlowHandoff,
@@ -63,7 +62,7 @@ export class FlowHandoffController {
       const c = currentContext().companyId;
       const processes = FLOW_PROCESSES.filter((p) => (q.process ? p === q.process : this.flow.canRead(p)));
       const all: FlowHandoff[] = [];
-      for (const p of processes) all.push(...(await this.handoffs(tx, p)));
+      for (const p of processes) all.push(...(await this.flow.handoffs(tx, p)));
       const summary = summarizeHandoffs(all);
 
       const D = schema.departments;
@@ -145,7 +144,7 @@ export class FlowHandoffController {
     const input = parse(handoffRemindSchema, body);
     this.flow.assertCanRead(input.process);
     return this.tenantDb.run(async (tx) => {
-      const [h] = await this.handoffs(tx, input.process, input.id);
+      const [h] = await this.flow.handoffs(tx, input.process, input.id);
       if (!h) throw new NotFoundException("Dokumen tidak sedang menunggu di alur bisnis");
       const ctx = currentContext();
       const model = docModel(input.process, h.model);
@@ -205,19 +204,6 @@ export class FlowHandoffController {
         title: `Pengingat: ${h.name} menunggu ${h.waiting[0].toLowerCase()}`,
       });
       return { id: comment.id, notified: comment.notified, message: text };
-    });
-  }
-
-  private async handoffs(tx: Db, process: FlowProcess, onlyId?: string) {
-    const def = FLOW_DEFS[process];
-    const items = await this.flow.items(tx, process, onlyId ? { onlyId } : {});
-    const settings = await this.flow.settings(tx, process);
-    const owners = await this.flow.owners(tx, items.map((i) => i.ownerId ?? "").filter(Boolean));
-    return handoffItems(def, onlyId ? items.filter((i) => i.id === onlyId) : items, {
-      today: businessToday(),
-      sla: settings.sla,
-      departments: settings.departments,
-      owners,
     });
   }
 

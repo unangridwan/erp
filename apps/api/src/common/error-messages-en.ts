@@ -1291,6 +1291,7 @@ export const MESSAGES_EN: Record<string, string> = {
     "A reminder for this document was already sent in the last hour",
   "Belum ada pemegang dokumen atau manajer departemen yang bisa diingatkan":
     "There is no document holder or department manager to remind yet",
+  "KPI tidak ditemukan": "KPI not found",
   // ---- Diskusi dokumen ----
   "Komentar wajib diisi": "The comment is required",
   "Orang yang disebut tidak bisa melihat dokumen ini": "A mentioned person cannot view this document",
