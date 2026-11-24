@@ -103,7 +103,15 @@ function Tooltip({
 
 /** Kolom (vertikal), batang (horizontal), garis, area — berkelompok atau bertumpuk (opsional 100%). */
 export function AxisChart(
-  props: ChartProps & { kind: "column" | "bar" | "line" | "area"; stacked?: boolean; percent?: boolean },
+  props: ChartProps & {
+    kind: "column" | "bar" | "line" | "area";
+    stacked?: boolean;
+    percent?: boolean;
+    /** Kolom + garis: indeks seri yang digambar sebagai garis. */
+    lineSeries?: number[];
+    /** Garis memakai sumbu nilai kedua (kanan). */
+    dualAxis?: boolean;
+  },
 ) {
   const { kind, categories, series } = props;
   const legend = props.showLegend ?? series.length > 1;
@@ -122,44 +130,70 @@ export function AxisChart(
       return v === null || !total ? null : (Math.abs(v) / total) * 100;
     }),
   );
+  // Kolom + garis: seri garis tidak ditumpuk; dengan sumbu kedua punya skala sendiri.
+  const lineSet = new Set(kind === "column" ? (props.lineSeries ?? []).filter((i) => i < series.length) : []);
+  const dual = lineSet.size > 0 && !!props.dualAxis;
+  const barIdx = series.map((_, i) => i).filter((i) => !lineSet.has(i));
   let min = 0;
   let max = 0;
+  let min2 = 0;
+  let max2 = 0;
   for (let ci = 0; ci < n; ci++) {
     if (stacked) {
       let pos = 0;
       let neg = 0;
-      for (const s of values) {
-        const v = s[ci] ?? 0;
+      for (const si of barIdx) {
+        const v = values[si]![ci] ?? 0;
         if (v >= 0) pos += v;
         else neg += v;
       }
       max = Math.max(max, pos);
       min = Math.min(min, neg);
     } else
-      for (const s of values) {
-        const v = s[ci];
+      for (const si of barIdx) {
+        const v = values[si]![ci];
         if (v === null || v === undefined) continue;
         max = Math.max(max, v);
         min = Math.min(min, v);
       }
+    for (const si of lineSet) {
+      const v = values[si]![ci];
+      if (v === null || v === undefined) continue;
+      if (dual) {
+        max2 = Math.max(max2, v);
+        min2 = Math.min(min2, v);
+      } else {
+        max = Math.max(max, v);
+        min = Math.min(min, v);
+      }
+    }
   }
   if (props.percent) max = 100;
   const tickVals = ticks(min, max);
   const lo = tickVals[0]!;
   const hi = tickVals[tickVals.length - 1]!;
+  const tickVals2 = dual ? ticks(min2, max2) : [];
+  const lo2 = tickVals2[0] ?? 0;
+  const hi2 = tickVals2[tickVals2.length - 1] ?? 1;
 
   const longest = Math.max(4, ...categories.map((c) => c.label.length));
   const w = box.w;
   const h = Math.max(120, box.h - (legend ? 24 : 0));
   const pad = horizontal
     ? { top: 6, right: 16, bottom: 22, left: Math.min(Math.round(w * 0.38), 12 + longest * 6.6) }
-    : { top: 10, right: 12, bottom: 24, left: 8 + Math.max(...tickVals.map((t) => fmtAxis(t).length)) * 7 };
+    : {
+        top: 10,
+        right: dual ? 10 + Math.max(...tickVals2.map((t) => fmtAxis(t).length)) * 7 : 12,
+        bottom: 24,
+        left: 8 + Math.max(...tickVals.map((t) => fmtAxis(t).length)) * 7,
+      };
   const plotW = Math.max(10, w - pad.left - pad.right);
   const plotH = Math.max(10, h - pad.top - pad.bottom);
   const span = hi - lo || 1;
   // Skala nilai (vertikal untuk kolom/garis, horizontal untuk batang).
   const vy = (v: number) => pad.top + plotH - ((v - lo) / span) * plotH;
   const vx = (v: number) => pad.left + ((v - lo) / span) * plotW;
+  const vy2 = (v: number) => pad.top + plotH - ((v - lo2) / (hi2 - lo2 || 1)) * plotH;
   const band = (horizontal ? plotH : plotW) / Math.max(1, n);
   const inner = band * (kind === "column" || kind === "bar" ? 0.72 : 1);
   const catStart = (ci: number) => (horizontal ? pad.top : pad.left) + ci * band + (band - inner) / 2;
@@ -173,11 +207,12 @@ export function AxisChart(
   const bars: ReactElement[] = [];
   const labels: ReactElement[] = [];
   if (kind === "column" || kind === "bar") {
-    const bw = stacked ? inner : inner / Math.max(1, series.length);
+    const bw = stacked ? inner : inner / Math.max(1, barIdx.length);
     for (let ci = 0; ci < n; ci++) {
       let pos = 0;
       let neg = 0;
       values.forEach((s, si) => {
+        if (lineSet.has(si)) return;
         const v = s[ci];
         if (v === null || v === undefined) return;
         let a: number;
@@ -194,7 +229,7 @@ export function AxisChart(
           a = 0;
           b = v;
         }
-        const offset = catStart(ci) + (stacked ? 0 : si * bw);
+        const offset = catStart(ci) + (stacked ? 0 : barIdx.indexOf(si) * bw);
         const rect = horizontal
           ? { x: vx(Math.min(a, b)), y: offset, width: Math.abs(vx(b) - vx(a)), height: Math.max(1, bw - 1) }
           : { x: offset, y: vy(Math.max(a, b)), width: Math.max(1, bw - 1), height: Math.abs(vy(a) - vy(b)) };
@@ -239,16 +274,20 @@ export function AxisChart(
         }
       });
     }
-  } else {
+  }
+  if (kind === "line" || kind === "area" || lineSet.size) {
     // Garis / area: titik di tengah pita kategori; area bertumpuk mengakumulasi.
     const acc = new Array<number>(n).fill(0);
+    const stackLines = stacked && kind !== "column";
     values.forEach((s, si) => {
+      if (kind === "column" && !lineSet.has(si)) return;
+      const y = dual && lineSet.has(si) ? vy2 : vy;
       const pts = s.map((v, ci) => {
         if (v === null || v === undefined) return null;
-        const base = stacked ? acc[ci]! : 0;
+        const base = stackLines ? acc[ci]! : 0;
         const top = base + v;
-        if (stacked) acc[ci] = top;
-        return { x: catCenter(ci), y: vy(top), y0: vy(base), ci, v };
+        if (stackLines) acc[ci] = top;
+        return { x: catCenter(ci), y: y(top), y0: y(base), ci, v };
       });
       const segments: { x: number; y: number; y0: number; ci: number; v: number }[][] = [];
       let cur: { x: number; y: number; y0: number; ci: number; v: number }[] = [];
@@ -272,7 +311,7 @@ export function AxisChart(
               key={`a${si}-${k}`}
               d={`${line} ${back} Z`}
               fill={color(si)}
-              opacity={stacked ? 0.55 : 0.18}
+              opacity={stackLines ? 0.55 : 0.18}
             />,
           );
         }
@@ -342,6 +381,11 @@ export function AxisChart(
             </g>
           ),
         )}
+        {tickVals2.map((t) => (
+          <text key={`r${t}`} x={w - pad.right + 6} y={vy2(t) + 4} textAnchor="start">
+            {fmtAxis(t)}
+          </text>
+        ))}
         {hover !== null &&
           (horizontal ? (
             <rect
@@ -526,6 +570,303 @@ export function PieChart(props: ChartProps & { donut?: boolean; otherLabel: stri
           </text>
         )}
       </svg>
+    </div>
+  );
+}
+
+/** Corong: batang terpusat menurun, persentase terhadap tahap pertama. */
+export function FunnelChart(props: ChartProps) {
+  const values = (props.series[0]?.values ?? []).map((v) => Math.max(0, v ?? 0));
+  const max = Math.max(1, ...values);
+  const first = values[0] || 0;
+  const highlight = props.highlight ? new Set(props.highlight) : null;
+  return (
+    <div className="viz bi-funnel" role="img" aria-label={props.ariaLabel}>
+      {props.categories.map((c, i) => {
+        const v = values[i] ?? 0;
+        return (
+          <button
+            type="button"
+            key={c.key}
+            className="bi-funnel-row"
+            disabled={!props.onSelect}
+            onClick={props.onSelect ? (e) => props.onSelect!(i, 0, e) : undefined}
+            style={{ opacity: highlight && !highlight.has(c.key) ? 0.4 : 1 }}
+            title={`${c.label}: ${props.format(props.series[0]?.values[i] ?? null)}`}
+          >
+            <span className="bi-funnel-label">{c.label}</span>
+            <span className="bi-funnel-track">
+              <span className="bi-funnel-bar" style={{ width: `${Math.max(1, (v / max) * 100)}%` }} />
+            </span>
+            <span className="bi-funnel-value">
+              {props.format(props.series[0]?.values[i] ?? null)}
+              {i > 0 && first ? <small> · {Math.round((v / first) * 1000) / 10}%</small> : null}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Pengukur setengah lingkaran: nilai terhadap min/maks, penanda target. */
+export function GaugeChart(props: {
+  value: number | null;
+  min?: number;
+  max?: number;
+  target?: number | null;
+  format: (v: number | null) => string;
+  ariaLabel: string;
+}) {
+  const box = useBoxSize<HTMLDivElement>(120, 80);
+  const value = props.value ?? 0;
+  const lo = props.min ?? 0;
+  const base = Math.max(value, props.target ?? 0, lo + 1);
+  const hi = props.max ?? ticks(lo, base * 1.1).slice(-1)[0]!;
+  const size = Math.max(120, Math.min(box.w, (box.h - 10) * 2));
+  const r = size / 2 - 12;
+  const cx = size / 2;
+  const cy = size / 2;
+  const t = (v: number) => Math.min(1, Math.max(0, (v - lo) / (hi - lo || 1)));
+  const point = (frac: number, rad: number) => {
+    const a = Math.PI * (1 - frac);
+    return [cx + rad * Math.cos(a), cy - rad * Math.sin(a)] as const;
+  };
+  const arc = (from: number, to: number) => {
+    const [x0, y0] = point(from, r);
+    const [x1, y1] = point(to, r);
+    return `M${x0},${y0} A${r},${r} 0 0 1 ${x1},${y1}`;
+  };
+  const target = props.target ?? null;
+  return (
+    <div className="viz bi-gauge" ref={box.ref}>
+      <svg
+        viewBox={`0 0 ${size} ${size / 2 + 22}`}
+        width={size}
+        height={size / 2 + 22}
+        role="img"
+        aria-label={props.ariaLabel}
+      >
+        <path d={arc(0, 1)} fill="none" stroke="var(--grid)" strokeWidth={14} strokeLinecap="butt" />
+        {value > lo && <path d={arc(0, t(value))} fill="none" stroke={color(0)} strokeWidth={14} />}
+        {target !== null &&
+          (() => {
+            const [x0, y0] = point(t(target), r - 11);
+            const [x1, y1] = point(t(target), r + 11);
+            return (
+              <line x1={x0} y1={y0} x2={x1} y2={y1} stroke="var(--fg)" strokeWidth={3}>
+                <title>{`Target: ${props.format(target)}`}</title>
+              </line>
+            );
+          })()}
+        <text x={cx} y={cy - 6} textAnchor="middle" className="gauge-value">
+          {props.format(props.value)}
+        </text>
+        <text x={cx - r} y={cy + 16} textAnchor="middle">
+          {props.format(lo)}
+        </text>
+        <text x={cx + r} y={cy + 16} textAnchor="middle">
+          {props.format(hi)}
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+/** Tata letak treemap "squarified" (Bruls dkk.): baris yang rasio aspeknya paling mendekati persegi. */
+function squarify(values: number[], box: Rect): Rect[] {
+  const out: Rect[] = new Array(values.length);
+  const total = values.reduce((s, v) => s + v, 0) || 1;
+  const scale = (box.w * box.h) / total;
+  const items = values.map((v, i) => ({ i, a: v * scale })).filter((x) => x.a > 0);
+  let rect = { ...box };
+  let row: typeof items = [];
+  const worst = (r: typeof items, side: number) => {
+    const s = r.reduce((t, x) => t + x.a, 0);
+    const mx = Math.max(...r.map((x) => x.a));
+    const mn = Math.min(...r.map((x) => x.a));
+    return Math.max((side * side * mx) / (s * s), (s * s) / (side * side * mn));
+  };
+  const layout = (r: typeof items) => {
+    const s = r.reduce((t, x) => t + x.a, 0);
+    const horizontal = rect.w >= rect.h;
+    const side = horizontal ? rect.h : rect.w;
+    const thick = s / side;
+    let off = 0;
+    for (const x of r) {
+      const len = x.a / thick;
+      out[x.i] = horizontal
+        ? { x: rect.x, y: rect.y + off, w: thick, h: len }
+        : { x: rect.x + off, y: rect.y, w: len, h: thick };
+      off += len;
+    }
+    rect = horizontal
+      ? { x: rect.x + thick, y: rect.y, w: rect.w - thick, h: rect.h }
+      : { x: rect.x, y: rect.y + thick, w: rect.w, h: rect.h - thick };
+  };
+  for (const item of items) {
+    const side = Math.min(rect.w, rect.h);
+    if (!row.length || worst([...row, item], side) <= worst(row, side)) row.push(item);
+    else {
+      layout(row);
+      row = [item];
+    }
+  }
+  if (row.length) layout(row);
+  return out;
+}
+
+/** Treemap: luas = nilai; maks. 30 petak + "Lainnya". */
+export function TreemapChart(props: ChartProps & { otherLabel: string }) {
+  const box = useBoxSize<HTMLDivElement>(120, 80);
+  const [hover, setHover] = useState<number | null>(null);
+  const raw = props.categories.map((c, i) => ({ c, i, v: Math.max(0, props.series[0]?.values[i] ?? 0) }));
+  raw.sort((a, b) => b.v - a.v);
+  const head = raw.slice(0, 29);
+  const rest = raw.slice(29);
+  const items = rest.length
+    ? [...head, { c: { key: "", label: props.otherLabel }, i: -1, v: rest.reduce((s, x) => s + x.v, 0) }]
+    : head;
+  const rects = squarify(
+    items.map((x) => x.v),
+    { x: 0, y: 0, w: box.w, h: box.h },
+  );
+  const highlight = props.highlight ? new Set(props.highlight) : null;
+  return (
+    <div className="viz bi-treemap" ref={box.ref}>
+      <svg
+        viewBox={`0 0 ${box.w} ${box.h}`}
+        width={box.w}
+        height={box.h}
+        role="img"
+        aria-label={props.ariaLabel}
+      >
+        {items.map((x, k) => {
+          const r = rects[k];
+          if (!r) return null;
+          const fits = r.w > 54 && r.h > 30;
+          return (
+            <g
+              key={k}
+              onMouseEnter={() => setHover(k)}
+              onMouseLeave={() => setHover(null)}
+              onClick={props.onSelect && x.i >= 0 ? (e) => props.onSelect!(x.i, 0, e) : undefined}
+              style={props.onSelect && x.i >= 0 ? { cursor: "pointer" } : undefined}
+              opacity={
+                highlight && (x.i < 0 || !highlight.has(x.c.key))
+                  ? 0.4
+                  : hover === null || hover === k
+                    ? 1
+                    : 0.8
+              }
+            >
+              <rect
+                x={r.x}
+                y={r.y}
+                width={Math.max(0, r.w - 2)}
+                height={Math.max(0, r.h - 2)}
+                fill={color(k)}
+                rx={3}
+              />
+              <title>{`${x.c.label}: ${props.format(x.i >= 0 ? (props.series[0]?.values[x.i] ?? null) : x.v)}`}</title>
+              {fits && (
+                <>
+                  <text x={r.x + 6} y={r.y + 16} className="treemap-label">
+                    {truncate(x.c.label, Math.floor((r.w - 10) / 7))}
+                  </text>
+                  <text x={r.x + 6} y={r.y + 30} className="treemap-label value">
+                    {(props.formatAxis ?? props.format)(x.v)}
+                  </text>
+                </>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+/** Sebar: titik per kategori, x = ukuran pertama, y = ukuran kedua, ukuran gelembung = ukuran ketiga. */
+export function ScatterChart(props: ChartProps & { xLabel: string; yLabel: string }) {
+  const box = useBoxSize<HTMLDivElement>();
+  const [hover, setHover] = useState<number | null>(null);
+  const xs = props.series[0]?.values ?? [];
+  const ys = props.series[1]?.values ?? [];
+  const sz = props.series[2]?.values;
+  const pts = props.categories
+    .map((c, i) => ({ c, i, x: xs[i], y: ys[i], s: sz?.[i] ?? null }))
+    .filter(
+      (p): p is typeof p & { x: number; y: number } =>
+        p.x !== null && p.x !== undefined && p.y !== null && p.y !== undefined,
+    );
+  const fmt = props.formatAxis ?? ((v: number) => props.format(v));
+  const tx = ticks(Math.min(0, ...pts.map((p) => p.x)), Math.max(0, ...pts.map((p) => p.x)));
+  const ty = ticks(Math.min(0, ...pts.map((p) => p.y)), Math.max(0, ...pts.map((p) => p.y)));
+  const smax = Math.max(1, ...pts.map((p) => Math.abs(p.s ?? 0)));
+  const w = box.w;
+  const h = box.h;
+  const pad = { top: 10, right: 16, bottom: 36, left: 12 + Math.max(...ty.map((t) => fmt(t).length)) * 7 };
+  const X = (v: number) =>
+    pad.left + ((v - tx[0]!) / (tx[tx.length - 1]! - tx[0]! || 1)) * (w - pad.left - pad.right);
+  const Y = (v: number) =>
+    h - pad.bottom - ((v - ty[0]!) / (ty[ty.length - 1]! - ty[0]! || 1)) * (h - pad.top - pad.bottom);
+  const highlight = props.highlight ? new Set(props.highlight) : null;
+  const hp = hover === null ? null : pts[hover];
+  return (
+    <div className="viz bi-chart" ref={box.ref}>
+      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} role="img" aria-label={props.ariaLabel}>
+        {ty.map((t) => (
+          <g key={`y${t}`}>
+            <line x1={pad.left} x2={w - pad.right} y1={Y(t)} y2={Y(t)} stroke="var(--grid)" />
+            <text x={pad.left - 6} y={Y(t) + 4} textAnchor="end">
+              {fmt(t)}
+            </text>
+          </g>
+        ))}
+        {tx.map((t) => (
+          <text key={`x${t}`} x={X(t)} y={h - pad.bottom + 16} textAnchor="middle">
+            {fmt(t)}
+          </text>
+        ))}
+        <text x={(pad.left + w - pad.right) / 2} y={h - 4} textAnchor="middle">
+          {props.xLabel}
+        </text>
+        {pts.map((p, k) => (
+          <circle
+            key={p.i}
+            cx={X(p.x)}
+            cy={Y(p.y)}
+            r={sz ? 4 + 14 * Math.sqrt(Math.abs(p.s ?? 0) / smax) : hover === k ? 6 : 4.5}
+            fill={color(0)}
+            fillOpacity={sz ? 0.55 : 0.85}
+            stroke="var(--card)"
+            opacity={highlight && !highlight.has(p.c.key) ? 0.3 : 1}
+            onMouseEnter={() => setHover(k)}
+            onMouseLeave={() => setHover(null)}
+            onClick={props.onSelect ? (e) => props.onSelect!(p.i, 0, e) : undefined}
+            style={props.onSelect ? { cursor: "pointer" } : undefined}
+          />
+        ))}
+      </svg>
+      {hp && (
+        <Tooltip
+          x={Math.min(Math.max(X(hp.x), 90), w - 90)}
+          y={Math.max(0, Y(hp.y) - 64)}
+          title={hp.c.label}
+          rows={[
+            { label: props.xLabel, value: props.format(hp.x), i: 0 },
+            { label: props.yLabel, value: props.format(hp.y), i: 1 },
+            ...(sz ? [{ label: props.series[2]!.label, value: props.format(hp.s), i: 2 }] : []),
+          ]}
+        />
+      )}
     </div>
   );
 }

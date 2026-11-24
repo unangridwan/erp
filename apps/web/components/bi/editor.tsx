@@ -32,12 +32,17 @@ export const EDITOR_VISUALS: VisualType[] = [
   "card",
   "kpi",
   "multi_card",
+  "gauge",
   "column",
   "bar",
   "line",
   "area",
+  "combo",
   "pie",
   "donut",
+  "funnel",
+  "treemap",
+  "scatter",
   "table",
   "matrix",
   "text",
@@ -55,6 +60,11 @@ const VISUAL_ICON: Partial<Record<VisualType, string>> = {
   table: "▦",
   matrix: "⊞",
   text: "T",
+  gauge: "◠",
+  combo: "▮∿",
+  funnel: "⏷",
+  treemap: "▤",
+  scatter: "⁘",
 };
 const SINGLE: VisualType[] = ["card", "kpi", "multi_card", "gauge"];
 /** Ukuran awal visual baru (kolom × baris grid). */
@@ -380,11 +390,13 @@ export function VisualPane({
     );
   };
   const axisTitle =
-    visual.type === "table"
-      ? l("Kelompok (baris)", "Group by (rows)")
-      : visual.type === "matrix"
-        ? l("Baris", "Rows")
-        : l("Sumbu", "Axis");
+    visual.type === "scatter"
+      ? l("Detail (satu titik per nilai)", "Details (one point per value)")
+      : visual.type === "table"
+        ? l("Kelompok (baris)", "Group by (rows)")
+        : visual.type === "matrix"
+          ? l("Baris", "Rows")
+          : l("Sumbu", "Axis");
   const measureIds = visual.values.map((m) => m.id);
 
   return (
@@ -518,22 +530,29 @@ export function VisualPane({
                   )}
                 </Well>
               )}
-              {!single && visual.type !== "table" && visual.type !== "pie" && visual.type !== "donut" && (
-                <Well
-                  title={visual.type === "matrix" ? l("Kolom", "Columns") : l("Legenda", "Legend")}
-                  hint={l("Satu kolom untuk memecah seri", "One field to split series")}
-                  onDropField={(f) => onChange(addField(visual, f, "legend"))}
-                >
-                  {visual.legend && (
-                    <Chip onRemove={() => set({ legend: null })}>
-                      <span>{fieldLabel(visual.legend)}</span>
-                      {levelSelect(visual.legend, (nf) => set({ legend: nf }))}
-                    </Chip>
-                  )}
-                </Well>
-              )}
+              {!single &&
+                !["table", "pie", "donut", "funnel", "treemap", "scatter"].includes(visual.type) && (
+                  <Well
+                    title={visual.type === "matrix" ? l("Kolom", "Columns") : l("Legenda", "Legend")}
+                    hint={l("Satu kolom untuk memecah seri", "One field to split series")}
+                    onDropField={(f) => onChange(addField(visual, f, "legend"))}
+                  >
+                    {visual.legend && (
+                      <Chip onRemove={() => set({ legend: null })}>
+                        <span>{fieldLabel(visual.legend)}</span>
+                        {levelSelect(visual.legend, (nf) => set({ legend: nf }))}
+                      </Chip>
+                    )}
+                  </Well>
+                )}
               <Well
-                title={l("Nilai", "Values")}
+                title={
+                  visual.type === "scatter"
+                    ? l("Nilai: X, Y, ukuran titik", "Values: X, Y, bubble size")
+                    : visual.type === "gauge"
+                      ? l("Nilai (kedua = target)", "Value (second = target)")
+                      : l("Nilai", "Values")
+                }
                 hint={l("Seret kolom angka ke sini", "Drop a numeric field here")}
                 onDropField={(f) => onChange(addField(visual, f, "values"))}
               >
@@ -668,6 +687,111 @@ export function VisualPane({
                 />
               </label>
             </>
+          )}
+          {visual.type === "combo" && (
+            <>
+              <fieldset className="bi-fieldset">
+                <legend>{l("Digambar sebagai garis", "Drawn as lines")}</legend>
+                {visual.values
+                  .filter((m) => !m.hidden)
+                  .map((m, i, arr) => {
+                    const chosen = visual.options.lineMeasures ?? [];
+                    const checked = chosen.length ? chosen.includes(m.id) : i === arr.length - 1 && i > 0;
+                    return (
+                      <label key={m.id} className="field check">
+                        <span>
+                          {m.label ||
+                            (m.column === "*" ? l("Banyaknya data", "Row count") : header(m.column ?? m.id))}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const base = chosen.length
+                              ? chosen
+                              : arr.filter((_, j) => j === arr.length - 1 && j > 0).map((x) => x.id);
+                            setOpt({
+                              lineMeasures: e.target.checked
+                                ? [...base, m.id]
+                                : base.filter((x) => x !== m.id),
+                            });
+                          }}
+                        />
+                      </label>
+                    );
+                  })}
+              </fieldset>
+              <label className="field check">
+                <span>{l("Garis pada sumbu kedua (kanan)", "Lines on a secondary (right) axis")}</span>
+                <input
+                  type="checkbox"
+                  checked={!!visual.options.secondaryAxis}
+                  onChange={(e) => setOpt({ secondaryAxis: e.target.checked })}
+                />
+              </label>
+              <label className="field check">
+                <span>{l("Kolom bertumpuk", "Stacked columns")}</span>
+                <input
+                  type="checkbox"
+                  checked={!!visual.options.stacked}
+                  onChange={(e) => setOpt({ stacked: e.target.checked })}
+                />
+              </label>
+            </>
+          )}
+          {visual.type === "gauge" &&
+            (["min", "max", "target"] as const).map((k) => (
+              <label key={k} className="field">
+                <span>
+                  {
+                    {
+                      min: l("Minimum", "Minimum"),
+                      max: l("Maksimum", "Maximum"),
+                      target: l("Target", "Target"),
+                    }[k]
+                  }
+                </span>
+                <input
+                  inputMode="decimal"
+                  value={visual.options[k] ?? ""}
+                  placeholder={l("Otomatis", "Auto")}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/[^\d.-]/g, "");
+                    setOpt({ [k]: v === "" ? undefined : Number(v) });
+                  }}
+                />
+              </label>
+            ))}
+          {(visual.type === "table" || visual.type === "matrix") && visual.values.some((m) => !m.hidden) && (
+            <fieldset className="bi-fieldset">
+              <legend>{l("Format bersyarat", "Conditional formatting")}</legend>
+              {visual.values
+                .filter((m) => !m.hidden)
+                .map((m) => {
+                  const rule = (visual.options.conditional ?? []).find((c) => c.measure === m.id);
+                  return (
+                    <label key={m.id} className="field">
+                      <span>
+                        {m.label ||
+                          (m.column === "*" ? l("Banyaknya data", "Row count") : header(m.column ?? m.id))}
+                      </span>
+                      <select
+                        value={rule?.kind ?? ""}
+                        onChange={(e) => {
+                          const rest = (visual.options.conditional ?? []).filter((c) => c.measure !== m.id);
+                          const kind = e.target.value as "scale" | "bar" | "icon" | "";
+                          setOpt({ conditional: kind ? [...rest, { measure: m.id, kind }] : rest });
+                        }}
+                      >
+                        <option value="">{l("Tidak ada", "None")}</option>
+                        <option value="scale">{l("Skala warna", "Color scale")}</option>
+                        <option value="bar">{l("Bar data", "Data bars")}</option>
+                        <option value="icon">{l("Ikon naik/turun", "Up/down icons")}</option>
+                      </select>
+                    </label>
+                  );
+                })}
+            </fieldset>
           )}
           {visual.type !== "text" && !visual.reportId && (
             <>

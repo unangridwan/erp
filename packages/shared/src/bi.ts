@@ -180,6 +180,8 @@ export const biVisualOptionsSchema = z
     target: z.number(),
     /** Kolom + garis: id ukuran yang digambar sebagai garis. */
     lineMeasures: z.array(z.string().max(40)).max(10),
+    /** Kolom + garis: garis memakai sumbu nilai kedua. */
+    secondaryAxis: z.boolean(),
     compare: z.enum(["none", "prev_period", "last_year"]),
     slicer: z.enum(["list", "dropdown", "range"]),
     conditional: z
