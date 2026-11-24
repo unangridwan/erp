@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api, session } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
@@ -37,7 +38,7 @@ export default function OAuthLogoutPage() {
         {done ? (
           <>
             <p>{l("Anda sudah keluar dari ERP.", "You have signed out of the ERP.")}</p>
-            <a href="/login">{l("Masuk lagi", "Sign in again")}</a>
+            <Link href="/login">{l("Masuk lagi", "Sign in again")}</Link>
           </>
         ) : (
           <p className="muted">{l("Memproses…", "Signing you out…")}</p>
