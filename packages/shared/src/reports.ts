@@ -146,7 +146,11 @@ export function normalizeConditionDate(raw: string): string {
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}/;
 
-function matches(value: unknown, op: ReportOperator, target: string, numeric: boolean) {
+/** Nilai sel laporan sebagai angka (NaN bila kosong/bukan angka). */
+export const reportNumber = (v: unknown) => toNumber(v);
+
+/** Cocokkan satu nilai dengan syarat laporan (dipakai juga oleh mesin BI). */
+export function matchesCondition(value: unknown, op: ReportOperator, target: string, numeric: boolean) {
   if (op === "empty") return isEmpty(value);
   if (op === "notEmpty") return !isEmpty(value);
   if (numeric && op !== "contains") {
@@ -214,7 +218,9 @@ export function runReport(
   const conds = config.conditions
     .filter((c) => c.op === "empty" || c.op === "notEmpty" || c.value.trim() !== "")
     .map((c) => ({ ...c, col: need(c.column) }));
-  let rows = data.filter((r) => conds.every((c) => matches(r[c.column], c.op, c.value, !!c.col.numeric)));
+  let rows = data.filter((r) =>
+    conds.every((c) => matchesCondition(r[c.column], c.op, c.value, !!c.col.numeric)),
+  );
 
   let columns: ReportColumn[];
   if (config.groupBy.length || config.aggregates.length) {

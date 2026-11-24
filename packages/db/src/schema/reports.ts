@@ -64,6 +64,8 @@ export const dashboards = pgTable("dashboards", {
     .notNull()
     .default("private"),
   widgets: jsonb("widgets").$type<Record<string, unknown>[]>().notNull().default([]),
+  /** Dokumen BI v2 (halaman, visual, filter); null = dashboard lama berbasis `widgets`. */
+  document: jsonb("document").$type<Record<string, unknown>>(),
   ...audit,
 });
 

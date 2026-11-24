@@ -18,12 +18,17 @@ import { and, asc, eq, or, schema, sql, type Db } from "@erp/db";
 import {
   BUILTIN_DASHBOARDS,
   builtinDashboard,
+  builtinDocument,
+  dashboardInputSchema,
+  documentErrors,
+  documentVisuals,
+  legacyToDocument,
+  type BiDocument,
   businessToday,
   changePercent,
   comparisonRange,
   dashboardPinsSchema,
   dashboardRunSchema,
-  dashboardSchema,
   kpiValue,
   type DashboardWidget,
   type ReportConfig,
@@ -33,6 +38,8 @@ import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { ReportDatasets } from "./report-datasets.js";
+import { BiController } from "./bi.controller.js";
+import { dashboardDocument, findDashboard } from "./dashboard-store.js";
 import { ReportsModule, ReportsService } from "./reports.module.js";
 
 const D = schema.dashboards;
@@ -97,7 +104,9 @@ export class DashboardsController {
           name: r.d.name,
           description: r.d.description,
           visibility: r.d.visibility,
-          widgets: (r.d.widgets as unknown[]).length,
+          widgets: r.d.document
+            ? documentVisuals(dashboardDocument(r.d)).length
+            : (r.d.widgets as unknown[]).length,
           ownerName: r.ownerName,
           mine: r.d.ownerId === ctx.userId,
           updatedAt: r.d.updatedAt,
@@ -111,22 +120,28 @@ export class DashboardsController {
   builtin(@Param("key") key: string) {
     const d = builtinDashboard(key);
     if (!d) throw new NotFoundException("Dashboard tidak ditemukan");
-    return { ...d, builtin: true, widgets: d.widgets.map((w) => ({ ...w, hidden: !this.readable(w) })) };
+    return {
+      ...d,
+      builtin: true,
+      widgets: d.widgets.map((w) => ({ ...w, hidden: !this.readable(w) })),
+      document: builtinDocument(key),
+    };
   }
 
   @Get("dashboards/:id")
   get(@Param("id", ParseUUIDPipe) id: string) {
     return this.tenantDb.run(async (tx) => {
       const d = await this.find(tx, id);
-      return { ...d, mine: d.ownerId === currentContext().userId };
+      return { ...d, document: dashboardDocument(d), mine: d.ownerId === currentContext().userId };
     });
   }
 
   @Post("dashboards")
   create(@Body() body: unknown) {
-    const input = parse(dashboardSchema, body);
+    const input = parse(dashboardInputSchema, body);
     return this.tenantDb.run(async (tx) => {
       await this.assertWidgets(tx, input.widgets);
+      if (input.document) await this.assertDocument(tx, input.document);
       const ctx = currentContext();
       const [row] = await tx
         .insert(D)
@@ -137,6 +152,7 @@ export class DashboardsController {
           description: input.description ?? null,
           visibility: input.visibility,
           widgets: input.widgets,
+          document: input.document ?? null,
         })
         .returning();
       return row!;
@@ -145,10 +161,11 @@ export class DashboardsController {
 
   @Patch("dashboards/:id")
   update(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
-    const input = parse(dashboardSchema, body);
+    const input = parse(dashboardInputSchema, body);
     return this.tenantDb.run(async (tx) => {
       await this.find(tx, id, true);
       await this.assertWidgets(tx, input.widgets);
+      if (input.document) await this.assertDocument(tx, input.document);
       const [row] = await tx
         .update(D)
         .set({
@@ -156,6 +173,8 @@ export class DashboardsController {
           description: input.description ?? null,
           visibility: input.visibility,
           widgets: input.widgets,
+          // Dokumen tidak dikirim = tetap (klien lama yang hanya mengubah widget tidak menghapus dokumen).
+          ...(input.document !== undefined ? { document: input.document } : {}),
           updatedAt: sql`now()`,
         })
         .where(eq(D.id, id))
@@ -181,15 +200,18 @@ export class DashboardsController {
     return this.tenantDb.run(async (tx) => {
       let name: string;
       let widgets: DashboardWidget[];
+      let document: BiDocument | null;
       if (input.builtin) {
         const b = builtinDashboard(input.builtin);
         if (!b) throw new NotFoundException("Dashboard tidak ditemukan");
         name = b.name[0];
         widgets = b.widgets.filter((w) => this.readable(w));
+        document = legacyToDocument(widgets, b.period);
       } else {
         const d = await this.find(tx, input.dashboardId!);
         name = d.name;
         widgets = d.widgets as DashboardWidget[];
+        document = d.document ? dashboardDocument(d) : null;
       }
       const ctx = currentContext();
       const [row] = await tx
@@ -200,6 +222,7 @@ export class DashboardsController {
           name: input.name?.trim() || `${name} (salinan)`,
           visibility: "private",
           widgets,
+          document,
         })
         .returning();
       return row!;
@@ -353,6 +376,29 @@ export class DashboardsController {
     }
   }
 
+  /** Dokumen v2: id unik, rumus valid, dataset & laporan sumber ada. */
+  private async assertDocument(tx: Db, doc: BiDocument) {
+    const errors = documentErrors(doc);
+    doc.pages.forEach((p, pi) =>
+      p.visuals.forEach((v, vi) => {
+        if (v.dataset && !this.datasets.exists(v.dataset))
+          errors.push({
+            path: `document.pages.${pi}.visuals.${vi}.dataset`,
+            message: "Dataset tidak ditemukan",
+          });
+      }),
+    );
+    if (errors.length)
+      throw new BadRequestException({
+        message: "Validasi gagal",
+        errors: errors.map((e) => ({
+          ...e,
+          path: e.path.startsWith("document.") ? e.path : `document.${e.path}`,
+        })),
+      });
+    for (const v of documentVisuals(doc)) if (v.reportId) await this.reports.find(tx, v.reportId);
+  }
+
   private async pins(tx: Db) {
     const ctx = currentContext();
     const rows = await tx
@@ -363,17 +409,10 @@ export class DashboardsController {
     return rows.map((r) => r.ref);
   }
 
-  private async find(tx: Db, id: string, owner = false) {
-    const ctx = currentContext();
-    const [row] = await tx
-      .select()
-      .from(D)
-      .where(and(eq(D.id, id), eq(D.companyId, ctx.companyId)));
-    if (!row || (row.ownerId !== ctx.userId && (owner || row.visibility !== "shared")))
-      throw new NotFoundException("Dashboard tidak ditemukan");
-    return row;
+  private find(tx: Db, id: string, owner = false) {
+    return findDashboard(tx, id, owner);
   }
 }
 
-@Module({ imports: [ReportsModule], controllers: [DashboardsController] })
+@Module({ imports: [ReportsModule], controllers: [DashboardsController, BiController] })
 export class DashboardsModule {}
