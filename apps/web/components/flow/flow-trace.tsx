@@ -56,6 +56,7 @@ const ACTION: Record<string, [string, string]> = {
   update: ["mengubah", "updated"],
   delete: ["menghapus", "deleted"],
   comment: ["mencatat", "noted"],
+  message: ["menulis", "wrote"],
 };
 
 /** Jejak satu dokumen sepanjang alur bisnisnya: tahap & lamanya, dokumen terkait, siapa melakukan apa & kapan. */
@@ -167,7 +168,11 @@ export function FlowTrace({ model, id, onClose }: { model: RecordModel; id: stri
                   <span className="muted small">{time(e.at)}</span>{" "}
                   <strong>{e.user ?? l("Sistem", "System")}</strong>{" "}
                   {l(...(ACTION[e.action] ?? [e.action, e.action]))} {e.name}
-                  {e.message && <span className="muted"> — {e.message}</span>}
+                  {e.message && (
+                    <span className={e.action === "message" ? undefined : "muted"}>
+                      {e.action === "message" ? `: “${e.message}”` : ` — ${e.message}`}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

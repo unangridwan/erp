@@ -13,6 +13,7 @@ interface Row {
   defaultSlaDays: number | null;
   slaDays: number | null;
   departmentId: string | null;
+  autoDepartmentId: string | null;
   final: boolean;
 }
 
@@ -84,8 +85,8 @@ export default function FlowSettingsPage() {
       </header>
       <p className="muted">
         {l(
-          "Batas waktu (hari) tiap tahap menentukan kapan dokumen dianggap berisiko (≥ 80%) atau terlambat. Bila dokumen punya batas sendiri (jadwal kirim, jatuh tempo), batas dokumen yang dipakai. Departemen penanggung jawab dipakai di papan serah terima.",
-          "Each stage's time limit (days) decides when a document is at risk (≥ 80%) or late. When a document has its own deadline (delivery date, due date), that deadline is used instead. The responsible department is used on the handoff board.",
+          "Batas waktu (hari) tiap tahap menentukan kapan dokumen dianggap berisiko (≥ 80%) atau terlambat. Bila dokumen punya batas sendiri (jadwal kirim, jatuh tempo), batas dokumen yang dipakai. Departemen penanggung jawab dipakai di papan serah terima; bila kosong, dicocokkan otomatis dari nama departemen.",
+          "Each stage's time limit (days) decides when a document is at risk (≥ 80%) or late. When a document has its own deadline (delivery date, due date), that deadline is used instead. The responsible department is used on the handoff board; when empty, it is matched from department names.",
         )}
       </p>
       <div className="tabs" role="tablist">
@@ -154,7 +155,14 @@ export default function FlowSettingsPage() {
                         )
                       }
                     >
-                      <option value="">—</option>
+                      <option value="">
+                        {r.autoDepartmentId
+                          ? l(
+                              `Otomatis: ${departments.find((d) => d.id === r.autoDepartmentId)?.name ?? "—"}`,
+                              `Automatic: ${departments.find((d) => d.id === r.autoDepartmentId)?.name ?? "—"}`,
+                            )
+                          : "—"}
+                      </option>
                       {departments.map((d) => (
                         <option key={d.id} value={d.id}>
                           {d.name}

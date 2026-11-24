@@ -1286,6 +1286,14 @@ export const MESSAGES_EN: Record<string, string> = {
   // ---- Alur bisnis ----
   "Proses tidak ditemukan": "Process not found",
   "Dokumen tidak berada dalam alur bisnis": "The document is not part of a business flow",
+  "Dokumen tidak sedang menunggu di alur bisnis": "The document is not waiting in a business flow",
+  "Pengingat untuk dokumen ini sudah dikirim dalam 1 jam terakhir":
+    "A reminder for this document was already sent in the last hour",
+  "Belum ada pemegang dokumen atau manajer departemen yang bisa diingatkan":
+    "There is no document holder or department manager to remind yet",
+  // ---- Diskusi dokumen ----
+  "Komentar wajib diisi": "The comment is required",
+  "Orang yang disebut tidak bisa melihat dokumen ini": "A mentioned person cannot view this document",
   // ---- BI v2 (kanvas, visual, rumus) ----
   "Pilih data untuk visual": "Choose data for the visual",
   "Nama halaman wajib diisi": "The page name is required",
