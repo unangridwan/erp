@@ -115,6 +115,47 @@ export class ReportsService {
     );
   }
 
+  /**
+   * Baris & kolom dataset untuk user aktif: filter dataset divalidasi, hak kolom sensitif dicek untuk kolom yang
+   * dirujuk. Dipakai laporan, dashboard, dan mesin BI.
+   */
+  async load(
+    tx: Db,
+    datasetKey: string,
+    params: Record<string, string>,
+    referenced: string[],
+  ): Promise<{
+    rows: Record<string, unknown>[];
+    columns: { key: string; header: string; numeric?: boolean }[];
+    title: string;
+    /** Kolom sensitif yang tidak boleh dilihat user ini. */
+    restricted: string[];
+  }> {
+    const d = this.registry.get(datasetKey);
+    const filters = { ...params };
+    validateFilters(d.filters ?? [], filters);
+    if (d.needsRun && (filters.runId === "latest" || !filters.runId))
+      filters.runId = await this.registry.latestRunId(tx);
+    const ctx = await this.registry.ctx(tx, d, filters.runId);
+    const all = await d.columns(tx, ctx);
+    const visible = all.filter((c) => !c.sensitive || ctx.manage);
+    if (referenced.some((k) => all.some((c) => c.key === k && c.sensitive) && !ctx.manage))
+      throw new ForbiddenException("Kolom data pribadi hanya untuk pemegang hak kelola");
+    let rows: Record<string, unknown>[];
+    try {
+      rows = await d.rows(tx, ctx, filters);
+    } catch (e) {
+      if (e instanceof RowError) throw new BadRequestException(e.message);
+      throw e;
+    }
+    return {
+      rows,
+      columns: visible.map((c) => ({ key: c.key, header: c.header, numeric: c.numeric })),
+      title: d.label,
+      restricted: all.filter((c) => c.sensitive && !ctx.manage).map((c) => c.key),
+    };
+  }
+
   private async compute(
     tx: Db,
     datasetKey: string,
@@ -125,14 +166,6 @@ export class ReportsService {
       columns: { key: string; header: string; numeric?: boolean }[],
     ) => ReportResult,
   ): Promise<ReportResult & { title: string }> {
-    const d = this.registry.get(datasetKey);
-    const filters = { ...config.filters };
-    validateFilters(d.filters ?? [], filters);
-    if (d.needsRun && (filters.runId === "latest" || !filters.runId))
-      filters.runId = await this.registry.latestRunId(tx);
-    const ctx = await this.registry.ctx(tx, d, filters.runId);
-    const all = await d.columns(tx, ctx);
-    const visible = all.filter((c) => !c.sensitive || ctx.manage);
     const referenced = [
       ...config.columns,
       ...config.conditions.map((c) => c.column),
@@ -140,23 +173,9 @@ export class ReportsService {
       ...config.aggregates.map((a) => a.column).filter((c) => c !== "*"),
       ...extraKeys,
     ];
-    if (referenced.some((k) => all.some((c) => c.key === k && c.sensitive) && !ctx.manage))
-      throw new ForbiddenException("Kolom data pribadi hanya untuk pemegang hak kelola");
-    let rows: Record<string, unknown>[];
+    const { rows, columns, title } = await this.load(tx, datasetKey, config.filters, referenced);
     try {
-      rows = await d.rows(tx, ctx, filters);
-    } catch (e) {
-      if (e instanceof RowError) throw new BadRequestException(e.message);
-      throw e;
-    }
-    try {
-      return {
-        ...run(
-          rows,
-          visible.map((c) => ({ key: c.key, header: c.header, numeric: c.numeric })),
-        ),
-        title: d.label,
-      };
+      return { ...run(rows, columns), title };
     } catch (e) {
       throw new BadRequestException(e instanceof Error ? e.message : String(e));
     }
