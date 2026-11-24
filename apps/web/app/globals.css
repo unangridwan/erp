@@ -1600,7 +1600,8 @@ code.wrap {
 }
 
 /* ---- Grafik (dashboard HR): slot kategorikal tervalidasi untuk permukaan kartu terang & gelap ---- */
-.viz {
+.viz,
+.bi-table {
   --series-1: #2a78d6;
   --series-2: #eb6834;
   --series-3: #1baf7a;
@@ -1611,7 +1612,8 @@ code.wrap {
   position: relative;
 }
 @media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) .viz {
+  :root:where(:not([data-theme="light"])) .viz,
+  :root:where(:not([data-theme="light"])) .bi-table {
     --series-1: #3987e5;
     --series-2: #d95926;
     --series-3: #199e70;
@@ -1620,7 +1622,8 @@ code.wrap {
     --series-6: #008300;
   }
 }
-:root[data-theme="dark"] .viz {
+:root[data-theme="dark"] .viz,
+:root[data-theme="dark"] .bi-table {
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-3: #199e70;
@@ -4432,11 +4435,11 @@ button.bi-field.numeric span {
   position: relative;
 }
 .bi-chart .data-label {
-  fill: var(--text);
+  fill: var(--fg);
   font-size: 11px;
 }
 .bi-chart .pie-total {
-  fill: var(--text);
+  fill: var(--fg);
   font-size: 14px;
   font-weight: 600;
 }
@@ -4481,6 +4484,16 @@ button.bi-expand {
   display: inline-block;
   width: 22px;
 }
+/* Tabel di visual: lebih rapat; kolom teks pertama boleh terbungkus agar angka tetap terlihat. */
+.bi-table th,
+.bi-table td {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.bi-table tbody td:first-child {
+  white-space: normal;
+  min-width: 120px;
+}
 .bi-table tfoot td {
   font-weight: 600;
   border-top: 2px solid var(--border-strong);
@@ -4509,6 +4522,229 @@ button.bi-expand {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+}
+.bi-funnel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: auto;
+}
+button.bi-funnel-row {
+  display: grid;
+  grid-template-columns: minmax(70px, 28%) 1fr auto;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: none;
+  padding: 2px 0;
+  font-size: 12px;
+  text-align: left;
+  color: inherit;
+}
+button.bi-funnel-row:enabled {
+  cursor: pointer;
+}
+.bi-funnel-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bi-funnel-track {
+  display: flex;
+  justify-content: center;
+}
+.bi-funnel-bar {
+  display: block;
+  height: 18px;
+  background: var(--series-1);
+  border-radius: 3px;
+}
+.bi-funnel-value {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bi-gauge {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+.bi-gauge .gauge-value {
+  fill: var(--accent-text);
+  font-size: 22px;
+  font-weight: 600;
+}
+.bi-treemap {
+  flex: 1;
+  min-height: 0;
+}
+.bi-treemap .treemap-label {
+  fill: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.bi-treemap .treemap-label.value {
+  font-weight: 400;
+}
+.bi-fieldset {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bi-fieldset legend {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0 4px;
+}
+.bi-icon.up {
+  color: var(--ok);
+}
+.bi-icon.down {
+  color: var(--danger);
+}
+.bi-visual-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+.bi-visual:hover .bi-visual-actions,
+.bi-visual:focus-within .bi-visual-actions {
+  opacity: 1;
+}
+.bi-visual-actions button {
+  min-width: 22px;
+  padding: 0 3px;
+  font-size: 14px;
+  line-height: 1.2;
+}
+.bi-visual-actions button.on {
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-radius: 4px;
+}
+.bi-visual-actions button:disabled {
+  opacity: 0.35;
+}
+@media (hover: none) {
+  .bi-visual-actions {
+    opacity: 1;
+  }
+}
+.bi-drill-path {
+  margin: 0;
+}
+.bi-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+.bi-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 999px;
+  padding: 2px 4px 2px 10px;
+  font-size: 13px;
+}
+.bi-slicer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  flex: 1;
+}
+.bi-slicer.list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+.bi-slicer.list li label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 2px 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+.bi-slicer.range {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.bi-slicer.range .field {
+  flex: 1 1 120px;
+}
+.bi-focus {
+  height: 65vh;
+  display: flex;
+  flex-direction: column;
+}
+.bi-focus > .bi-chart,
+.bi-focus > .bi-table,
+.bi-focus > .viz {
+  flex: 1;
+  min-height: 0;
+}
+.bi-formula {
+  position: relative;
+}
+.bi-formula textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+.bi-formula textarea[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.bi-suggest {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  max-height: 160px;
+  overflow: auto;
+}
+.bi-formula-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.bi-pane .chip-btn {
+  border: 1px solid var(--border);
+  background: var(--hover);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  min-height: 0;
+  width: auto;
+}
+.bi-quick {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.bi-quick-actions {
+  display: flex;
+  gap: 6px;
 }
 .bi-pinned {
   display: grid;

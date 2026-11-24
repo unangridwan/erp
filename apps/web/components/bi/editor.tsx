@@ -1,7 +1,11 @@
 "use client";
 
 import {
+  biMeasureSchema,
   BI_AGGREGATE_LABEL,
+  FORMULA_FUNCTIONS,
+  formulaRefs,
+  parseFormula,
   BI_FILTER_OPS,
   DATE_LEVEL_LABEL,
   REPORT_OPERATOR_LABEL,
@@ -21,7 +25,7 @@ import {
   type ValueFormat,
   type VisualType,
 } from "@erp/shared";
-import { useMemo, useState, type DragEvent, type ReactNode } from "react";
+import { useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { DATE_LEVEL_ORDER, isDateColumn, isMonthColumn, type BiDatasetInfo } from "../../lib/bi-format";
 import { DATASET_APPS } from "../../lib/bi";
 import { useI18n } from "../../lib/i18n";
@@ -32,14 +36,20 @@ export const EDITOR_VISUALS: VisualType[] = [
   "card",
   "kpi",
   "multi_card",
+  "gauge",
   "column",
   "bar",
   "line",
   "area",
+  "combo",
   "pie",
   "donut",
+  "funnel",
+  "treemap",
+  "scatter",
   "table",
   "matrix",
+  "slicer",
   "text",
 ];
 const VISUAL_ICON: Partial<Record<VisualType, string>> = {
@@ -55,6 +65,12 @@ const VISUAL_ICON: Partial<Record<VisualType, string>> = {
   table: "▦",
   matrix: "⊞",
   text: "T",
+  gauge: "◠",
+  combo: "▮∿",
+  funnel: "⏷",
+  treemap: "▤",
+  scatter: "⁘",
+  slicer: "☑",
 };
 const SINGLE: VisualType[] = ["card", "kpi", "multi_card", "gauge"];
 /** Ukuran awal visual baru (kolom × baris grid). */
@@ -78,6 +94,16 @@ export const DEFAULT_SIZE: Record<VisualType, [number, number]> = {
   slicer: [3, 5],
   text: [4, 3],
 };
+
+/** Ukuran baru dengan nilai bawaan skema. */
+export const newMeasure = (p: Partial<BiMeasure>): BiMeasure =>
+  biMeasureSchema.parse({ id: newId("m"), ...p });
+/** Nama ukuran seperti di mesin (dipakai rumus): label, atau "Jumlah <kolom>". */
+export const measureName = (m: BiMeasure, header: (key: string) => string) =>
+  m.label ||
+  (m.formula !== null && m.formula !== undefined
+    ? m.id
+    : `${BI_AGGREGATE_LABEL[m.fn][0]} ${!m.column || m.column === "*" ? "data" : header(m.column)}`);
 
 export const newId = (prefix = "v") =>
   `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -106,16 +132,15 @@ export function addField(
   f: FieldDrag,
   well?: "axis" | "legend" | "values" | "columns",
 ): BiVisual {
-  const target = well ?? (f.numeric ? "values" : SINGLE.includes(v.type) ? "values" : "axis");
+  const target =
+    well ??
+    (v.type === "slicer" ? "axis" : f.numeric ? "values" : SINGLE.includes(v.type) ? "values" : "axis");
   if (target === "values") {
     const id = newId("m");
     const fn: BiAggregate = f.numeric ? "sum" : "count";
     return {
       ...v,
-      values: [
-        ...v.values,
-        { id, label: "", column: f.column, fn, showAs: "value", format: "auto", hidden: false },
-      ],
+      values: [...v.values, newMeasure({ id, column: f.column, fn })],
     };
   }
   if (target === "columns")
@@ -123,6 +148,7 @@ export function addField(
   // Kolom tanggal tanpa level dipilih → per bulan (level lain bisa diganti/ditambah di kotak isian).
   const fields: BiField[] = [{ column: f.column, level: f.level ?? (f.date ? "month" : null) }];
   if (target === "legend") return { ...v, legend: fields[fields.length > 1 ? 1 : 0] };
+  if (v.type === "slicer") return { ...v, axis: fields.slice(0, 1) };
   const axis = [
     ...v.axis,
     ...fields.filter((x) => !v.axis.some((a) => a.column === x.column && a.level === x.level)),
@@ -380,11 +406,15 @@ export function VisualPane({
     );
   };
   const axisTitle =
-    visual.type === "table"
-      ? l("Kelompok (baris)", "Group by (rows)")
-      : visual.type === "matrix"
-        ? l("Baris", "Rows")
-        : l("Sumbu", "Axis");
+    visual.type === "slicer"
+      ? l("Kolom slicer", "Slicer field")
+      : visual.type === "scatter"
+        ? l("Detail (satu titik per nilai)", "Details (one point per value)")
+        : visual.type === "table"
+          ? l("Kelompok (baris)", "Group by (rows)")
+          : visual.type === "matrix"
+            ? l("Baris", "Rows")
+            : l("Sumbu", "Axis");
   const measureIds = visual.values.map((m) => m.id);
 
   return (
@@ -518,85 +548,94 @@ export function VisualPane({
                   )}
                 </Well>
               )}
-              {!single && visual.type !== "table" && visual.type !== "pie" && visual.type !== "donut" && (
-                <Well
-                  title={visual.type === "matrix" ? l("Kolom", "Columns") : l("Legenda", "Legend")}
-                  hint={l("Satu kolom untuk memecah seri", "One field to split series")}
-                  onDropField={(f) => onChange(addField(visual, f, "legend"))}
-                >
-                  {visual.legend && (
-                    <Chip onRemove={() => set({ legend: null })}>
-                      <span>{fieldLabel(visual.legend)}</span>
-                      {levelSelect(visual.legend, (nf) => set({ legend: nf }))}
-                    </Chip>
-                  )}
-                </Well>
+              {!single &&
+                !["table", "pie", "donut", "funnel", "treemap", "scatter", "slicer"].includes(
+                  visual.type,
+                ) && (
+                  <Well
+                    title={visual.type === "matrix" ? l("Kolom", "Columns") : l("Legenda", "Legend")}
+                    hint={l("Satu kolom untuk memecah seri", "One field to split series")}
+                    onDropField={(f) => onChange(addField(visual, f, "legend"))}
+                  >
+                    {visual.legend && (
+                      <Chip onRemove={() => set({ legend: null })}>
+                        <span>{fieldLabel(visual.legend)}</span>
+                        {levelSelect(visual.legend, (nf) => set({ legend: nf }))}
+                      </Chip>
+                    )}
+                  </Well>
+                )}
+              {visual.type !== "slicer" && (
+                <>
+                  <Well
+                    title={
+                      visual.type === "scatter"
+                        ? l("Nilai: X, Y, ukuran titik", "Values: X, Y, bubble size")
+                        : visual.type === "gauge"
+                          ? l("Nilai (kedua = target)", "Value (second = target)")
+                          : l("Nilai", "Values")
+                    }
+                    hint={l("Seret kolom angka ke sini", "Drop a numeric field here")}
+                    onDropField={(f) => onChange(addField(visual, f, "values"))}
+                  >
+                    {visual.values.map((m, i) => (
+                      <MeasureChip
+                        key={m.id}
+                        m={m}
+                        names={visual.values.filter((x) => x.id !== m.id).map((x) => measureName(x, header))}
+                        columns={ds?.columns ?? []}
+                        header={m.column === "*" ? l("data", "rows") : header(m.column ?? "")}
+                        numeric={!!colInfo(m.column ?? "")?.numeric}
+                        onChange={(nm) => set({ values: visual.values.map((x, j) => (j === i ? nm : x)) })}
+                        onRemove={() => set({ values: visual.values.filter((_, j) => j !== i) })}
+                        onUp={i > 0 ? () => set({ values: swap(visual.values, i, i - 1) }) : undefined}
+                      />
+                    ))}
+                    <p className="bi-well-actions">
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() =>
+                          set({
+                            values: [
+                              ...visual.values,
+                              newMeasure({
+                                label: l("Banyaknya data", "Row count"),
+                                column: "*",
+                                fn: "count",
+                              }),
+                            ],
+                          })
+                        }
+                      >
+                        + {l("Banyaknya data", "Row count")}
+                      </button>{" "}
+                      ·{" "}
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() =>
+                          set({
+                            values: [
+                              ...visual.values,
+                              newMeasure({ label: l("Ukuran baru", "New measure"), formula: "" }),
+                            ],
+                          })
+                        }
+                      >
+                        + {l("Rumus", "Formula")}
+                      </button>
+                      {visual.values.length > 0 && (
+                        <QuickMeasure
+                          measures={visual.values}
+                          name={(x) => measureName(x, header)}
+                          onAdd={(m) => set({ values: [...visual.values, m] })}
+                        />
+                      )}
+                    </p>
+                  </Well>
+                </>
               )}
-              <Well
-                title={l("Nilai", "Values")}
-                hint={l("Seret kolom angka ke sini", "Drop a numeric field here")}
-                onDropField={(f) => onChange(addField(visual, f, "values"))}
-              >
-                {visual.values.map((m, i) => (
-                  <MeasureChip
-                    key={m.id}
-                    m={m}
-                    header={m.column === "*" ? l("data", "rows") : header(m.column ?? "")}
-                    numeric={!!colInfo(m.column ?? "")?.numeric}
-                    onChange={(nm) => set({ values: visual.values.map((x, j) => (j === i ? nm : x)) })}
-                    onRemove={() => set({ values: visual.values.filter((_, j) => j !== i) })}
-                    onUp={i > 0 ? () => set({ values: swap(visual.values, i, i - 1) }) : undefined}
-                  />
-                ))}
-                <p className="bi-well-actions">
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() =>
-                      set({
-                        values: [
-                          ...visual.values,
-                          {
-                            id: newId("m"),
-                            label: l("Banyaknya data", "Row count"),
-                            column: "*",
-                            fn: "count",
-                            showAs: "value",
-                            format: "auto",
-                            hidden: false,
-                          },
-                        ],
-                      })
-                    }
-                  >
-                    + {l("Banyaknya data", "Row count")}
-                  </button>{" "}
-                  ·{" "}
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() =>
-                      set({
-                        values: [
-                          ...visual.values,
-                          {
-                            id: newId("m"),
-                            label: l("Ukuran baru", "New measure"),
-                            column: null,
-                            fn: "sum",
-                            formula: "",
-                            showAs: "value",
-                            format: "auto",
-                            hidden: false,
-                          },
-                        ],
-                      })
-                    }
-                  >
-                    + {l("Rumus", "Formula")}
-                  </button>
-                </p>
-              </Well>
               {visual.type === "table" && (
                 <Well
                   title={l("Kolom rincian (tanpa ringkasan)", "Detail columns (no summary)")}
@@ -668,6 +707,148 @@ export function VisualPane({
                 />
               </label>
             </>
+          )}
+          {visual.type === "combo" && (
+            <>
+              <fieldset className="bi-fieldset">
+                <legend>{l("Digambar sebagai garis", "Drawn as lines")}</legend>
+                {visual.values
+                  .filter((m) => !m.hidden)
+                  .map((m, i, arr) => {
+                    const chosen = visual.options.lineMeasures ?? [];
+                    const checked = chosen.length ? chosen.includes(m.id) : i === arr.length - 1 && i > 0;
+                    return (
+                      <label key={m.id} className="field check">
+                        <span>
+                          {m.label ||
+                            (m.column === "*" ? l("Banyaknya data", "Row count") : header(m.column ?? m.id))}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const base = chosen.length
+                              ? chosen
+                              : arr.filter((_, j) => j === arr.length - 1 && j > 0).map((x) => x.id);
+                            setOpt({
+                              lineMeasures: e.target.checked
+                                ? [...base, m.id]
+                                : base.filter((x) => x !== m.id),
+                            });
+                          }}
+                        />
+                      </label>
+                    );
+                  })}
+              </fieldset>
+              <label className="field check">
+                <span>{l("Garis pada sumbu kedua (kanan)", "Lines on a secondary (right) axis")}</span>
+                <input
+                  type="checkbox"
+                  checked={!!visual.options.secondaryAxis}
+                  onChange={(e) => setOpt({ secondaryAxis: e.target.checked })}
+                />
+              </label>
+              <label className="field check">
+                <span>{l("Kolom bertumpuk", "Stacked columns")}</span>
+                <input
+                  type="checkbox"
+                  checked={!!visual.options.stacked}
+                  onChange={(e) => setOpt({ stacked: e.target.checked })}
+                />
+              </label>
+            </>
+          )}
+          {visual.type === "slicer" && (
+            <>
+              <label className="field">
+                <span>{l("Gaya slicer", "Slicer style")}</span>
+                <select
+                  value={visual.options.slicer ?? "list"}
+                  onChange={(e) => setOpt({ slicer: e.target.value as "list" | "dropdown" | "range" })}
+                >
+                  <option value="list">{l("Daftar centang", "Checkbox list")}</option>
+                  <option value="dropdown">{l("Dropdown", "Dropdown")}</option>
+                  <option value="range">{l("Rentang (dari–sampai)", "Range (from–to)")}</option>
+                </select>
+              </label>
+              <label className="field">
+                <span>{l("Berlaku untuk", "Applies to")}</span>
+                <select
+                  value={visual.options.slicerScope ?? "page"}
+                  onChange={(e) => setOpt({ slicerScope: e.target.value as "page" | "all" })}
+                >
+                  <option value="page">{l("Halaman ini", "This page")}</option>
+                  <option value="all">{l("Semua halaman", "All pages")}</option>
+                </select>
+              </label>
+            </>
+          )}
+          {!single && !["slicer", "text"].includes(visual.type) && !visual.reportId && (
+            <label className="field check">
+              <span>
+                {l("Klik visual ini memfilter visual lain", "Clicking this visual filters other visuals")}
+              </span>
+              <input
+                type="checkbox"
+                checked={visual.crossFilter}
+                onChange={(e) => set({ crossFilter: e.target.checked })}
+              />
+            </label>
+          )}
+          {visual.type === "gauge" &&
+            (["min", "max", "target"] as const).map((k) => (
+              <label key={k} className="field">
+                <span>
+                  {
+                    {
+                      min: l("Minimum", "Minimum"),
+                      max: l("Maksimum", "Maximum"),
+                      target: l("Target", "Target"),
+                    }[k]
+                  }
+                </span>
+                <input
+                  inputMode="decimal"
+                  value={visual.options[k] ?? ""}
+                  placeholder={l("Otomatis", "Auto")}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/[^\d.-]/g, "");
+                    setOpt({ [k]: v === "" ? undefined : Number(v) });
+                  }}
+                />
+              </label>
+            ))}
+          {(visual.type === "table" || visual.type === "matrix") && visual.values.some((m) => !m.hidden) && (
+            <fieldset className="bi-fieldset">
+              <legend>{l("Format bersyarat", "Conditional formatting")}</legend>
+              {visual.values
+                .filter((m) => !m.hidden)
+                .map((m) => {
+                  const rule = (visual.options.conditional ?? []).find((c) => c.measure === m.id);
+                  return (
+                    <label key={m.id} className="field">
+                      <span>
+                        {m.label ||
+                          (m.column === "*" ? l("Banyaknya data", "Row count") : header(m.column ?? m.id))}
+                      </span>
+                      <select
+                        value={rule?.kind ?? ""}
+                        onChange={(e) => {
+                          const rest = (visual.options.conditional ?? []).filter((c) => c.measure !== m.id);
+                          const kind = e.target.value as "scale" | "bar" | "icon" | "";
+                          setOpt({ conditional: kind ? [...rest, { measure: m.id, kind }] : rest });
+                        }}
+                      >
+                        <option value="">{l("Tidak ada", "None")}</option>
+                        <option value="scale">{l("Skala warna", "Color scale")}</option>
+                        <option value="bar">{l("Bar data", "Data bars")}</option>
+                        <option value="icon">{l("Ikon naik/turun", "Up/down icons")}</option>
+                      </select>
+                    </label>
+                  );
+                })}
+            </fieldset>
           )}
           {visual.type !== "text" && !visual.reportId && (
             <>
@@ -796,6 +977,8 @@ function MeasureChip({
   m,
   header,
   numeric,
+  names,
+  columns,
   onChange,
   onRemove,
   onUp,
@@ -803,6 +986,9 @@ function MeasureChip({
   m: BiMeasure;
   header: string;
   numeric: boolean;
+  /** Nama ukuran lain di visual (untuk rumus). */
+  names: string[];
+  columns: { key: string; header: string; numeric: boolean }[];
   onChange: (m: BiMeasure) => void;
   onRemove: () => void;
   onUp?: () => void;
@@ -832,21 +1018,11 @@ function MeasureChip({
               />
             </label>
             {formula ? (
-              <label className="field">
-                <span>{l("Rumus", "Formula")}</span>
-                <input
-                  value={m.formula ?? ""}
-                  maxLength={500}
-                  placeholder="[Omzet] - [HPP]"
-                  onChange={(e) => onChange({ ...m, formula: e.target.value })}
-                />
-                <small className="muted">
-                  {l(
-                    "Rujuk ukuran lain dengan [Nama]; fungsi: DIVIDE, ROUND, ABS, MIN, MAX, IF.",
-                    "Refer to other measures as [Name]; functions: DIVIDE, ROUND, ABS, MIN, MAX, IF.",
-                  )}
-                </small>
-              </label>
+              <FormulaInput
+                value={m.formula ?? ""}
+                names={names}
+                onChange={(formula) => onChange({ ...m, formula })}
+              />
             ) : (
               m.column !== "*" && (
                 <label className="field">
@@ -873,7 +1049,37 @@ function MeasureChip({
                   </option>
                 ))}
               </select>
+              {(m.showAs === "yoy" || m.showAs === "last_year") && (
+                <small className="muted">
+                  {l(
+                    "Dibandingkan dengan periode yang sama tahun lalu (berdasarkan periode dashboard, atau sumbu tanggal bila tanpa periode).",
+                    "Compared with the same period last year (from the dashboard period, or the date axis when there is no period).",
+                  )}
+                </small>
+              )}
+              {m.showAs === "vs_prev_period" && (
+                <small className="muted">
+                  {l(
+                    "Sumbu tanggal: dibanding titik sebelumnya; selain itu: dibanding periode dashboard sebelumnya.",
+                    "Date axis: versus the previous point; otherwise versus the previous dashboard period.",
+                  )}
+                </small>
+              )}
             </label>
+            {!formula && (
+              <fieldset className="bi-fieldset">
+                <legend>{l("Filter khusus ukuran ini", "Filters for this measure only")}</legend>
+                <FilterList
+                  filters={m.filters}
+                  columns={columns}
+                  onChange={(filters) => onChange({ ...m, filters })}
+                  empty={l(
+                    'Contoh: Pendapatan = jumlah nilai dengan kelompok "Pendapatan".',
+                    'Example: Revenue = sum of amount where group is "Revenue".',
+                  )}
+                />
+              </fieldset>
+            )}
             <label className="field">
               <span>{l("Format", "Format")}</span>
               <select
@@ -1147,5 +1353,209 @@ export function PageTabs({
         </span>
       )}
     </nav>
+  );
+}
+
+// ---- Rumus & ukuran cepat ----
+
+/** Masukan rumus dengan saran nama ukuran saat mengetik "[", tombol fungsi, dan validasi langsung. */
+function FormulaInput({
+  value,
+  names,
+  onChange,
+}: {
+  value: string;
+  names: string[];
+  onChange: (v: string) => void;
+}) {
+  const { l } = useI18n();
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const [caret, setCaret] = useState(0);
+  const before = value.slice(0, caret);
+  const open = /\[([^\]]*)$/.exec(before);
+  const suggestions = open
+    ? [...new Set(names)].filter((n) => n.toLowerCase().includes(open[1]!.toLowerCase())).slice(0, 8)
+    : [];
+  const error = (() => {
+    if (!value.trim()) return l("Tulis rumus.", "Write a formula.");
+    try {
+      const tree = parseFormula(value);
+      const known = new Set(names.map((n) => n.toLowerCase()));
+      const missing = [...formulaRefs(tree)].filter((r) => !known.has(r.toLowerCase()));
+      return missing.length
+        ? l(`Ukuran tidak ditemukan: [${missing.join("], [")}]`, `Unknown measure: [${missing.join("], [")}]`)
+        : null;
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  })();
+  const insert = (text: string, replaceFrom = caret) => {
+    const next = value.slice(0, replaceFrom) + text + value.slice(caret);
+    onChange(next);
+    const pos = replaceFrom + text.length;
+    requestAnimationFrame(() => {
+      ref.current?.focus();
+      ref.current?.setSelectionRange(pos, pos);
+      setCaret(pos);
+    });
+  };
+  return (
+    <div className="field bi-formula">
+      <span>{l("Rumus", "Formula")}</span>
+      <textarea
+        ref={ref}
+        rows={2}
+        value={value}
+        maxLength={500}
+        spellCheck={false}
+        placeholder="DIVIDE([Laba], [Omzet]) * 100"
+        aria-invalid={!!error}
+        aria-label={l("Rumus", "Formula")}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setCaret(e.target.selectionStart ?? e.target.value.length);
+        }}
+        onSelect={(e) => setCaret((e.target as HTMLTextAreaElement).selectionStart ?? 0)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && suggestions.length && open) {
+            e.preventDefault();
+            insert(`[${suggestions[0]}]`, caret - open[0].length);
+          }
+        }}
+      />
+      {suggestions.length > 0 && open && (
+        <ul className="bi-suggest" role="listbox" aria-label={l("Ukuran", "Measures")}>
+          {suggestions.map((n, i) => (
+            <li key={i}>
+              <button type="button" className="link" onClick={() => insert(`[${n}]`, caret - open[0].length)}>
+                [{n}]
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <span className="bi-formula-tools">
+        {[...new Set(names)].slice(0, 6).map((n) => (
+          <button key={n} type="button" className="chip-btn" onClick={() => insert(`[${n}]`)}>
+            [{n}]
+          </button>
+        ))}
+        {FORMULA_FUNCTIONS.map((f) => (
+          <button key={f} type="button" className="chip-btn" onClick={() => insert(`${f}(`)}>
+            {f}
+          </button>
+        ))}
+      </span>
+      {error ? (
+        <small className="error" role="alert">
+          {error}
+        </small>
+      ) : (
+        <small className="muted">{l("Rumus valid.", "Formula is valid.")}</small>
+      )}
+    </div>
+  );
+}
+
+type QuickKind = "diff" | "ratio" | "margin" | "pct_total" | "running_total" | "yoy" | "last_year";
+
+/** Ukuran cepat: selisih, rasio, margin dari dua ukuran; atau tampilan % total / berjalan / YoY dari satu ukuran. */
+function QuickMeasure({
+  measures,
+  name,
+  onAdd,
+}: {
+  measures: BiMeasure[];
+  name: (m: BiMeasure) => string;
+  onAdd: (m: BiMeasure) => void;
+}) {
+  const { l } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState<QuickKind>("ratio");
+  const [a, setA] = useState(measures[0]?.id ?? "");
+  const [b, setB] = useState(measures[1]?.id ?? measures[0]?.id ?? "");
+  const pair = kind === "diff" || kind === "ratio" || kind === "margin";
+  const ma = measures.find((m) => m.id === a) ?? measures[0];
+  const mb = measures.find((m) => m.id === b) ?? measures[0];
+  const create = () => {
+    if (!ma || !mb) return;
+    const na = name(ma);
+    const nb = name(mb);
+    const made =
+      kind === "diff"
+        ? newMeasure({ label: `${na} − ${nb}`, formula: `[${na}] - [${nb}]` })
+        : kind === "ratio"
+          ? newMeasure({ label: `${na} ÷ ${nb}`, formula: `DIVIDE([${na}], [${nb}])` })
+          : kind === "margin"
+            ? newMeasure({
+                label: `Margin ${na}`,
+                formula: `DIVIDE([${na}] - [${nb}], [${na}]) * 100`,
+                format: "percent",
+              })
+            : newMeasure({
+                ...ma,
+                id: newId("m"),
+                hidden: false,
+                label: `${na} (${l(...SHOW_AS_LABEL[kind])})`,
+                showAs: kind,
+              });
+    onAdd(made);
+    setOpen(false);
+  };
+  if (!open)
+    return (
+      <>
+        {" "}
+        ·{" "}
+        <button type="button" className="link" onClick={() => setOpen(true)}>
+          + {l("Ukuran cepat", "Quick measure")}
+        </button>
+      </>
+    );
+  return (
+    <span className="bi-quick">
+      <label className="field">
+        <span>{l("Ukuran cepat", "Quick measure")}</span>
+        <select value={kind} onChange={(e) => setKind(e.target.value as QuickKind)}>
+          <option value="ratio">{l("Rasio (A ÷ B)", "Ratio (A ÷ B)")}</option>
+          <option value="diff">{l("Selisih (A − B)", "Difference (A − B)")}</option>
+          <option value="margin">{l("Margin % ((A − B) ÷ A)", "Margin % ((A − B) ÷ A)")}</option>
+          <option value="pct_total">{l("% dari total (A)", "% of grand total (A)")}</option>
+          <option value="running_total">{l("Total berjalan (A)", "Running total (A)")}</option>
+          <option value="yoy">{l("Pertumbuhan YoY (A)", "Year-over-year growth (A)")}</option>
+          <option value="last_year">{l("Nilai tahun lalu (A)", "Last year's value (A)")}</option>
+        </select>
+      </label>
+      <label className="field">
+        <span>A</span>
+        <select value={a} onChange={(e) => setA(e.target.value)}>
+          {measures.map((m) => (
+            <option key={m.id} value={m.id}>
+              {name(m)}
+            </option>
+          ))}
+        </select>
+      </label>
+      {pair && (
+        <label className="field">
+          <span>B</span>
+          <select value={b} onChange={(e) => setB(e.target.value)}>
+            {measures.map((m) => (
+              <option key={m.id} value={m.id}>
+                {name(m)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <span className="bi-quick-actions">
+        <button type="button" className="primary" onClick={create}>
+          {l("Tambah", "Add")}
+        </button>
+        <button type="button" onClick={() => setOpen(false)}>
+          {l("Batal", "Cancel")}
+        </button>
+      </span>
+    </span>
   );
 }

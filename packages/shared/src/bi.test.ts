@@ -303,7 +303,20 @@ describe("dokumen & konversi dashboard lama", () => {
       expect(biDocumentSchema.safeParse(doc).success, d.key).toBe(true);
       expect(documentErrors(doc), d.key).toEqual([]);
       const visuals = doc.pages[0]!.visuals;
-      expect(visuals).toHaveLength(d.widgets.length);
+      // Visual bawaan lama tetap ada (urutan & id sama), ditambah visual v2.
+      expect(visuals.slice(0, d.widgets.length).map((x) => x.id)).toEqual(d.widgets.map((w) => w.id));
+      const ids = visuals.map((x) => x.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      for (const a of visuals)
+        for (const b of visuals)
+          if (a !== b)
+            expect(
+              a.layout.x < b.layout.x + b.layout.w &&
+                b.layout.x < a.layout.x + a.layout.w &&
+                a.layout.y < b.layout.y + b.layout.h &&
+                b.layout.y < a.layout.y + a.layout.h,
+              `${a.id} vs ${b.id}`,
+            ).toBe(false);
       for (const vis of visuals) {
         expect(vis.layout.x + vis.layout.w).toBeLessThanOrEqual(12);
         if (vis.type === "kpi") expect(vis.layout).toMatchObject({ w: 3, h: 3 });
@@ -375,5 +388,43 @@ describe("validasi rumus saat simpan", () => {
     // Saat dijalankan, nama otomatis "Jumlah Omzet" dikenali.
     const r = runVisual(rows, cols, doc.pages[0]!.visuals[0]!);
     expect(r.series.map((s) => s.values[0])).toEqual([1200, 1.2]);
+  });
+});
+
+describe("ukuran dengan filter (mirip CALCULATE)", () => {
+  it("menghitung margin dari dua ukuran berfilter berbeda", () => {
+    const r = runVisual(
+      rows,
+      cols,
+      v({
+        type: "table",
+        axis: [{ column: "region" }],
+        values: [
+          {
+            id: "p1",
+            label: "P1",
+            column: "amount",
+            fn: "sum",
+            filters: [{ column: "product", op: "in", values: ["P1"] }],
+          },
+          { id: "all", label: "Semua", column: "amount", fn: "sum" },
+          { id: "share", label: "Porsi P1", formula: "DIVIDE([P1], [Semua]) * 100", format: "percent" },
+        ],
+        sort: { by: "region", dir: "asc" },
+      }),
+    );
+    expect(r.rows).toEqual([
+      { region: "Jawa", p1: 300, all: 350, share: 85.7143 },
+      { region: "Sumatra", p1: 550, all: 850, share: 64.7059 },
+    ]);
+    expect(() =>
+      runVisual(
+        rows,
+        cols,
+        v({
+          values: [{ id: "x", column: "amount", fn: "sum", filters: [{ column: "nope", values: ["a"] }] }],
+        }),
+      ),
+    ).toThrow(/nope/);
   });
 });

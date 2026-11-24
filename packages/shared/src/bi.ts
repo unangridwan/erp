@@ -130,20 +130,6 @@ const id = z.string().trim().min(1).max(40);
 export const biFieldSchema = z.object({ column: columnKey, level: z.enum(DATE_LEVELS).nullish() });
 export type BiField = z.infer<typeof biFieldSchema>;
 
-export const biMeasureSchema = z.object({
-  id,
-  label: z.string().trim().max(120).default(""),
-  /** Kolom yang diagregasi; "*" = banyaknya baris. Kosong bila ukuran berupa rumus. */
-  column: columnKey.nullish(),
-  fn: z.enum(BI_AGGREGATES).default("sum"),
-  formula: z.string().trim().max(500).nullish(),
-  showAs: z.enum(SHOW_AS).default("value"),
-  format: z.enum(VALUE_FORMATS).default("auto"),
-  /** Dipakai rumus tetapi tidak ditampilkan. */
-  hidden: z.boolean().default(false),
-});
-export type BiMeasure = z.infer<typeof biMeasureSchema>;
-
 export const biFilterSchema = z.object({
   column: columnKey,
   level: z.enum(DATE_LEVELS).nullish(),
@@ -155,6 +141,22 @@ export const biFilterSchema = z.object({
   source: z.string().max(40).nullish(),
 });
 export type BiFilter = z.infer<typeof biFilterSchema>;
+
+export const biMeasureSchema = z.object({
+  id,
+  label: z.string().trim().max(120).default(""),
+  /** Kolom yang diagregasi; "*" = banyaknya baris. Kosong bila ukuran berupa rumus. */
+  column: columnKey.nullish(),
+  fn: z.enum(BI_AGGREGATES).default("sum"),
+  formula: z.string().trim().max(500).nullish(),
+  showAs: z.enum(SHOW_AS).default("value"),
+  format: z.enum(VALUE_FORMATS).default("auto"),
+  /** Dipakai rumus tetapi tidak ditampilkan. */
+  hidden: z.boolean().default(false),
+  /** Filter khusus ukuran ini (mis. Pendapatan = jumlah nilai dengan kelompok "Pendapatan"). */
+  filters: z.array(biFilterSchema).max(5).default([]),
+});
+export type BiMeasure = z.infer<typeof biMeasureSchema>;
 
 export const biLayoutSchema = z.object({
   x: z
@@ -180,8 +182,12 @@ export const biVisualOptionsSchema = z
     target: z.number(),
     /** Kolom + garis: id ukuran yang digambar sebagai garis. */
     lineMeasures: z.array(z.string().max(40)).max(10),
+    /** Kolom + garis: garis memakai sumbu nilai kedua. */
+    secondaryAxis: z.boolean(),
     compare: z.enum(["none", "prev_period", "last_year"]),
     slicer: z.enum(["list", "dropdown", "range"]),
+    /** Slicer berlaku untuk halaman ini saja atau semua halaman. */
+    slicerScope: z.enum(["page", "all"]),
     conditional: z
       .array(z.object({ measure: z.string().max(40), kind: z.enum(["scale", "bar", "icon"]) }))
       .max(10),
@@ -407,6 +413,8 @@ interface CompiledMeasure {
   m: BiMeasure;
   label: string;
   formula?: FormulaNode;
+  /** Filter khusus ukuran. */
+  pred?: (r: Record<string, unknown>) => boolean;
 }
 
 /** Urutkan ukuran: dasar dulu, rumus setelah ukuran yang dirujuknya; galat untuk rujukan tak dikenal/melingkar. */
@@ -415,11 +423,13 @@ function compileMeasures(
   label: (m: BiMeasure) => string,
   /** Rujukan tak dikenal diabaikan (validasi simpan: nama otomatis ukuran baru diketahui saat dijalankan). */
   lenient = false,
+  predicate?: (filters: BiFilter[]) => (r: Record<string, unknown>) => boolean,
 ): CompiledMeasure[] {
   const all = measures.map((m) => ({
     m,
     label: label(m),
     formula: m.formula ? parseFormula(m.formula) : undefined,
+    pred: predicate && m.filters.length ? predicate(m.filters) : undefined,
   }));
   const byName = new Map<string, CompiledMeasure>();
   for (const c of all) {
@@ -463,7 +473,7 @@ function computeMeasures(
     if (c.formula) {
       const v = evaluateFormula(c.formula, (name) => out[byName.get(name.toLowerCase()) ?? ""] ?? null);
       out[c.m.id] = v === null ? null : round(v, 4);
-    } else out[c.m.id] = aggregate(rows, c.m.column || "*", c.m.fn);
+    } else out[c.m.id] = aggregate(c.pred ? rows.filter(c.pred) : rows, c.m.column || "*", c.m.fn);
   }
   return out;
 }
@@ -574,7 +584,13 @@ export function runVisual(
   visual.columns.forEach(need);
   for (const m of visual.values) if (!m.formula && m.column && m.column !== "*") need(m.column);
   visual.filters.forEach((f) => need(f.column));
-  const compiled = compileMeasures(visual.values, measureLabel);
+  for (const m of visual.values) m.filters.forEach((f) => need(f.column));
+  const compiled = compileMeasures(
+    visual.values,
+    measureLabel,
+    false,
+    (fs) => (r) => fs.every((f) => matchFilter(r, f, !!cols.get(f.column)?.numeric)),
+  );
   const visible = compiled.filter((c) => !c.m.hidden);
 
   // Filter: milik visual (wajib dikenal) + konteks (dilewati bila kolomnya tidak ada di dataset ini).
@@ -1192,10 +1208,141 @@ export function legacyToDocument(widgets: DashboardWidget[], period?: PeriodPres
   };
 }
 
-/** Dokumen v2 dashboard bawaan. */
+const inFilter = (column: string, ...values: string[]): BiFilterInput => ({ column, op: "in", values });
+const notFilter = (column: string, ...values: string[]): BiFilterInput => ({ column, op: "notIn", values });
+type BiFilterInput = z.input<typeof biFilterSchema>;
+
+/**
+ * Visual tambahan dashboard bawaan yang memakai kemampuan v2 (ukuran terhitung, filter per ukuran, tahun lalu,
+ * % dari total). Ditempatkan di bawah visual bawaan lama.
+ */
+const BUILTIN_EXTRAS: Record<string, Omit<BiVisualInput, "layout">[]> = {
+  sales: [
+    {
+      id: "x-sales-yoy",
+      type: "combo",
+      title: "Omzet vs tahun lalu per bulan",
+      dataset: "sales_orders",
+      axis: [{ column: "dateOrder", level: "month" }],
+      values: [
+        { id: "omzet", label: "Omzet", column: "amountUntaxed", fn: "sum" },
+        { id: "ly", label: "Tahun lalu", column: "amountUntaxed", fn: "sum", showAs: "last_year" },
+      ],
+      filters: [inFilter("state", "Pesanan")],
+      options: { lineMeasures: ["ly"] },
+    },
+    {
+      id: "x-sales-share",
+      type: "table",
+      title: "Kontribusi pelanggan",
+      dataset: "sales_orders",
+      axis: [{ column: "partner" }],
+      values: [
+        { id: "omzet", label: "Omzet", column: "amountUntaxed", fn: "sum" },
+        { id: "share", label: "% dari total", column: "amountUntaxed", fn: "sum", showAs: "pct_total" },
+        { id: "yoy", label: "YoY", column: "amountUntaxed", fn: "sum", showAs: "yoy" },
+      ],
+      filters: [inFilter("state", "Pesanan")],
+      sort: { by: "omzet", dir: "desc" },
+      topN: 10,
+      options: {
+        conditional: [
+          { measure: "share", kind: "bar" },
+          { measure: "yoy", kind: "icon" },
+        ],
+      },
+    },
+  ],
+  finance: [
+    {
+      id: "x-fin-margin",
+      type: "kpi",
+      title: "Margin laba bersih",
+      dataset: "journal_items",
+      values: [
+        {
+          id: "margin",
+          label: "Margin laba bersih",
+          formula: "DIVIDE([Laba bersih], [Pendapatan]) * 100",
+          format: "percent",
+        },
+        {
+          id: "rev",
+          label: "Pendapatan",
+          column: "plAmount",
+          fn: "sum",
+          hidden: true,
+          filters: [inFilter("plGroup", "Pendapatan")],
+        },
+        {
+          id: "net",
+          label: "Laba bersih",
+          column: "plAmount",
+          fn: "sum",
+          hidden: true,
+          filters: [notFilter("plGroup", "Neraca")],
+        },
+      ],
+      options: { compare: "prev_period" },
+    },
+    {
+      id: "x-fin-trend",
+      type: "combo",
+      title: "Pendapatan, laba & margin per bulan",
+      dataset: "journal_items",
+      axis: [{ column: "date", level: "month" }],
+      values: [
+        {
+          id: "rev",
+          label: "Pendapatan",
+          column: "plAmount",
+          fn: "sum",
+          filters: [inFilter("plGroup", "Pendapatan")],
+        },
+        {
+          id: "net",
+          label: "Laba bersih",
+          column: "plAmount",
+          fn: "sum",
+          filters: [notFilter("plGroup", "Neraca")],
+        },
+        {
+          id: "margin",
+          label: "Margin %",
+          formula: "DIVIDE([Laba bersih], [Pendapatan]) * 100",
+          format: "percent",
+        },
+      ],
+      options: { lineMeasures: ["margin"], secondaryAxis: true },
+    },
+  ],
+};
+
+/** Dokumen v2 dashboard bawaan (visual lama + visual tambahan v2). */
 export function builtinDocument(key: string): BiDocument | null {
   const d = BUILTIN_DASHBOARDS.find((x) => x.key === key);
-  return d ? legacyToDocument(d.widgets, d.period) : null;
+  if (!d) return null;
+  const doc = legacyToDocument(d.widgets, d.period);
+  const page = doc.pages[0]!;
+  for (const extra of BUILTIN_EXTRAS[key] ?? []) {
+    const [w, h] = extra.type === "kpi" ? [3, 3] : extra.type === "table" ? [6, 8] : [6, 8];
+    const layout = placeNewLayout(page.visuals, w, h);
+    page.visuals.push(biVisualSchema.parse({ ...extra, layout }));
+  }
+  return doc;
+}
+
+/** Posisi pertama yang muat (salinan ringkas `placeNew` agar bi.ts tidak bergantung pada bi-layout.ts). */
+function placeNewLayout(visuals: { layout: BiLayout }[], w: number, h: number): BiLayout {
+  const overlap = (a: BiLayout, b: BiLayout) =>
+    a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  const bottom = visuals.reduce((m, v) => Math.max(m, v.layout.y + v.layout.h), 0);
+  for (let y = 0; y <= bottom; y++)
+    for (let x = 0; x + w <= CANVAS_COLUMNS; x++) {
+      const l = { x, y, w, h };
+      if (!visuals.some((v) => overlap(l, v.layout))) return l;
+    }
+  return { x: 0, y: bottom, w, h };
 }
 
 /** Semua visual dokumen (lintas halaman). */
