@@ -18,6 +18,8 @@ import {
   LEAD_STATUS_LABEL,
   QUALITY_TRIGGER_LABEL,
   REQUEST_STATE_LABEL,
+  CASH_CATEGORIES,
+  cashCategory,
   type CustomFieldModel,
   type RecordModel,
   businessToday,
@@ -1201,6 +1203,157 @@ function fleetCosts(): Dataset {
   };
 }
 
+const CASH_SQL = sql.raw(
+  `coalesce(a.cash_flow_category, case when a.account_type = 'asset_cash' then 'cash' else '' end) = 'cash'`,
+);
+
+/** Arus kas metode langsung: baris lawan kas pada jurnal yang menyentuh kas/bank (positif = kas masuk). */
+function cashFlows(): Dataset {
+  return {
+    key: "cash_flows",
+    label: "Arus kas",
+    description:
+      "Kas masuk & keluar per kategori (pelanggan, pemasok, gaji, pajak, aset, pendanaan) dari jurnal kas/bank.",
+    app: "accounting",
+    read: "accounting.read",
+    admin: "accounting.manage",
+    filters: DATE_FILTERS,
+    columns: () => [
+      col("date", "Tanggal", "Arus kas"),
+      col("month", "Bulan", "Arus kas"),
+      col("move", "Jurnal", "Arus kas"),
+      col("journal", "Buku jurnal", "Arus kas"),
+      col("direction", "Arah", "Arus kas"),
+      col("category", "Kategori", "Arus kas"),
+      col("account", "Akun lawan", "Arus kas"),
+      col("partner", "Partner", "Arus kas"),
+      col("amount", "Arus kas bersih", "Nilai", true),
+      col("inflow", "Kas masuk", "Nilai", true),
+      col("outflow", "Kas keluar", "Nilai", true),
+    ],
+    async rows(tx, ctx, q) {
+      const from = q.from && ISO.test(q.from) ? q.from : "0001-01-01";
+      const to = q.to && ISO.test(q.to) ? q.to : "9999-12-31";
+      const rows = await tx.execute<{
+        move_id: string;
+        move: string | null;
+        journal: string | null;
+        date: string;
+        account_type: string;
+        account: string;
+        partner: string | null;
+        amount: string;
+      }>(sql`
+        with cm as (
+          select distinct l.move_id from account_move_lines l
+          join account_moves m on m.id = l.move_id join accounts a on a.id = l.account_id
+          where m.company_id = ${ctx.companyId} and m.state = 'posted' and m.date between ${from} and ${to}
+            and ${CASH_SQL}
+        )
+        select m.id as move_id, m.name as move, j.name as journal, m.date::text as date, a.account_type,
+          a.code || ' ' || a.name as account, p.name as partner, sum(-l.balance) as amount
+        from account_move_lines l join account_moves m on m.id = l.move_id join accounts a on a.id = l.account_id
+        left join journals j on j.id = m.journal_id left join partners p on p.id = l.partner_id
+        where l.move_id in (select move_id from cm) and not (${CASH_SQL})
+        group by m.id, m.name, j.name, m.date, a.account_type, a.code, a.name, p.name
+        order by m.date`);
+      return [...rows].flatMap((r) => {
+        const amount = n(r.amount) ?? 0;
+        const cat = cashCategory(r.account_type, r.account, amount);
+        if (!cat || !amount) return [];
+        return [
+          {
+            ...ref("account_move", r.move_id),
+            date: r.date,
+            month: month(r.date),
+            move: r.move ?? "",
+            journal: r.journal ?? "",
+            direction: amount > 0 ? "Masuk" : "Keluar",
+            category: CASH_CATEGORIES[cat].label[0],
+            account: r.account,
+            partner: r.partner ?? "",
+            amount,
+            inflow: amount > 0 ? amount : 0,
+            outflow: amount < 0 ? -amount : 0,
+          },
+        ];
+      });
+    },
+  };
+}
+
+/** Pengiriman & penerimaan selesai: tepat waktu, tepat jumlah (OTIF), keterlambatan. */
+function deliveries(): Dataset {
+  return {
+    key: "deliveries",
+    label: "Pengiriman & penerimaan",
+    description:
+      "Pengiriman ke pelanggan & penerimaan dari pemasok yang selesai: jadwal vs realisasi, tepat waktu, tepat jumlah.",
+    app: "inventory",
+    read: "inventory.read",
+    admin: "inventory.manage",
+    filters: DATE_FILTERS,
+    columns: () => [
+      col("name", "Nomor", "Dokumen"),
+      col("kind", "Jenis", "Dokumen"),
+      col("partner", "Partner", "Dokumen"),
+      col("scheduled", "Jadwal", "Waktu"),
+      col("done", "Selesai", "Waktu"),
+      col("month", "Bulan selesai", "Waktu"),
+      col("daysLate", "Hari terlambat", "Waktu", true),
+      col("onTime", "Tepat waktu", "Kinerja"),
+      col("inFull", "Tepat jumlah", "Kinerja"),
+      col("otif", "OTIF", "Kinerja"),
+      col("quantity", "Kuantitas diminta", "Nilai", true),
+      col("quantityDone", "Kuantitas terkirim/diterima", "Nilai", true),
+    ],
+    async rows(tx, ctx, q) {
+      const from = q.from && ISO.test(q.from) ? q.from : "0001-01-01";
+      const to = q.to && ISO.test(q.to) ? q.to : "9999-12-31";
+      const rows = await tx.execute<{
+        id: string;
+        name: string;
+        picking_type: string;
+        partner: string | null;
+        scheduled: string;
+        done: string;
+        quantity: string;
+        quantity_done: string;
+        in_full: boolean | null;
+      }>(sql`
+        select t.id, t.name, t.picking_type, pa.name as partner, t.scheduled_date::text as scheduled,
+          t.date_done::date::text as done, sum(mv.quantity) as quantity, sum(mv.quantity_done) as quantity_done,
+          bool_and(mv.quantity_done >= mv.quantity) filter (where mv.state <> 'cancel') as in_full
+        from stock_pickings t join stock_moves mv on mv.picking_id = t.id
+        left join partners pa on pa.id = t.partner_id
+        where t.company_id = ${ctx.companyId} and t.state = 'done' and t.return_of_id is null
+          and t.picking_type in ('incoming', 'outgoing') and t.date_done::date between ${from} and ${to}
+        group by t.id, pa.name
+        order by t.date_done`);
+      return [...rows].map((r) => {
+        const late = Math.round((Date.parse(r.done) - Date.parse(r.scheduled)) / 864e5);
+        const onTime = late <= 0;
+        const inFull = r.in_full !== false;
+        return {
+          ...ref("stock_picking", r.id),
+          name: r.name,
+          kind: r.picking_type === "outgoing" ? "Pengiriman" : "Penerimaan",
+          partner: r.partner ?? "",
+          scheduled: r.scheduled,
+          done: r.done,
+          month: month(r.done),
+          daysLate: Math.max(0, late),
+          onTime: onTime ? "Ya" : "Tidak",
+          inFull: inFull ? "Ya" : "Tidak",
+          otif: onTime && inFull ? "Ya" : "Tidak",
+          quantity: n(r.quantity),
+          quantityDone: n(r.quantity_done),
+        };
+      });
+    },
+  };
+}
+
 export function businessDatasets(): Dataset[] {
   return [
     saleOrders(),
@@ -1217,6 +1370,8 @@ export function businessDatasets(): Dataset[] {
     qualityChecks(),
     maintenanceRequests(),
     fleetCosts(),
+    cashFlows(),
+    deliveries(),
   ];
 }
 

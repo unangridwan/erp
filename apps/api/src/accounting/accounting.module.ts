@@ -157,6 +157,6 @@ const AssetsController = createCrudController({
     RecurringService,
     AccountingScheduler,
   ],
-  exports: [MoveService, PaymentService, ReconcileService, AccountingScheduler],
+  exports: [MoveService, PaymentService, ReconcileService, AccountingScheduler, ControllingService],
 })
 export class AccountingModule {}
