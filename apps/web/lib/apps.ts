@@ -407,6 +407,20 @@ export const APPS: App[] = [
     ],
   },
   {
+    id: "flow",
+    name: L("Alur Bisnis", "Business Flow"),
+    home: "/flow",
+    prefixes: ["/flow"],
+    menu: [
+      link("Ringkasan", "Overview", "/flow", ""),
+      link("Order-to-Cash", "Order-to-Cash", "/flow/o2c", "sales.read"),
+      link("Procure-to-Pay", "Procure-to-Pay", "/flow/p2p", "purchase.read"),
+      link("Produksi", "Production", "/flow/mfg", "mrp.read"),
+      link("Hire-to-Pay", "Hire-to-Pay", "/flow/h2p", "hr.read"),
+      link("Pengaturan SLA", "SLA Settings", "/flow/settings", "settings.manage"),
+    ],
+  },
+  {
     id: "manufacturing",
     name: L("Manufaktur", "Manufacturing"),
     home: "/manufacturing/orders",

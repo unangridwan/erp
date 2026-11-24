@@ -495,6 +495,7 @@ export class PurchaseOrderService implements OnModuleInit {
         .update(O)
         .set({
           state: "to_approve",
+          approvalRequestedAt: sql`now()`,
           approvalStep: 1,
           approvalLevels: Math.max(levels, 0),
           updatedAt: sql`now()`,

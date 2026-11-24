@@ -78,3 +78,15 @@ export const dashboardPins = pgTable("dashboard_pins", {
   sequence: integer("sequence").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Alur bisnis: SLA (hari) & departemen penanggung jawab per tahap proses (o2c, p2p, mfg, h2p). */
+export const flowStageSettings = pgTable("flow_stage_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  process: text("process", { enum: ["o2c", "p2p", "mfg", "h2p"] }).notNull(),
+  stage: text("stage").notNull(),
+  slaDays: integer("sla_days"),
+  departmentId: uuid("department_id"),
+  ...audit,
+});

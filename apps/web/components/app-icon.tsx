@@ -73,6 +73,15 @@ const ICONS: Record<string, React.ReactNode> = {
       <rect x="41" y="15" width="8" height="34" rx="2" fill="#f0a033" />
     </>
   ),
+  flow: (
+    <>
+      <rect x="6" y="24" width="14" height="16" rx="3" fill="#1ab7a6" />
+      <rect x="25" y="24" width="14" height="16" rx="3" fill="#f0a033" />
+      <rect x="44" y="24" width="14" height="16" rx="3" fill="#875a7b" />
+      <path d="M20 32h5M39 32h5" stroke="#f06050" strokeWidth="3" />
+      <path d="M13 22c0-8 38-8 38 0" fill="none" stroke="#f06050" strokeWidth="3" strokeLinecap="round" />
+    </>
+  ),
   manufacturing: (
     <>
       <path d="M8 52V30l12 8v-8l12 8v-8l12 8V14h10v38z" fill="#875a7b" />

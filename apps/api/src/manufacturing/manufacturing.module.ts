@@ -531,7 +531,7 @@ export class ManufacturingService {
       throw new BadRequestException("Hanya order produksi draft yang bisa dikonfirmasi");
     await tx
       .update(MO)
-      .set({ state: "confirmed", updatedAt: sql`now()` })
+      .set({ state: "confirmed", confirmedAt: sql`now()`, updatedAt: sql`now()` })
       .where(eq(MO.id, id));
     return this.detail(tx, id);
   }
@@ -572,7 +572,7 @@ export class ManufacturingService {
     if (order.state === "confirmed")
       await tx
         .update(MO)
-        .set({ state: "in_progress", updatedAt: sql`now()` })
+        .set({ state: "in_progress", startedAt: sql`coalesce(started_at, now())`, updatedAt: sql`now()` })
         .where(eq(MO.id, id));
     return this.detail(tx, id);
   }
@@ -811,6 +811,9 @@ export class ManufacturingService {
       .update(MO)
       .set({
         state: "done",
+        // Produksi langsung diselesaikan tanpa "mulai": waktu konfirmasi/mulai diisi saat selesai.
+        confirmedAt: sql`coalesce(confirmed_at, now())`,
+        startedAt: sql`coalesce(started_at, now())`,
         qtyProduced: qty.toFixed(4),
         lotName:
           input.lotName ?? (input.serialNames?.length ? input.serialNames.join(", ").slice(0, 100) : null),

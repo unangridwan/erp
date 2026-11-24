@@ -42,6 +42,8 @@ export const purchaseOrders = pgTable("purchase_orders", {
   amountTotal: numeric("amount_total", { precision: 20, scale: 2 }).notNull().default("0"),
   approvedBy: uuid("approved_by"),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
+  /** Waktu PO diajukan untuk persetujuan (alur bisnis: lama menunggu persetujuan). */
+  approvalRequestedAt: timestamp("approval_requested_at", { withTimezone: true }),
   /** Tahap persetujuan berjalan & jumlah tahap (0 = tanpa aturan, pakai batas wewenang). */
   approvalStep: integer("approval_step").notNull().default(1),
   approvalLevels: integer("approval_levels").notNull().default(0),
