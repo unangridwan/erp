@@ -1285,7 +1285,6 @@ export const MESSAGES_EN: Record<string, string> = {
   "Tanggal awal harus sebelum tanggal akhir": "The start date must be before the end date",
   // ---- Alur bisnis ----
   "Proses tidak ditemukan": "Process not found",
-  "Tahap tidak ditemukan": "Stage not found",
   "Dokumen tidak berada dalam alur bisnis": "The document is not part of a business flow",
   // ---- BI v2 (kanvas, visual, rumus) ----
   "Pilih data untuk visual": "Choose data for the visual",
