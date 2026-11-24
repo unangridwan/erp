@@ -29,6 +29,21 @@ export interface Goal {
   state: "draft" | "active" | "done" | "cancelled";
   progress: number;
   canEdit: boolean;
+  /** Status laju & capaian yang semestinya pada titik waktu ini (%). */
+  rag?: "green" | "amber" | "red";
+  expected?: number;
+  kpiCode?: string | null;
+  kpi?: [string, string] | null;
+  periodFrom?: string | null;
+  periodTo?: string | null;
+}
+
+interface KpiOption {
+  code: string;
+  label: [string, string];
+  area: [string, string];
+  metric: Goal["metric"];
+  readable: boolean;
 }
 
 const GOAL_STATE: Record<Goal["state"], [string, string]> = {
@@ -38,11 +53,18 @@ const GOAL_STATE: Record<Goal["state"], [string, string]> = {
   cancelled: ["Dibatalkan", "Cancelled"],
 };
 
+export const RAG_LABEL: Record<"green" | "amber" | "red", [string, string]> = {
+  green: ["Sesuai laju", "On pace"],
+  amber: ["Perlu perhatian", "Needs attention"],
+  red: ["Tertinggal", "Behind"],
+};
+
 function GoalValue({ g }: { g: Goal }) {
   const { l, locale } = useI18n();
   if (g.metric === "boolean")
     return <>{Number(g.currentValue) >= 1 ? l("Tercapai", "Achieved") : l("Belum", "Not yet")}</>;
-  const fmt = (v: string) => (g.metric === "currency" ? money(v, locale) : Number(v).toLocaleString(locale));
+  const fmt = (v: string) =>
+    g.metric === "currency" ? money(v, locale, 0) : Number(v).toLocaleString(locale);
   return (
     <>
       {fmt(g.currentValue)} / {fmt(g.targetValue)} {g.unit ?? (g.metric === "percent" ? "%" : "")}
@@ -50,28 +72,60 @@ function GoalValue({ g }: { g: Goal }) {
   );
 }
 
-/** Pohon sasaran (perusahaan → departemen → karyawan) dengan bilah progres & check-in. */
+type Owner = "company" | "department" | "employee";
+interface GoalForm {
+  parentId: string;
+  owner: Owner;
+  employeeId: string;
+  departmentId: string;
+  title: string;
+  kpiCode: string;
+  periodFrom: string;
+  periodTo: string;
+  metric: Goal["metric"];
+  targetValue: string;
+  unit: string;
+  weight: string;
+  dueDate: string;
+}
+
+const yearStart = () => `${today().slice(0, 4)}-01-01`;
+const yearEnd = () => `${today().slice(0, 4)}-12-31`;
+
+/**
+ * Pohon sasaran (perusahaan → departemen → karyawan): bilah progres dengan penanda laju (seharusnya X% pada titik
+ * waktu ini), status hijau/kuning/merah, sasaran KPI otomatis (nilai dihitung dari data), check-in / catatan
+ * evaluasi, dan penurunan target ke departemen/karyawan.
+ */
 export function GoalTree({ path, allowCreate }: { path: string; allowCreate: boolean }) {
   const { l, locale } = useI18n();
   const [goals, setGoals] = useState<Goal[]>([]);
-  const [checkin, setCheckin] = useState<{ id: string; value: string; note: string } | null>(null);
-  const [form, setForm] = useState<null | {
-    parentId: string;
-    employeeId: string;
-    title: string;
-    metric: Goal["metric"];
-    targetValue: string;
-    unit: string;
-    weight: string;
-    dueDate: string;
-  }>(null);
+  const [kpis, setKpis] = useState<KpiOption[]>([]);
+  const [checkin, setCheckin] = useState<{ id: string; value: string; note: string; auto: boolean } | null>(
+    null,
+  );
+  const [cascade, setCascade] = useState<{
+    id: string;
+    to: "departments" | "employees";
+    departmentId: string;
+    split: "equal" | "proportional";
+  } | null>(null);
+  const [form, setForm] = useState<GoalForm | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const load = useCallback(() => api<Goal[]>(path).then(setGoals, (e) => setError(errorText(e))), [path]);
   useEffect(() => {
-    void load();
+    // Nilai sasaran KPI otomatis diperbarui dulu (dilewati server bila baru dihitung).
+    void api("/goals/refresh-auto", { method: "POST" })
+      .catch(() => undefined)
+      .finally(() => void load());
   }, [load]);
+  useEffect(() => {
+    if (allowCreate) api<KpiOption[]>("/goals/kpis").then(setKpis, () => setKpis([]));
+  }, [allowCreate]);
   async function run(fn: () => Promise<unknown>) {
     setError(null);
+    setInfo(null);
     try {
       await fn();
       await load();
@@ -79,6 +133,21 @@ export function GoalTree({ path, allowCreate }: { path: string; allowCreate: boo
       setError(errorText(e));
     }
   }
+  const blank = (parent?: Goal): GoalForm => ({
+    parentId: parent?.id ?? "",
+    owner: parent?.employeeId ? "employee" : parent?.departmentId ? "employee" : "company",
+    employeeId: "",
+    departmentId: "",
+    title: "",
+    kpiCode: parent?.kpiCode ?? "",
+    periodFrom: parent?.periodFrom ?? yearStart(),
+    periodTo: parent?.periodTo ?? yearEnd(),
+    metric: parent ? parent.metric : "percent",
+    targetValue: parent ? "" : "100",
+    unit: "",
+    weight: "1",
+    dueDate: "",
+  });
   const ids = new Set(goals.map((g) => g.id));
   const roots = goals.filter((g) => !g.parentId || !ids.has(g.parentId));
   const kids = (id: string) => goals.filter((g) => g.parentId === id);
@@ -86,16 +155,38 @@ export function GoalTree({ path, allowCreate }: { path: string; allowCreate: boo
     <li key={g.id}>
       <div className="goal-row" style={{ paddingLeft: depth * 18 }}>
         <div className="goal-title">
+          {g.rag && (
+            <span
+              className={`rag-dot rag-${g.rag}`}
+              title={`${l(...RAG_LABEL[g.rag])} · ${l("seharusnya", "expected")} ${g.expected ?? 0}%`}
+              aria-label={l(...RAG_LABEL[g.rag])}
+            />
+          )}
           <strong>{g.title}</strong>
           <small className="muted">
             {" "}
             · {g.employeeName ?? g.departmentName ?? l("Perusahaan", "Company")}
-            {g.dueDate ? ` · ${formatDate(g.dueDate, locale)}` : ""}
+            {g.periodFrom && g.periodTo
+              ? ` · ${formatDate(g.periodFrom, locale)} – ${formatDate(g.periodTo, locale)}`
+              : g.dueDate
+                ? ` · ${formatDate(g.dueDate, locale)}`
+                : ""}
             {g.state !== "active" ? ` · ${l(...GOAL_STATE[g.state])}` : ""}
           </small>
+          {g.kpi && (
+            <span className="badge goal-kpi">
+              {l("KPI otomatis", "Auto KPI")}: {l(...g.kpi)}
+            </span>
+          )}
         </div>
-        <div className="goal-progress" title={`${g.progress}%`}>
-          <span style={{ width: `${g.progress}%` }} />
+        <div
+          className="goal-progress"
+          title={`${g.progress}% · ${l("seharusnya", "expected")} ${g.expected ?? "—"}%`}
+        >
+          <span style={{ width: `${g.progress}%` }} className={g.rag ? `rag-${g.rag}` : undefined} />
+          {g.expected !== undefined && g.expected > 0 && g.expected < 100 && (
+            <i style={{ left: `${g.expected}%` }} aria-hidden="true" />
+          )}
         </div>
         <span className="goal-pct">{g.progress}%</span>
         <span className="goal-value muted">{!kids(g.id).length && <GoalValue g={g} />}</span>
@@ -104,28 +195,29 @@ export function GoalTree({ path, allowCreate }: { path: string; allowCreate: boo
             <button
               type="button"
               className="link"
-              onClick={() => setCheckin({ id: g.id, value: g.currentValue, note: "" })}
+              onClick={() => setCheckin({ id: g.id, value: g.currentValue, note: "", auto: !!g.kpiCode })}
             >
-              {l("Check-in", "Check in")}
+              {g.kpiCode ? l("Catatan evaluasi", "Evaluation note") : l("Check-in", "Check in")}
             </button>
           )}
-          {allowCreate && (
+          {allowCreate && g.state === "active" && !g.employeeId && (
             <button
               type="button"
               className="link"
               onClick={() =>
-                setForm({
-                  parentId: g.id,
-                  employeeId: g.employeeId ?? "",
-                  title: "",
-                  metric: "number",
-                  targetValue: "",
-                  unit: "",
-                  weight: "1",
-                  dueDate: "",
+                setCascade({
+                  id: g.id,
+                  to: g.departmentId ? "employees" : "departments",
+                  departmentId: g.departmentId ?? "",
+                  split: "equal",
                 })
               }
             >
+              {l("Turunkan", "Cascade")}
+            </button>
+          )}
+          {allowCreate && (
+            <button type="button" className="link" onClick={() => setForm(blank(g))}>
               {l("+ Turunan", "+ Sub-goal")}
             </button>
           )}
@@ -146,23 +238,33 @@ export function GoalTree({ path, allowCreate }: { path: string; allowCreate: boo
       </div>
       {checkin?.id === g.id && (
         <div className="inline-panel" style={{ marginLeft: depth * 18 }}>
+          {!checkin.auto && (
+            <label className="field">
+              <span>
+                {g.metric === "boolean"
+                  ? l("Tercapai (1 = ya)", "Achieved (1 = yes)")
+                  : l("Nilai terbaru", "Current value")}
+              </span>
+              <input
+                className="num"
+                inputMode="decimal"
+                value={checkin.value}
+                onChange={(e) => setCheckin({ ...checkin, value: e.target.value })}
+              />
+            </label>
+          )}
           <label className="field">
             <span>
-              {g.metric === "boolean"
-                ? l("Tercapai (1 = ya)", "Achieved (1 = yes)")
-                : l("Nilai terbaru", "Current value")}
+              {checkin.auto
+                ? l(
+                    "Catatan evaluasi (nilai dihitung otomatis dari data)",
+                    "Evaluation note (the value is computed from data)",
+                  )
+                : l("Catatan", "Note")}
             </span>
             <input
-              className="num"
-              inputMode="decimal"
-              value={checkin.value}
-              onChange={(e) => setCheckin({ ...checkin, value: e.target.value })}
-            />
-          </label>
-          <label className="field">
-            <span>{l("Catatan", "Note")}</span>
-            <input
               maxLength={1000}
+              required={checkin.auto}
               value={checkin.note}
               onChange={(e) => setCheckin({ ...checkin, note: e.target.value })}
             />
@@ -170,6 +272,7 @@ export function GoalTree({ path, allowCreate }: { path: string; allowCreate: boo
           <button
             type="button"
             className="primary"
+            disabled={checkin.auto && !checkin.note.trim()}
             onClick={() =>
               run(async () => {
                 await api(`/goals/${g.id}/checkins`, {
@@ -187,10 +290,81 @@ export function GoalTree({ path, allowCreate }: { path: string; allowCreate: boo
           </button>
         </div>
       )}
+      {cascade?.id === g.id && (
+        <div className="inline-panel" style={{ marginLeft: depth * 18 }}>
+          <label className="field">
+            <span>{l("Turunkan ke", "Cascade to")}</span>
+            <select
+              value={cascade.to}
+              onChange={(e) => setCascade({ ...cascade, to: e.target.value as "departments" | "employees" })}
+            >
+              <option value="departments">
+                {g.departmentId
+                  ? l("Subdepartemen", "Sub-departments")
+                  : l("Semua departemen", "All departments")}
+              </option>
+              <option value="employees">{l("Karyawan departemen", "Department employees")}</option>
+            </select>
+          </label>
+          {cascade.to === "employees" && (
+            <label className="field">
+              <span>{l("Departemen", "Department")}</span>
+              <RefSelect
+                name="departmentId"
+                resource="departments"
+                display="name"
+                value={cascade.departmentId}
+                onChange={(v) => setCascade({ ...cascade, departmentId: v })}
+              />
+            </label>
+          )}
+          <label className="field">
+            <span>{l("Pembagian target", "Target split")}</span>
+            <select
+              value={cascade.split}
+              onChange={(e) => setCascade({ ...cascade, split: e.target.value as "equal" | "proportional" })}
+            >
+              <option value="equal">{l("Rata", "Equal")}</option>
+              <option value="proportional">
+                {l("Proporsional capaian periode lalu", "Proportional to last period")}
+              </option>
+            </select>
+          </label>
+          <button
+            type="button"
+            className="primary"
+            onClick={() =>
+              run(async () => {
+                const r = await api<{ created: number; skipped: number }>(`/goals/${g.id}/cascade`, {
+                  method: "POST",
+                  body: {
+                    to: cascade.to,
+                    departmentId: cascade.to === "employees" ? cascade.departmentId || null : null,
+                    split: cascade.split,
+                  },
+                });
+                setCascade(null);
+                setInfo(
+                  l(
+                    `${r.created} sasaran turunan dibuat${r.skipped ? `, ${r.skipped} sudah ada` : ""}.`,
+                    `${r.created} sub-goals created${r.skipped ? `, ${r.skipped} already existed` : ""}.`,
+                  ),
+                );
+              })
+            }
+          >
+            {l("Turunkan", "Cascade")}
+          </button>
+          <button type="button" onClick={() => setCascade(null)}>
+            {l("Batal", "Cancel")}
+          </button>
+        </div>
+      )}
       {kids(g.id).length > 0 && <ul className="goal-tree">{kids(g.id).map((k) => row(k, depth + 1))}</ul>}
     </li>
   );
 
+  const kpi = form?.kpiCode ? kpis.find((k) => k.code === form.kpiCode) : undefined;
   return (
     <div>
       {error && (
@@ -198,22 +372,13 @@ export function GoalTree({ path, allowCreate }: { path: string; allowCreate: boo
           {error}
         </p>
       )}
+      {info && (
+        <p className="muted" role="status">
+          {info}
+        </p>
+      )}
       {allowCreate && !form && (
-        <button
-          type="button"
-          onClick={() =>
-            setForm({
-              parentId: "",
-              employeeId: "",
-              title: "",
-              metric: "percent",
-              targetValue: "100",
-              unit: "",
-              weight: "1",
-              dueDate: "",
-            })
-          }
-        >
+        <button type="button" onClick={() => setForm(blank())}>
           {l("Sasaran baru", "New goal")}
         </button>
       )}
@@ -227,13 +392,17 @@ export function GoalTree({ path, allowCreate }: { path: string; allowCreate: boo
                 method: "POST",
                 body: {
                   parentId: form.parentId || null,
-                  employeeId: form.employeeId || null,
+                  employeeId: form.owner === "employee" ? form.employeeId || null : null,
+                  departmentId: form.owner === "department" ? form.departmentId || null : null,
                   title: form.title,
-                  metric: form.metric,
-                  targetValue: form.metric === "boolean" ? 1 : form.targetValue,
+                  metric: kpi ? kpi.metric : form.metric,
+                  targetValue: !kpi && form.metric === "boolean" ? 1 : form.targetValue,
                   unit: form.unit || null,
                   weight: form.weight,
                   dueDate: form.dueDate || null,
+                  kpiCode: form.kpiCode || null,
+                  periodFrom: form.kpiCode ? form.periodFrom : null,
+                  periodTo: form.kpiCode ? form.periodTo : null,
                 },
               });
               setForm(null);
@@ -250,28 +419,87 @@ export function GoalTree({ path, allowCreate }: { path: string; allowCreate: boo
             />
           </label>
           <label className="field">
-            <span>{l("Karyawan (kosong = perusahaan)", "Employee (empty = company)")}</span>
-            <RefSelect
-              name="employeeId"
-              resource="employees"
-              display="name"
-              value={form.employeeId}
-              onChange={(v) => setForm({ ...form, employeeId: v })}
-            />
-          </label>
-          <label className="field">
-            <span>{l("Metrik", "Metric")}</span>
-            <select
-              value={form.metric}
-              onChange={(e) => setForm({ ...form, metric: e.target.value as Goal["metric"] })}
-            >
-              <option value="percent">%</option>
-              <option value="number">{l("Angka", "Number")}</option>
-              <option value="currency">{l("Rupiah", "Currency")}</option>
-              <option value="boolean">{l("Ya/tidak", "Yes/no")}</option>
+            <span>{l("Pemilik", "Owner")}</span>
+            <select value={form.owner} onChange={(e) => setForm({ ...form, owner: e.target.value as Owner })}>
+              <option value="company">{l("Perusahaan", "Company")}</option>
+              <option value="department">{l("Departemen", "Department")}</option>
+              <option value="employee">{l("Karyawan", "Employee")}</option>
             </select>
           </label>
-          {form.metric !== "boolean" && (
+          {form.owner === "department" && (
+            <label className="field">
+              <span>{l("Departemen", "Department")}</span>
+              <RefSelect
+                name="departmentId"
+                resource="departments"
+                display="name"
+                required
+                value={form.departmentId}
+                onChange={(v) => setForm({ ...form, departmentId: v })}
+              />
+            </label>
+          )}
+          {form.owner === "employee" && (
+            <label className="field">
+              <span>{l("Karyawan", "Employee")}</span>
+              <RefSelect
+                name="employeeId"
+                resource="employees"
+                display="name"
+                required
+                value={form.employeeId}
+                onChange={(v) => setForm({ ...form, employeeId: v })}
+              />
+            </label>
+          )}
+          <label className="field">
+            <span>{l("Ukuran", "Measure")}</span>
+            <select value={form.kpiCode} onChange={(e) => setForm({ ...form, kpiCode: e.target.value })}>
+              <option value="">{l("Manual (check-in)", "Manual (check-ins)")}</option>
+              {kpis.map((k) => (
+                <option key={k.code} value={k.code}>
+                  {l("KPI otomatis", "Auto KPI")}: {l(...k.area)} · {l(...k.label)}
+                  {k.readable ? "" : l(" (dihitung pemegang hak)", " (computed by permitted users)")}
+                </option>
+              ))}
+            </select>
+          </label>
+          {form.kpiCode ? (
+            <>
+              <label className="field">
+                <span>{l("Periode dari", "Period from")}</span>
+                <input
+                  type="date"
+                  required
+                  value={form.periodFrom}
+                  onChange={(e) => setForm({ ...form, periodFrom: e.target.value })}
+                />
+              </label>
+              <label className="field">
+                <span>{l("Sampai", "To")}</span>
+                <input
+                  type="date"
+                  required
+                  value={form.periodTo}
+                  onChange={(e) => setForm({ ...form, periodTo: e.target.value })}
+                />
+              </label>
+            </>
+          ) : (
+            <label className="field">
+              <span>{l("Metrik", "Metric")}</span>
+              <select
+                value={form.metric}
+                onChange={(e) => setForm({ ...form, metric: e.target.value as Goal["metric"] })}
+              >
+                <option value="percent">%</option>
+                <option value="number">{l("Angka", "Number")}</option>
+                <option value="currency">{l("Rupiah", "Currency")}</option>
+                <option value="boolean">{l("Ya/tidak", "Yes/no")}</option>
+              </select>
+            </label>
+          )}
+          {(kpi || form.metric !== "boolean") && (
             <label className="field">
               <span>{l("Target", "Target")}</span>
               <input
@@ -283,14 +511,16 @@ export function GoalTree({ path, allowCreate }: { path: string; allowCreate: boo
               />
             </label>
           )}
-          <label className="field">
-            <span>{l("Satuan", "Unit")}</span>
-            <input
-              maxLength={30}
-              value={form.unit}
-              onChange={(e) => setForm({ ...form, unit: e.target.value })}
-            />
-          </label>
+          {!kpi && (
+            <label className="field">
+              <span>{l("Satuan", "Unit")}</span>
+              <input
+                maxLength={30}
+                value={form.unit}
+                onChange={(e) => setForm({ ...form, unit: e.target.value })}
+              />
+            </label>
+          )}
           <label className="field">
             <span>{l("Bobot", "Weight")}</span>
             <input
@@ -300,14 +530,16 @@ export function GoalTree({ path, allowCreate }: { path: string; allowCreate: boo
               onChange={(e) => setForm({ ...form, weight: e.target.value })}
             />
           </label>
-          <label className="field">
-            <span>{l("Tenggat", "Due date")}</span>
-            <input
-              type="date"
-              value={form.dueDate}
-              onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-            />
-          </label>
+          {!kpi && (
+            <label className="field">
+              <span>{l("Tenggat", "Due date")}</span>
+              <input
+                type="date"
+                value={form.dueDate}
+                onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+              />
+            </label>
+          )}
           <button className="primary">{l("Simpan", "Save")}</button>
           <button type="button" onClick={() => setForm(null)}>
             {l("Batal", "Cancel")}

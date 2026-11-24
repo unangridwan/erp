@@ -3,10 +3,11 @@
 import { businessToday, type FlowStatus, type KpiResult } from "@erp/shared";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Modal } from "../../../../components/feedback";
+import { Modal, toast } from "../../../../components/feedback";
+import { RAG_LABEL } from "../../../../components/hr/ess-panels";
 import { LoadFailed, useLoadError } from "../../../../components/load-failed";
 import { useMe } from "../../../../components/me-context";
-import { api } from "../../../../lib/api";
+import { api, ApiError } from "../../../../lib/api";
 import { formatDate, money } from "../../../../lib/format";
 import { useI18n } from "../../../../lib/i18n";
 import { can } from "../../../../lib/resources";
@@ -421,6 +422,8 @@ export default function MyWorkPage() {
         </>
       )}
 
+      <MyGoals />
+
       <section className="work-section">
         <div className="panel-head">
           <h2>{l("KPI saya", "My KPIs")}</h2>
@@ -730,5 +733,141 @@ function KpiRows({
         </div>
       )}
     </Modal>
+  );
+}
+
+interface MyGoal {
+  id: string;
+  title: string;
+  kpi: { label: [string, string] } | null;
+  metric: "percent" | "number" | "currency" | "boolean";
+  targetValue: number;
+  currentValue: number;
+  periodFrom: string | null;
+  periodTo: string | null;
+  dueDate: string | null;
+  state: string;
+  progress: number;
+  expected: number;
+  rag: "green" | "amber" | "red";
+}
+
+/** Sasaran saya tahun ini dengan status laju & catatan evaluasi diri (check-in sasaran). */
+function MyGoals() {
+  const { l, locale } = useI18n();
+  const [goals, setGoals] = useState<MyGoal[] | null>(null);
+  const [note, setNote] = useState<{ id: string; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const load = () =>
+    api<{ goals: MyGoal[] }>("/scorecard?scope=me").then(
+      (r) => setGoals(r.goals),
+      // Akun belum terhubung ke data karyawan: bagian ini tidak ditampilkan.
+      () => setGoals([]),
+    );
+  useEffect(() => {
+    void load();
+  }, []);
+  if (!goals?.length) return null;
+  const fmt = (g: MyGoal, v: number) =>
+    g.metric === "currency"
+      ? money(v, locale, 0)
+      : `${v.toLocaleString(locale === "id" ? "id-ID" : "en-US", { maximumFractionDigits: 2 })}${g.metric === "percent" ? "%" : ""}`;
+  async function save(g: MyGoal) {
+    if (!note?.text.trim()) return;
+    setSaving(true);
+    try {
+      await api(`/goals/${g.id}/checkins`, {
+        method: "POST",
+        body: { value: g.currentValue, note: note.text.trim() },
+      });
+      toast.success(l("Catatan evaluasi tersimpan.", "Evaluation note saved."));
+      setNote(null);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <section className="work-section">
+      <div className="panel-head">
+        <h2>{l("Sasaran saya", "My goals")}</h2>
+        <Link href="/flow/scorecard">{l("Buka scorecard →", "Open scorecard →")}</Link>
+      </div>
+      <ul className="goal-tree">
+        {goals.map((g) => (
+          <li key={g.id}>
+            <div className="goal-row sc-goal">
+              <div className="goal-title">
+                <span
+                  className={`rag-dot rag-${g.rag}`}
+                  title={`${l(...RAG_LABEL[g.rag])} · ${l("seharusnya", "expected")} ${g.expected}%`}
+                  aria-label={l(...RAG_LABEL[g.rag])}
+                />
+                <strong>{g.title}</strong>
+                {g.kpi && <span className="badge goal-kpi">KPI: {l(...g.kpi.label)}</span>}
+                {g.state === "active" && (
+                  <button
+                    type="button"
+                    className="link small"
+                    onClick={() => setNote(note?.id === g.id ? null : { id: g.id, text: "" })}
+                  >
+                    {l("Tulis evaluasi", "Write evaluation")}
+                  </button>
+                )}
+              </div>
+              <div
+                className="goal-progress"
+                title={`${g.progress}% · ${l("seharusnya", "expected")} ${g.expected}%`}
+              >
+                <span style={{ width: `${g.progress}%` }} className={`rag-${g.rag}`} />
+                {g.expected > 0 && g.expected < 100 && (
+                  <i style={{ left: `${g.expected}%` }} aria-hidden="true" />
+                )}
+              </div>
+              <span className="goal-pct">
+                {g.progress.toLocaleString(locale === "id" ? "id-ID" : "en-US", { maximumFractionDigits: 1 })}
+                %
+              </span>
+              <span className="goal-value muted">
+                {fmt(g, g.currentValue)} / {fmt(g, g.targetValue)}
+                {g.periodTo && ` · ${l("s.d.", "until")} ${formatDate(g.periodTo, locale)}`}
+              </span>
+            </div>
+            {note?.id === g.id && (
+              <div className="inline-panel">
+                <label className="field">
+                  <span>
+                    {l(
+                      "Apa yang berjalan baik, kendala, dan langkah berikutnya",
+                      "What went well, obstacles, and next steps",
+                    )}
+                  </span>
+                  <textarea
+                    rows={3}
+                    maxLength={1000}
+                    value={note.text}
+                    onChange={(e) => setNote({ id: g.id, text: e.target.value })}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={saving || !note.text.trim()}
+                  aria-busy={saving}
+                  onClick={() => void save(g)}
+                >
+                  {l("Simpan", "Save")}
+                </button>
+                <button type="button" onClick={() => setNote(null)}>
+                  {l("Batal", "Cancel")}
+                </button>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

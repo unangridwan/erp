@@ -90,3 +90,4 @@ export * from "./record-links.js";
 export * from "./business-date.js";
 export * from "./discussion.js";
 export * from "./kpi.js";
+export * from "./scorecard.js";

@@ -29,6 +29,10 @@ import {
   goalSchema,
   hasPermission,
   businessToday,
+  elapsedShare,
+  KPI_BY_CODE,
+  KPI_METRIC,
+  paceStatus,
 } from "@erp/shared";
 import type { z } from "zod";
 import { fieldError } from "../accounting/context.js";
@@ -110,6 +114,7 @@ export class GoalService {
       .orderBy(asc(G.createdAt));
     const progress = goalProgress(all.map((r) => r.goal));
     const me = await this.access.me(tx);
+    const now = today();
     const hr = hasPermission(ctx.permissions, "hr.read");
     return all
       .filter((r) => {
@@ -123,6 +128,17 @@ export class GoalService {
         employeeName: r.employeeName,
         departmentName: r.departmentName,
         progress: progress.get(r.goal.id) ?? 0,
+        // Status laju: capaian dibanding porsi waktu periode (atau sampai tenggat) yang sudah berjalan.
+        ...paceStatus(
+          progress.get(r.goal.id) ?? 0,
+          elapsedShare(
+            r.goal.periodFrom ?? (r.goal.dueDate ? r.goal.createdAt.toISOString().slice(0, 10) : null),
+            r.goal.periodTo ?? r.goal.dueDate,
+            now,
+          ),
+          r.goal.state === "done",
+        ),
+        kpi: r.goal.kpiCode ? (KPI_BY_CODE.get(r.goal.kpiCode)?.label ?? null) : null,
         canEdit:
           hasPermission(ctx.permissions, "hr.manage") ||
           r.employeeUserId === ctx.userId ||
@@ -157,6 +173,17 @@ export class GoalService {
       }
     }
     if (input.employeeId) await this.employees.find(tx, input.employeeId);
+    if (input.departmentId) {
+      const [d] = await tx
+        .select({ id: schema.departments.id })
+        .from(schema.departments)
+        .where(
+          and(eq(schema.departments.id, input.departmentId), eq(schema.departments.companyId, companyId)),
+        );
+      if (!d) throw fieldError("departmentId", "Departemen tidak ditemukan");
+    }
+    const kpi = input.kpiCode ? KPI_BY_CODE.get(input.kpiCode) : undefined;
+    if (input.kpiCode && !kpi) throw fieldError("kpiCode", "KPI tidak ditemukan");
     if (input.cycleId) {
       const [c] = await tx
         .select({ id: schema.appraisalCycles.id })
@@ -173,14 +200,20 @@ export class GoalService {
       departmentId: input.departmentId ?? null,
       title: input.title,
       description: input.description ?? null,
-      metric: input.metric,
+      // Sasaran KPI: metrik mengikuti satuan KPI.
+      metric: kpi ? KPI_METRIC[kpi.unit] : input.metric,
       startValue: String(input.startValue),
-      targetValue: String(input.metric === "boolean" ? 1 : input.targetValue),
+      targetValue: String(!kpi && input.metric === "boolean" ? 1 : input.targetValue),
       currentValue: String(input.currentValue),
       unit: input.unit ?? null,
       weight: String(input.weight),
       dueDate: input.dueDate ?? null,
       state: input.state,
+      kpiCode: kpi ? kpi.code : null,
+      periodFrom: input.periodFrom ?? null,
+      periodTo: input.periodTo ?? null,
+      // Nilai otomatis dihitung ulang saat dibaca berikutnya.
+      ...(kpi ? { valueComputedAt: null } : {}),
     };
   }
 

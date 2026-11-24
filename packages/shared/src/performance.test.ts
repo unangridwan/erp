@@ -12,6 +12,22 @@ const g = (over: Partial<GoalNode> & { id: string }): GoalNode => ({
   ...over,
 });
 
+describe("goalProgress sasaran KPI", () => {
+  it("sasaran KPI memakai nilainya sendiri meski punya turunan", () => {
+    const base = { metric: "number" as const, startValue: 0, weight: 1, state: "active" as const };
+    const p = goalProgress([
+      { ...base, id: "k", parentId: null, targetValue: 100, currentValue: 80, kpiCode: "sales.revenue" },
+      { ...base, id: "c1", parentId: "k", targetValue: 50, currentValue: 0, kpiCode: "sales.revenue" },
+      { ...base, id: "m", parentId: null, targetValue: 100, currentValue: 90 },
+      { ...base, id: "c2", parentId: "m", targetValue: 10, currentValue: 5 },
+    ]);
+    expect(p.get("k")).toBe(80);
+    expect(p.get("c1")).toBe(0);
+    // Sasaran manual tetap rata-rata turunannya.
+    expect(p.get("m")).toBe(50);
+  });
+});
+
 describe("goalProgress", () => {
   it("progres sendiri: dari nilai awal ke target, dibatasi 0–100; boolean; selesai = 100", () => {
     expect(ownProgress(g({ id: "a", startValue: 10, targetValue: 30, currentValue: 15 }))).toBe(25);

@@ -2507,10 +2507,22 @@ export const goalSchema = z
     weight: z.coerce.number().positive().max(1000).default(1),
     dueDate: z.string().date().nullish(),
     state: z.enum(["draft", "active", "done", "cancelled"]).default("active"),
+    /** KPI otomatis (kode katalog KPI): nilai berjalan dihitung dari data untuk pemilik sasaran. */
+    kpiCode: z.string().trim().max(60).nullish(),
+    periodFrom: z.string().date().nullish(),
+    periodTo: z.string().date().nullish(),
   })
   .refine((g) => !(g.employeeId && g.departmentId), {
     message: "Pilih karyawan atau departemen, bukan keduanya",
     path: ["departmentId"],
+  })
+  .refine((g) => !g.kpiCode || (!!g.periodFrom && !!g.periodTo), {
+    message: "KPI otomatis butuh periode (dari & sampai)",
+    path: ["periodTo"],
+  })
+  .refine((g) => !g.periodFrom || !g.periodTo || g.periodFrom <= g.periodTo, {
+    message: "Tanggal awal harus sebelum tanggal akhir",
+    path: ["periodTo"],
   })
   .refine((g) => g.metric === "boolean" || g.targetValue !== g.startValue, {
     message: "Target harus berbeda dari nilai awal",

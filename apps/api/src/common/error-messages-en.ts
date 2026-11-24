@@ -1292,6 +1292,9 @@ export const MESSAGES_EN: Record<string, string> = {
   "Belum ada pemegang dokumen atau manajer departemen yang bisa diingatkan":
     "There is no document holder or department manager to remind yet",
   "KPI tidak ditemukan": "KPI not found",
+  "KPI otomatis butuh periode (dari & sampai)": "An automatic KPI needs a period (from & to)",
+  "Pilih departemen": "Choose a department",
+  "Tidak ada departemen/karyawan untuk diturunkan": "There are no departments/employees to cascade to",
   // ---- Diskusi dokumen ----
   "Komentar wajib diisi": "The comment is required",
   "Orang yang disebut tidak bisa melihat dokumen ini": "A mentioned person cannot view this document",
