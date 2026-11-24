@@ -505,3 +505,176 @@ export const flowSettingsSchema = z.object({
     .max(20),
 });
 export type FlowSettingsInput = z.infer<typeof flowSettingsSchema>;
+
+// ---- Serah terima antar departemen ----
+
+/**
+ * Kata kunci nama departemen untuk tiap label departemen bawaan tahap. Dipakai bila perusahaan belum menetapkan
+ * departemen penanggung jawab, agar papan serah terima langsung terisi (mis. "Gudang" → "Gudang & Logistik").
+ */
+const DEPT_KEYWORDS: Record<string, string[]> = {
+  Penjualan: [
+    "penjualan",
+    "sales",
+    "pemasaran",
+    "marketing",
+    "niaga",
+    "perdagangan",
+    "komersial",
+    "commercial",
+  ],
+  Gudang: ["gudang", "warehouse", "logistik", "logistic", "persediaan", "inventory"],
+  Keuangan: ["keuangan", "finance", "akuntansi", "accounting", "treasury"],
+  Pembelian: ["pembelian", "purchas", "pengadaan", "procure"],
+  Manajemen: ["direksi", "manajemen", "management", "direktur", "board"],
+  PPIC: ["ppic", "perencanaan", "planning", "produksi", "production"],
+  Produksi: ["produksi", "production", "manufaktur", "manufactur", "pabrik"],
+  Mutu: ["mutu", "quality", "qc", "qa"],
+  SDM: ["sdm", "hr", "hrd", "human", "personalia", "kepegawaian"],
+  Payroll: ["payroll", "penggajian", "sdm", "hr", "hrd", "human"],
+};
+
+/** Departemen perusahaan yang cocok dengan label departemen bawaan tahap (kata kunci berurutan prioritas). */
+export function autoDepartment(dept: [string, string], departments: { id: string; name: string }[]) {
+  const keywords = DEPT_KEYWORDS[dept[0]] ?? [dept[0].toLowerCase(), dept[1].toLowerCase()];
+  const words = departments.map((d) => ({
+    id: d.id,
+    words: d.name
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(Boolean),
+  }));
+  for (const k of keywords) {
+    const hit = words.find((d) => d.words.some((w) => w.startsWith(k)));
+    if (hit) return hit.id;
+  }
+  return null;
+}
+
+/** Dokumen yang sedang menunggu di satu departemen, beserta departemen yang menyerahkannya. */
+export interface FlowHandoff extends FlowWorkItem {
+  process: FlowProcess;
+  stageLabel: [string, string];
+  waiting: [string, string];
+  slaDays: number | null;
+  /** Departemen yang sekarang memegang (penanggung jawab tahap sekarang). */
+  toDepartmentId: string | null;
+  /** Tahap & departemen sebelumnya (yang menyerahkan). */
+  fromStage: string | null;
+  fromStageLabel: [string, string] | null;
+  fromDepartmentId: string | null;
+}
+
+export function handoffItems(
+  def: FlowDef,
+  items: FlowItem[],
+  opts: {
+    today: string;
+    sla: Record<string, number | null>;
+    departments: Record<string, string | null>;
+    owners?: Map<string, FlowOwner>;
+  },
+): FlowHandoff[] {
+  const keys = def.stages.map((s) => s.key);
+  const byId = new Map(items.map((i) => [i.id, i]));
+  return workItems(def, items, opts).map((w) => {
+    const it = byId.get(w.id)!;
+    const i = keys.indexOf(w.stage);
+    const fromStage = keys
+      .slice(0, i)
+      .reverse()
+      .find((k) => it.times[k]);
+    const stageDef = def.stages[i]!;
+    return {
+      ...w,
+      process: def.key,
+      stageLabel: stageDef.label,
+      waiting: stageDef.waiting,
+      slaDays: opts.sla[w.stage] ?? null,
+      toDepartmentId: opts.departments[w.stage] ?? null,
+      fromStage: fromStage ?? null,
+      fromStageLabel: fromStage ? def.stages.find((s) => s.key === fromStage)!.label : null,
+      fromDepartmentId: fromStage ? (opts.departments[fromStage] ?? null) : null,
+    };
+  });
+}
+
+export interface HandoffDepartmentStat {
+  departmentId: string | null;
+  /** Dokumen yang sedang menunggu di departemen ini. */
+  incoming: { count: number; late: number; atRisk: number; avgAge: number | null };
+  /** Dokumen yang diserahkan departemen ini dan sedang menunggu di departemen lain. */
+  outgoing: { count: number; late: number };
+}
+
+export interface HandoffLink {
+  from: string | null;
+  to: string | null;
+  count: number;
+  late: number;
+  avgAge: number | null;
+}
+
+/** Rekap papan serah terima: beban & keterlambatan per departemen, dan per pasangan departemen (dari → ke). */
+export function summarizeHandoffs(list: FlowHandoff[]) {
+  const dept = new Map<string, HandoffDepartmentStat & { ageSum: number }>();
+  const get = (id: string | null) => {
+    const k = id ?? "";
+    let d = dept.get(k);
+    if (!d) {
+      d = {
+        departmentId: id,
+        incoming: { count: 0, late: 0, atRisk: 0, avgAge: null },
+        outgoing: { count: 0, late: 0 },
+        ageSum: 0,
+      };
+      dept.set(k, d);
+    }
+    return d;
+  };
+  const links = new Map<string, HandoffLink & { ageSum: number }>();
+  for (const h of list) {
+    const to = get(h.toDepartmentId);
+    to.incoming.count++;
+    to.ageSum += h.ageDays;
+    if (h.status === "late") to.incoming.late++;
+    if (h.status === "at_risk") to.incoming.atRisk++;
+    if (h.fromStage && h.fromDepartmentId !== h.toDepartmentId) {
+      const from = get(h.fromDepartmentId);
+      from.outgoing.count++;
+      if (h.status === "late") from.outgoing.late++;
+      const k = `${h.fromDepartmentId ?? ""}>${h.toDepartmentId ?? ""}`;
+      const l = links.get(k) ?? {
+        from: h.fromDepartmentId,
+        to: h.toDepartmentId,
+        count: 0,
+        late: 0,
+        avgAge: null,
+        ageSum: 0,
+      };
+      l.count++;
+      l.ageSum += h.ageDays;
+      if (h.status === "late") l.late++;
+      links.set(k, l);
+    }
+  }
+  const avg = (sum: number, n: number) => (n ? Math.round((sum / n) * 10) / 10 : null);
+  return {
+    departments: [...dept.values()]
+      .map(({ ageSum, ...d }) => ({
+        ...d,
+        incoming: { ...d.incoming, avgAge: avg(ageSum, d.incoming.count) },
+      }))
+      .sort((a, b) => b.incoming.late - a.incoming.late || b.incoming.count - a.incoming.count),
+    links: [...links.values()]
+      .map(({ ageSum, ...l }) => ({ ...l, avgAge: avg(ageSum, l.count) }))
+      .sort((a, b) => b.late - a.late || b.count - a.count),
+  };
+}
+
+/** Kirim pengingat serah terima (`POST /flow/handoffs/remind`). */
+export const handoffRemindSchema = z.object({
+  process: z.enum(FLOW_PROCESSES),
+  id: z.string().uuid(),
+  message: z.string().trim().max(1000).optional(),
+});

@@ -26,6 +26,9 @@ describe.skipIf(!hasDb)("Alur bisnis end-to-end", () => {
   let paidOrder = "";
   let openInvoiceOrder = "";
   let invoiceId = "";
+  let quoteOrder = "";
+  let fina: ReturnType<typeof client>;
+  const dept: Record<string, string> = {};
   const jr: Record<string, string> = {};
 
   beforeAll(async () => {
@@ -58,6 +61,50 @@ describe.skipIf(!hasDb)("Alur bisnis end-to-end", () => {
           .expect(200)
       ).body.token,
     );
+    // Departemen: Penjualan (Sari), Gudang, Keuangan (manajer Fina, hanya hak akuntansi).
+    const finRole = (
+      await a
+        .post("/roles", { code: "keuangan", name: "Keuangan", permissions: ["accounting.read"] })
+        .expect(201)
+    ).body.id;
+    const finaUser = (
+      await a
+        .post("/users", {
+          name: "Fina Keuangan",
+          email: "fina@example.com",
+          password: "rahasia123",
+          roleIds: [finRole],
+          companyIds: [me.activeCompanyId],
+        })
+        .expect(201)
+    ).body.id;
+    fina = client(
+      app,
+      (
+        await request(app.getHttpServer())
+          .post("/auth/login")
+          .send({ tenantSlug: a.slug, email: "fina@example.com", password: "rahasia123" })
+          .expect(200)
+      ).body.token,
+    );
+    const finaEmp = (
+      await a
+        .post("/employees", { name: "Fina Keuangan", userId: finaUser, joinDate: "2024-01-01" })
+        .expect(201)
+    ).body.id;
+    dept.sales = (await a.post("/departments", { name: "Penjualan & Pemasaran" }).expect(201)).body.id;
+    dept.wh = (await a.post("/departments", { name: "Gudang & Logistik" }).expect(201)).body.id;
+    dept.fin = (
+      await a.post("/departments", { name: "Keuangan & Akuntansi", managerId: finaEmp }).expect(201)
+    ).body.id;
+    await a
+      .post("/employees", {
+        name: "Sari Penjual",
+        userId: salesUserId,
+        departmentId: dept.sales,
+        joinDate: "2024-01-01",
+      })
+      .expect(201);
     const uom = (await a.get("/uoms?q=Pcs").expect(200)).body.items[0].id;
     const product = (
       await a
@@ -114,7 +161,7 @@ describe.skipIf(!hasDb)("Alur bisnis end-to-end", () => {
     // 3) Jasa dikonfirmasi tanpa pengiriman → langsung menunggu faktur.
     await order(daysAgo(5), true);
     // 4) Penawaran.
-    await order(daysAgo(1), false);
+    quoteOrder = await order(daysAgo(1), false);
   });
 
   afterAll(async () => {
@@ -156,6 +203,77 @@ describe.skipIf(!hasDb)("Alur bisnis end-to-end", () => {
     expect(t.related.some((r: { id: string }) => r.id === invoiceId)).toBe(true);
     expect(t.events.length).toBeGreaterThan(0);
     await a.get(`/flow/trace/partner/${invoiceId}`).expect(404);
+  });
+
+  it("papan serah terima: antrean per departemen, asal serah terima, dan pengingat", async () => {
+    interface Handoff {
+      id: string;
+      stage: string;
+      toDepartmentId: string | null;
+      fromDepartmentId: string | null;
+      fromStage: string | null;
+      status: string;
+      lastReminder: { by: string | null } | null;
+    }
+    const board = (await a.get("/flow/handoffs?process=o2c").expect(200)).body;
+    const by = Object.fromEntries((board.items as Handoff[]).map((h) => [h.id, h]));
+    expect(Object.keys(by)).toHaveLength(3);
+    // Departemen dicocokkan otomatis dari nama (belum diatur di Pengaturan SLA).
+    expect(by[quoteOrder]).toMatchObject({
+      stage: "quote",
+      toDepartmentId: dept.sales,
+      fromStage: null,
+      // Milik Admin sendiri & departemen Penjualan tanpa manajer: tidak ada yang bisa diingatkan.
+      canRemind: false,
+    });
+    expect(by[openInvoiceOrder]).toMatchObject({
+      stage: "invoiced",
+      toDepartmentId: dept.fin,
+      fromDepartmentId: dept.fin,
+      status: "late",
+      canRemind: true,
+    });
+    const stat = Object.fromEntries(
+      (board.stats as { departmentId: string; incoming: { count: number; late: number } }[]).map((s) => [
+        s.departmentId,
+        s.incoming,
+      ]),
+    );
+    expect(stat[dept.fin!]).toMatchObject({ count: 2, late: 1 });
+    expect(board.links).toEqual([
+      expect.objectContaining({ from: dept.wh, to: dept.fin, count: 1, fromName: "Gudang & Logistik" }),
+    ]);
+    const out = (await a.get(`/flow/handoffs?department=${dept.wh}&direction=out`).expect(200)).body;
+    expect(out.items.map((h: Handoff) => h.stage)).toEqual(["delivered"]);
+    const inbox = (await sales.get(`/flow/handoffs?department=${dept.sales}`).expect(200)).body;
+    expect(inbox.myDepartmentId).toBe(dept.sales);
+    expect(inbox.items.map((h: Handoff) => h.id)).toEqual([quoteOrder]);
+
+    // Pengingat dari penjual: manajer Keuangan (tanpa hak penjualan) mendapat isi pengingat tanpa tautan.
+    const sent = (
+      await sales
+        .post("/flow/handoffs/remind", { process: "o2c", id: openInvoiceOrder, message: "Mohon ditagih." })
+        .expect(201)
+    ).body;
+    expect(sent.notified).toBe(1);
+    expect(sent.message).toContain("Keuangan & Akuntansi");
+    const notes = (await fina.get("/me/notifications").expect(200)).body;
+    expect(notes[0]).toMatchObject({ title: expect.stringContaining("Pengingat"), link: null });
+    expect(notes[0].body).toContain("Mohon ditagih.");
+    await sales.post("/flow/handoffs/remind", { process: "o2c", id: openInvoiceOrder }).expect(409);
+    const after = (await a.get("/flow/handoffs?process=o2c").expect(200)).body;
+    expect(after.items.find((h: Handoff) => h.id === openInvoiceOrder).lastReminder).toMatchObject({
+      by: "Sari Penjual",
+    });
+    // Riwayat pesanan mencatat pengingatnya.
+    const log = (await a.get(`/activity/sale_order/${openInvoiceOrder}`).expect(200)).body;
+    expect(log[0]).toMatchObject({ action: "message", changes: { reminder: { stage: "invoiced" } } });
+
+    // Penawaran milik Admin, departemen Penjualan tanpa manajer: tidak ada yang bisa diingatkan.
+    await a.post("/flow/handoffs/remind", { process: "o2c", id: quoteOrder }).expect(400);
+    await a.post("/flow/handoffs/remind", { process: "o2c", id: paidOrder }).expect(404);
+    await fina.post("/flow/handoffs/remind", { process: "o2c", id: openInvoiceOrder }).expect(403);
+    await fina.get("/flow/handoffs?process=o2c").expect(403);
   });
 
   it("pengaturan SLA mengubah status; hak akses per proses", async () => {

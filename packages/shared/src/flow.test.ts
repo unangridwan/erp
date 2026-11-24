@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  autoDepartment,
   currentStage,
   FLOW_DEFS,
+  handoffItems,
   monotonicTimes,
   stageStatus,
   summarizeFlow,
+  summarizeHandoffs,
   workItems,
   type FlowItem,
 } from "./flow.js";
@@ -150,5 +153,57 @@ describe("waktu tahap tidak menurun", () => {
       invoiced: "2024-12-05",
       paid: null,
     });
+  });
+});
+
+describe("serah terima antar departemen", () => {
+  const deps = [
+    { id: "d-sales", name: "Penjualan & Pemasaran" },
+    { id: "d-wh", name: "Gudang & Logistik" },
+    { id: "d-fin", name: "Keuangan & Akuntansi" },
+    { id: "d-hr", name: "SDM & Umum" },
+    { id: "d-board", name: "Direksi" },
+  ];
+
+  it("mencocokkan departemen bawaan tahap dengan nama departemen perusahaan", () => {
+    expect(autoDepartment(["Gudang", "Warehouse"], deps)).toBe("d-wh");
+    expect(autoDepartment(["Keuangan", "Finance"], deps)).toBe("d-fin");
+    expect(autoDepartment(["Manajemen", "Management"], deps)).toBe("d-board");
+    expect(autoDepartment(["Payroll", "Payroll"], deps)).toBe("d-hr");
+    // Kata harus diawali kata kunci: "hr" tidak cocok dengan "Christ".
+    expect(autoDepartment(["SDM", "HR"], [{ id: "x", name: "Christmas Team" }])).toBeNull();
+    expect(autoDepartment(["Pembelian", "Purchasing"], deps)).toBeNull();
+  });
+
+  it("dokumen menunggu di departemen tahap sekarang, diserahkan oleh departemen tahap sebelumnya", () => {
+    const departments = {
+      quote: "d-sales",
+      order: "d-wh",
+      delivered: "d-fin",
+      invoiced: "d-fin",
+      paid: null,
+    };
+    const list = handoffItems(o2c, items, { today: "2026-04-01", sla, departments, owners });
+    const by = Object.fromEntries(list.map((h) => [h.id, h]));
+    expect(Object.keys(by).sort()).toEqual(["B", "C", "D", "E"]);
+    expect(by.C).toMatchObject({
+      stage: "order",
+      toDepartmentId: "d-wh",
+      fromStage: "quote",
+      fromDepartmentId: "d-sales",
+      status: "at_risk",
+    });
+    // Penawaran: belum ada yang menyerahkan.
+    expect(by.D).toMatchObject({ fromStage: null, fromDepartmentId: null, toDepartmentId: "d-sales" });
+    // Ditagih: tahap sebelumnya "Terkirim" juga milik Keuangan (bukan serah terima antar departemen).
+    expect(by.B).toMatchObject({ fromStage: "delivered", fromDepartmentId: "d-fin", status: "late" });
+
+    const sum = summarizeHandoffs(list);
+    const dep = Object.fromEntries(sum.departments.map((d) => [d.departmentId, d]));
+    expect(dep["d-wh"]!.incoming).toMatchObject({ count: 2, late: 1 });
+    expect(dep["d-sales"]!.outgoing).toMatchObject({ count: 2 });
+    expect(dep["d-fin"]!.incoming).toMatchObject({ count: 1, late: 1 });
+    // Hanya perpindahan antar departemen yang dihitung sebagai tautan.
+    expect(sum.links).toEqual([expect.objectContaining({ from: "d-sales", to: "d-wh", count: 2, late: 1 })]);
   });
 });

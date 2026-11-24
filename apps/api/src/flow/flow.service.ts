@@ -1,6 +1,7 @@
 import { ForbiddenException, Inject, Injectable } from "@nestjs/common";
 import { and, eq, inArray, schema, sql, type Db, type SQL } from "@erp/db";
 import {
+  autoDepartment,
   businessToday,
   FLOW_DEFS,
   hasPermission,
@@ -369,21 +370,35 @@ export class FlowService {
     return out;
   }
 
-  /** SLA & departemen per tahap (pengaturan perusahaan menimpa bawaan). */
+  /**
+   * SLA & departemen penanggung jawab per tahap. Pengaturan perusahaan menimpa bawaan; departemen yang belum
+   * ditetapkan dicocokkan otomatis dari nama departemen perusahaan (mis. tahap Gudang → "Gudang & Logistik").
+   */
   async settings(tx: Db, process: FlowProcess) {
+    const c = currentContext().companyId;
     const S = schema.flowStageSettings;
     const rows = await tx
       .select()
       .from(S)
-      .where(and(eq(S.companyId, currentContext().companyId), eq(S.process, process)));
+      .where(and(eq(S.companyId, c), eq(S.process, process)));
+    const D = schema.departments;
+    const deps = await tx
+      .select({ id: D.id, name: D.name })
+      .from(D)
+      .where(and(eq(D.companyId, c), eq(D.active, true)))
+      .orderBy(D.name);
     const def = FLOW_DEFS[process];
     const sla: Record<string, number | null> = {};
     const departments: Record<string, string | null> = {};
+    const configured: Record<string, string | null> = {};
+    const auto: Record<string, string | null> = {};
     for (const s of def.stages) {
       const r = rows.find((x) => x.stage === s.key);
       sla[s.key] = s.slaDays === null ? null : (r?.slaDays ?? s.slaDays);
-      departments[s.key] = r?.departmentId ?? null;
+      configured[s.key] = r?.departmentId ?? null;
+      auto[s.key] = autoDepartment(s.dept, deps);
+      departments[s.key] = configured[s.key] ?? auto[s.key] ?? null;
     }
-    return { sla, departments };
+    return { sla, departments, configured, auto };
   }
 }

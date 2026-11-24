@@ -29,6 +29,8 @@ import { RequirePermission } from "../auth/decorators.js";
 import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
+import { NotificationsModule } from "../notifications/notifications.module.js";
+import { FlowHandoffController } from "./handoffs.js";
 import { FlowService } from "./flow.service.js";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -264,7 +266,9 @@ export class FlowController {
       label: st.label,
       defaultSlaDays: st.slaDays,
       slaDays: s.sla[st.key] ?? null,
-      departmentId: s.departments[st.key] ?? null,
+      departmentId: s.configured[st.key] ?? null,
+      /** Departemen hasil pencocokan otomatis, dipakai bila departemen belum ditetapkan. */
+      autoDepartmentId: s.auto[st.key] ?? null,
       final: st.slaDays === null,
     }));
   }
@@ -418,5 +422,11 @@ export class FlowController {
   }
 }
 
-@Module({ controllers: [FlowController], providers: [FlowService], exports: [FlowService] })
+@Module({
+  imports: [NotificationsModule],
+  // Papan serah terima didaftarkan lebih dulu agar /flow/handoffs tidak tertangkap /flow/:process.
+  controllers: [FlowHandoffController, FlowController],
+  providers: [FlowService],
+  exports: [FlowService],
+})
 export class FlowModule {}

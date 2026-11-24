@@ -5493,3 +5493,154 @@ button.kpi-value {
     display: flex;
   }
 }
+
+/* ---- Diskusi dokumen (komentar & @mention) ---- */
+.chatter-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.chatter-compose textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 52px;
+}
+.chatter-compose-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mention-wrap {
+  position: relative;
+}
+.mention-list {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin: 2px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 14%);
+}
+.mention-list li {
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.mention-list li.active,
+.mention-list li:hover {
+  background: var(--accent-soft);
+}
+.chatter-filter {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.chatter-filter button {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+.chatter-filter button.active {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+.chatter-msg {
+  border-left: 3px solid var(--accent);
+  padding-left: 8px;
+}
+.chatter-msg.reminder {
+  border-left-color: var(--warn);
+}
+.chatter-msg p {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.chatter-msg .badge {
+  margin-left: 6px;
+}
+mark.mention {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-radius: 3px;
+  padding: 0 2px;
+  font-weight: 600;
+}
+
+/* ---- Papan serah terima antar departemen ---- */
+.handoff-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.handoff-depts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.handoff-dept {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--ok);
+  border-radius: 8px;
+  background: var(--card);
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.handoff-dept.late {
+  border-left-color: var(--danger);
+}
+.handoff-dept.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.handoff-dept strong {
+  font-size: 22px;
+}
+.handoff-dept-name {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-weight: 600;
+}
+.panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.panel-head h2 {
+  margin: 0;
+}
+.handoff-panel {
+  margin-bottom: 16px;
+}
+.handoff-panel h2 {
+  margin-top: 0;
+}
+/* Sel boleh membungkus agar papan muat tanpa gulir ke samping di layar lebar. */
+.handoff-table td {
+  white-space: normal;
+  vertical-align: top;
+}
+.handoff-table td:first-child {
+  min-width: 200px;
+}
