@@ -19,6 +19,8 @@ export interface ChartProps {
   format: (v: number | null) => string;
   /** Label sumbu nilai (ringkas). */
   formatAxis?: (v: number) => string;
+  /** Format nilai per seri (tooltip), mis. seri persen di grafik kombo. */
+  formatSeries?: (seriesIndex: number, v: number | null) => string;
   ariaLabel: string;
   dataLabels?: boolean;
   showLegend?: boolean;
@@ -111,6 +113,8 @@ export function AxisChart(
     lineSeries?: number[];
     /** Garis memakai sumbu nilai kedua (kanan). */
     dualAxis?: boolean;
+    /** Format label sumbu kedua (mis. persen). */
+    formatAxis2?: (v: number) => string;
   },
 ) {
   const { kind, categories, series } = props;
@@ -172,9 +176,20 @@ export function AxisChart(
   const tickVals = ticks(min, max);
   const lo = tickVals[0]!;
   const hi = tickVals[tickVals.length - 1]!;
-  const tickVals2 = dual ? ticks(min2, max2) : [];
-  const lo2 = tickVals2[0] ?? 0;
-  const hi2 = tickVals2[tickVals2.length - 1] ?? 1;
+  // Sumbu kedua: garis grid sama dengan sumbu utama dan nol sejajar (bila sumbu utama memuat nol).
+  let lo2 = 0;
+  let hi2 = 1;
+  if (dual) {
+    const f = (0 - lo) / (hi - lo || 1);
+    let top = Math.max(max2, 0);
+    if (f > 0 && f < 1) top = Math.max(top, (-Math.min(min2, 0) * (1 - f)) / f);
+    // Batas atas "rapi" agar label sumbu kanan bulat.
+    top = top > 0 ? ticks(0, top).slice(-1)[0]! : 1;
+    hi2 = top;
+    lo2 = f > 0 && f < 1 ? (-f / (1 - f)) * top : Math.min(min2, 0);
+  }
+  const tickVals2 = dual ? tickVals.map((t) => lo2 + ((t - lo) / (hi - lo || 1)) * (hi2 - lo2)) : [];
+  const fmtAxis2 = props.formatAxis2 ?? fmtAxis;
 
   const longest = Math.max(4, ...categories.map((c) => c.label.length));
   const w = box.w;
@@ -183,7 +198,7 @@ export function AxisChart(
     ? { top: 6, right: 16, bottom: 22, left: Math.min(Math.round(w * 0.38), 12 + longest * 6.6) }
     : {
         top: 10,
-        right: dual ? 10 + Math.max(...tickVals2.map((t) => fmtAxis(t).length)) * 7 : 12,
+        right: dual ? 10 + Math.max(...tickVals2.map((t) => fmtAxis2(t).length)) * 7 : 12,
         bottom: 24,
         left: 8 + Math.max(...tickVals.map((t) => fmtAxis(t).length)) * 7,
       };
@@ -383,7 +398,7 @@ export function AxisChart(
         )}
         {tickVals2.map((t) => (
           <text key={`r${t}`} x={w - pad.right + 6} y={vy2(t) + 4} textAnchor="start">
-            {fmtAxis(t)}
+            {fmtAxis2(Math.round(t * 100) / 100)}
           </text>
         ))}
         {hover !== null &&
@@ -473,7 +488,13 @@ export function AxisChart(
           x={Math.min(Math.max(tipX, 90), w - 90)}
           y={tipY + (legend ? 24 : 0)}
           title={categories[hover]!.label}
-          rows={series.map((s, i) => ({ label: s.label, value: props.format(s.values[hover] ?? null), i }))}
+          rows={series.map((s, i) => ({
+            label: s.label,
+            value: props.formatSeries
+              ? props.formatSeries(i, s.values[hover] ?? null)
+              : props.format(s.values[hover] ?? null),
+            i,
+          }))}
         />
       )}
     </div>

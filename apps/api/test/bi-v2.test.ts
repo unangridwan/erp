@@ -327,7 +327,8 @@ describe.skipIf(!hasDb)("Mesin BI v2: /bi/query & dokumen dashboard", () => {
 
     // Dashboard bawaan: dokumen v2 tersedia & bisa dijalankan; duplikat membawa dokumen.
     const builtin = (await a.get("/dashboards/builtin/sales").expect(200)).body;
-    expect(builtin.document.pages[0].visuals.length).toBe(builtin.widgets.length);
+    // Visual lama + visual v2 tambahan (YoY, kontribusi pelanggan).
+    expect(builtin.document.pages[0].visuals.length).toBeGreaterThan(builtin.widgets.length);
     const run = await query({ builtin: "sales", from: `${year}-01-01`, to: `${year}-12-31` });
     expect(run.every((v) => !v.error)).toBe(true);
     const copy = (await a.post("/dashboards/duplicate", { builtin: "sales" }).expect(201)).body;

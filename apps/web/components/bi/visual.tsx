@@ -122,6 +122,7 @@ export function VisualBody({
     categories,
     series: result.series,
     format: (v: number | null) => formatValue(v, seriesFormat(0), locale),
+    formatSeries: (si: number, v: number | null) => formatValue(v, seriesFormat(si), locale),
     formatAxis: (v: number) => formatValue(v, seriesFormat(0), locale, true),
     ariaLabel: `${visual.title || l("Grafik", "Chart")}: ${result.series.map((s) => s.label).join(", ")}`,
     dataLabels: visual.options.dataLabels,
@@ -162,6 +163,7 @@ export function VisualBody({
         stacked={visual.options.stacked}
         lineSeries={lines}
         dualAxis={visual.options.secondaryAxis}
+        formatAxis2={(v) => formatValue(v, seriesFormat(lines[0] ?? 0), locale, true)}
       />
     );
   }

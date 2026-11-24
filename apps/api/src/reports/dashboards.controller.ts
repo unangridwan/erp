@@ -22,7 +22,6 @@ import {
   dashboardInputSchema,
   documentErrors,
   documentVisuals,
-  legacyToDocument,
   type BiDocument,
   businessToday,
   changePercent,
@@ -206,7 +205,15 @@ export class DashboardsController {
         if (!b) throw new NotFoundException("Dashboard tidak ditemukan");
         name = b.name[0];
         widgets = b.widgets.filter((w) => this.readable(w));
-        document = legacyToDocument(widgets, b.period);
+        // Salinan dashboard bawaan membawa visual v2 tambahan; visual tanpa hak baca tidak disalin.
+        const doc = builtinDocument(input.builtin)!;
+        document = {
+          ...doc,
+          pages: doc.pages.map((p) => ({
+            ...p,
+            visuals: p.visuals.filter((v) => !v.dataset || this.datasets.canRead(v.dataset)),
+          })),
+        };
       } else {
         const d = await this.find(tx, input.dashboardId!);
         name = d.name;
