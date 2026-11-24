@@ -4,6 +4,7 @@ import {
   autoDepartment,
   businessToday,
   FLOW_DEFS,
+  handoffItems,
   hasPermission,
   monotonicTimes,
   type FlowItem,
@@ -342,6 +343,20 @@ export class FlowService {
         value: null,
         ownerId: null,
       };
+    });
+  }
+
+  /** Dokumen yang sedang menunggu di tahapnya (posisi, departemen asal & tujuan, umur vs SLA, pemegang). */
+  async handoffs(tx: Db, process: FlowProcess, onlyId?: string) {
+    const def = FLOW_DEFS[process];
+    const items = await this.items(tx, process, onlyId ? { onlyId } : {});
+    const settings = await this.settings(tx, process);
+    const owners = await this.owners(tx, items.map((i) => i.ownerId ?? "").filter(Boolean));
+    return handoffItems(def, onlyId ? items.filter((i) => i.id === onlyId) : items, {
+      today: businessToday(),
+      sla: settings.sla,
+      departments: settings.departments,
+      owners,
     });
   }
 

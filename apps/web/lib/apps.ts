@@ -564,6 +564,7 @@ export const APPS: App[] = [
     home: "/me",
     prefixes: ["/me"],
     menu: [
+      link("Pekerjaan Saya", "My Work", "/me/work", ""),
       link("Portal Saya", "My Portal", "/me", ""),
       link("Persetujuan", "Approvals", "/hr/approvals", ""),
       link("Permintaan Saya", "My Requests", "/hr/approval-requests", ""),

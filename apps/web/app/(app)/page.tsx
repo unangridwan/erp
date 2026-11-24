@@ -36,6 +36,22 @@ export default function Home() {
   const [pending, setPending] = useState<Pending[] | null>(null);
   const [unread, setUnread] = useState(0);
   const [pendingFailed, setPendingFailed] = useState(false);
+  // Ringkasan Pekerjaan Saya (dokumen yang saya pegang, aktivitas, departemen saya, sebutan).
+  const [work, setWork] = useState<{
+    documents: number;
+    documentsLate: number;
+    departmentWaiting: number;
+    departmentLate: number;
+    activitiesOverdue: number;
+    activitiesToday: number;
+    mentionsUnread: number;
+  } | null>(null);
+  useEffect(() => {
+    api<{ summary: NonNullable<typeof work> }>("/me/work").then(
+      (w) => setWork(w.summary),
+      () => setWork(null),
+    );
+  }, []);
   // PO yang menunggu persetujuan saya (bukan hanya persetujuan SDM).
   const [poPending, setPoPending] = useState<{ id: string; name: string; partnerName: string | null }[]>([]);
   useEffect(() => {
@@ -65,6 +81,12 @@ export default function Home() {
       () => setUnread(0),
     );
   }, []);
+  const workAlerts =
+    !!work &&
+    (work.documentsLate > 0 ||
+      work.activitiesOverdue + work.activitiesToday > 0 ||
+      work.departmentLate > 0 ||
+      work.mentionsUnread > 0);
   const quick = QUICK_CREATE.map((p) => RESOURCES.find((r) => r.path === p)).filter(
     (r): r is (typeof RESOURCES)[number] => !!r && canCreate(me.permissions, r),
   );
@@ -105,6 +127,42 @@ export default function Home() {
       <div className="home-cards">
         <section className="home-card">
           <h2>{l("Perlu tindakan saya", "Needs my action")}</h2>
+          {workAlerts && (
+            <ul className="home-list home-work">
+              {work.documentsLate > 0 && (
+                <li>
+                  <span className="badge danger">{work.documentsLate}</span>
+                  <Link href="/me/work">
+                    {l("dokumen yang saya pegang terlambat", "documents I hold are late")}
+                  </Link>
+                </li>
+              )}
+              {work.activitiesOverdue + work.activitiesToday > 0 && (
+                <li>
+                  <span className={`badge ${work.activitiesOverdue ? "danger" : "warn"}`}>
+                    {work.activitiesOverdue + work.activitiesToday}
+                  </span>
+                  <Link href="/me/work">
+                    {l("aktivitas jatuh tempo hari ini / lewat", "activities due today / overdue")}
+                  </Link>
+                </li>
+              )}
+              {work.departmentLate > 0 && (
+                <li>
+                  <span className="badge warn">{work.departmentLate}</span>
+                  <Link href="/flow/handoffs">
+                    {l("pekerjaan terlambat di departemen saya", "late items in my department")}
+                  </Link>
+                </li>
+              )}
+              {work.mentionsUnread > 0 && (
+                <li>
+                  <span className="badge">{work.mentionsUnread}</span>
+                  <Link href="/me/work">{l("sebutan & pengingat baru", "new mentions & reminders")}</Link>
+                </li>
+              )}
+            </ul>
+          )}
           {pending === null ? (
             <p className="muted small">{l("Memuat…", "Loading…")}</p>
           ) : pending.length || unread || poPending.length ? (
@@ -140,7 +198,7 @@ export default function Home() {
                 </li>
               )}
             </ul>
-          ) : (
+          ) : workAlerts && !pendingFailed ? null : (
             <p className="muted small">
               {pendingFailed
                 ? l(
@@ -150,6 +208,9 @@ export default function Home() {
                 : l("Tidak ada yang menunggu. 🎉", "Nothing waiting. 🎉")}
             </p>
           )}
+          <p className="small home-work-link">
+            <Link href="/me/work">{l("Buka Pekerjaan Saya & KPI →", "Open My Work & KPIs →")}</Link>
+          </p>
         </section>
 
         <section className="home-card">
