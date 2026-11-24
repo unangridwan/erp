@@ -421,6 +421,7 @@ export const APPS: App[] = [
       link("Scorecard", "Scorecard", "/flow/scorecard", ""),
       link("Arus Uang", "Money Flow", "/flow/money", "accounting.read"),
       link("Rantai Pasok", "Supply Chain", "/flow/supply", "inventory.read"),
+      link("Peringatan Dini", "Early Warnings", "/flow/alerts", "settings.manage"),
       link("Pengaturan SLA", "SLA Settings", "/flow/settings", "settings.manage"),
     ],
   },

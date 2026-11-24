@@ -6092,3 +6092,64 @@ mark.mention {
 .wrap-head th {
   white-space: normal;
 }
+
+/* ---- Peringatan dini ---- */
+.alert-rules {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 12px;
+}
+.alert-rule {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-left: 4px solid var(--border);
+}
+.alert-rule.on {
+  border-left-color: var(--accent);
+}
+.alert-rule-head,
+.alert-rule-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.alert-rule p {
+  margin: 0;
+}
+.alert-rule-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: flex-start;
+}
+.alert-recipients {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.alert-recipients legend {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.alert-body {
+  white-space: pre-line;
+}
+@media (max-width: 760px) {
+  .alert-rules {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

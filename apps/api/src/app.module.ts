@@ -45,6 +45,7 @@ import { BenefitsModule } from "./payroll/benefits.module.js";
 import { CompensationModule } from "./payroll/compensation.module.js";
 import { ReportsModule } from "./reports/reports.module.js";
 import { WorkModule } from "./work/work.module.js";
+import { AlertsModule } from "./alerts/alerts.module.js";
 import { QualityModule } from "./quality/quality.module.js";
 import { MaintenanceModule } from "./maintenance/maintenance.module.js";
 import { SupportModule } from "./support/support.module.js";
@@ -120,6 +121,7 @@ import { WebhookService } from "./oauth/webhook.service.js";
     DashboardsModule,
     FlowModule,
     WorkModule,
+    AlertsModule,
     AutomationModule,
     MaintenanceModule,
     SupportModule,

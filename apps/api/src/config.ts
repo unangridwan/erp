@@ -45,6 +45,8 @@ export interface AppConfig {
   automation: { scheduler: boolean };
   maintenance: { scheduler: boolean };
   support: { scheduler: boolean };
+  /** Peringatan dini otomatis (diperiksa tiap jam, sekali sehari per aturan). */
+  alerts: { scheduler: boolean };
   /** Token untuk GET /metrics (Prometheus); kosong = endpoint dimatikan. */
   metricsToken: string | null;
   logFormat: "json" | "pretty" | "off";
@@ -111,6 +113,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     support: {
       scheduler: env.SUPPORT_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
+    },
+    alerts: {
+      scheduler: env.ALERT_SCHEDULER !== "off" && env.NODE_ENV !== "test" && !env.VITEST,
     },
     metricsToken: env.METRICS_TOKEN || null,
     logFormat: (env.LOG_FORMAT as "json" | "pretty" | "off" | undefined) ?? (env.VITEST ? "off" : "pretty"),

@@ -1,4 +1,4 @@
-import { boolean, integer, jsonb, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, integer, jsonb, pgTable, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { audit, tenantId } from "./core.js";
 
 /** Laporan kustom tersimpan: dataset HR/Payroll + konfigurasi kolom, filter, kelompok, agregasi, grafik. */
@@ -89,4 +89,31 @@ export const flowStageSettings = pgTable("flow_stage_settings", {
   slaDays: integer("sla_days"),
   departmentId: uuid("department_id"),
   ...audit,
+});
+
+/** Peringatan dini: pengaturan aturan per perusahaan (katalog `ALERT_DEFS`). */
+export const alertRules = pgTable("alert_rules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  key: text("key").notNull(),
+  active: boolean("active").notNull().default(true),
+  params: jsonb("params").$type<Record<string, number>>().notNull().default({}),
+  recipients: text("recipients").array().notNull().default([]),
+  /** Pengguna yang terakhir mengatur; hak aksesnya dipakai saat aturan dijalankan terjadwal. */
+  ownerId: uuid("owner_id"),
+  lastRunOn: date("last_run_on"),
+  ...audit,
+});
+
+/** Catatan pengiriman peringatan: satu ringkasan per orang per aturan per hari. */
+export const alertEvents = pgTable("alert_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  ruleKey: text("rule_key").notNull(),
+  userId: uuid("user_id").notNull(),
+  day: date("day").notNull(),
+  count: integer("count").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
