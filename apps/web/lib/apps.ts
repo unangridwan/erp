@@ -419,6 +419,8 @@ export const APPS: App[] = [
       link("Hire-to-Pay", "Hire-to-Pay", "/flow/h2p", "hr.read"),
       link("Serah Terima", "Handoffs", "/flow/handoffs", ""),
       link("Scorecard", "Scorecard", "/flow/scorecard", ""),
+      link("Arus Uang", "Money Flow", "/flow/money", "accounting.read"),
+      link("Rantai Pasok", "Supply Chain", "/flow/supply", "inventory.read"),
       link("Pengaturan SLA", "SLA Settings", "/flow/settings", "settings.manage"),
     ],
   },

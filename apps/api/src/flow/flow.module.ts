@@ -30,7 +30,10 @@ import { TenantDb } from "../common/database.js";
 import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { NotificationsModule } from "../notifications/notifications.module.js";
+import { AccountingModule } from "../accounting/accounting.module.js";
 import { FlowHandoffController } from "./handoffs.js";
+import { FlowMoneyController } from "./money.js";
+import { FlowSupplyController } from "./supply.js";
 import { FlowService } from "./flow.service.js";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -423,9 +426,9 @@ export class FlowController {
 }
 
 @Module({
-  imports: [NotificationsModule],
-  // Papan serah terima didaftarkan lebih dulu agar /flow/handoffs tidak tertangkap /flow/:process.
-  controllers: [FlowHandoffController, FlowController],
+  imports: [NotificationsModule, AccountingModule],
+  // Rute statis (/flow/handoffs, /flow/money, /flow/supply) didaftarkan lebih dulu agar tidak tertangkap /flow/:process.
+  controllers: [FlowHandoffController, FlowMoneyController, FlowSupplyController, FlowController],
   providers: [FlowService],
   exports: [FlowService],
 })

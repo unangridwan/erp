@@ -91,3 +91,5 @@ export * from "./business-date.js";
 export * from "./discussion.js";
 export * from "./kpi.js";
 export * from "./scorecard.js";
+export * from "./cash-insight.js";
+export * from "./supply-insight.js";
