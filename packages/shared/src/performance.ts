@@ -9,6 +9,8 @@ export interface GoalNode {
   currentValue: number | string;
   weight: number | string;
   state: "draft" | "active" | "done" | "cancelled";
+  /** Sasaran KPI otomatis: nilainya dihitung dari data seluruh cakupannya, jadi progresnya dari nilai sendiri. */
+  kpiCode?: string | null;
 }
 
 const clamp = (x: number) => Math.min(100, Math.max(0, x));
@@ -28,7 +30,8 @@ export function ownProgress(
 
 /**
  * Progres semua sasaran: sasaran yang punya anak aktif = rata-rata berbobot progres anak (rekursif); tanpa anak =
- * progres nilainya sendiri. Sasaran dibatalkan/draft tidak ikut dihitung ke induk.
+ * progres nilainya sendiri. Sasaran KPI otomatis selalu memakai nilainya sendiri (turunannya hanya rincian). Sasaran
+ * dibatalkan/draft tidak ikut dihitung ke induk.
  */
 export function goalProgress(goals: GoalNode[]) {
   const children = new Map<string, GoalNode[]>();
@@ -40,7 +43,7 @@ export function goalProgress(goals: GoalNode[]) {
     seen.add(g.id);
     const kids = (children.get(g.id) ?? []).filter((c) => c.state === "active" || c.state === "done");
     let p: number;
-    if (!kids.length || g.state === "done") p = ownProgress(g);
+    if (!kids.length || g.state === "done" || g.kpiCode) p = ownProgress(g);
     else {
       const total = kids.reduce((s, c) => s + Number(c.weight), 0);
       p = round1(kids.reduce((s, c) => s + visit(c, seen) * Number(c.weight), 0) / total);

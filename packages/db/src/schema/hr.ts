@@ -1299,6 +1299,11 @@ export const performanceGoals = pgTable("performance_goals", {
   state: text("state", { enum: ["draft", "active", "done", "cancelled"] })
     .notNull()
     .default("active"),
+  /** KPI otomatis (katalog `KPI_CATALOG`): nilai berjalan dihitung dari data untuk pemilik sasaran. */
+  kpiCode: text("kpi_code"),
+  periodFrom: date("period_from"),
+  periodTo: date("period_to"),
+  valueComputedAt: timestamp("value_computed_at", { withTimezone: true }),
   createdBy: uuid("created_by"),
   ...audit,
 });

@@ -35,6 +35,7 @@ import { parse } from "../common/zod.js";
 import { FlowModule } from "../flow/flow.module.js";
 import { FlowService } from "../flow/flow.service.js";
 import { ReportsModule, ReportsService } from "../reports/reports.module.js";
+import { AutoGoalService, ScorecardController } from "./scorecard.js";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const blank = (v: unknown) => (v === "" ? undefined : v);
@@ -392,6 +393,7 @@ export class MyWorkController {
 
 @Module({
   imports: [FlowModule, ReportsModule],
-  controllers: [MyWorkController],
+  controllers: [MyWorkController, ScorecardController],
+  providers: [AutoGoalService],
 })
 export class WorkModule {}

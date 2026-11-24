@@ -418,6 +418,7 @@ export const APPS: App[] = [
       link("Produksi", "Production", "/flow/mfg", "mrp.read"),
       link("Hire-to-Pay", "Hire-to-Pay", "/flow/h2p", "hr.read"),
       link("Serah Terima", "Handoffs", "/flow/handoffs", ""),
+      link("Scorecard", "Scorecard", "/flow/scorecard", ""),
       link("Pengaturan SLA", "SLA Settings", "/flow/settings", "settings.manage"),
     ],
   },
