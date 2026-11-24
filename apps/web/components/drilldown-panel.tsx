@@ -282,18 +282,21 @@ export function DrillAmount({
   );
 }
 
-/** Permintaan rincian baris dataset BI (`POST /reports/drill`). */
-export interface DatasetDrillRequest {
-  title: string;
-  body: {
-    reportId?: string;
-    dataset?: string;
-    config?: unknown;
-    /** Nilai kelompok yang diklik (kolom `groupBy`) atau kunci tersembunyi `_xxxId`. */
-    match: Record<string, string>;
-    filters?: Record<string, string>;
-  };
-}
+/** Permintaan rincian baris dataset BI (`POST /reports/drill`, atau `/bi/drill` untuk visual dashboard). */
+export type DatasetDrillRequest =
+  | {
+      title: string;
+      endpoint?: "/reports/drill";
+      body: {
+        reportId?: string;
+        dataset?: string;
+        config?: unknown;
+        /** Nilai kelompok yang diklik (kolom `groupBy`) atau kunci tersembunyi `_xxxId`. */
+        match: Record<string, string>;
+        filters?: Record<string, string>;
+      };
+    }
+  | { title: string; endpoint: "/bi/drill"; body: Record<string, unknown> };
 interface DrillResult {
   columns: { key: string; header: string; numeric?: boolean }[];
   rows: Record<string, unknown>[];
@@ -324,8 +327,9 @@ export function DatasetDrillPanel({
     setData(null);
     setError(null);
     if (!request) return;
-    api<DrillResult>("/reports/drill", { method: "POST", body: request.body }).then(setData, (e: Error) =>
-      setError(e.message),
+    api<DrillResult>(request.endpoint ?? "/reports/drill", { method: "POST", body: request.body }).then(
+      setData,
+      (e: Error) => setError(e.message),
     );
   }, [request]);
   const fmt = (v: unknown, numeric?: boolean) =>

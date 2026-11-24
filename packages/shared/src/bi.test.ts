@@ -343,3 +343,37 @@ describe("dokumen & konversi dashboard lama", () => {
     expect(errs.some((e) => /melingkar/.test(e))).toBe(true);
   });
 });
+
+describe("rincian visual", () => {
+  it("baris penyusun titik grafik (level tanggal & filter visual)", async () => {
+    const { drillVisual } = await import("./bi.js");
+    const vis = v({
+      axis: [{ column: "date", level: "month" }],
+      values: [sum("amount")],
+      filters: [{ column: "region", op: "in", values: ["Sumatra"] }],
+    });
+    const r = drillVisual(rows, cols, vis, {}, [{ column: "date", level: "month", value: "2026-03" }]);
+    expect(r.total).toBe(2);
+    expect(r.columns.slice(0, 2).map((c) => c.key)).toEqual(["date", "amount"]);
+    expect(r.totals.amount).toBe(550);
+    expect(() => drillVisual(rows, cols, vis, {}, [{ column: "nope", value: "x" }])).toThrow(/nope/);
+  });
+});
+
+describe("validasi rumus saat simpan", () => {
+  it("rujukan ke nama otomatis ukuran tidak menggagalkan simpan; melingkar tetap ditolak", () => {
+    const doc = biDocumentSchema.parse({
+      pages: [
+        {
+          id: "p1",
+          name: "A",
+          visuals: [v({ values: [sum("amount"), { id: "f", formula: "[Jumlah Omzet] / 1000" }] })],
+        },
+      ],
+    });
+    expect(documentErrors(doc)).toEqual([]);
+    // Saat dijalankan, nama otomatis "Jumlah Omzet" dikenali.
+    const r = runVisual(rows, cols, doc.pages[0]!.visuals[0]!);
+    expect(r.series.map((s) => s.values[0])).toEqual([1200, 1.2]);
+  });
+});

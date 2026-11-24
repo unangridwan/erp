@@ -410,7 +410,12 @@ interface CompiledMeasure {
 }
 
 /** Urutkan ukuran: dasar dulu, rumus setelah ukuran yang dirujuknya; galat untuk rujukan tak dikenal/melingkar. */
-function compileMeasures(measures: BiMeasure[], label: (m: BiMeasure) => string): CompiledMeasure[] {
+function compileMeasures(
+  measures: BiMeasure[],
+  label: (m: BiMeasure) => string,
+  /** Rujukan tak dikenal diabaikan (validasi simpan: nama otomatis ukuran baru diketahui saat dijalankan). */
+  lenient = false,
+): CompiledMeasure[] {
   const all = measures.map((m) => ({
     m,
     label: label(m),
@@ -431,7 +436,10 @@ function compileMeasures(measures: BiMeasure[], label: (m: BiMeasure) => string)
     if (c.formula)
       for (const ref of formulaRefs(c.formula)) {
         const dep = byName.get(ref.toLowerCase());
-        if (!dep) throw new FormulaError(`Rumus: ukuran [${ref}] tidak ditemukan di visual ini`);
+        if (!dep) {
+          if (lenient) continue;
+          throw new FormulaError(`Rumus: ukuran [${ref}] tidak ditemukan di visual ini`);
+        }
         visit(dep);
       }
     state.set(c.m.id, "done");
@@ -769,7 +777,8 @@ export function runVisual(
     : filtered;
   const keyOf = (r: Record<string, unknown>) =>
     dims.length === 1 ? fieldValue(r, dims[0]!) : JSON.stringify(dims.map((d) => fieldValue(r, d)));
-  const splitKey = (k: string): string[] => (dims.length === 1 ? [k] : (JSON.parse(k) as string[]));
+  const splitKey = (k: string): string[] =>
+    dims.length === 0 ? [] : dims.length === 1 ? [k] : (JSON.parse(k) as string[]);
   const groups = dims.length ? groupRows(scoped, keyOf) : new Map([["", scoped]]);
   let entries = sortKeys(
     [...groups.entries()].map(([key, rows]) => ({ key, values: computeMeasures(rows, compiled) })),
@@ -933,6 +942,86 @@ const matchFilterKey = (key: string, f: BiFilter) =>
       ? !f.values.includes(key)
       : true;
 
+// ---- Rincian (lihat data) ----
+
+/**
+ * Baris data penyusun satu titik/kelompok visual: filter visual & konteks + nilai field yang diklik (`match`,
+ * sadar level tanggal). Kolom field & ukuran didahulukan; maksimal 500 baris beserta `_model`/`_id`.
+ */
+export function drillVisual(
+  data: Record<string, unknown>[],
+  available: ReportColumn[],
+  visual: BiVisual,
+  ctx: Pick<BiRunContext, "filters">,
+  match: { column: string; level?: DateLevel | null; value: string }[],
+): {
+  columns: ReportColumn[];
+  rows: Record<string, unknown>[];
+  total: number;
+  totals: Record<string, number>;
+} {
+  const cols = new Map(available.map((c) => [c.key, c]));
+  for (const m of match) if (!cols.has(m.column)) throw new Error(`Kolom laporan tidak dikenal: ${m.column}`);
+  visual.filters.forEach((f) => {
+    if (!cols.has(f.column)) throw new Error(`Kolom laporan tidak dikenal: ${f.column}`);
+  });
+  const filters = [...visual.filters, ...(ctx.filters ?? []).filter((f) => cols.has(f.column))];
+  const rows = data.filter(
+    (r) =>
+      filters.every((f) => matchFilter(r, f, !!cols.get(f.column)?.numeric)) &&
+      match.every((m) => fieldValue(r, { column: m.column, level: m.level ?? null }) === m.value),
+  );
+  const first = [
+    ...visual.axis.map((f) => f.column),
+    ...(visual.legend ? [visual.legend.column] : []),
+    ...visual.values.map((m) => m.column ?? "").filter((c) => c && c !== "*"),
+    ...visual.columns,
+  ].filter((k) => cols.has(k));
+  const order = [...new Set([...first, ...available.map((c) => c.key)])];
+  const columns = order.map((k) => {
+    const c = cols.get(k)!;
+    return { key: c.key, header: c.header, ...(c.numeric ? { numeric: true } : {}) };
+  });
+  const totals = Object.fromEntries(
+    columns
+      .filter((c) => c.numeric)
+      .map((c) => [c.key, round(rows.reduce((s, r) => s + (reportNumber(r[c.key]) || 0), 0))]),
+  );
+  return {
+    columns,
+    rows: rows.slice(0, 500).map((r) => ({
+      ...Object.fromEntries(columns.map((c) => [c.key, r[c.key] ?? ""])),
+      ...(typeof r._model === "string" && typeof r._id === "string" ? { _model: r._model, _id: r._id } : {}),
+    })),
+    total: rows.length,
+    totals,
+  };
+}
+
+/** Rincian visual (`POST /bi/drill`). */
+export const biDrillSchema = z.object({
+  visual: biVisualSchema,
+  from: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+  ),
+  to: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+  ),
+  filters: z.array(biFilterSchema).max(50).default([]),
+  match: z
+    .array(z.object({ column: columnKey, level: z.enum(DATE_LEVELS).nullish(), value: z.string().max(500) }))
+    .max(6)
+    .default([]),
+});
+
 // ---- Hasil laporan tersimpan → hasil visual ----
 
 /** Hasil `runReport` (laporan tersimpan) sebagai hasil visual: tabel, atau grafik dari pengaturan grafik laporan. */
@@ -1015,7 +1104,7 @@ export function documentErrors(doc: BiDocument): { path: string; message: string
           errors.push({ path: `${at}.values.${mi}.column`, message: "Ukuran butuh kolom atau rumus" });
       });
       try {
-        compileMeasures(v.values, (m) => m.label || m.id);
+        compileMeasures(v.values, (m) => m.label || m.id, true);
       } catch (e) {
         errors.push({ path: `${at}.values`, message: e instanceof Error ? e.message : String(e) });
       }

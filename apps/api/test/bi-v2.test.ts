@@ -175,6 +175,38 @@ describe.skipIf(!hasDb)("Mesin BI v2: /bi/query & dokumen dashboard", () => {
     expect(filtered!.card!.value).toBe(50000);
   });
 
+  it("lihat data: baris penyusun titik visual (level tanggal, filter konteks)", async () => {
+    const visual = {
+      id: "y",
+      type: "column",
+      dataset: "sales_orders",
+      layout,
+      axis: [{ column: "dateOrder", level: "year" }],
+      values: [{ id: "m1", column: "amountUntaxed", fn: "sum" }],
+    };
+    const r = (
+      await a
+        .post("/bi/drill", { visual, match: [{ column: "dateOrder", level: "year", value: year }] })
+        .expect(200)
+    ).body;
+    expect(r.total).toBe(2);
+    expect(r.columns.slice(0, 2).map((c: { key: string }) => c.key)).toEqual(["dateOrder", "amountUntaxed"]);
+    expect(r.totals.amountUntaxed).toBe(150000);
+    expect(r.rows[0]._model).toBeTruthy();
+    const filtered = (
+      await a
+        .post("/bi/drill", {
+          visual,
+          filters: [{ column: "partner", op: "in", values: ["UD Makmur"] }],
+          match: [{ column: "dateOrder", level: "year", value: year }],
+        })
+        .expect(200)
+    ).body;
+    expect(filtered.total).toBe(1);
+    await sales.post("/bi/drill", { visual: { ...visual, dataset: "invoices" }, match: [] }).expect(404);
+    await a.post("/bi/drill", { visual, match: [{ column: "nope", value: "x" }] }).expect(400);
+  });
+
   it("galat per visual tidak menggagalkan visual lain; hak dataset menyembunyikan visual", async () => {
     const [bad, formula, ok] = await query({
       visuals: [
