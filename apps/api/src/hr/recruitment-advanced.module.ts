@@ -16,6 +16,7 @@ import {
   Query,
   Res,
   Req,
+  type OnModuleInit,
 } from "@nestjs/common";
 import { assertSalaryVisible, hideSalary } from "./privacy.js";
 import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, ne, schema, sql, type Db } from "@erp/db";
@@ -54,6 +55,7 @@ import { openingFromHiring } from "./hiring-request.module.js";
 import { ContractService } from "./contract.service.js";
 import { HrModule } from "./hr.module.js";
 import { ApprovalGateService } from "./approval-gate.service.js";
+import { ApprovalEngineService } from "./approval-engine.service.js";
 import { renderOfferPdf, renderSettlementPdf } from "./letters-pdf.js";
 import { assertContractType } from "./contract-types.module.js";
 
@@ -645,8 +647,11 @@ class RecruitmentPipelineController {
 
 // ---- Offboarding ----
 
+const OR = schema.offboardingRequests;
+const rp = (v: string) => `Rp${new Decimal(v).abs().toFixed(0)}`;
+
 @Injectable()
-export class OffboardingService {
+export class OffboardingService implements OnModuleInit {
   constructor(
     @Inject(EmployeeService) private readonly employees: EmployeeService,
     @Inject(ChecklistService) private readonly checklists: ChecklistService,
@@ -654,7 +659,138 @@ export class OffboardingService {
     @Inject(ActivityService) private readonly activity: ActivityService,
     @Inject(LoanService) private readonly loans: LoanService,
     @Inject(ContractService) private readonly contracts: ContractService,
+    @Inject(ApprovalGateService) private readonly gate: ApprovalGateService,
+    @Inject(ApprovalEngineService) private readonly engine: ApprovalEngineService,
   ) {}
+
+  onModuleInit() {
+    // Keputusan persetujuan: keluar yang disetujui langsung diproses (dalam transaksi keputusan).
+    this.engine.onOutcome(async (tx, requestId, state) => {
+      const [req] = await tx
+        .select()
+        .from(OR)
+        .where(and(eq(OR.approvalRequestId, requestId), eq(OR.state, "pending")));
+      if (!req) return;
+      await tx
+        .update(OR)
+        .set({ state, decidedAt: new Date(), updatedAt: sql`now()` })
+        .where(eq(OR.id, req.id));
+      const what = req.kind === "exit" ? "Pengajuan keluar" : "Full & Final Statement";
+      const verdict = state === "approved" ? "disetujui" : state === "refused" ? "ditolak" : "dibatalkan";
+      await this.activity.log(tx, {
+        resModel: "employee",
+        resId: req.employeeId,
+        action: "comment",
+        message: `${what} ${verdict}`,
+      });
+      if (state === "approved" && req.kind === "exit")
+        await this.offboard(tx, req.employeeId, req.payload as z.infer<typeof offboardSchema>);
+    });
+  }
+
+  /** Offboarding: langsung diproses, atau diajukan ke persetujuan bila pengaturan payroll mewajibkannya. */
+  async offboardOrRequest(tx: Db, employeeId: string, input: z.infer<typeof offboardSchema>) {
+    const employee = await this.employees.find(tx, employeeId);
+    if (!(await this.gate.enabled(tx, employee.companyId, "offboarding")))
+      return { pending: false, ...(await this.offboard(tx, employeeId, input)) };
+    if (input.resignDate < employee.joinDate)
+      throw fieldError("resignDate", "Tanggal keluar sebelum tanggal masuk");
+    const request = await this.submit(tx, employee, "exit", input);
+    return { pending: true, employeeId, contractId: null, checklistId: null, request };
+  }
+
+  /** Ajukan persetujuan Full & Final Statement (setelah karyawan keluar). */
+  async requestSettlement(tx: Db, employeeId: string) {
+    const employee = await this.employees.find(tx, employeeId);
+    if (!employee.resignDate)
+      throw new BadRequestException("Karyawan belum keluar; proses offboarding lebih dulu");
+    return this.submit(tx, employee, "settlement", null);
+  }
+
+  /** Buat pengajuan dengan cuplikan F&F saat ini lalu ajukan ke mesin persetujuan (kategori OFFBOARD). */
+  private async submit(
+    tx: Db,
+    employee: Awaited<ReturnType<EmployeeService["find"]>>,
+    kind: "exit" | "settlement",
+    payload: z.infer<typeof offboardSchema> | null,
+  ) {
+    const [pending] = await tx
+      .select({ id: OR.id })
+      .from(OR)
+      .where(and(eq(OR.employeeId, employee.id), eq(OR.kind, kind), eq(OR.state, "pending")));
+    if (pending)
+      throw new BadRequestException(
+        kind === "exit"
+          ? "Pengajuan keluar karyawan ini masih menunggu persetujuan"
+          : "Full & Final Statement karyawan ini masih menunggu persetujuan",
+      );
+    const settlement = await this.finalSettlement(tx, employee.id);
+    const lines = settlement.items.map(
+      (i) => `${i.direction === "deduct" ? "−" : "+"} ${i.label}: ${rp(i.amount)}`,
+    );
+    const netText = `${new Decimal(settlement.net).gte(0) ? "Dibayar ke karyawan" : "Ditagih ke karyawan"} ${rp(settlement.net)}`;
+    const head =
+      kind === "exit" && payload
+        ? `Keluar ${payload.resignDate} — ${RESIGN_LABEL[payload.resignReason]}${payload.resignNote ? ` (${payload.resignNote})` : ""}`
+        : `Full & Final Statement (keluar ${employee.resignDate})`;
+    const requestId = await this.gate.submit(
+      tx,
+      employee.companyId,
+      kind === "exit" ? "offboarding" : "settlement",
+      {
+        subject: `${kind === "exit" ? "Offboarding" : "Full & Final"} ${employee.name}`,
+        reference: employee.employeeNumber,
+        date: payload?.resignDate ?? employee.resignDate ?? businessToday(),
+        amount: new Decimal(settlement.net).abs().toFixed(2),
+        description: [head, ...lines, netText].join("\n").slice(0, 4000),
+        employeeId: employee.id,
+      },
+    );
+    const [row] = await tx
+      .insert(OR)
+      .values({
+        companyId: employee.companyId,
+        employeeId: employee.id,
+        kind,
+        payload: payload as Record<string, unknown> | null,
+        settlement: settlement as unknown as Record<string, unknown>,
+        net: settlement.net,
+        approvalRequestId: requestId,
+        createdBy: currentContext().userId,
+      })
+      .returning();
+    await this.activity.log(tx, {
+      resModel: "employee",
+      resId: employee.id,
+      action: "comment",
+      message: `${kind === "exit" ? "Pengajuan keluar" : "Full & Final Statement"} diajukan untuk persetujuan: ${head}`,
+    });
+    return { id: row!.id, kind, state: row!.state, approval: await this.gate.summary(tx, requestId) };
+  }
+
+  /** Pengajuan terakhir per jenis (untuk panel offboarding & PDF F&F). */
+  async approvals(tx: Db, employeeId: string) {
+    const rows = await tx
+      .select({
+        id: OR.id,
+        kind: OR.kind,
+        state: OR.state,
+        net: OR.net,
+        createdAt: OR.createdAt,
+        decidedAt: OR.decidedAt,
+        payload: OR.payload,
+        requestId: OR.approvalRequestId,
+        number: schema.approvalRequests.number,
+      })
+      .from(OR)
+      .leftJoin(schema.approvalRequests, eq(schema.approvalRequests.id, OR.approvalRequestId))
+      .where(eq(OR.employeeId, employeeId))
+      .orderBy(desc(OR.createdAt));
+    return {
+      exit: rows.find((r) => r.kind === "exit") ?? null,
+      settlement: rows.find((r) => r.kind === "settlement") ?? null,
+    };
+  }
 
   /**
    * Catat karyawan keluar lewat kontraknya (tanggal keluar hanya diinput di kontrak): kontrak keluar yang sudah ada,
@@ -866,6 +1002,7 @@ class OffboardingController {
   constructor(
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(OffboardingService) private readonly offboarding: OffboardingService,
+    @Inject(ApprovalGateService) private readonly gate: ApprovalGateService,
   ) {}
 
   @Post("employees/:id/offboard")
@@ -873,7 +1010,7 @@ class OffboardingController {
   @RequirePermission("hr.manage")
   offboard(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
     const input = parse(offboardSchema, body);
-    return this.tenantDb.run((tx) => this.offboarding.offboard(tx, id, input));
+    return this.tenantDb.run((tx) => this.offboarding.offboardOrRequest(tx, id, input));
   }
 
   @Get("employees/:id/exit-interview")
@@ -892,7 +1029,26 @@ class OffboardingController {
   @Get("employees/:id/final-settlement")
   @RequirePermission("hr.manage")
   settlement(@Param("id", ParseUUIDPipe) id: string) {
-    return this.tenantDb.run((tx) => this.offboarding.finalSettlement(tx, id));
+    return this.tenantDb.run(async (tx) => {
+      const s = await this.offboarding.finalSettlement(tx, id);
+      const [employee] = await tx
+        .select({ companyId: schema.employees.companyId })
+        .from(schema.employees)
+        .where(eq(schema.employees.id, id));
+      return {
+        ...s,
+        approvals: await this.offboarding.approvals(tx, id),
+        offboardingApproval: await this.gate.enabled(tx, employee!.companyId, "offboarding"),
+      };
+    });
+  }
+
+  /** Ajukan persetujuan Full & Final Statement (kategori OFFBOARD) dengan cuplikan angka saat ini. */
+  @Post("employees/:id/final-settlement/approval")
+  @HttpCode(201)
+  @RequirePermission("hr.manage")
+  requestSettlement(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.offboarding.requestSettlement(tx, id));
   }
 
   @Get("employees/:id/final-settlement/pdf")
@@ -900,6 +1056,7 @@ class OffboardingController {
   async settlementPdf(@Param("id", ParseUUIDPipe) id: string, @Res() res: Response) {
     const file = await this.tenantDb.run(async (tx) => {
       const s = await this.offboarding.finalSettlement(tx, id);
+      const approval = (await this.offboarding.approvals(tx, id)).settlement;
       const [e] = await tx
         .select({
           companyId: schema.employees.companyId,
@@ -927,6 +1084,9 @@ class OffboardingController {
           totalDeduct: s.totalDeduct,
           net: s.net,
           openTasks: s.openTasks.map((t) => `${t.name} (tenggat ${t.dueDate})`),
+          approval: approval
+            ? `${approval.number ?? ""} — ${{ pending: "menunggu persetujuan", approved: "disetujui", refused: "ditolak", cancel: "dibatalkan" }[approval.state]}${approval.decidedAt ? ` ${approval.decidedAt.toISOString().slice(0, 10)}` : ""}`.trim()
+            : null,
         }),
       };
     });

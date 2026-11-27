@@ -710,6 +710,11 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   - kasbon (uang muka karyawan): ajukan (portal/HR) → persetujuan kategori sistem KASBON → cairkan → klaim
     pertanggungjawaban → selesaikan (selisih dibayar, sisa dikembalikan/dipotong gaji lewat baris slip `ADV`);
   - kategori klaim **bukti wajib**.
+- [x] SDM & Payroll lanjutan C2a (migrasi 0091):
+  - persetujuan offboarding (pengaturan payroll): keluar diajukan dengan cuplikan F&F dan diproses setelah disetujui;
+    Akhiri kontrak → keluar diarahkan ke pengajuan;
+  - persetujuan Full & Final Statement setelah keluar (status tercetak di PDF);
+  - OTP email untuk membuka slip gaji di portal.
 
 ## Rekomendasi berikutnya — SDM & Payroll
 
@@ -726,9 +731,10 @@ Dari audit ketiga PRD SDM (Okt 2026), diurutkan menurut dampak bisnis:
 3. ✅ **Kasbon / uang muka karyawan** (0090): persetujuan kategori KASBON, pencairan, penyelesaian dengan klaim, sisa
    dikembalikan atau dipotong gaji; bukti wajib per kategori klaim.
 4. 🟡 **Notifikasi email (dan push)** untuk pengajuan & keputusan persetujuan — ✅ email (0059); push belum.
-5. 🟡 **Persetujuan berjenjang** untuk payroll run, mutasi/promosi, penawaran kerja (✅ 0059), offboarding/F&F (belum).
+5. ✅ **Persetujuan berjenjang** untuk payroll run, mutasi/promosi, penawaran kerja (0059), offboarding & Full and
+   Final (0091, kategori OFFBOARD).
 6. ✅ **Parameter payroll berlaku per tanggal** (batas BPJS, JKK) agar perhitungan periode lama tetap (0058).
-7. 🟡 **Keamanan slip gaji**: ✅ PIN slip ditentukan karyawan, reset oleh HR (0060); OTP email belum.
+7. ✅ **Keamanan slip gaji**: PIN slip ditentukan karyawan, reset oleh HR (0060); OTP email sebagai cara kedua (0091).
 8. ✅ **UU PDP**: persetujuan pelamar, retensi & anonimisasi, log akses data pribadi (0060).
 9. 🟡 **Kontrak & surat**: ✅ template kontrak + tanda tangan digital/basah/e-sign luar (0050); ✅ masa percobaan + surat
    pengangkatan (0060); sisa: jenis karyawan, template surat pengangkatan/SK, mutasi antar perusahaan grup, riwayat perubahan NPP.

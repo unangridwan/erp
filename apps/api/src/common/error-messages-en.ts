@@ -398,6 +398,23 @@ export const MESSAGES_EN: Record<string, string> = {
   "Hanya pinjaman draft yang bisa dicairkan": "Only draft loans can be disbursed",
   "Pinjaman sudah selesai atau batal": "The loan is already finished or cancelled",
   "Pinjaman sudah dicicil; tidak bisa dibatalkan": "The loan already has repayments; it cannot be cancelled",
+  // ---- Persetujuan offboarding/F&F & OTP slip ----
+  "Persetujuan offboarding aktif: ajukan karyawan keluar dari panel Offboarding di data karyawan":
+    "Offboarding approval is on: submit the employee's exit from the Offboarding panel on the employee record",
+  "Karyawan belum keluar; proses offboarding lebih dulu":
+    "The employee has not left yet; process the offboarding first",
+  "Pengajuan keluar karyawan ini masih menunggu persetujuan":
+    "This employee's exit request is still awaiting approval",
+  "Full & Final Statement karyawan ini masih menunggu persetujuan":
+    "This employee's Full & Final Statement is still awaiting approval",
+  "Kode OTP baru saja dikirim; tunggu 1 menit sebelum meminta lagi":
+    "An OTP code was just sent; wait 1 minute before requesting another",
+  "Akun Anda belum punya alamat email": "Your account has no email address",
+  "Kode OTP kedaluwarsa atau belum diminta; minta kode baru":
+    "The OTP code has expired or was not requested; request a new one",
+  "Kode OTP salah": "Wrong OTP code",
+  "Isi PIN slip atau kode OTP": "Enter the payslip PIN or the OTP code",
+  "Kode OTP 6 digit": "The OTP code has 6 digits",
   // ---- Kasbon & tarif lembur ----
   "Kasbon tidak ditemukan": "Cash advance not found",
   "Kasbon {} sudah lewat batas pertanggungjawaban; selesaikan dulu sebelum mengajukan kasbon baru":

@@ -42,6 +42,8 @@ export function renderSettlementPdf(data: {
   totalDeduct: string;
   net: string;
   openTasks: string[];
+  /** Status persetujuan F&F (nomor permintaan & keputusan), bila ada. */
+  approval?: string | null;
 }) {
   return render((doc, width) => {
     doc.font("Helvetica-Bold").fontSize(14).text(data.company);
@@ -54,6 +56,7 @@ export function renderSettlementPdf(data: {
       ["Jabatan", data.employee.job ?? "—"],
       ["Tanggal keluar", data.resignDate ?? "—"],
       ["Alasan keluar", data.resignReason ?? "—"],
+      ...(data.approval ? ([["Persetujuan", data.approval]] as [string, string][]) : []),
     ];
     for (const [label, value] of info) {
       const y = doc.y;

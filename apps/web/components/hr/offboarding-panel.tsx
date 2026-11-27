@@ -44,6 +44,44 @@ interface Settlement {
   totalDeduct: string;
   net: string;
   openTasks: { name: string; dueDate: string }[];
+  /** Pengajuan persetujuan terakhir: keluar & Full and Final. */
+  approvals?: { exit: OffboardingApproval | null; settlement: OffboardingApproval | null };
+  /** Karyawan keluar wajib disetujui (Pengaturan Payroll). */
+  offboardingApproval?: boolean;
+}
+
+interface OffboardingApproval {
+  id: string;
+  state: "pending" | "approved" | "refused" | "cancel";
+  number: string | null;
+  requestId: string | null;
+  net: string;
+  createdAt: string;
+  decidedAt: string | null;
+  payload: { resignDate?: string; resignReason?: string } | null;
+}
+
+const APPROVAL_STATE: Record<OffboardingApproval["state"], [string, string]> = {
+  pending: ["Menunggu persetujuan", "Awaiting approval"],
+  approved: ["Disetujui", "Approved"],
+  refused: ["Ditolak", "Refused"],
+  cancel: ["Dibatalkan", "Cancelled"],
+};
+
+/** Status satu pengajuan persetujuan (tautan ke permintaan). */
+function ApprovalBadge({ a }: { a: OffboardingApproval }) {
+  const { l } = useI18n();
+  return (
+    <span className={`pill ${a.state === "approved" ? "ok" : a.state === "pending" ? "warn" : "bad"}`}>
+      {l(...APPROVAL_STATE[a.state])}
+      {a.requestId && (
+        <>
+          {" · "}
+          <Link href={`/hr/approval-requests/${a.requestId}`}>{a.number ?? l("permintaan", "request")}</Link>
+        </>
+      )}
+    </span>
+  );
 }
 
 interface ExitInterview {
@@ -67,6 +105,7 @@ export function OffboardingPanel({ employeeId }: { employeeId: string }) {
     null,
   );
   const [ei, setEi] = useState<ExitInterview>({});
+  const [exitForm, setExitForm] = useState({ resignDate: today(), resignReason: "resign", resignNote: "" });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -130,6 +169,78 @@ export function OffboardingPanel({ employeeId }: { employeeId: string }) {
             </>
           )}
         </p>
+      ) : s.offboardingApproval ? (
+        <div className="stack">
+          {s.approvals?.exit && (
+            <p>
+              {l("Pengajuan keluar", "Exit request")}
+              {s.approvals.exit.payload?.resignDate
+                ? ` ${formatDate(s.approvals.exit.payload.resignDate, locale)}`
+                : ""}
+              : <ApprovalBadge a={s.approvals.exit} />
+            </p>
+          )}
+          {s.approvals?.exit?.state !== "pending" && (
+            <>
+              <p className="muted">
+                {l(
+                  "Persetujuan offboarding aktif: ajukan tanggal & alasan keluar; karyawan diproses keluar (kontrak diakhiri, checklist offboarding dimulai) setelah disetujui. Cuplikan Full & Final Statement ikut dalam pengajuan.",
+                  "Offboarding approval is on: submit the leaving date & reason; the exit is processed (contract ended, offboarding checklist started) once approved. A Full & Final Statement snapshot is included.",
+                )}
+              </p>
+              <div className="inline-panel">
+                <label className="field">
+                  <span>{l("Tanggal keluar", "Leaving date")}</span>
+                  <input
+                    type="date"
+                    value={exitForm.resignDate}
+                    onChange={(e) => setExitForm({ ...exitForm, resignDate: e.target.value })}
+                  />
+                </label>
+                <label className="field">
+                  <span>{l("Alasan", "Reason")}</span>
+                  <select
+                    value={exitForm.resignReason}
+                    onChange={(e) => setExitForm({ ...exitForm, resignReason: e.target.value })}
+                  >
+                    {Object.entries(RESIGN_REASON_LABEL).map(([k, [id, en]]) => (
+                      <option key={k} value={k}>
+                        {l(id, en)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field grow">
+                  <span>{l("Catatan", "Note")}</span>
+                  <input
+                    maxLength={1000}
+                    value={exitForm.resignNote}
+                    onChange={(e) => setExitForm({ ...exitForm, resignNote: e.target.value })}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() =>
+                    run(
+                      () =>
+                        api(`/employees/${employeeId}/offboard`, {
+                          method: "POST",
+                          body: { ...exitForm, resignNote: exitForm.resignNote || null },
+                        }),
+                      l(
+                        "Pengajuan keluar dikirim untuk persetujuan.",
+                        "Exit request submitted for approval.",
+                      ),
+                    )
+                  }
+                >
+                  {l("Ajukan keluar", "Submit exit")}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       ) : (
         <p className="muted">
           {l(
@@ -262,6 +373,38 @@ export function OffboardingPanel({ employeeId }: { employeeId: string }) {
           PDF
         </button>
       </h3>
+      {left && (
+        <p>
+          {s.approvals?.settlement ? (
+            <>
+              {l("Persetujuan F&F", "F&F approval")}: <ApprovalBadge a={s.approvals.settlement} />{" "}
+            </>
+          ) : (
+            <span className="muted">
+              {l("F&F belum diajukan untuk persetujuan. ", "F&F not submitted for approval. ")}
+            </span>
+          )}
+          {s.approvals?.settlement?.state !== "pending" && (
+            <button
+              type="button"
+              className="link"
+              onClick={() =>
+                run(
+                  () => api(`/employees/${employeeId}/final-settlement/approval`, { method: "POST" }),
+                  l(
+                    "Full & Final Statement diajukan untuk persetujuan.",
+                    "Full & Final Statement submitted for approval.",
+                  ),
+                )
+              }
+            >
+              {s.approvals?.settlement
+                ? l("Ajukan ulang", "Submit again")
+                : l("Ajukan persetujuan", "Submit for approval")}
+            </button>
+          )}
+        </p>
+      )}
       <div className="table-wrap">
         <table>
           <tbody>

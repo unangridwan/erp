@@ -147,6 +147,10 @@ export const employees = pgTable("employees", {
   payslipPinFailed: smallint("payslip_pin_failed").notNull().default(0),
   payslipPinLockedUntil: timestamp("payslip_pin_locked_until", { withTimezone: true }),
   payslipUnlockedUntil: timestamp("payslip_unlocked_until", { withTimezone: true }),
+  /** OTP email pembuka slip (hash), kedaluwarsa & waktu kirim terakhir. */
+  payslipOtpHash: text("payslip_otp_hash"),
+  payslipOtpExpires: timestamp("payslip_otp_expires", { withTimezone: true }),
+  payslipOtpSentAt: timestamp("payslip_otp_sent_at", { withTimezone: true }),
   /** Tag bebas (mis. "Remote", "Gedung B"). */
   tags: text("tags").array().notNull().default([]),
   active: boolean("active").notNull().default(true),
@@ -629,6 +633,8 @@ export const payrollSettings = pgTable("payroll_settings", {
   /** Persetujuan sebelum payroll run diposting, mutasi diterapkan, penawaran kerja dikirim. */
   payrollRunApproval: boolean("payroll_run_approval").notNull().default(false),
   movementApproval: boolean("movement_approval").notNull().default(false),
+  /** Karyawan keluar (offboarding) wajib disetujui lewat mesin persetujuan (kategori OFFBOARD). */
+  offboardingApproval: boolean("offboarding_approval").notNull().default(false),
   jobOfferApproval: boolean("job_offer_approval").notNull().default(false),
   applicantRetentionMonths: smallint("applicant_retention_months"),
   payslipPinRequired: boolean("payslip_pin_required").notNull().default(false),
@@ -832,6 +838,25 @@ export const employeeLoans = pgTable("employee_loans", {
   disbursementDate: date("disbursement_date"),
   disbursementMoveId: uuid("disbursement_move_id"),
   note: text("note"),
+  createdBy: uuid("created_by"),
+  ...audit,
+});
+
+/** Pengajuan keluar (`exit`) atau persetujuan Full & Final (`settlement`) dengan cuplikan F&F saat diajukan. */
+export const offboardingRequests = pgTable("offboarding_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  kind: text("kind", { enum: ["exit", "settlement"] }).notNull(),
+  state: text("state", { enum: ["pending", "approved", "refused", "cancel"] })
+    .notNull()
+    .default("pending"),
+  payload: jsonb("payload").$type<Record<string, unknown> | null>(),
+  settlement: jsonb("settlement").$type<Record<string, unknown>>().notNull(),
+  net: numeric("net", { precision: 20, scale: 2 }).notNull().default("0"),
+  approvalRequestId: uuid("approval_request_id"),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
   createdBy: uuid("created_by"),
   ...audit,
 });

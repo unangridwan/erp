@@ -70,6 +70,18 @@ export const SYSTEM_APPROVAL_CATEGORIES = {
     sequence: 20,
     managerFirst: true,
   },
+  OFFBOARD: {
+    def: {
+      code: "OFFBOARD",
+      name: "Offboarding & Full and Final",
+      prefix: "OFB",
+      description:
+        "Persetujuan karyawan keluar (tanggal & alasan) dan Full & Final Statement: gaji belum dibayar, pesangon, klaim, dikurangi sisa pinjaman.",
+      fields: amountDesc,
+    },
+    usedBy: ["Offboarding & Full and Final Statement", "Offboarding & Full and Final Statement"],
+    sequence: 915,
+  },
   KENAIKAN: {
     def: {
       code: "KENAIKAN",
