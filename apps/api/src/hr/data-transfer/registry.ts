@@ -40,7 +40,7 @@ export class DatasetRegistry {
   ) {
     this.datasets = new Map(
       [
-        ...hrDatasets({ employees, history, checklists, contracts }),
+        ...hrDatasets({ schedules, employees, history, checklists, contracts }),
         ...payrollDatasets(payroll, employees),
       ].map((d) => [d.key, d]),
     );

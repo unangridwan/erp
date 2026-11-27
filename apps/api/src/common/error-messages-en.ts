@@ -1296,6 +1296,7 @@ export const MESSAGES_EN: Record<string, string> = {
   "Pilih departemen": "Choose a department",
   "Tidak ada departemen/karyawan untuk diturunkan": "There are no departments/employees to cascade to",
   "Aturan peringatan tidak ditemukan": "Alert rule not found",
+  "Karyawan tidak ditemukan": "Employee not found",
   // ---- Diskusi dokumen ----
   "Komentar wajib diisi": "The comment is required",
   "Orang yang disebut tidak bisa melihat dokumen ini": "A mentioned person cannot view this document",

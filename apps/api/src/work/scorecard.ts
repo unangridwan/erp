@@ -48,7 +48,7 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const blank = (v: unknown) => (v === "" ? undefined : v);
 const scorecardSchema = z
   .object({
-    scope: z.preprocess(blank, z.enum(["company", "department", "me"]).default("company")),
+    scope: z.preprocess(blank, z.enum(["company", "department", "me", "employee"]).default("company")),
     id: z.preprocess(blank, z.string().uuid().optional()),
     from: z.preprocess(blank, z.string().regex(ISO).optional()),
     to: z.preprocess(blank, z.string().regex(ISO).optional()),
@@ -57,7 +57,8 @@ const scorecardSchema = z
     message: "Tanggal awal harus sebelum tanggal akhir",
     path: ["to"],
   })
-  .refine((v) => v.scope !== "department" || !!v.id, { message: "Pilih departemen", path: ["id"] });
+  .refine((v) => v.scope !== "department" || !!v.id, { message: "Pilih departemen", path: ["id"] })
+  .refine((v) => v.scope !== "employee" || !!v.id, { message: "Pilih karyawan", path: ["id"] });
 const periodSchema = z
   .object({
     from: z.preprocess(blank, z.string().regex(ISO).optional()),
@@ -261,6 +262,7 @@ export class ScorecardController {
       let title: string;
       let deptIds: Set<string> | null = null;
       let owners: Set<string> | null = null;
+      let targetEmp: (typeof org.emps)[number] | null = null;
       if (q.scope === "department") {
         const d = org.deps.find((x) => x.id === q.id);
         if (!d) throw new NotFoundException("Departemen tidak ditemukan");
@@ -270,6 +272,28 @@ export class ScorecardController {
       } else if (q.scope === "me") {
         title = meEmp?.name ?? "";
         owners = new Set([ctx.userId]);
+      } else if (q.scope === "employee") {
+        // Bukti penilaian kinerja: HR, karyawan itu sendiri, atau atasan langsungnya.
+        const target = org.emps.find((e) => e.id === q.id);
+        if (!target) throw new NotFoundException("Karyawan tidak ditemukan");
+        const reviewer =
+          (
+            await tx
+              .select({ id: schema.appraisals.id })
+              .from(schema.appraisals)
+              .where(
+                and(
+                  eq(schema.appraisals.employeeId, target.id),
+                  eq(schema.appraisals.managerUserId, ctx.userId),
+                ),
+              )
+              .limit(1)
+          ).length > 0;
+        if (!hr && !reviewer && target.userId !== ctx.userId && !(meEmp && target.managerId === meEmp.id))
+          throw new ForbiddenException("Hanya karyawan, atasan langsung, atau HR");
+        targetEmp = target;
+        title = target.name;
+        owners = new Set(target.userId ? [target.userId] : []);
       } else title = "";
 
       // Sasaran yang terlihat & relevan dengan cakupan dan periode.
@@ -281,6 +305,7 @@ export class ScorecardController {
         hr || empById.get(empId)?.userId === ctx.userId || (!!meEmp && managerOf(empId) === meEmp.id);
       const inScope = (g: GoalRow) => {
         if (q.scope === "me") return !!meEmp && g.employeeId === meEmp.id;
+        if (q.scope === "employee") return g.employeeId === targetEmp!.id;
         if (q.scope === "department") {
           if (g.departmentId) return deptIds!.has(g.departmentId);
           if (g.employeeId) {
@@ -351,7 +376,14 @@ export class ScorecardController {
       const kpis = await this.scopeKpis(tx, owners, from, to);
 
       // Metrik proses.
-      const flow = await this.flowMetrics(tx, q.scope, deptIds, from, to);
+      const flow = await this.flowMetrics(
+        tx,
+        q.scope === "employee" ? "me" : q.scope,
+        deptIds,
+        from,
+        to,
+        q.scope === "employee" ? (targetEmp!.userId ?? "") : ctx.userId,
+      );
 
       return {
         scope: q.scope,
@@ -592,8 +624,8 @@ export class ScorecardController {
     deptIds: Set<string> | null,
     from: string,
     to: string,
+    holder: string,
   ) {
-    const ctx = currentContext();
     const processes = FLOW_PROCESSES.filter((p) => this.flow.canRead(p));
     if (scope === "company") {
       const out = [];
@@ -631,7 +663,7 @@ export class ScorecardController {
         ? Math.round((list.reduce((s, h) => s + h.ageDays, 0) / list.length) * 10) / 10
         : null,
     });
-    if (scope === "me") return { held: stats(all.filter((h) => h.ownerId === ctx.userId)) };
+    if (scope === "me") return { held: stats(all.filter((h) => h.ownerId === holder)) };
     const ids = deptIds!;
     return {
       waiting: stats(all.filter((h) => h.toDepartmentId && ids.has(h.toDepartmentId))),

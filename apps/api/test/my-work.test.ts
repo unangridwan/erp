@@ -28,6 +28,8 @@ describe.skipIf(!hasDb)("Pekerjaan Saya & KPI pribadi", () => {
   let app: INestApplication;
   let a: Awaited<ReturnType<typeof signup>>;
   let sari: ReturnType<typeof client>;
+  let budi: ReturnType<typeof client>;
+  let sariEmp = "";
   let sariId = "";
   let order = "";
 
@@ -67,15 +69,26 @@ describe.skipIf(!hasDb)("Pekerjaan Saya & KPI pribadi", () => {
           .expect(200)
       ).body.token,
     );
+    budi = client(
+      app,
+      (
+        await request(app.getHttpServer())
+          .post("/auth/login")
+          .send({ tenantSlug: a.slug, email: "budi@example.com", password: "rahasia123" })
+          .expect(200)
+      ).body.token,
+    );
     const sales = (await a.post("/departments", { name: "Penjualan & Pemasaran" }).expect(201)).body.id;
-    await a
-      .post("/employees", {
-        name: "Sari Penjual",
-        userId: sariId,
-        departmentId: sales,
-        joinDate: "2024-01-01",
-      })
-      .expect(201);
+    sariEmp = (
+      await a
+        .post("/employees", {
+          name: "Sari Penjual",
+          userId: sariId,
+          departmentId: sales,
+          joinDate: "2024-01-01",
+        })
+        .expect(201)
+    ).body.id;
 
     const uom = (await a.get("/uoms?q=Pcs").expect(200)).body.items[0].id;
     const product = (
@@ -196,6 +209,57 @@ describe.skipIf(!hasDb)("Pekerjaan Saya & KPI pribadi", () => {
         [late, "Tidak"],
       ].sort(),
     );
+  });
+
+  it("KPI keuangan: rata-rata hari sampai faktur lunas", async () => {
+    const jr: Record<string, string> = {};
+    for (const r of (await a.get("/journals").expect(200)).body.items) jr[r.code] = r.id;
+    // Pesanan terpisah (milik Admin) agar antrean Sari tidak berubah.
+    const src = (await a.get(`/sale-orders/${order}`).expect(200)).body;
+    const own = (
+      await a
+        .post("/sale-orders", {
+          partnerId: src.partnerId,
+          dateOrder: lastMonth,
+          lines: [{ productId: src.lines[0].productId, quantity: 1, priceUnit: 100_000 }],
+        })
+        .expect(201)
+    ).body.id;
+    await a.post(`/sale-orders/${own}/confirm`).expect(200);
+    const inv = (
+      await a.post(`/sale-orders/${own}/invoice`, { method: "regular", date: lastMonth }).expect(201)
+    ).body.moveId;
+    await a.post(`/moves/${inv}/post`).expect(200);
+    const move = (await a.get(`/moves/${inv}`).expect(200)).body;
+    const paidOn = new Date(Date.parse(`${lastMonth}T00:00:00Z`) + 10 * 864e5).toISOString().slice(0, 10);
+    await a
+      .post("/payments", {
+        paymentType: "inbound",
+        partnerId: move.partnerId,
+        journalId: jr.BNK1,
+        amount: Number(move.amountTotal),
+        date: paidOn,
+        moveIds: [inv],
+      })
+      .expect(201);
+    const from = `${lastMonth.slice(0, 7)}-01`;
+    const end = new Date(`${from}T00:00:00Z`);
+    end.setUTCMonth(end.getUTCMonth() + 1);
+    end.setUTCDate(0);
+    const k = (
+      (await a.get(`/me/kpis?from=${from}&to=${end.toISOString().slice(0, 10)}`).expect(200)).body
+        .items as Kpi[]
+    ).find((x) => x.code === "finance.days_to_pay");
+    expect(k).toMatchObject({ value: 10 });
+  });
+
+  it("bukti kinerja untuk penilaian: karyawan sendiri & HR boleh, rekan lain tidak", async () => {
+    const own = (await sari.get(`/scorecard?scope=employee&id=${sariEmp}`).expect(200)).body;
+    expect(own).toMatchObject({ scope: "employee", title: "Sari Penjual" });
+    expect(own.kpis.map((k: { code: string }) => k.code)).toContain("sales.revenue");
+    await a.get(`/scorecard?scope=employee&id=${sariEmp}`).expect(200);
+    await budi.get(`/scorecard?scope=employee&id=${sariEmp}`).expect(403);
+    await a.get(`/scorecard?scope=employee`).expect(400);
   });
 
   it("antrean kerja: dokumen yang saya pegang, departemen saya, aktivitas, dan sebutan", async () => {

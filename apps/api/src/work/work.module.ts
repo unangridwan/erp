@@ -34,6 +34,8 @@ import { currentContext } from "../common/request-context.js";
 import { parse } from "../common/zod.js";
 import { FlowModule } from "../flow/flow.module.js";
 import { FlowService } from "../flow/flow.service.js";
+import { HrModule } from "../hr/hr.module.js";
+import { ScheduleService } from "../hr/schedule.service.js";
 import { ReportsModule, ReportsService } from "../reports/reports.module.js";
 import { AutoGoalService, ScorecardController } from "./scorecard.js";
 
@@ -75,6 +77,7 @@ export class MyWorkController {
     @Inject(TenantDb) private readonly tenantDb: TenantDb,
     @Inject(FlowService) private readonly flow: FlowService,
     @Inject(ReportsService) private readonly reports: ReportsService,
+    @Inject(ScheduleService) private readonly schedules: ScheduleService,
   ) {}
 
   @Get("work")
@@ -279,7 +282,7 @@ export class MyWorkController {
     const { from, to } = period(parse(periodSchema, query));
     return this.tenantDb.run(async (tx) => {
       const ctx = currentContext();
-      const defs = KPI_CATALOG.filter((d) => hasPermission(ctx.permissions, d.permission));
+      const defs = KPI_CATALOG.filter((d) => d.selfService || hasPermission(ctx.permissions, d.permission));
       const range = kpiLoadRange(from, to);
       const items: KpiResult[] = [];
       for (const dataset of new Set(defs.map((d) => d.dataset))) {
@@ -303,7 +306,7 @@ export class MyWorkController {
   kpiRows(@Param("code") code: string, @Query() query: unknown) {
     const def = KPI_BY_CODE.get(code);
     if (!def) throw new NotFoundException("KPI tidak ditemukan");
-    if (!hasPermission(currentContext().permissions, def.permission))
+    if (!def.selfService && !hasPermission(currentContext().permissions, def.permission))
       throw new ForbiddenException(`Butuh permission ${def.permission}`);
     const { from, to } = period(parse(periodSchema, query));
     return this.tenantDb.run(async (tx) => {
@@ -404,19 +407,43 @@ export class MyWorkController {
     });
   }
 
-  /** Muat dataset BI dengan hak pengguna; null bila tidak berhak. */
+  /**
+   * Muat dataset BI dengan hak pengguna; null bila tidak berhak. Tanpa hak SDM, ketepatan kehadiran tetap dimuat
+   * untuk diri sendiri saja (KPI swalayan).
+   */
   private async loadDataset(tx: Db, key: string, from: string, to: string) {
     try {
       return await this.reports.load(tx, key, { from, to }, []);
     } catch (e) {
-      if (e instanceof ForbiddenException) return null;
-      throw e;
+      if (!(e instanceof ForbiddenException)) throw e;
+      if (key !== "attendance_punctuality") return null;
+      const userId = currentContext().userId;
+      const rows = (await this.schedules.punctuality(tx, { from, to }))
+        .filter((r) => r.userId === userId)
+        .map((r) => ({
+          _userId: userId,
+          date: r.date,
+          month: r.date.slice(0, 7),
+          onTime: r.onTime ? "Ya" : "Tidak",
+          lateMinutes: r.lateMinutes,
+        }));
+      return {
+        rows,
+        columns: [
+          { key: "date", header: "Tanggal" },
+          { key: "month", header: "Bulan" },
+          { key: "onTime", header: "Tepat waktu" },
+          { key: "lateMinutes", header: "Menit terlambat", numeric: true },
+        ],
+        title: "Ketepatan kehadiran",
+        restricted: [],
+      };
     }
   }
 }
 
 @Module({
-  imports: [FlowModule, ReportsModule],
+  imports: [FlowModule, ReportsModule, HrModule],
   controllers: [MyWorkController, ScorecardController],
   providers: [AutoGoalService],
 })
