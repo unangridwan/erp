@@ -1,5 +1,13 @@
 # Rencana Pembangunan ERP (mirip Odoo) — SaaS Multi-tenant, Fokus Indonesia
 
+> **Status (27 Nov 2026):**
+>
+> - Rencana awal ini sudah terlaksana: MVP, konsolidasi grup, dan banyak modul fase lanjut, sampai migrasi 0088
+>   (PR #133).
+> - Tambahan terbaru: **Laporan & Dashboard ala Power BI** (§3.11) dan **Pusat Kendali Bisnis** (§3.12).
+> - Rincian per butir ada di bagian [Status](#status); cara memakai & endpoint ada di [README](../README.md).
+> - Bagian _Context_ dan _Langkah Pertama_ di bawah dibiarkan sebagai catatan rencana awal.
+
 ## Context
 Repository `unangridwan/erp` masih kosong (belum ada commit). Tujuannya membangun ERP lengkap seperti Odoo:
 modular, terintegrasi (Sales → Inventory → Accounting → HR), dijual sebagai **SaaS multi-tenant**, dengan
@@ -224,9 +232,79 @@ Marketing/email, Fleet, Maintenance, Document management, Approval engine generi
 mobile app (React Native/Expo), integrasi marketplace (Tokopedia/Shopee), payment gateway (Midtrans/Xendit),
 BI dashboard, public REST API + webhook untuk partner.
 
-_Sudah dibuat dari daftar ini:_ Fleet (Armada), approval engine generik, public REST API (akun layanan
-`client_credentials`) + webhook + login OIDC untuk aplikasi partner. Sisanya belum (sinkron proyek & timesheet dari
-aplikasi proyek pernah dibuat lalu dihapus).
+_Sudah dibuat dari daftar ini:_
+
+- Manufaktur & MRP (BOM, stasiun kerja, order produksi, MRP).
+- Helpdesk (aplikasi Layanan: tiket, SLA, portal, email masuk).
+- Marketing/email (kampanye, email massal, formulir web).
+- Fleet (Armada), Maintenance, dan inspeksi mutu.
+- Approval engine generik.
+- Studio: field kustom & aturan otomatis tanpa kode.
+- BI dashboard: Laporan & Dashboard, lalu editor ala Power BI (§3.11).
+- Public REST API (akun layanan `client_credentials`) + webhook + login OIDC untuk aplikasi partner.
+- Payment gateway Xendit, untuk tagihan langganan SaaS saja.
+
+_Belum:_
+
+- POS.
+- Project & Timesheet: sinkron dari aplikasi proyek pernah dibuat lalu dihapus.
+- Website/e-commerce.
+- Document management.
+- Aplikasi mobile.
+- Integrasi marketplace.
+- Payment gateway untuk transaksi pelanggan.
+
+### 3.11 Laporan & Dashboard (BI)
+
+Laporan & Dashboard (`/bi`, migrasi 0074) diperluas menjadi editor ala Power BI (BI v2, migrasi 0085).
+
+- **Mesin**: dashboard disimpan sebagai dokumen BI (`dashboards.document`: halaman → visual → ukuran, filter, tata
+  letak).
+  - Dokumen dijalankan oleh `runVisual` di `packages/shared/src/bi.ts` atas dataset BI
+    (`apps/api/src/reports/datasets-business.ts` + dataset SDM/Payroll).
+  - Dashboard lama berbasis widget dibaca lewat `legacyToDocument`.
+  - Hak baca dataset & kolom data pribadi dicek setiap kali dijalankan.
+- **Visual**:
+  - kartu, KPI, pengukur, kolom/batang/garis/area, kolom + garis, pai/donat, corong, treemap, sebar;
+  - tabel, matriks, slicer, teks.
+- **Ukuran**:
+  - agregat + filter khusus per ukuran;
+  - ukuran terhitung dengan rumus (`packages/shared/src/bi-formula.ts`, tanpa `eval`);
+  - "tampilkan sebagai" (% total, total berjalan, vs sebelumnya, tahun lalu, YoY, vs periode lalu);
+  - format bersyarat.
+- **Interaktif**:
+  - kanvas grid 12 kolom (seret & ubah ukuran) dengan banyak halaman;
+  - filter silang, slicer halaman/semua halaman, drill level tanggal & kelompok, mode fokus;
+  - lihat data sampai dokumen sumber, state di URL.
+- **API**: `POST /bi/query` (jalankan visual dashboard bawaan/tersimpan/dokumen) dan `POST /bi/drill` (baris
+  penyusun).
+
+### 3.12 Pusat Kendali Bisnis
+
+**Tujuan:**
+
+- Memperlihatkan alur bisnis dari input → proses → output → outcome: bagaimana uang mengalir, orang bekerja, dan rantai
+  pasok berjalan.
+- Setiap orang bisa melihat, memantau, dan mengevaluasi kerjanya sesuai jobdesk.
+- Manajemen terbantu mengambil keputusan, dan hubungan antar departemen terlihat (serah terima, keterlambatan).
+
+**Prinsip:**
+
+1. Diturunkan dari data yang sudah ada (status, tanggal, relasi, pelunasan, log aktivitas), tanpa isian baru selain
+   target, ambang, dan SLA.
+2. Atribusi orang/departemen lewat user → karyawan → departemen.
+3. KPI adalah ukuran BI, sehingga angkanya sama dengan dashboard.
+4. Setiap angka bisa diklik sampai ke dokumennya.
+5. Hak akses mengikuti permission modul & perusahaan.
+
+| Komponen                          | Isi                                                                                                                                  | Berkas kunci                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| Peta alur & jejak dokumen         | Order-to-Cash, Procure-to-Pay, Plan-to-Produce, Hire-to-Pay; tahap, umur vs SLA, kohort, siklus, penghambat; jejak satu dokumen      | `shared/flow.ts`, `api/flow/`, migrasi 0086 (`flow_stage_settings`) |
+| Kolaborasi antar departemen       | Komentar & @mention di dokumen; papan serah terima per departemen + pengingat                                                        | `shared/discussion.ts`, `api/activity/`, `api/flow/handoffs.ts`      |
+| Pekerjaan Saya & KPI pribadi      | Antrean lintas modul; KPI otomatis per pemilik (tren, rekan, rincian); jejak kerja                                                    | `shared/kpi.ts`, `api/work/`                                         |
+| Target berjenjang & scorecard     | Sasaran ber-KPI otomatis, turunkan target, status laju RAG, scorecard perusahaan/departemen/saya                                      | `shared/scorecard.ts`, `api/work/scorecard.ts`, migrasi 0087         |
+| Arus uang & rantai pasok          | Sumber & penggunaan kas, DSO/DIO/DPO/CCC, proyeksi 13 minggu, anggaran per departemen; OTIF, kinerja pemasok, umur & perputaran stok | `api/flow/money.ts`, `api/flow/supply.ts`, dataset `cash_flows`/`deliveries` |
+| Peringatan dini                   | 8 aturan harian dengan ambang & penerima, satu ringkasan per orang per aturan per hari                                               | `shared/alerts.ts`, `api/alerts/`, migrasi 0088 (`alert_rules`, `alert_events`) |
 
 ---
 
@@ -556,6 +634,62 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   terjadwal + tutup otomatis, balasan email & catatan internal, tiket dari portal & email masuk, penilaian kepuasan,
   basis pengetahuan di portal, laporan layanan, tiket di Akun 360°. Modul CRM sekelas Salesforce (4 bagian) selesai
 
+- [x] Data terhubung & drilldown (migrasi 0082; PR #98, #99, #101):
+  - panel **Dokumen terkait** lintas modul (`GET /links/:model/:id`, view `account_move_sources` dokumen sumber tiap
+    jurnal);
+  - drilldown angka laporan keuangan, PPN & konsolidasi sampai item jurnal;
+  - drilldown laporan modul & BI sampai baris data dan dokumennya (`POST /reports/drill`);
+  - dataset BI `quality_checks`, `maintenance_requests`, `fleet_costs`.
+- [x] UI/UX & perapian fitur (PR #102–#108, #117–#119):
+  - daftar & form lebih mudah dipakai: tombol "+ Baru", menu "Lainnya", tampilan tabel/kartu, bilah form menempel;
+  - beranda dengan angka bisnis, breadcrumb dokumen, sidebar bisa diciutkan (`Ctrl+\`);
+  - tabel jadi kartu di ponsel, aksesibilitas, peringatan perubahan belum disimpan;
+  - satu menu kontak pelanggan/pemasok, satu halaman Dashboard & Analitik SDM, satu menu Stock Opname, satu halaman
+    konfigurasi persetujuan;
+  - **satu jalur perubahan upah** lewat SK Penyesuaian upah (migrasi 0083).
+- [x] Keamanan & kebenaran data (PR #113–#116, #120):
+  - hak `*` tidak lagi membuka perusahaan lain;
+  - delegasi admin per perusahaan sasaran, scope token aplikasi, perbaikan login/SSO;
+  - pembalikan pembayaran membuka kembali faktur, pelunasan valas campuran, akun lawan nota kredit, GRNI retur
+    pemasok;
+  - sesi lintas tab, angka format Indonesia, satu sumber tanggal bisnis (`businessToday()`);
+  - indeks `payslip_lines` untuk pinjaman/klaim/benefit (migrasi 0084).
+- [x] Perbaikan BI & alat (PR #121–#123): kunci grafik unik, perbaikan dashboard BI (rentang kustom, pembanding YTD vs
+  YTD, galat muat), plugin ESLint Next.js.
+- [x] BI v2 — Laporan & Dashboard ala Power BI (migrasi 0085; PR #124–#126):
+  - mesin `runVisual`, `POST /bi/query` & `/bi/drill`;
+  - editor kanvas terpadu dengan banyak halaman, 18 jenis visual, matriks & slicer;
+  - filter silang, drill, mode fokus, state di URL;
+  - ukuran terhitung (rumus) & kecerdasan waktu (YoY, total berjalan, vs periode lalu), format bersyarat. Detail
+    di §3.11.
+- [x] Pusat Kendali fase 1 — peta alur bisnis & jejak dokumen (migrasi 0086; PR #127):
+  - 4 proses end-to-end dengan SLA & departemen per tahap (dicocokkan otomatis dari nama departemen);
+  - umur, terlambat/berisiko, penghambat, kohort, siklus median/P90, pemegang & departemen;
+  - jejak satu dokumen dari SO/PO/pengiriman/faktur/MO/karyawan.
+- [x] Pusat Kendali fase 2 — kolaborasi (PR #128):
+  - komentar dengan @mention di panel Aktivitas (hanya orang yang berhak melihat), notifikasi ke yang disebut,
+    pemilik & peserta;
+  - papan Serah Terima per departemen dengan hubungan antar departemen & tombol Ingatkan.
+- [x] Pusat Kendali fase 3 — Pekerjaan Saya & KPI pribadi (PR #129):
+  - antrean lintas modul;
+  - 12 KPI otomatis sebagai ukuran BI per pemilik (periode lalu, tren 6 bulan, peringkat rekan, rincian);
+  - jejak kerja; ringkasan di Beranda;
+  - kolom PO/MO tepat waktu di dataset.
+- [x] Pusat Kendali fase 4 — target berjenjang & scorecard (migrasi 0087; PR #130):
+  - sasaran dengan KPI otomatis + periode untuk karyawan, departemen, atau perusahaan;
+  - turunkan target rata/proporsional, status laju RAG;
+  - scorecard perusahaan/departemen/saya & scorecard departemen berdampingan; evaluasi diri.
+- [x] Pusat Kendali fase 5 — arus uang & rantai pasok (PR #131):
+  - sankey sumber & penggunaan kas (seimbang dengan arus kas), DSO/DIO/DPO/CCC, proyeksi kas 13 minggu, anggaran per
+    departemen;
+  - OTIF, kinerja pemasok, umur & perputaran stok;
+  - dataset `cash_flows` & `deliveries`.
+- [x] Pusat Kendali fase 6 — peringatan dini (migrasi 0088; PR #132):
+  - 8 aturan dengan ambang & penerima;
+  - penjadwal harian dengan hak pemilik pengaturan, satu ringkasan per orang per aturan per hari (`ALERT_SCHEDULER`);
+  - pratinjau & jalankan sekarang; tampil di Pekerjaan Saya & Beranda.
+- [x] README diperbarui untuk BI v2 & Pusat Kendali Bisnis (PR #133).
+
 ## Rekomendasi berikutnya — SDM & Payroll
 
 Dari audit ketiga PRD SDM (Okt 2026), diurutkan menurut dampak bisnis:
@@ -580,6 +714,22 @@ Dari audit ketiga PRD SDM (Okt 2026), diurutkan menurut dampak bisnis:
 11. **Pinjaman berbunga & jadwal**, aset yang dipegang karyawan (terhubung aset akuntansi & offboarding).
 12. **Kompetensi/skill matrix**, laporan SDM konsolidasi grup, PWA portal karyawan.
 
+## Rekomendasi berikutnya — Pusat Kendali Bisnis
+
+Sisa dari rancangan Pusat Kendali yang belum dikerjakan, diurutkan menurut dampak:
+
+1. **Dashboard bawaan BI "Arus Uang" & "Rantai Pasok"** dari dataset `cash_flows` & `deliveries`, agar bisa dikustom
+   di editor BI.
+2. **KPI tambahan**:
+   - SDM: kehadiran tepat waktu, turnover;
+   - gudang: pengiriman tepat waktu, picking selesai;
+   - keuangan: DSO per penagih;
+   - beserta dataset pendukungnya.
+3. **Dataset `supplier_performance` & `stock_aging`** untuk BI, menyamakan angka halaman Rantai Pasok.
+4. **Nilai KPI otomatis sebagai bukti di form penilaian kinerja** (siklus appraisal membaca sasaran ber-KPI).
+5. **Peringatan per dokumen saat data berubah** (sekarang harian), memakai antrean aturan otomatis yang ada.
+6. **Aturan otomatis dipicu peringatan**, mis. buat aktivitas atau eskalasi ke atasan bila pengingat diabaikan.
+
 ## 5. Roadmap Bertahap
 
 | Fase | Durasi (tim 3–5 dev) | Hasil |
@@ -591,7 +741,8 @@ Dari audit ketiga PRD SDM (Okt 2026), diurutkan menurut dampak bisnis:
 | **4. HR + Payroll** | 6–8 minggu | Karyawan, absensi, cuti, payroll run, PPh 21 TER, BPJS, slip, jurnal gaji |
 | **5. Lokalisasi pajak & go-live MVP** | 4–6 minggu | e-Faktur/Coretax XML, e-Bupot, billing SaaS, onboarding wizard, hardening keamanan, backup, monitoring → **beta pelanggan** |
 | **5b. Konsolidasi grup** | 5–6 minggu | Mapping COA grup, translasi kurs, eliminasi IC & laba belum terealisasi, KNP, equity method, worksheet & laporan konsolidasian, rekonsiliasi IC (fondasi struktur grup & dimensi sudah dibangun sejak Fase 0–3) |
-| **6+. Ekspansi** | berkelanjutan | Modul fase lanjut (POS, MRP, Project, dll.) |
+| **6. BI v2 & Pusat Kendali Bisnis** | selesai Nov 2026 | Editor dashboard ala Power BI; alur bisnis end-to-end, Pekerjaan Saya & KPI pribadi, target berjenjang & scorecard, arus uang & rantai pasok, kolaborasi antar departemen, peringatan dini |
+| **7+. Ekspansi** | berkelanjutan | Modul fase lanjut yang belum ada (POS, Project & Timesheet, e-commerce, mobile, dll.) |
 
 Total MVP termasuk konsolidasi ±9–12 bulan. Setiap fase diakhiri demo alur end-to-end.
 
