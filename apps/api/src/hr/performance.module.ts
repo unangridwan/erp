@@ -324,6 +324,8 @@ function appraisalQuery(tx: Db, filter: SQL | undefined) {
       employeeName: E.name,
       employeeUserId: E.userId,
       cycleName: CY.name,
+      cycleStart: CY.dateStart,
+      cycleEnd: CY.dateEnd,
       managerName: schema.users.name,
     })
     .from(AP)
@@ -338,6 +340,8 @@ function appraisalQuery(tx: Db, filter: SQL | undefined) {
         employeeName: r.employeeName,
         employeeUserId: r.employeeUserId,
         cycleName: r.cycleName,
+        cycleStart: r.cycleStart,
+        cycleEnd: r.cycleEnd,
         managerName: r.managerName,
       })),
     );

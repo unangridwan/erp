@@ -1026,14 +1026,16 @@ SLA. Setiap angka bisa diklik sampai ke dokumennya, dan hak akses mengikuti perm
   memegang datanya dalam 6 bulan terakhir) dan boleh dilihat.
 - **Jejak kerja saya** dari log aktivitas, dan **Sasaran saya** dengan catatan evaluasi diri.
 
-| Area         | KPI otomatis                             |
-| ------------ | ---------------------------------------- |
-| Penjualan    | omzet, pesanan, konversi penawaran       |
-| CRM          | win rate, nilai peluang dimenangkan      |
-| Pembelian    | PO diterima tepat waktu, nilai pembelian |
-| Keuangan     | faktur diposting, faktur lunas           |
-| Produksi     | MO selesai, produksi tepat waktu         |
-| Pemeliharaan | perawatan diselesaikan                   |
+| Area         | KPI otomatis                                                        |
+| ------------ | ------------------------------------------------------------------- |
+| Penjualan    | omzet, pesanan, konversi penawaran                                  |
+| CRM          | win rate, nilai peluang dimenangkan                                 |
+| Pembelian    | PO diterima tepat waktu, nilai pembelian                            |
+| Keuangan     | faktur diposting, faktur lunas, hari sampai faktur lunas            |
+| Produksi     | MO selesai, produksi tepat waktu                                    |
+| Pemeliharaan | perawatan diselesaikan                                              |
+| Gudang       | pengiriman tepat waktu, transfer diselesaikan                       |
+| SDM          | kehadiran tepat waktu (bisa dilihat karyawan sendiri tanpa hak SDM) |
 
 **Target berjenjang & scorecard (migrasi 0087).**
 
@@ -1045,6 +1047,9 @@ SLA. Setiap angka bisa diklik sampai ke dokumennya, dan hak akses mengikuti perm
 - **Scorecard** (`/flow/scorecard`) untuk perusahaan, departemen, atau saya, berisi capaian tertimbang, pohon sasaran,
   KPI cakupan, dan metrik proses.
 - **Scorecard departemen** berdampingan untuk rapat manajemen: capaian, status, beban, keterlambatan, dan serah terima.
+- **Bukti kinerja otomatis di form penilaian**: sasaran ber-KPI karyawan (capaian, target, status laju) dan KPI dari
+  dokumen yang dipegangnya selama periode siklus. Bisa dilihat HR, penilai/atasan, dan karyawan itu sendiri
+  (`GET /scorecard?scope=employee&id=`). Hanya baca; skor tetap diisi penilai.
 
 **Arus uang & rantai pasok.**
 
@@ -1058,7 +1063,7 @@ SLA. Setiap angka bisa diklik sampai ke dokumennya, dan hak akses mengikuti perm
   - OTIF pengiriman (dengan toleransi hari) dan pengiriman lewat jadwal;
   - kinerja pemasok (tepat waktu, tepat jumlah, lolos QC, lead time, skor);
   - umur persediaan, stok mati, perputaran.
-- Dataset BI baru: `cash_flows`, `deliveries`, `supplier_performance` (penerimaan: tepat waktu vs rencana PO,
+- Dataset BI baru: `cash_flows`, `deliveries`, `attendance_punctuality` (ketepatan kehadiran per hari kerja), `supplier_performance` (penerimaan: tepat waktu vs rencana PO,
   tepat jumlah, lead time, hasil mutu), dan `stock_aging` (sisa persediaan per lapisan masuk & kelompok umur). Dataset
   lama mendapat kolom pemilik tersembunyi (`_userId`) untuk faktur/PO/MO/perawatan, serta kolom **PO diterima tepat
   waktu** dan **MO selesai tepat waktu**.

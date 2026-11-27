@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { errorText } from "../../../../../components/hr/hr-panels";
+import { KpiEvidence } from "../../../../../components/hr/kpi-evidence";
 import { useMe } from "../../../../../components/me-context";
 import { api } from "../../../../../lib/api";
 import { useI18n } from "../../../../../lib/i18n";
@@ -13,6 +14,9 @@ interface Appraisal {
   id: string;
   cycleId: string;
   cycleName: string;
+  cycleStart: string;
+  cycleEnd: string;
+  employeeId: string;
   employeeName: string;
   employeeUserId: string | null;
   managerUserId: string | null;
@@ -262,6 +266,7 @@ export default function AppraisalFormPage() {
           </button>
         </div>
       )}
+      <KpiEvidence employeeId={a.employeeId} from={a.cycleStart} to={a.cycleEnd} />
     </div>
   );
 }

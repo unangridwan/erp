@@ -75,3 +75,56 @@ describe("KPI pribadi", () => {
     expect(k).toMatchObject({ value: null, change: null, trendTone: "neutral", team: { rank: null } });
   });
 });
+
+describe("KPI gudang, keuangan & SDM", () => {
+  it("pengiriman tepat waktu, hari sampai lunas (lebih kecil lebih baik), kehadiran tepat waktu", () => {
+    const opts = { userId: "u", from: "2026-03-01", to: "2026-03-31" };
+    const dl = [
+      { _userId: "u", done: "2026-03-02", kind: "Pengiriman", onTime: "Ya" },
+      { _userId: "u", done: "2026-03-05", kind: "Pengiriman", onTime: "Tidak" },
+      { _userId: "u", done: "2026-03-06", kind: "Penerimaan", onTime: "Tidak" },
+    ];
+    const dlCols = [
+      { key: "done", header: "Selesai" },
+      { key: "kind", header: "Jenis" },
+      { key: "onTime", header: "Tepat waktu" },
+    ];
+    expect(computeKpi(KPI_BY_CODE.get("warehouse.on_time")!, dl, dlCols, opts).value).toBe(50);
+    expect(computeKpi(KPI_BY_CODE.get("warehouse.done")!, dl, dlCols, opts).value).toBe(3);
+
+    const inv = [
+      { _userId: "u", date: "2026-03-01", moveType: "Faktur pelanggan", paymentState: "Lunas", paidDays: 10 },
+      { _userId: "u", date: "2026-03-02", moveType: "Faktur pelanggan", paymentState: "Lunas", paidDays: 20 },
+      {
+        _userId: "u",
+        date: "2026-03-03",
+        moveType: "Faktur pelanggan",
+        paymentState: "Belum dibayar",
+        paidDays: null,
+      },
+      { _userId: "u", date: "2026-02-03", moveType: "Faktur pelanggan", paymentState: "Lunas", paidDays: 30 },
+    ];
+    const invCols = [
+      { key: "date", header: "Tanggal" },
+      { key: "moveType", header: "Jenis" },
+      { key: "paymentState", header: "Status bayar" },
+      { key: "paidDays", header: "Hari sampai lunas", numeric: true },
+    ];
+    const d = computeKpi(KPI_BY_CODE.get("finance.days_to_pay")!, inv, invCols, opts);
+    // 15 hari vs 30 hari bulan lalu: turun = membaik.
+    expect(d).toMatchObject({ value: 15, previous: 30, trendTone: "good" });
+
+    const att = [
+      { _userId: "u", date: "2026-03-02", onTime: "Ya" },
+      { _userId: "u", date: "2026-03-03", onTime: "Ya" },
+      { _userId: "u", date: "2026-03-04", onTime: "Tidak" },
+      { _userId: "u", date: "2026-03-05", onTime: "Ya" },
+    ];
+    const attCols = [
+      { key: "date", header: "Tanggal" },
+      { key: "onTime", header: "Tepat waktu" },
+    ];
+    expect(computeKpi(KPI_BY_CODE.get("hr.punctuality")!, att, attCols, opts).value).toBe(75);
+    expect(KPI_BY_CODE.get("hr.punctuality")!.selfService).toBe(true);
+  });
+});

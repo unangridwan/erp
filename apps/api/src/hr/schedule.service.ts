@@ -87,4 +87,74 @@ export class ScheduleService {
       return [{ employeeId: e.id, employeeName: e.name, employeeNumber: e.employeeNumber, ...result }];
     });
   }
+
+  /**
+   * Ketepatan kehadiran per karyawan per hari kerja yang ada absen masuknya (absensi tervalidasi, hari kerja jadwal,
+   * bukan hari libur): terlambat bila masuk lewat jam masuk + toleransi — aturan yang sama dengan potongan
+   * keterlambatan payroll.
+   */
+  async punctuality(tx: Db, input: { from: string; to: string; companyId?: string }) {
+    const companyId = input.companyId ?? currentContext().companyId;
+    const tz = await this.timezone(tx, companyId);
+    const employees = await tx
+      .select()
+      .from(schema.employees)
+      .where(eq(schema.employees.companyId, companyId));
+    if (!employees.length) return [];
+    const ids = employees.map((e) => e.id);
+    const resolve = await this.calendar.resolver(tx, companyId, ids, input.from, input.to);
+    const start = new Date(`${input.from}T00:00:00Z`);
+    start.setUTCDate(start.getUTCDate() - 1);
+    const end = new Date(`${input.to}T23:59:59Z`);
+    end.setUTCDate(end.getUTCDate() + 1);
+    const attendances = await tx
+      .select({ employeeId: schema.attendances.employeeId, checkIn: schema.attendances.checkIn })
+      .from(schema.attendances)
+      .where(
+        and(
+          inArray(schema.attendances.employeeId, ids),
+          eq(schema.attendances.state, "validated"),
+          gte(schema.attendances.checkIn, start),
+          lte(schema.attendances.checkIn, end),
+        ),
+      );
+    const holidays = await holidaysBetween(tx, companyId, input.from, input.to);
+    const off = new Set(holidays);
+    const byEmployee = new Map<string, typeof attendances>();
+    for (const a of attendances) byEmployee.set(a.employeeId, [...(byEmployee.get(a.employeeId) ?? []), a]);
+    return employees.flatMap((e) => {
+      const rows = (byEmployee.get(e.id) ?? [])
+        .map((a) => {
+          const date = localDate(a.checkIn, tz);
+          return { date, checkIn: a.checkIn, schedule: resolve(e, date) };
+        })
+        .filter((a) => a.date >= input.from && a.date <= input.to && a.schedule);
+      if (!rows.length) return [];
+      const late = new Map(
+        lateness(
+          rows.map((r) => ({ checkIn: r.checkIn, schedule: toRule(r.schedule!) })),
+          tz,
+          holidays,
+        ).days.map((d) => [d.date, d.minutes]),
+      );
+      const days = new Map<string, (typeof rows)[number]>();
+      for (const r of rows) if (!days.has(r.date)) days.set(r.date, r);
+      return [...days.values()]
+        .filter((r) => {
+          const weekday = new Date(`${r.date}T00:00:00Z`).getUTCDay();
+          return !off.has(r.date) && toRule(r.schedule!).workDays.includes(weekday);
+        })
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((r) => ({
+          employeeId: e.id,
+          employeeName: e.name,
+          employeeNumber: e.employeeNumber,
+          userId: e.userId,
+          departmentId: e.departmentId,
+          date: r.date,
+          lateMinutes: late.get(r.date) ?? 0,
+          onTime: !late.has(r.date),
+        }));
+    });
+  }
 }

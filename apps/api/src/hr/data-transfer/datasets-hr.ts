@@ -1,3 +1,4 @@
+import type { ScheduleService } from "../schedule.service.js";
 import { and, asc, eq, gte, inArray, lte, schema, sql, type Db } from "@erp/db";
 import {
   addDays,
@@ -57,6 +58,7 @@ const get = (row: Row, key: string) => (row[key] ?? "").trim();
 const today = () => businessToday();
 
 export interface HrServices {
+  schedules: ScheduleService;
   employees: EmployeeService;
   history: HistoryService;
   checklists: ChecklistService;
@@ -995,9 +997,58 @@ const leavesDataset: Dataset = {
   },
 };
 
+/** Ketepatan kehadiran per karyawan per hari kerja (untuk KPI SDM & laporan BI). */
+function punctualityDataset(svc: HrServices): Dataset {
+  return {
+    key: "attendance_punctuality",
+    label: "Ketepatan kehadiran",
+    description:
+      "Per karyawan per hari kerja dengan absen masuk tervalidasi: terlambat atau tepat waktu menurut jadwal kerja.",
+    app: "hr",
+    read: "hr.read",
+    admin: "hr.manage",
+    filters: PERIOD_FILTERS,
+    columns: () => [
+      EMP_NO,
+      EMP_NAME,
+      { key: "department", header: "Departemen", group: "Karyawan" },
+      { key: "date", header: "Tanggal", group: "Kehadiran" },
+      { key: "month", header: "Bulan", group: "Kehadiran" },
+      { key: "onTime", header: "Tepat waktu", group: "Kehadiran" },
+      { key: "lateMinutes", header: "Menit terlambat", group: "Kehadiran", numeric: true },
+    ],
+    async rows(tx, ctx, query) {
+      const { from, to } = period(query);
+      const rows = await svc.schedules.punctuality(tx, { from, to, companyId: ctx.companyId });
+      const D = schema.departments;
+      const deps = new Map(
+        (await tx.select({ id: D.id, name: D.name }).from(D).where(eq(D.companyId, ctx.companyId))).map(
+          (d) => [d.id, d.name],
+        ),
+      );
+      return rows
+        .filter((r) => !query.departmentId || r.departmentId === query.departmentId)
+        .map((r) => ({
+          _model: "employee",
+          _id: r.employeeId,
+          // Pemilik untuk KPI pribadi: akun karyawan.
+          _userId: r.userId ?? "",
+          employeeNumber: r.employeeNumber,
+          employeeName: r.employeeName,
+          department: r.departmentId ? (deps.get(r.departmentId) ?? "") : "",
+          date: r.date,
+          month: r.date.slice(0, 7),
+          onTime: r.onTime ? "Ya" : "Tidak",
+          lateMinutes: r.lateMinutes,
+        }));
+    },
+  };
+}
+
 export function hrDatasets(svc: HrServices): Dataset[] {
   return [
     employeesDataset(svc),
+    punctualityDataset(svc),
     contractsDataset(svc),
     familyDataset(svc),
     educationDataset,

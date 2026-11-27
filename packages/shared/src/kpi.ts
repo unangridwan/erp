@@ -30,6 +30,8 @@ export interface KpiDef {
   filters?: BiFilter[];
   /** Filter baris yang ditampilkan sebagai rincian penyusun KPI (default: filter dasar + filter ukuran utama). */
   detailFilters?: BiFilter[];
+  /** Pemilik data selalu boleh melihat KPI-nya sendiri walau tanpa hak modul (mis. kehadiran di portal). */
+  selfService?: boolean;
 }
 
 const f = (column: string, values: string[], op: "in" | "notIn" = "in"): BiFilter => ({
@@ -77,6 +79,8 @@ const PURCHASE: [string, string] = ["Pembelian", "Purchasing"];
 const FINANCE: [string, string] = ["Keuangan", "Finance"];
 const MFG: [string, string] = ["Produksi", "Production"];
 const MAINT: [string, string] = ["Pemeliharaan", "Maintenance"];
+const WAREHOUSE: [string, string] = ["Gudang", "Warehouse"];
+const HR: [string, string] = ["SDM", "HR"];
 
 export const KPI_CATALOG: KpiDef[] = [
   {
@@ -235,6 +239,81 @@ export const KPI_CATALOG: KpiDef[] = [
       formula("v", "DIVIDE([total] - [open], [total]) * 100"),
       helper("total", "sum", "amountTotal"),
       helper("open", "sum", "amountResidual"),
+    ],
+  },
+  {
+    code: "finance.days_to_pay",
+    label: ["Hari sampai faktur lunas", "Days to invoice payment"],
+    description: [
+      "Rata-rata hari dari tanggal faktur pelanggan yang Anda posting sampai lunas (makin kecil makin baik).",
+      "Average days from the date of customer invoices you posted until they are paid (lower is better).",
+    ],
+    area: FINANCE,
+    permission: "accounting.read",
+    dataset: "invoices",
+    date: "date",
+    owner: "_userId",
+    unit: "days",
+    better: "down",
+    filters: [f("moveType", ["Faktur pelanggan"]), f("paymentState", ["Lunas"])],
+    measures: [m("v", "avg", "paidDays")],
+  },
+  {
+    code: "warehouse.on_time",
+    label: ["Pengiriman tepat waktu", "On-time deliveries"],
+    description: [
+      "Persentase pengiriman ke pelanggan yang Anda buat dan selesai paling lambat jadwalnya.",
+      "Share of customer deliveries you created that were completed by their scheduled date.",
+    ],
+    area: WAREHOUSE,
+    permission: "inventory.read",
+    dataset: "deliveries",
+    date: "done",
+    owner: "_userId",
+    unit: "percent",
+    better: "up",
+    filters: [f("kind", ["Pengiriman"])],
+    measures: [
+      formula("v", "DIVIDE([ok], [all]) * 100"),
+      helper("ok", "count", "*", [f("onTime", ["Ya"])]),
+      helper("all", "count", "*"),
+    ],
+  },
+  {
+    code: "warehouse.done",
+    label: ["Transfer diselesaikan", "Transfers completed"],
+    description: [
+      "Banyaknya pengiriman & penerimaan yang Anda buat dan sudah selesai.",
+      "Number of deliveries & receipts you created that are completed.",
+    ],
+    area: WAREHOUSE,
+    permission: "inventory.read",
+    dataset: "deliveries",
+    date: "done",
+    owner: "_userId",
+    unit: "count",
+    better: "up",
+    measures: [m("v", "count", "*")],
+  },
+  {
+    code: "hr.punctuality",
+    label: ["Kehadiran tepat waktu", "On-time attendance"],
+    description: [
+      "Persentase hari kerja Anda masuk paling lambat jam masuk jadwal + toleransi (absensi tervalidasi).",
+      "Share of your work days with check-in by the scheduled start + tolerance (validated attendance).",
+    ],
+    area: HR,
+    permission: "hr.read",
+    dataset: "attendance_punctuality",
+    date: "date",
+    owner: "_userId",
+    unit: "percent",
+    better: "up",
+    selfService: true,
+    measures: [
+      formula("v", "DIVIDE([ok], [all]) * 100"),
+      helper("ok", "count", "*", [f("onTime", ["Ya"])]),
+      helper("all", "count", "*"),
     ],
   },
   {

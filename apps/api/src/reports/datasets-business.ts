@@ -400,6 +400,8 @@ function invoices(): Dataset {
         col("partner", "Partner", "Dokumen"),
         col("paymentState", "Status bayar", "Dokumen"),
         col("overdueDays", "Hari lewat jatuh tempo", "Umur", true),
+        col("paidDate", "Tanggal lunas", "Umur"),
+        col("paidDays", "Hari sampai lunas", "Umur", true),
         col("aging", "Kelompok umur", "Umur"),
         col("amountUntaxed", "Total sebelum pajak", "Nilai", true),
         col("amountTax", "Pajak", "Nilai", true),
@@ -430,6 +432,20 @@ function invoices(): Dataset {
           ),
         )
         .orderBy(asc(M.date));
+      // Tanggal lunas: tanggal dokumen pelunasan terakhir (pembayaran/nota) untuk dokumen yang sudah lunas.
+      const paidRows = await tx.execute<{ id: string; paid: string }>(sql`
+        select l.move_id as id, max(m2.date)::text as paid
+        from account_moves m join account_move_lines l on l.move_id = m.id
+        join partial_reconciles pr on pr.debit_line_id = l.id or pr.credit_line_id = l.id
+        join account_move_lines l2
+          on l2.id = case when pr.debit_line_id = l.id then pr.credit_line_id else pr.debit_line_id end
+        join account_moves m2 on m2.id = l2.move_id
+        where m.company_id = ${ctx.companyId} and m.state = 'posted' and m.payment_state = 'paid'
+          and l2.move_id <> m.id
+          ${q.from && ISO.test(q.from) ? sql`and m.date >= ${q.from}` : sql``}
+          ${q.to && ISO.test(q.to) ? sql`and m.date <= ${q.to}` : sql``}
+        group by 1`);
+      const paidAt = new Map([...paidRows].map((r) => [r.id, r.paid]));
       const today = businessToday();
       return rows.map(({ m, partner }) => {
         const sign = m.moveType.endsWith("refund") ? -1 : 1;
@@ -452,6 +468,10 @@ function invoices(): Dataset {
           partner: partner ?? "",
           paymentState: PAYMENT_STATE[m.paymentState as string] ?? m.paymentState,
           overdueDays: overdue !== null && overdue > 0 ? overdue : 0,
+          paidDate: paidAt.get(m.id) ?? "",
+          paidDays: paidAt.has(m.id)
+            ? Math.max(0, Math.round((Date.parse(paidAt.get(m.id)!) - Date.parse(String(m.date))) / 864e5))
+            : null,
           aging: agingBucket(overdue, residual),
           amountUntaxed: (n(m.amountUntaxed) ?? 0) * sign,
           amountTax: (n(m.amountTax) ?? 0) * sign,
@@ -1316,6 +1336,7 @@ function deliveries(): Dataset {
         id: string;
         name: string;
         picking_type: string;
+        created_by: string | null;
         partner: string | null;
         scheduled: string;
         done: string;
@@ -1323,7 +1344,7 @@ function deliveries(): Dataset {
         quantity_done: string;
         in_full: boolean | null;
       }>(sql`
-        select t.id, t.name, t.picking_type, pa.name as partner, t.scheduled_date::text as scheduled,
+        select t.id, t.name, t.picking_type, t.created_by, pa.name as partner, t.scheduled_date::text as scheduled,
           t.date_done::date::text as done, sum(mv.quantity) as quantity, sum(mv.quantity_done) as quantity_done,
           bool_and(mv.quantity_done >= mv.quantity) filter (where mv.state <> 'cancel') as in_full
         from stock_pickings t join stock_moves mv on mv.picking_id = t.id
@@ -1338,6 +1359,8 @@ function deliveries(): Dataset {
         const inFull = r.in_full !== false;
         return {
           ...ref("stock_picking", r.id),
+          // Pemilik untuk KPI pribadi gudang: pembuat transfer.
+          _userId: r.created_by ?? "",
           name: r.name,
           kind: r.picking_type === "outgoing" ? "Pengiriman" : "Penerimaan",
           partner: r.partner ?? "",
