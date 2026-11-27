@@ -14,6 +14,7 @@ import {
   MyProfile,
   MyTaxSlips,
 } from "../../../components/hr/portal-extras";
+import { MyAdvances } from "../../../components/hr/advances";
 import { MyAttendance } from "../../../components/hr/attendance-extras";
 import { MyContracts } from "../../../components/hr/contract-document";
 import { MyVehiclesPanel } from "../../../components/fleet/fleet-panels";
@@ -289,6 +290,7 @@ export default function MyPortalPage() {
       <MyClaims />
       <MyApprovalRequests />
       <MyLoans />
+      <MyAdvances />
 
       <section className="panel">
         <h2>{l("Slip gaji", "Payslips")}</h2>

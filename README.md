@@ -565,6 +565,7 @@ Otomatis (tanpa endpoint baru):
 | `GET /approvals/pending`, `GET /approvals/:model/:id`, `POST /approvals/overtime/:id/{approve,refuse}`                                                       | Persetujuan berjenjang cuti, lembur, klaim + permintaan generik (kotak gabungan)                                                                                                                                                                                                              |
 | `POST /overtimes/from-attendance`, `POST /approvals/overtime/:id/approve {hours}`                                                                            | Lembur dari absensi (0048); atasan boleh mengurangi jam saat menyetujui                                                                                                                                                                                                                       |
 | `GET/POST /employee-loans`, `GET /employee-loans/:id`, `POST /employee-loans/:id/{disburse,cancel}`                                                          | Pinjaman karyawan: cair via kas/bank, cicilan otomatis di slip sampai lunas                                                                                                                                                                                                                   |
+| `GET/POST /employee-advances[?mine=1]`, `GET/PUT /employee-advances/:id`, `POST /employee-advances/:id/{submit,cancel,disburse,settle}`                      | Kasbon (uang muka karyawan): persetujuan kategori KASBON, cair ke akun uang muka, diselesaikan dengan klaim; sisa dikembalikan/potong gaji                                                                                                                                                    |
 | `/work-entries`                                                                                                                                              | Hasil kerja pekerja borongan (terkunci setelah payroll diposting)                                                                                                                                                                                                                             |
 | `GET/POST /employees/:id/severances`, `POST /employees/:id/severance/preview`                                                                                | Pesangon, UPMK, UPH, uang pisah/kompensasi PKWT (PP 35/2021) + PPh 21 final                                                                                                                                                                                                                   |
 | `/salary-grades`, `GET /hr/wage-scale`, `GET /salary-grades/:id/base-wage-impact`, `POST /salary-grades/:id/apply-base-wage`                                 | Struktur & skala upah (PP 36/2021): golongan di karyawan atau jabatan, **gaji pokok standar per golongan** (terisi otomatis di kontrak, tetap bisa diubah — ditandai "Disesuaikan"), terapkan gaji pokok baru ke kontrak berjalan (kontrak upah baru + rapel), upah di luar rentang           |
@@ -714,6 +715,11 @@ PPh 21 dihitung dengan TER (PP 58/2023) per bulan dan tarif Pasal 17 setahun di 
 Tarif TER, PTKP, BPJS, dan lembur ada di `packages/shared/src/payroll.ts` (dengan unit test); batas upah JP perlu
 diperbarui di Pengaturan Payroll setiap Maret.
 
+**Tarif lembur (migrasi 0090).** Pengaturan Payroll › Tarif lembur memakai preset PP 35/2021 pola 5 hari kerja
+(bawaan) atau pola 6 hari kerja, atau tarif sendiri. Tarif sendiri terdiri dari pembagi upah sejam (bawaan 173) dan
+tingkat "sampai jam ke-n × pengali" untuk hari kerja serta hari istirahat/libur. Halaman pengaturan menampilkan contoh
+hitung. Tarif berlaku untuk slip yang dihitung (ulang) setelah disimpan; slip yang sudah diposting tidak berubah.
+
 Kontrak bisa berupah bulanan, harian lepas (hari hadir × upah harian), atau borongan (hasil kerja × upah per satuan).
 Pekerja harian/borongan memakai PPh 21 tarif harian (PMK 168/2023) dan hanya ikut JKK & JKM sampai masa kerja mencapai
 batas di Pengaturan Payroll (bawaan 3 bulan). Lembur yang butuh persetujuan baru dibayar setelah disetujui. Pesangon
@@ -731,6 +737,22 @@ Klaim biaya yang disetujui dengan metode "slip gaji" otomatis masuk slip payroll
 PPh 21 kecuali kategori ditandai objek PPh 21) dan saat posting mendebit akun beban kategori klaim; klaim yang berubah
 setelah payroll dihitung membuat posting ditolak sampai payroll dihitung ulang. Lembur yang diajukan dari portal selalu
 menunggu persetujuan (minimal atasan langsung). Nomor rekening pada pengajuan perubahan data disimpan terenkripsi.
+
+**Kasbon / uang muka karyawan (migrasi 0090).** Menu Penggajian › Kasbon Karyawan dan kartu **Kasbon** di portal.
+
+1. **Ajukan**: karyawan mengajukan dari portal, atau HR atas nama karyawan. Kasbon masuk mesin persetujuan, kategori
+   sistem **KASBON**: atasan langsung karyawan lebih dulu, lalu penyetuju yang diatur. Batas wewenang dan delegasi
+   berlaku. Kasbon baru ditolak bila masih ada kasbon yang lewat batas pertanggungjawaban.
+2. **Cairkan**: Dr Uang Muka Karyawan (akun 1-1810; kosong = akun piutang karyawan) / Cr kas/bank.
+3. **Pertanggungjawaban**: karyawan membuat klaim biaya dengan pilihan **Pertanggungjawaban kasbon**. Klaim tetap
+   melalui persetujuan klaim, plafon, dan bukti wajib, tetapi tidak dibayar terpisah.
+4. **Selesaikan** (dalam satu jurnal):
+   - beban per kategori didebit, Uang Muka Karyawan dikredit;
+   - bila klaim melebihi kasbon, selisih dibayar ke karyawan dari kas/bank;
+   - bila ada sisa kasbon, sisa dikembalikan tunai atau dipotong di payroll berikutnya. Potongan memakai baris slip
+     `ADV`, dan saat payroll diposting akun uang muka dikredit lalu kasbon selesai.
+
+Kategori klaim bisa ditandai **Bukti wajib**: klaim dengan baris kategori tersebut tanpa lampiran ditolak saat diajukan.
 
 Checklist onboarding dibuat otomatis untuk karyawan baru (tanggal masuk ≤ 30 hari lalu) dan saat pelamar diterima;
 offboarding saat tanggal keluar diisi. Tanpa template bawaan perusahaan dipakai checklist standar; tugas "nonaktifkan

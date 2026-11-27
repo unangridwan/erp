@@ -31,6 +31,7 @@ const ACCOUNTS: {
   { code: "1-1600", name: "Uang Muka Pembelian", type: "asset_current" },
   { key: "prepaidExpense", code: "1-1700", name: "Biaya Dibayar Dimuka", type: "asset_current" },
   { code: "1-1800", name: "Piutang Karyawan", type: "asset_current" },
+  { code: "1-1810", name: "Uang Muka Karyawan", type: "asset_current" },
   {
     code: "1-1900",
     name: "Rekening Antar Kantor (RK Pusat–Cabang)",

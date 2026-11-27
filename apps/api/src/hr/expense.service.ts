@@ -98,6 +98,7 @@ export class ExpenseService {
 
   async create(tx: Db, input: ClaimInput) {
     const employee = await this.employeeFor(tx, input.employeeId);
+    if (input.advanceId) await this.assertAdvance(tx, input.advanceId, employee.id);
     const name = await this.sequences.next(
       tx,
       "hr.expense",
@@ -114,6 +115,7 @@ export class ExpenseService {
         date: input.date,
         description: input.description ?? null,
         payMethod: input.payMethod,
+        advanceId: input.advanceId ?? null,
         createdBy: currentContext().userId,
       })
       .returning();
@@ -125,12 +127,14 @@ export class ExpenseService {
     const claim = await this.editable(tx, id);
     if (input.employeeId && input.employeeId !== claim.employeeId)
       throw fieldError("employeeId", "Karyawan klaim tidak bisa diganti");
+    if (input.advanceId) await this.assertAdvance(tx, input.advanceId, claim.employeeId);
     await tx
       .update(C)
       .set({
         date: input.date,
         description: input.description ?? null,
         payMethod: input.payMethod,
+        advanceId: input.advanceId ?? null,
         updatedAt: sql`now()`,
       })
       .where(eq(C.id, id));
@@ -152,6 +156,14 @@ export class ExpenseService {
       .innerJoin(schema.expenseCategories, eq(schema.expenseCategories.id, CL.categoryId))
       .where(eq(CL.claimId, id));
     if (!lines.length) throw new BadRequestException("Klaim belum punya baris");
+    const noReceipt = [
+      ...new Set(
+        lines.filter((l) => l.category.receiptRequired && !l.line.attachment).map((l) => l.category.name),
+      ),
+    ];
+    if (noReceipt.length)
+      throw new BadRequestException(`Lampirkan bukti untuk kategori ${noReceipt.join(", ")} (bukti wajib)`);
+    if (claim.advanceId) await this.assertAdvance(tx, claim.advanceId, claim.employeeId);
     const byCategory = new Map<string, { category: (typeof lines)[number]["category"]; amount: Decimal }>();
     for (const { line, category } of lines) {
       const cur = byCategory.get(category.id) ?? { category, amount: d(0) };
@@ -237,6 +249,8 @@ export class ExpenseService {
   async pay(tx: Db, id: string, input: z.infer<typeof payClaimSchema>) {
     const claim = await this.find(tx, id, true);
     if (claim.state !== "approved") throw new BadRequestException("Hanya klaim disetujui yang bisa dibayar");
+    if (claim.advanceId)
+      throw new BadRequestException("Klaim pertanggungjawaban kasbon diselesaikan bersama kasbonnya");
     if (claim.payMethod !== "cash")
       throw new BadRequestException("Klaim ini dibayar lewat slip gaji berikutnya");
     const journal = await assertCompanyJournal(tx, claim.companyId, input.journalId, ["bank", "cash"]);
@@ -332,6 +346,19 @@ export class ExpenseService {
     )
       return;
     throw new ForbiddenException("Butuh permission hr.read");
+  }
+
+  /** Klaim pertanggungjawaban: kasbon karyawan yang sama, sudah dicairkan, dan belum diselesaikan. */
+  private async assertAdvance(tx: Db, advanceId: string, employeeId: string) {
+    const A = schema.employeeAdvances;
+    const [adv] = await tx
+      .select({ employeeId: A.employeeId, state: A.state, settlementDate: A.settlementDate })
+      .from(A)
+      .where(eq(A.id, advanceId));
+    if (!adv || adv.employeeId !== employeeId)
+      throw fieldError("advanceId", "Kasbon tidak ditemukan untuk karyawan ini");
+    if (adv.state !== "paid" || adv.settlementDate)
+      throw fieldError("advanceId", "Kasbon belum dicairkan atau sudah diselesaikan");
   }
 
   /** Karyawan user yang login, atau null bila belum terhubung. */

@@ -2393,6 +2393,14 @@ RESOURCES.push(
         label: L("Objek PPh 21 bila dibayar lewat slip", "Subject to PPh 21 when paid via payslip"),
         type: "boolean",
       },
+      {
+        name: "receiptRequired",
+        label: L(
+          "Bukti wajib (setiap baris klaim harus melampirkan bukti)",
+          "Receipt required on every claim line",
+        ),
+        type: "boolean",
+      },
       { name: "active", label: L("Aktif", "Active"), type: "boolean" },
     ],
   },

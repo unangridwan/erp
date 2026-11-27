@@ -705,6 +705,11 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   - aturan **Pengingat diabaikan (eskalasi)**: diteruskan ke atasan manajer departemen sekali per pengingat dan
     tercatat di riwayat dokumen;
   - data demo: akun kepala departemen yang tertaut ke karyawan.
+- [x] SDM & Payroll lanjutan C1 (migrasi 0090):
+  - master tarif lembur: preset PP 35/2021 pola 5/6 hari kerja atau tarif sendiri, dipakai perhitungan slip;
+  - kasbon (uang muka karyawan): ajukan (portal/HR) → persetujuan kategori sistem KASBON → cairkan → klaim
+    pertanggungjawaban → selesaikan (selisih dibayar, sisa dikembalikan/dipotong gaji lewat baris slip `ADV`);
+  - kategori klaim **bukti wajib**.
 
 ## Rekomendasi berikutnya — SDM & Payroll
 
@@ -716,9 +721,10 @@ Dari audit ketiga PRD SDM (Okt 2026), diurutkan menurut dampak bisnis:
    pratinjau hari cuti di form pengajuan.
 2. 🟡 **Lembur otomatis dari absensi vs jadwal** (migrasi 0048): ✅ dihitung dari absen pulang (dan masuk lebih awal bila
    diatur) terhadap jadwal, hari istirahat/libur seluruh jam; minimal, pembulatan & batas per hari di Pengaturan
-   Payroll; selalu menunggu atasan, yang boleh mengurangi jam lalu menyetujui/menolak. ❌ Belum: master jenis/aturan
-   lembur dengan tarif yang bisa diatur (tarif masih PP 35/2021).
-3. **Kasbon / uang muka karyawan**: pencairan, penyelesaian dengan klaim, sisa dipotong gaji; bukti wajib per kategori.
+   Payroll; selalu menunggu atasan, yang boleh mengurangi jam lalu menyetujui/menolak. ✅ Master tarif lembur
+   (0090): preset PP 35/2021 pola 5/6 hari kerja atau tarif sendiri (pembagi & tingkat pengali per jenis hari).
+3. ✅ **Kasbon / uang muka karyawan** (0090): persetujuan kategori KASBON, pencairan, penyelesaian dengan klaim, sisa
+   dikembalikan atau dipotong gaji; bukti wajib per kategori klaim.
 4. 🟡 **Notifikasi email (dan push)** untuk pengajuan & keputusan persetujuan — ✅ email (0059); push belum.
 5. 🟡 **Persetujuan berjenjang** untuk payroll run, mutasi/promosi, penawaran kerja (✅ 0059), offboarding/F&F (belum).
 6. ✅ **Parameter payroll berlaku per tanggal** (batas BPJS, JKK) agar perhitungan periode lama tetap (0058).

@@ -42,6 +42,7 @@ import { WorkCalendarService, type WorkCalendar } from "../hr/work-calendar.serv
 import { ApprovalGateService } from "../hr/approval-gate.service.js";
 import { localDate, ScheduleService } from "../hr/schedule.service.js";
 import { LoanService } from "./loan.service.js";
+import { AdvanceService } from "../hr/advance.service.js";
 
 const PARAM = schema.payrollParameters;
 const RUN = schema.payrollRuns;
@@ -107,6 +108,7 @@ export class PayrollService {
     @Inject(LeaveService) private readonly leaves: LeaveService,
     @Inject(ScheduleService) private readonly schedules: ScheduleService,
     @Inject(LoanService) private readonly loans: LoanService,
+    @Inject(AdvanceService) private readonly advances: AdvanceService,
     @Inject(ExpenseService) private readonly expenses: ExpenseService,
     @Inject(WorkCalendarService) private readonly calendar: WorkCalendarService,
     @Inject(ApprovalGateService) private readonly gate: ApprovalGateService,
@@ -139,6 +141,9 @@ export class PayrollService {
       { path: "bpjsTkPayableAccountId", id: input.bpjsTkPayableAccountId },
       ...(input.employeeLoanAccountId
         ? [{ path: "employeeLoanAccountId", id: input.employeeLoanAccountId }]
+        : []),
+      ...(input.employeeAdvanceAccountId
+        ? [{ path: "employeeAdvanceAccountId", id: input.employeeAdvanceAccountId }]
         : []),
     ]);
     if (input.timezone) {
@@ -537,6 +542,8 @@ export class PayrollService {
                 eq(schema.expenseClaims.employeeId, employee.id),
                 eq(schema.expenseClaims.state, "approved"),
                 eq(schema.expenseClaims.payMethod, "payslip"),
+                // Klaim kasbon diselesaikan bersama kasbonnya.
+                isNull(schema.expenseClaims.advanceId),
                 lte(schema.expenseClaims.date, run.periodEnd),
               ),
             )
@@ -555,6 +562,7 @@ export class PayrollService {
     const deductions: (PayslipItem & {
       componentId: string | null;
       loanId?: string;
+      advanceId?: string;
       benefitPlanId?: string;
     })[] = [
       ...contractRows
@@ -573,6 +581,14 @@ export class PayrollService {
           amount: l.amount,
         }),
       ),
+      // Sisa kasbon yang diselesaikan dengan potong gaji.
+      ...(correction ? [] : await this.advances.deductionsFor(tx, employee.id, run.periodEnd)).map((a) => ({
+        componentId: null,
+        advanceId: a.advanceId,
+        code: "ADV",
+        name: a.name,
+        amount: a.amount,
+      })),
     ];
 
     // Hari tidak dibayar: cuti tanpa upah + hari kerja di luar masa kerja/kontrak (masuk/keluar di tengah bulan).
@@ -811,6 +827,7 @@ export class PayrollService {
       allowances,
       deductions,
       overtime: overtime.map((o) => ({ hours: o.hours, day: o.dayType })),
+      overtimeRates: settings.overtimeRates,
       unpaidDays,
       workingDays: monthDays,
       status: employee.ptkpStatus,
@@ -849,6 +866,9 @@ export class PayrollService {
       [...allowances, ...deductions].map((x) => [x.code + x.name, x.componentId]),
     );
     const loanByCode = new Map(deductions.filter((x) => x.loanId).map((x) => [x.code + x.name, x.loanId!]));
+    const advanceByCode = new Map(
+      deductions.filter((x) => x.advanceId).map((x) => [x.code + x.name, x.advanceId!]),
+    );
     const claimByCode = new Map(
       allowances.filter((x) => x.expenseClaimId).map((x) => [x.code + x.name, x.expenseClaimId!]),
     );
@@ -868,6 +888,7 @@ export class PayrollService {
           amount: l.amount,
           componentId: componentByCode.get(l.code + l.name) ?? null,
           loanId: loanByCode.get(l.code + l.name) ?? null,
+          advanceId: advanceByCode.get(l.code + l.name) ?? null,
           expenseClaimId: claimByCode.get(l.code + l.name) ?? null,
           benefitPlanId: benefitByCode.get(l.code + l.name) ?? null,
         })),
@@ -1129,6 +1150,11 @@ export class PayrollService {
               if (!s.employeeLoanAccountId)
                 throw new BadRequestException("Akun piutang karyawan belum diatur di pengaturan payroll");
               add(s.employeeLoanAccountId, amount);
+            } else if (line.advanceId) {
+              const account = s.employeeAdvanceAccountId ?? s.employeeLoanAccountId;
+              if (!account)
+                throw new BadRequestException("Akun uang muka karyawan belum diatur di pengaturan payroll");
+              add(account, amount);
             } else add(accountId ?? s.salaryExpenseAccountId, amount, dims);
             break;
         }
@@ -1215,6 +1241,12 @@ export class PayrollService {
     await this.loans.closePaid(tx, [
       ...new Set(lines.map((l) => l.line.loanId).filter((x): x is string => Boolean(x))),
     ]);
+    await this.advances.closeDeducted(
+      tx,
+      lines
+        .filter((l) => l.line.advanceId)
+        .map((l) => ({ advanceId: l.line.advanceId!, payslipId: l.line.payslipId })),
+    );
     await this.activity.log(tx, {
       resModel: "payroll_run",
       resId: id,

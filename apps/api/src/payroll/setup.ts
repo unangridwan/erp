@@ -34,6 +34,7 @@ export async function installPayroll(tx: Db, companyId: string) {
           "2-1400",
           "2-1410",
           "1-1800",
+          "1-1810",
         ]),
       ),
     );
@@ -56,6 +57,7 @@ export async function installPayroll(tx: Db, companyId: string) {
       bpjsTkPayableAccountId: account("2-1400")!,
       bpjsKesPayableAccountId: account("2-1410") ?? account("2-1400")!,
       employeeLoanAccountId: account("1-1800") ?? null,
+      employeeAdvanceAccountId: account("1-1810") ?? null,
       journalId: journal.id,
     })
     .returning();

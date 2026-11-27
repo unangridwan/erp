@@ -398,6 +398,33 @@ export const MESSAGES_EN: Record<string, string> = {
   "Hanya pinjaman draft yang bisa dicairkan": "Only draft loans can be disbursed",
   "Pinjaman sudah selesai atau batal": "The loan is already finished or cancelled",
   "Pinjaman sudah dicicil; tidak bisa dibatalkan": "The loan already has repayments; it cannot be cancelled",
+  // ---- Kasbon & tarif lembur ----
+  "Kasbon tidak ditemukan": "Cash advance not found",
+  "Kasbon {} sudah lewat batas pertanggungjawaban; selesaikan dulu sebelum mengajukan kasbon baru":
+    "Cash advance {0} is past its settlement deadline; settle it before requesting a new one",
+  "Kasbon yang sudah dicairkan, selesai, atau batal tidak bisa dibatalkan":
+    "A disbursed, settled, or cancelled cash advance cannot be cancelled",
+  "Hanya kasbon yang sudah disetujui bisa dicairkan": "Only approved cash advances can be disbursed",
+  "Hanya kasbon yang sudah dicairkan & belum diselesaikan": "Only disbursed, unsettled cash advances",
+  "Klaim {} belum disetujui; selesaikan persetujuannya atau batalkan":
+    "Claim {0} is not approved yet; finish its approval or cancel it",
+  "Akun uang muka karyawan belum diatur di pengaturan payroll":
+    "The employee cash advance account is not set in payroll settings",
+  "Jurnal payroll belum diatur di pengaturan payroll": "The payroll journal is not set in payroll settings",
+  "Hanya kasbon draft yang bisa diubah atau diajukan": "Only draft cash advances can be edited or submitted",
+  "Tanggal penyelesaian sebelum tanggal pencairan": "The settlement date is before the disbursement date",
+  "Pilih jurnal kas/bank untuk selisih kasbon": "Choose a cash/bank journal for the advance difference",
+  "Kasbon tidak ditemukan untuk karyawan ini": "Cash advance not found for this employee",
+  "Kasbon belum dicairkan atau sudah diselesaikan":
+    "The cash advance is not disbursed yet or already settled",
+  "Lampirkan bukti untuk kategori {} (bukti wajib)": "Attach a receipt for category {0} (receipt required)",
+  "Klaim pertanggungjawaban kasbon diselesaikan bersama kasbonnya":
+    "A cash advance settlement claim is settled together with its advance",
+  "Batas penyelesaian tidak boleh sebelum tanggal kasbon":
+    "The settle-by date cannot be before the advance date",
+  "Tingkat terakhir harus tanpa batas jam": "The last tier must have no hour limit",
+  "Hanya tingkat terakhir yang tanpa batas": "Only the last tier may have no hour limit",
+  "Batas jam harus naik berurutan": "Hour limits must increase in order",
   "Tidak ada hak akhir yang perlu dibayar": "No final entitlements to pay",
   "Karyawan belum punya kontrak": "The employee has no contract",
 
