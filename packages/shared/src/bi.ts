@@ -1217,6 +1217,75 @@ type BiFilterInput = z.input<typeof biFilterSchema>;
  * % dari total). Ditempatkan di bawah visual bawaan lama.
  */
 const BUILTIN_EXTRAS: Record<string, Omit<BiVisualInput, "layout">[]> = {
+  money: [
+    {
+      id: "x-money-flow",
+      type: "combo",
+      title: "Kas masuk, keluar & bersih per bulan",
+      dataset: "cash_flows",
+      axis: [{ column: "date", level: "month" }],
+      values: [
+        { id: "in", label: "Kas masuk", column: "inflow", fn: "sum" },
+        { id: "out", label: "Kas keluar", column: "outflow", fn: "sum" },
+        { id: "net", label: "Bersih", column: "amount", fn: "sum" },
+      ],
+      options: { lineMeasures: ["net"] },
+    },
+  ],
+  supply: [
+    {
+      id: "x-supply-otif",
+      type: "kpi",
+      title: "OTIF pengiriman",
+      dataset: "deliveries",
+      values: [
+        {
+          id: "otif",
+          label: "OTIF %",
+          formula: "DIVIDE([Tepat waktu & jumlah], [Semua pengiriman]) * 100",
+          format: "percent",
+        },
+        {
+          id: "ok",
+          label: "Tepat waktu & jumlah",
+          column: "*",
+          fn: "count",
+          hidden: true,
+          filters: [inFilter("otif", "Ya")],
+        },
+        { id: "all", label: "Semua pengiriman", column: "*", fn: "count", hidden: true },
+      ],
+      filters: [inFilter("kind", "Pengiriman")],
+    },
+    {
+      id: "x-supply-vendors",
+      type: "table",
+      title: "Kinerja pemasok",
+      dataset: "supplier_performance",
+      axis: [{ column: "partner" }],
+      values: [
+        { id: "n", label: "Penerimaan", column: "*", fn: "count" },
+        {
+          id: "ontime",
+          label: "Tepat waktu %",
+          formula: "DIVIDE([Tepat waktu], [Penerimaan]) * 100",
+          format: "percent",
+        },
+        {
+          id: "tw",
+          label: "Tepat waktu",
+          column: "*",
+          fn: "count",
+          hidden: true,
+          filters: [inFilter("onTime", "Ya")],
+        },
+        { id: "lead", label: "Lead time (hari)", column: "leadDays", fn: "avg" },
+      ],
+      sort: { by: "n", dir: "desc" },
+      topN: 15,
+      options: { conditional: [{ measure: "ontime", kind: "scale" }] },
+    },
+  ],
   sales: [
     {
       id: "x-sales-yoy",
