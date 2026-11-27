@@ -80,10 +80,14 @@ export function Chatter(props: {
       <ol>
         {shown.map((e) =>
           e.action === "message" ? (
-            <li key={e.id} className={`chatter-msg${e.changes?.reminder ? " reminder" : ""}`}>
+            <li
+              key={e.id}
+              className={`chatter-msg${e.changes?.reminder || e.changes?.escalation ? " reminder" : ""}`}
+            >
               <div>
                 <strong>{e.userName ?? t("chatter.system")}</strong>
                 {e.changes?.reminder && <span className="badge warn">{l("Pengingat", "Reminder")}</span>}
+                {e.changes?.escalation && <span className="badge danger">{l("Eskalasi", "Escalation")}</span>}
                 <time className="muted"> · {dateFmt.format(new Date(e.createdAt))}</time>
               </div>
               <p>

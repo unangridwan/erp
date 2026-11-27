@@ -699,6 +699,12 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   - SDM: kehadiran tepat waktu (dataset `attendance_punctuality` dari jadwal kerja; swalayan untuk karyawan sendiri).
   - Panel **Bukti kinerja otomatis** di form penilaian (`/scorecard?scope=employee`, akses HR/penilai/atasan/diri
     sendiri).
+- [x] Pusat Kendali lanjutan A3 (migrasi 0089):
+  - peringatan seketika per dokumen: "lewat SLA" & "PO tertahan" diperiksa saat dokumen berubah, lewat outbox
+    `automation_events`; `alert_events.res_id` memastikan satu notifikasi per orang per dokumen per hari;
+  - aturan **Pengingat diabaikan (eskalasi)**: diteruskan ke atasan manajer departemen sekali per pengingat dan
+    tercatat di riwayat dokumen;
+  - data demo: akun kepala departemen yang tertaut ke karyawan.
 
 ## Rekomendasi berikutnya — SDM & Payroll
 
@@ -732,8 +738,9 @@ Sisa dari rancangan Pusat Kendali yang belum dikerjakan, diurutkan menurut dampa
 2. ✅ **KPI tambahan** — selesai (gudang, keuangan, kehadiran SDM; lihat Status).
 3. ✅ **Dataset `supplier_performance` & `stock_aging`** — selesai (lihat Status).
 4. ✅ **Nilai KPI otomatis sebagai bukti di form penilaian kinerja** — selesai (lihat Status).
-5. **Peringatan per dokumen saat data berubah** (sekarang harian), memakai antrean aturan otomatis yang ada.
-6. **Aturan otomatis dipicu peringatan**, mis. buat aktivitas atau eskalasi ke atasan bila pengingat diabaikan.
+5. ✅ **Peringatan per dokumen saat data berubah** — selesai (A3, lihat Status).
+6. 🟡 **Aturan otomatis dipicu peringatan** — ✅ eskalasi ke atasan bila pengingat diabaikan (A3); belum: aksi bebas
+   (buat aktivitas, webhook) dari peringatan.
 
 ## 5. Roadmap Bertahap
 

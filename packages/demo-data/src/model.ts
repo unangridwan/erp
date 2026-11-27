@@ -1457,6 +1457,36 @@ export function buildModel(seed = 20260101): Model {
         role,
       });
     }
+  // Kepala departemen (termasuk direktur sebagai atasan para manajer) punya akun sendiri yang tertaut ke data
+  // karyawannya, agar pengingat serah terima, peringatan dini, dan eskalasi ke atasan punya penerima.
+  const headRole = (d: string) =>
+    d === "Direksi"
+      ? "dir"
+      : /Keuangan/.test(d)
+        ? "fin"
+        : /SDM/.test(d)
+          ? "hr"
+          : /Penjualan/.test(d)
+            ? "sales"
+            : /Gudang/.test(d)
+              ? "wh"
+              : /Mutu/.test(d)
+                ? "qc"
+                : "ops";
+  const linked = new Set<string>();
+  for (const row of m["Departemen"]!) {
+    const head = employees.find((e) => e.number === row.managerNumber);
+    if (!head || linked.has(head.number)) continue;
+    linked.add(head.number);
+    add("Pengguna", {
+      company: String(row.company),
+      name: head.name,
+      email: `kepala.${slug(String(row.name))}.${String(row.company).toLowerCase()}@${EMAIL_DOMAIN}`,
+      password: DEMO_PASSWORD,
+      role: headRole(String(row.name)),
+      employeeNumber: head.number,
+    });
+  }
   add("Pengguna", {
     company: "*",
     name: "Admin Grup",

@@ -728,13 +728,14 @@ export const SHEETS: SheetDef[] = [
     name: "Pengguna",
     menu: "Pengaturan › Pengguna",
     how: "form",
-    note: "Kata sandi demo sama untuk semua akun.",
+    note: "Kata sandi demo sama untuk semua akun. Akun kepala departemen tertaut ke data karyawannya (No. Karyawan).",
     columns: [
       company,
       C("name", "Nama", 20),
       C("email", "Email", 36),
       C("password", "Kata Sandi", 16),
       C("role", "Peran"),
+      C("employeeNumber", "No. Karyawan"),
     ],
   },
 ];

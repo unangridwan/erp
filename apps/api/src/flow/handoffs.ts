@@ -39,7 +39,7 @@ const querySchema = z.object({
 });
 
 /** Dokumen alur memakai id pelamar untuk Hire-to-Pay; komentar & pengingat dicatat di model aslinya. */
-const docModel = (process: FlowProcess, model: string) => (process === "h2p" ? "applicant" : model);
+export const docModel = (process: FlowProcess, model: string) => (process === "h2p" ? "applicant" : model);
 
 /**
  * Papan serah terima antar departemen: dokumen yang sedang menunggu di tiap departemen (penanggung jawab tahap
