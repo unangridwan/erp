@@ -1,6 +1,16 @@
 # ERP
 
 ERP SaaS multi-tenant (mirip Odoo) dengan lokalisasi Indonesia dan konsolidasi grup usaha.
+
+Fitur utama:
+
+- **Modul inti**: akuntansi, penjualan & CRM, pembelian, persediaan, manufaktur & MRP, mutu, maintenance, layanan
+  pelanggan, SDM & payroll, pajak Coretax, konsolidasi grup.
+- **Laporan & Dashboard ala Power BI**: kanvas seret-lepas, visual interaktif, filter silang, ukuran terhitung, kecerdasan
+  waktu, dan drill sampai ke dokumen sumber.
+- **Pusat Kendali Bisnis**: alur bisnis end-to-end (input → proses → output → outcome), Pekerjaan Saya & KPI pribadi,
+  target berjenjang & scorecard, arus uang & rantai pasok, kolaborasi antar departemen, dan peringatan dini.
+
 Rencana lengkap: [docs/PLAN.md](docs/PLAN.md) · Keputusan arsitektur: [docs/adr](docs/adr) · Belajar membaca & mengedit kode: [docs/PANDUAN-KODE.md](docs/PANDUAN-KODE.md) · Perbandingan dengan SAP: [docs/ANALISIS-VS-SAP.md](docs/ANALISIS-VS-SAP.md).
 
 ## Struktur
@@ -162,7 +172,8 @@ Header opsional `X-Company-Id` memilih perusahaan aktif (harus termasuk perusaha
 | `GET /currencies`, `/currency-rates`, `GET /fx/convert?from=USD&to=IDR&amount=&date=`    | Mata uang, kurs harian, konversi                                  |
 | `GET /regions?level=1&parent=&q=`                                                        | Wilayah Indonesia (Kepmendagri 2025)                              |
 | `GET/POST /users`, `GET /roles`                                                          | Manajemen user                                                    |
-| `GET /activity/:model/:id`                                                               | Riwayat perubahan (chatter)                                       |
+| `GET /activity/:model/:id`                                                               | Riwayat perubahan & diskusi dokumen (chatter)                     |
+| `POST /activity/:model/:id/comments`, `GET /activity/:model/:id/people?q=`               | Komentar dengan @mention & saran orang yang boleh disebut         |
 | `GET /sequences`                                                                         | Penomoran dokumen perusahaan aktif (penghitung per tahun dokumen) |
 
 **Kenyamanan pakai (web).** Pesan sukses/gagal tampil sebagai _toast_ yang hilang sendiri; konfirmasi (hapus,
@@ -173,8 +184,9 @@ dibuka, dan cari data (karyawan, kontak, produk, pesanan penjualan/pembelian, fa
 field wajib divalidasi saat ditinggalkan & fokus otomatis ke field yang salah. Daftar: klik di mana saja pada baris
 untuk membuka (Ctrl/⌘-klik = tab baru, ↑↓ + Enter), pilih banyak baris → **Hapus / Arsipkan / Aktifkan / Ekspor CSV**,
 menu **Kolom** untuk menyembunyikan kolom (diingat per daftar), dan keadaan kosong dengan tombol "Buat … pertama" /
-"Hapus filter". Beranda menampilkan **Perlu tindakan saya** (persetujuan menunggu, notifikasi), **Favorit & terakhir
-dibuka** (☆ di judul data), dan **Buat cepat** di atas grid aplikasi.
+"Hapus filter". Beranda menampilkan **Perlu tindakan saya** (persetujuan menunggu, dokumen saya yang terlambat, aktivitas jatuh tempo,
+sebutan & peringatan baru, notifikasi), **Favorit & terakhir dibuka** (☆ di judul data), dan **Buat cepat** di atas
+grid aplikasi.
 
 **Daftar (list) di web: cari, filter, sort & paginasi tanpa memanggil API lagi.** Setiap daftar memuat datanya sekali
 (s.d. 5.000 baris, `LIST_LOAD_LIMIT` di `@erp/shared`; endpoint daftar menerima `limit` sampai angka itu, CRUD bawaan
@@ -375,6 +387,8 @@ nilainya; untuk menyembunyikan saja, nonaktifkan.
 - **Dashboard kustom**: tambah widget dari laporan tersimpan atau atur cepat (data → kelompok → hitung → tampilan),
   atur lebar & urutan, pilih periode (bulan ini … 12 bulan terakhir, rentang kustom), bagikan ke perusahaan, duplikat
   dashboard bawaan, dan **sematkan ke Beranda** (angka KPI tampil di Beranda).
+
+Dashboard kini memakai editor BI v2: lihat [Laporan & Dashboard ala Power BI](#laporan--dashboard-ala-power-bi-migrasi-0085).
 
 **Aturan otomatis (migrasi 0075).** Pengaturan › **Aturan Otomatis** (hak `customization.manage`) menjalankan aksi
 tanpa kode untuk 10 jenis data yang sama dengan field kustom (kontak, produk, karyawan, kendaraan, lead, SO, PO,
@@ -927,6 +941,153 @@ armada (kontrak & servis), serta karyawan masuk/keluar per departemen di analiti
 | Endpoint              | Keterangan                                                                                                        |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `POST /reports/drill` | `{reportId}` atau `{dataset, config}` + `match` (nilai kelompok / kunci tersembunyi `_xxxId`) + `filters` periode |
+
+### Laporan & Dashboard ala Power BI (migrasi 0085)
+
+Dashboard di **Laporan & Dashboard** (`/bi`) disimpan sebagai dokumen BI (kolom `dashboards.document`). Dashboard lama
+berbasis widget dibuka otomatis di editor baru tanpa perlu dimigrasi ulang.
+
+- **Kanvas & halaman**: beberapa halaman per dashboard, grid 12 kolom, visual diseret & diubah ukurannya, duplikat
+  visual, dan **mode fokus** untuk satu visual.
+- **Visual**:
+  - kartu, kartu multi-baris, KPI dengan pembanding & target, pengukur;
+  - kolom, batang, garis, area, kolom + garis (sumbu kedua), pai, donat, corong, treemap, sebar;
+  - tabel, matriks (baris × kolom dengan subtotal, perluas/ciutkan), slicer (daftar, dropdown, rentang), dan teks.
+- **Data**:
+  - dataset BI (atur sendiri) atau laporan tersimpan;
+  - dimensi tanggal per level (tahun/kuartal/bulan/minggu/hari), legenda, dan agregat jumlah/banyaknya/unik/rata-rata/min/maks;
+  - filter khusus per ukuran;
+  - **ukuran terhitung** dengan rumus (`[Omzet] - [HPP]`, `DIVIDE([Laba], [Omzet]) * 100`; fungsi DIVIDE, ABS, ROUND,
+    MIN, MAX, IF).
+- **Tampilkan sebagai**: % dari total, total berjalan, selisih/% vs sebelumnya, nilai tahun lalu, YoY, vs periode lalu.
+  Tersedia juga format angka/persen/rupiah/ringkas dan format bersyarat (skala warna, bar data, ikon naik/turun).
+- **Interaktif**:
+  - klik visual memfilter visual lain (filter silang), slicer, dan filter halaman atau semua halaman;
+  - drill turun/naik level tanggal & kelompok;
+  - **Lihat data** membuka baris penyusun hingga dokumen sumbernya, dengan ekspor CSV;
+  - filter & periode tersimpan di URL.
+- Periode bawaan dashboard, bagikan ke perusahaan, duplikat dashboard bawaan, dan sematkan ke Beranda tetap berlaku.
+
+Hak baca dataset & kolom data pribadi dicek setiap kali visual dijalankan.
+
+| Endpoint                                                                    | Keterangan                                                                     |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `POST /bi/query`                                                            | Jalankan visual: `{builtin}`, `{dashboardId}`, atau dokumen + periode & filter |
+| `POST /bi/drill`                                                            | Baris penyusun satu titik/kelompok visual                                      |
+| `/dashboards`, `GET /dashboards/builtin/:key`, `POST /dashboards/duplicate` | Simpan/ubah dokumen dashboard, dashboard bawaan, duplikat                      |
+| `GET/PUT /me/dashboard-pins`                                                | Dashboard yang disematkan di Beranda                                           |
+
+### Pusat Kendali Bisnis (migrasi 0086–0088)
+
+Aplikasi **Alur Bisnis** (`/flow`) dan **Portal Saya › Pekerjaan Saya** (`/me/work`) memperlihatkan bagaimana bisnis
+berjalan dari input sampai outcome: bagaimana uang mengalir, bagaimana orang bekerja, dan bagaimana rantai pasok berjalan.
+Setiap orang bisa melihat dan mengevaluasi kerjanya sendiri. Hampir semua angka diturunkan dari dokumen & log yang sudah
+ada (status, tanggal, relasi, pelunasan), jadi pengguna tidak perlu mengisi apa pun selain target, ambang peringatan, dan
+SLA. Setiap angka bisa diklik sampai ke dokumennya, dan hak akses mengikuti permission modul & perusahaan.
+
+**Peta alur & jejak dokumen (migrasi 0086).** Empat proses:
+
+| Proses          | Tahap                                                                             |
+| --------------- | --------------------------------------------------------------------------------- |
+| Order-to-Cash   | Penawaran → Pesanan → Terkirim → Ditagih → Lunas                                  |
+| Procure-to-Pay  | RFQ → Menunggu persetujuan (opsional) → PO → Diterima → Ditagih pemasok → Dibayar |
+| Plan-to-Produce | Rencana → Dikonfirmasi → Berjalan → Pemeriksaan mutu → Selesai                    |
+| Hire-to-Pay     | Rekrutmen → Onboarding → Aktif → Payroll diproses → Gaji dibayar                  |
+
+- Tiap proses menampilkan rantai input → proses → output → outcome dan diagram tahap.
+- Per tahap: jumlah & nilai dokumen, umur rata-rata vs SLA, terlambat/berisiko, departemen penanggung jawab, dan tanda
+  **penghambat**.
+- Tersedia juga konversi kohort, lama di tiap tahap, waktu siklus (median & P90), pemegang dokumen & departemen, serta
+  filter periode, departemen, dan orang.
+- Klik tahap untuk melihat daftar dokumennya. **Jejak alur** satu dokumen (dari SO, PO, pengiriman, faktur, MO, atau
+  karyawan) menampilkan tahap & lamanya, dokumen dalam alur, dan siapa melakukan apa & kapan.
+- SLA (hari) dan departemen penanggung jawab tiap tahap diatur di **Pengaturan SLA**. Bila departemen belum diatur,
+  dicocokkan otomatis dari nama departemen (mis. tahap Gudang → "Gudang & Logistik").
+
+**Kolaborasi antar departemen.**
+
+- Panel **Aktivitas** di dokumen punya kotak komentar dengan saran `@nama`, yang hanya menyarankan orang yang berhak
+  melihat dokumen itu.
+- Yang disebut, pemilik dokumen, dan peserta diskusi diberi notifikasi.
+- **Serah Terima** (`/flow/handoffs`) menampilkan pekerjaan yang menunggu di tiap departemen (dibuka langsung ke
+  departemen saya), dari departemen mana diserahkan, dan umur vs SLA, ditambah tabel hubungan antar departemen.
+- Tombol **Ingatkan** memberi tahu pemegang dokumen & manajer departemen tujuan dan mencatatnya di riwayat dokumen
+  (maksimal sekali per jam per pengirim).
+
+**Pekerjaan Saya & KPI pribadi.**
+
+- Antrean lintas modul: dokumen alur bisnis yang saya pegang, antrean departemen saya, aktivitas, persetujuan, tiket,
+  sebutan, dan peringatan.
+- **KPI pribadi otomatis**: tiap KPI adalah ukuran BI yang dihitung per pemilik dokumen, dengan nilai periode, perubahan
+  vs periode lalu, tren 6 bulan, peringkat & rata-rata rekan, dan dokumen penyusun. KPI hanya tampil bila relevan (saya
+  memegang datanya dalam 6 bulan terakhir) dan boleh dilihat.
+- **Jejak kerja saya** dari log aktivitas, dan **Sasaran saya** dengan catatan evaluasi diri.
+
+| Area         | KPI otomatis                             |
+| ------------ | ---------------------------------------- |
+| Penjualan    | omzet, pesanan, konversi penawaran       |
+| CRM          | win rate, nilai peluang dimenangkan      |
+| Pembelian    | PO diterima tepat waktu, nilai pembelian |
+| Keuangan     | faktur diposting, faktur lunas           |
+| Produksi     | MO selesai, produksi tepat waktu         |
+| Pemeliharaan | perawatan diselesaikan                   |
+
+**Target berjenjang & scorecard (migrasi 0087).**
+
+- Sasaran kinerja (perusahaan, departemen, atau karyawan) bisa memakai **KPI otomatis** + periode. Nilai berjalannya
+  dihitung dari data pemilik sasaran: akun karyawan, anggota departemen & subdepartemen, atau seluruh perusahaan.
+- **Turunkan** sasaran ke departemen atau ke karyawan satu departemen, dibagi rata atau proporsional terhadap capaian
+  periode lalu (KPI persentase memakai target yang sama).
+- Status **hijau/kuning/merah menurut laju**: capaian dibanding porsi waktu periode yang sudah berjalan.
+- **Scorecard** (`/flow/scorecard`) untuk perusahaan, departemen, atau saya, berisi capaian tertimbang, pohon sasaran,
+  KPI cakupan, dan metrik proses.
+- **Scorecard departemen** berdampingan untuk rapat manajemen: capaian, status, beban, keterlambatan, dan serah terima.
+
+**Arus uang & rantai pasok.**
+
+- **Arus Uang** (`/flow/money`):
+  - peta sumber & penggunaan kas (metode langsung, seimbang dengan saldo kas & laporan arus kas);
+  - kas masuk/keluar per bulan;
+  - siklus konversi kas (DSO, DIO, DPO, CCC);
+  - proyeksi kas 13 minggu;
+  - anggaran vs realisasi per departemen.
+- **Rantai Pasok** (`/flow/supply`):
+  - OTIF pengiriman (dengan toleransi hari) dan pengiriman lewat jadwal;
+  - kinerja pemasok (tepat waktu, tepat jumlah, lolos QC, lead time, skor);
+  - umur persediaan, stok mati, perputaran.
+- Dataset BI baru: `cash_flows` dan `deliveries`. Dataset lama mendapat kolom pemilik tersembunyi (`_userId`) untuk
+  faktur/PO/MO/perawatan, serta kolom **PO diterima tepat waktu** dan **MO selesai tepat waktu**.
+
+**Peringatan dini (migrasi 0088).** Menu Alur Bisnis › **Peringatan Dini** (hak `settings.manage`) berisi 8 aturan:
+
+- dokumen lewat SLA;
+- stok di bawah minimum;
+- piutang menua;
+- anggaran hampir habis;
+- target tertinggal laju;
+- persetujuan PO tertahan;
+- pemasok sering terlambat;
+- proyeksi kas negatif.
+
+Ambang dan penerimanya (pemilik dokumen, manajer departemen, atau pemegang hak) bisa diatur. Tersedia pratinjau dan
+**Jalankan sekarang**.
+
+Penjadwal harian memeriksa aturan dengan hak pengguna yang terakhir mengaturnya, lalu mengirim **satu ringkasan per orang
+per aturan per hari** lewat notifikasi & email (`ALERT_SCHEDULER=off` untuk mematikan). Peringatan tampil di Pekerjaan
+Saya dan Beranda.
+
+| Endpoint                                                                                    | Keterangan                                                           |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `GET /flow`, `GET /flow/:process?from&to&department&user`                                   | Ringkasan semua proses / detail satu proses                          |
+| `GET /flow/:process/stage/:stage`, `GET /flow/trace/:model/:id`                             | Dokumen di satu tahap, jejak alur satu dokumen                       |
+| `GET/PUT /flow/:process/settings`                                                           | SLA & departemen per tahap (`settings.manage` untuk mengubah)        |
+| `GET /flow/handoffs?process&department&direction&status`, `POST /flow/handoffs/remind`      | Papan serah terima, kirim pengingat                                  |
+| `GET /me/work`, `GET /me/kpis?from&to`, `GET /me/kpis/:code/rows`, `GET /me/history`        | Pekerjaan Saya, KPI pribadi & penyusunnya, jejak kerja               |
+| `GET /goals/kpis`, `POST /goals/refresh-auto`, `POST /goals/:id/cascade`                    | Katalog KPI sasaran, hitung ulang nilai otomatis, turunkan target    |
+| `GET /scorecard?scope=company\|department\|me&id&from&to`, `GET /scorecard/departments`     | Scorecard cakupan & scorecard departemen                             |
+| `GET /flow/money/{cash,cycle,forecast,budget}`                                              | Arus kas, siklus konversi kas, proyeksi kas, anggaran per departemen |
+| `GET /flow/supply/{deliveries,suppliers,stock}`                                             | OTIF, kinerja pemasok, umur & perputaran stok                        |
+| `GET/PUT /alerts/rules[/:key]`, `GET /alerts/preview`, `POST /alerts/run`, `GET /me/alerts` | Aturan peringatan, pratinjau, jalankan, peringatan saya              |
 
 ### Aplikasi Terhubung (ERP sebagai penyedia login)
 
