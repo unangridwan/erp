@@ -980,7 +980,7 @@ Hak baca dataset & kolom data pribadi dicek setiap kali visual dijalankan.
 | `/dashboards`, `GET /dashboards/builtin/:key`, `POST /dashboards/duplicate` | Simpan/ubah dokumen dashboard, dashboard bawaan, duplikat                      |
 | `GET/PUT /me/dashboard-pins`                                                | Dashboard yang disematkan di Beranda                                           |
 
-### Pusat Kendali Bisnis (migrasi 0086–0088)
+### Pusat Kendali Bisnis (migrasi 0086–0089)
 
 Aplikasi **Alur Bisnis** (`/flow`) dan **Portal Saya › Pekerjaan Saya** (`/me/work`) memperlihatkan bagaimana bisnis
 berjalan dari input sampai outcome: bagaimana uang mengalir, bagaimana orang bekerja, dan bagaimana rantai pasok berjalan.
@@ -1070,9 +1070,11 @@ SLA. Setiap angka bisa diklik sampai ke dokumennya, dan hak akses mengikuti perm
 - Dashboard bawaan BI **Arus Uang** (kas masuk/keluar/bersih, sumber & penggunaan kas, per bulan) dan **Rantai Pasok**
   (OTIF, penerimaan terlambat, kinerja pemasok, umur persediaan) bisa diduplikat & dikustom di editor BI.
 
-**Peringatan dini (migrasi 0088).** Menu Alur Bisnis › **Peringatan Dini** (hak `settings.manage`) berisi 8 aturan:
+**Peringatan dini (migrasi 0088–0089).** Menu Alur Bisnis › **Peringatan Dini** (hak `settings.manage`) berisi 9
+aturan:
 
 - dokumen lewat SLA;
+- pengingat serah terima diabaikan (eskalasi);
 - stok di bawah minimum;
 - piutang menua;
 - anggaran hampir habis;
@@ -1087,6 +1089,17 @@ Ambang dan penerimanya (pemilik dokumen, manajer departemen, atau pemegang hak) 
 Penjadwal harian memeriksa aturan dengan hak pengguna yang terakhir mengaturnya, lalu mengirim **satu ringkasan per orang
 per aturan per hari** lewat notifikasi & email (`ALERT_SCHEDULER=off` untuk mematikan). Peringatan tampil di Pekerjaan
 Saya dan Beranda.
+
+- **Seketika per dokumen**: "dokumen lewat SLA" dan "persetujuan PO tertahan" juga diperiksa saat pesanan, PO,
+  transfer, atau produksi berubah (lewat outbox `automation_events`, saklar **Periksa juga saat dokumen berubah**).
+  Notifikasinya menaut ke dokumen, maksimal satu per orang per dokumen per hari. Dokumen yang sudah masuk ringkasan hari
+  itu tidak dikirim ulang.
+- **Eskalasi pengingat**: dokumen yang sudah diingatkan lewat papan serah terima tetapi masih di tahap yang sama setelah
+  N hari diteruskan ke **atasan manajer departemen** yang memegangnya. Atasan diambil dari atasan langsung manajer, atau
+  manajer departemen induk. Eskalasi dilakukan sekali per pengingat dan tercatat di riwayat dokumen dengan label
+  **Eskalasi**.
+- Data demo: kepala departemen (termasuk direktur) punya akun `kepala.<departemen>.<kode>@…` yang tertaut ke data
+  karyawannya. Dengan begitu, pengingat, peringatan, dan eskalasi punya penerima.
 
 | Endpoint                                                                                    | Keterangan                                                           |
 | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |

@@ -42,6 +42,9 @@ const EVT = schema.automationEvents;
 const RUN = schema.automationRuns;
 
 type Rule = typeof RULE.$inferSelect;
+export type AutomationEvent = typeof EVT.$inferSelect;
+/** Pendengar outbox perubahan data (mis. peringatan seketika), dipanggil setelah aturan otomatis diproses. */
+export type AutomationEventListener = (tenantId: string, events: AutomationEvent[]) => Promise<unknown>;
 type Rec = Record<string, unknown>;
 
 /** Tabel per model (nama SQL). */
@@ -117,6 +120,7 @@ export class AutomationEngine implements OnApplicationBootstrap, OnApplicationSh
   private running = false;
   /** Jam terakhir pemindaian tanggal/jadwal (sekali per menit cukup). */
   private lastDue = 0;
+  private readonly listeners: AutomationEventListener[] = [];
 
   constructor(
     @Inject(CONFIG) private readonly config: AppConfig,
@@ -156,6 +160,11 @@ export class AutomationEngine implements OnApplicationBootstrap, OnApplicationSh
   }
 
   // ---- Event dibuat/diubah ----
+
+  /** Daftarkan pendengar outbox; kegagalannya dicatat tanpa menghentikan pemrosesan aturan. */
+  onEvents(listener: AutomationEventListener) {
+    this.listeners.push(listener);
+  }
 
   /** Proses event yang belum diproses (semua tenant atau tenant tertentu). Mengembalikan jumlah eksekusi. */
   async processPending(tenantIds?: string[]) {
@@ -202,6 +211,14 @@ export class AutomationEngine implements OnApplicationBootstrap, OnApplicationSh
           await this.tenantDb.runAs(tenantId, (tx) =>
             tx.update(EVT).set({ processedAt: new Date() }).where(eq(EVT.id, e.id)),
           );
+        }
+        for (const listener of this.listeners) {
+          try {
+            await listener(tenantId, events);
+          } catch (err) {
+            this.logger.error(err);
+            reportError(err, { job: "automation-listener", tenantId });
+          }
         }
         if (events.length < BATCH) break;
       }

@@ -3,7 +3,9 @@ import { z } from "zod";
 /**
  * Peringatan dini otomatis: aturan yang diperiksa harian dan mengirim notifikasi ringkas (satu per orang per aturan
  * per hari) sebelum masalah membesar — dokumen lewat SLA, stok menipis, piutang menua, anggaran hampir habis, target
- * tertinggal laju, persetujuan tertahan, pemasok sering terlambat, dan proyeksi kas negatif.
+ * tertinggal laju, persetujuan tertahan, pemasok sering terlambat, proyeksi kas negatif, dan eskalasi pengingat
+ * serah terima yang diabaikan. Aturan per dokumen (`instantModels`) juga diperiksa seketika saat dokumennya berubah:
+ * satu notifikasi per orang per dokumen per hari.
  */
 export type AlertRecipient = "owner" | "manager" | "role";
 
@@ -14,6 +16,8 @@ export interface AlertParamDef {
   max: number;
   default: number;
   unit: [string, string];
+  /** Saklar ya/tidak (nilai 0/1), ditampilkan sebagai kotak centang. */
+  toggle?: boolean;
 }
 
 export interface AlertDef {
@@ -29,6 +33,8 @@ export interface AlertDef {
   defaultRecipients: AlertRecipient[];
   /** Tautan halaman tindak lanjut. */
   link: string;
+  /** Model dokumen yang perubahannya memicu pemeriksaan seketika (selain pemeriksaan harian). */
+  instantModels?: string[];
 }
 
 const days = (key: string, label: [string, string], def: number, max = 365): AlertParamDef => ({
@@ -39,6 +45,16 @@ const days = (key: string, label: [string, string], def: number, max = 365): Ale
   default: def,
   unit: ["hari", "days"],
 });
+/** Saklar pemeriksaan seketika saat dokumen berubah. */
+const instant: AlertParamDef = {
+  key: "instant",
+  label: ["Periksa juga saat dokumen berubah", "Also check when a document changes"],
+  min: 0,
+  max: 1,
+  default: 1,
+  unit: ["ya/tidak", "yes/no"],
+  toggle: true,
+};
 const percent = (key: string, label: [string, string], def: number): AlertParamDef => ({
   key,
   label,
@@ -57,10 +73,25 @@ export const ALERT_DEFS: AlertDef[] = [
       "Business-flow documents (orders, POs, production, hiring) stuck in a stage past the SLA or the document deadline.",
     ],
     permission: "",
-    params: [days("graceDays", ["Toleransi setelah lewat", "Grace after late"], 0, 90)],
+    params: [days("graceDays", ["Toleransi setelah lewat", "Grace after late"], 0, 90), instant],
     rolePermission: "settings.manage",
     recipients: ["owner", "manager", "role"],
     defaultRecipients: ["owner", "manager"],
+    link: "/flow/handoffs",
+    instantModels: ["sale_order", "purchase_order", "stock_picking", "production_order"],
+  },
+  {
+    key: "handoff_ignored",
+    label: ["Pengingat diabaikan (eskalasi)", "Ignored reminders (escalation)"],
+    description: [
+      "Dokumen serah terima yang sudah diingatkan tetapi masih tertahan di tahap yang sama setelah N hari diteruskan ke atasan manajer departemen yang memegangnya (sekali per pengingat, tercatat di riwayat dokumen).",
+      "Handoff documents that were reminded but are still stuck in the same stage after N days are escalated to the supervisor of the holding department's manager (once per reminder, logged in the document history).",
+    ],
+    permission: "",
+    params: [days("ignoredDays", ["Diabaikan selama", "Ignored for"], 2, 60)],
+    rolePermission: "settings.manage",
+    recipients: ["manager", "role"],
+    defaultRecipients: ["manager"],
     link: "/flow/handoffs",
   },
   {
@@ -127,11 +158,12 @@ export const ALERT_DEFS: AlertDef[] = [
       "Purchase orders waiting for approval for more than N days.",
     ],
     permission: "purchase.read",
-    params: [days("waitDays", ["Menunggu lebih dari", "Waiting more than"], 2, 60)],
+    params: [days("waitDays", ["Menunggu lebih dari", "Waiting more than"], 2, 60), instant],
     rolePermission: "purchase.approve",
     recipients: ["owner", "role"],
     defaultRecipients: ["owner", "role"],
     link: "/purchase/orders",
+    instantModels: ["purchase_order"],
   },
   {
     key: "supplier_late",
@@ -179,6 +211,7 @@ export function alertParams(def: AlertDef, saved: Record<string, unknown> | null
   return Object.fromEntries(
     def.params.map((p) => {
       const v = Number(saved?.[p.key]);
+      if (p.toggle) return [p.key, saved?.[p.key] === undefined ? p.default : v > 0 ? 1 : 0];
       return [p.key, Number.isFinite(v) && v >= p.min && v <= p.max ? v : p.default];
     }),
   ) as Record<string, number>;
@@ -207,4 +240,23 @@ export function digestFor(
     out.set(f.userId, d);
   }
   return out;
+}
+
+/**
+ * Lama (hari) pengingat serah terima diabaikan, atau `null` bila tidak perlu dieskalasi: dokumen sudah pindah tahap
+ * sejak diingatkan, pengingat itu sudah pernah dieskalasi, atau belum genap `days` hari.
+ */
+export function reminderIgnored(
+  reminder: { at: string; stage: string | null } | null,
+  stage: string,
+  escalatedAt: string | null,
+  today: string,
+  days: number,
+): number | null {
+  if (!reminder || reminder.stage !== stage) return null;
+  if (escalatedAt && Date.parse(escalatedAt) >= Date.parse(reminder.at)) return null;
+  const since = Math.round(
+    (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${reminder.at.slice(0, 10)}T00:00:00Z`)) / 864e5,
+  );
+  return since >= days ? since : null;
 }

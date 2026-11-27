@@ -15,6 +15,8 @@ export interface CommentMeta {
   mentions?: { id: string; name: string }[];
   /** Pengingat serah terima antar departemen. */
   reminder?: { process: string; stage: string };
+  /** Eskalasi otomatis pengingat yang diabaikan ke atasan manajer departemen. */
+  escalation?: { process: string; stage: string; to: { id: string; name: string }[] };
 }
 
 /**

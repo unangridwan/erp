@@ -106,7 +106,10 @@ export const alertRules = pgTable("alert_rules", {
   ...audit,
 });
 
-/** Catatan pengiriman peringatan: satu ringkasan per orang per aturan per hari. */
+/**
+ * Catatan pengiriman peringatan: satu ringkasan per orang per aturan per hari (`resId` kosong), atau satu notifikasi
+ * per orang per dokumen per aturan per hari untuk pemeriksaan seketika saat dokumen berubah.
+ */
 export const alertEvents = pgTable("alert_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: tenantId(),
@@ -115,5 +118,6 @@ export const alertEvents = pgTable("alert_events", {
   userId: uuid("user_id").notNull(),
   day: date("day").notNull(),
   count: integer("count").notNull(),
+  resId: uuid("res_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

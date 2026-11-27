@@ -534,6 +534,9 @@ async function main() {
         fin: ["accountant", "cashier"],
         hr: ["hr_manager", "payroll"],
         sales: ["sales_manager"],
+        wh: ["warehouse", "purchasing"],
+        qc: ["quality_inspector"],
+        ops: ["production_manager"],
       };
       const ids: string[] = [];
       for (const codeName of map[key] ?? ["user"]) {
@@ -556,19 +559,33 @@ async function main() {
       return ids;
     };
     const users = await api.list("/users");
+    const employeesOf = new Map<string, any[]>();
     for (const r of rows("Pengguna")) {
-      if (users.some((u) => u.email === str(r.email))) continue;
       const companyIds = str(r.company) === "*" ? Object.values(company) : [company[str(r.company)]!];
-      await attempt(`pengguna ${r.email}`, async () =>
-        api.post("/users", {
-          name: str(r.name),
-          email: str(r.email),
-          password: str(r.password) || DEMO_PASSWORD,
-          roleIds: await roleFor(str(r.role)),
-          companyIds,
-        }),
-      );
+      const user =
+        users.find((u) => u.email === str(r.email)) ??
+        (await attempt(`pengguna ${r.email}`, async () =>
+          api.post("/users", {
+            name: str(r.name),
+            email: str(r.email),
+            password: str(r.password) || DEMO_PASSWORD,
+            roleIds: await roleFor(str(r.role)),
+            companyIds,
+          }),
+        ));
+      // Akun kepala departemen ditautkan ke data karyawannya (sekali; tautan yang sudah ada tidak diubah).
+      const number = str(r.employeeNumber);
+      const companyId = company[str(r.company)];
+      if (!user?.id || !number || !companyId) continue;
+      if (!employeesOf.has(companyId))
+        employeesOf.set(companyId, await api.list("/employees?active=all", companyId));
+      const emp = employeesOf.get(companyId)!.find((e) => e.employeeNumber === number);
+      if (!emp || emp.userId) continue;
+      api.company = companyId;
+      await attempt(`akun karyawan ${number}`, () => api.patch(`/employees/${emp.id}`, { userId: user.id }));
+      emp.userId = user.id;
     }
+    api.company = null;
   });
 
   await stage("saldo-awal", async () => {

@@ -121,8 +121,8 @@ export default function AlertSettingsPage() {
       </header>
       <p className="muted">
         {l(
-          'Aturan aktif diperiksa otomatis setiap hari dengan hak akses orang yang terakhir menyimpannya. Tiap penerima mendapat satu ringkasan per aturan per hari (di lonceng notifikasi, email bila diaktifkan, dan di Pekerjaan Saya). Angka "saat ini" adalah temuan bila aturan dijalankan sekarang.',
-          'Active rules are checked automatically every day with the access rights of whoever last saved them. Each recipient gets one digest per rule per day (bell, email when enabled, and My Work). The "now" figure is what the rule would find if run now.',
+          'Aturan aktif diperiksa otomatis setiap hari dengan hak akses orang yang terakhir menyimpannya. Tiap penerima mendapat satu ringkasan per aturan per hari (di lonceng notifikasi, email bila diaktifkan, dan di Pekerjaan Saya). Aturan per dokumen juga diperiksa seketika saat dokumennya berubah (satu notifikasi per dokumen per hari). Angka "saat ini" adalah temuan bila aturan dijalankan sekarang.',
+          'Active rules are checked automatically every day with the access rights of whoever last saved them. Each recipient gets one digest per rule per day (bell, email when enabled, and My Work). Per-document rules are also checked instantly when the document changes (one notification per document per day). The "now" figure is what the rule would find if run now.',
         )}
       </p>
       {error && <p className="muted">{error}</p>}
@@ -153,24 +153,37 @@ export default function AlertSettingsPage() {
               </header>
               <p className="muted small">{l(...r.description)}</p>
               <div className="alert-rule-body">
-                {r.params.map((def) => (
-                  <label key={def.key} className="field">
-                    <span>
-                      {l(...def.label)} ({l(...def.unit)})
-                    </span>
-                    <input
-                      className="num"
-                      inputMode="numeric"
-                      value={String(r.values[def.key] ?? def.default)}
-                      onChange={(e) => {
-                        const v = Number(e.target.value.replace(/[^\d.]/g, ""));
-                        update(r.key, {
-                          values: { ...r.values, [def.key]: Number.isFinite(v) ? v : def.default },
-                        });
-                      }}
-                    />
-                  </label>
-                ))}
+                {r.params.map((def) =>
+                  def.toggle ? (
+                    <label key={def.key} className="field check">
+                      <input
+                        type="checkbox"
+                        checked={(r.values[def.key] ?? def.default) > 0}
+                        onChange={(e) =>
+                          update(r.key, { values: { ...r.values, [def.key]: e.target.checked ? 1 : 0 } })
+                        }
+                      />
+                      <span>{l(...def.label)}</span>
+                    </label>
+                  ) : (
+                    <label key={def.key} className="field">
+                      <span>
+                        {l(...def.label)} ({l(...def.unit)})
+                      </span>
+                      <input
+                        className="num"
+                        inputMode="numeric"
+                        value={String(r.values[def.key] ?? def.default)}
+                        onChange={(e) => {
+                          const v = Number(e.target.value.replace(/[^\d.]/g, ""));
+                          update(r.key, {
+                            values: { ...r.values, [def.key]: Number.isFinite(v) ? v : def.default },
+                          });
+                        }}
+                      />
+                    </label>
+                  ),
+                )}
                 <fieldset className="alert-recipients">
                   <legend>{l("Penerima", "Recipients")}</legend>
                   {r.recipients.map((rc) => (
