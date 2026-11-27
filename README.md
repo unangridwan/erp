@@ -1,6 +1,8 @@
 # ERP
+**Dibuat 100% dengan Claude Code**
+**_Maaf masih banyak yang salah_**
 
-ERP SaaS multi-tenant (mirip Odoo) dengan lokalisasi Indonesia dan konsolidasi grup usaha.
+ERP SaaS multi-tenant dengan lokalisasi Indonesia dan konsolidasi grup usaha.
 
 Fitur utama:
 
