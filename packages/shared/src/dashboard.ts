@@ -558,6 +558,118 @@ export const BUILTIN_DASHBOARDS: BuiltinDashboard[] = [
       }),
     ],
   },
+  {
+    key: "money",
+    name: ["Arus Uang", "Money Flow"],
+    description: [
+      "Kas masuk & keluar per kategori dan bulan, dari mana uang datang & ke mana perginya.",
+      "Cash in & out by category and month: where money comes from and where it goes.",
+    ],
+    period: "this_year",
+    widgets: [
+      w(
+        "Kas masuk",
+        "kpi",
+        "cash_flows",
+        { aggregates: [{ column: "inflow", fn: "sum" }] },
+        { compare: true },
+      ),
+      w(
+        "Kas keluar",
+        "kpi",
+        "cash_flows",
+        { aggregates: [{ column: "outflow", fn: "sum" }] },
+        { compare: true },
+      ),
+      w(
+        "Arus kas bersih",
+        "kpi",
+        "cash_flows",
+        { aggregates: [{ column: "amount", fn: "sum" }] },
+        { compare: true },
+      ),
+      w("Arus kas bersih per bulan", "bar", "cash_flows", sumBy("month", "amount", "bar", undefined, true), {
+        width: 4,
+      }),
+      w("Sumber kas masuk", "pie", "cash_flows", {
+        ...sumBy("category", "inflow", "pie"),
+        conditions: [eqc("direction", "Masuk")],
+      }),
+      w("Penggunaan kas", "bar", "cash_flows", {
+        ...sumBy("category", "outflow", "bar"),
+        conditions: [eqc("direction", "Keluar")],
+      }),
+      w(
+        "10 partner penyumbang kas masuk",
+        "table",
+        "cash_flows",
+        { ...sumBy("partner", "inflow", undefined, 10), conditions: [eqc("direction", "Masuk")] },
+        { width: 4 },
+      ),
+    ],
+  },
+  {
+    key: "supply",
+    name: ["Rantai Pasok", "Supply Chain"],
+    description: [
+      "Pengiriman tepat waktu, kinerja pemasok, dan umur persediaan.",
+      "On-time delivery, supplier performance, and inventory age.",
+    ],
+    period: "this_year",
+    widgets: [
+      w(
+        "Pengiriman selesai",
+        "kpi",
+        "deliveries",
+        { conditions: [eqc("kind", "Pengiriman")], aggregates: [{ column: "*", fn: "count" }] },
+        { compare: true },
+      ),
+      w(
+        "Penerimaan terlambat",
+        "kpi",
+        "supplier_performance",
+        { conditions: [eqc("onTime", "Tidak")], aggregates: [{ column: "*", fn: "count" }] },
+        { compare: true },
+      ),
+      w(
+        "Nilai persediaan",
+        "kpi",
+        "stock_aging",
+        { aggregates: [{ column: "value", fn: "sum" }] },
+        { ignorePeriod: true },
+      ),
+      w(
+        "Persediaan > 1 tahun",
+        "kpi",
+        "stock_aging",
+        { conditions: [eqc("bucket", "5. > 1 tahun")], aggregates: [{ column: "value", fn: "sum" }] },
+        { ignorePeriod: true },
+      ),
+      w(
+        "Pengiriman terlambat per bulan",
+        "bar",
+        "deliveries",
+        {
+          conditions: [eqc("kind", "Pengiriman"), eqc("onTime", "Tidak")],
+          groupBy: ["month"],
+          aggregates: [{ column: "*", fn: "count" }],
+          sort: { column: "month", dir: "asc" },
+          chart: { type: "bar", x: "month", y: "count__*" },
+        },
+        { width: 4 },
+      ),
+      w("Umur persediaan", "bar", "stock_aging", sumBy("bucket", "value", "bar", undefined, true), {
+        ignorePeriod: true,
+      }),
+      w("Pemasok paling sering terlambat", "table", "supplier_performance", {
+        conditions: [eqc("onTime", "Tidak")],
+        groupBy: ["partner"],
+        aggregates: [{ column: "*", fn: "count" }],
+        sort: { column: "count__*", dir: "desc" },
+        limit: 10,
+      }),
+    ],
+  },
 ];
 
 export const builtinDashboard = (key: string) => BUILTIN_DASHBOARDS.find((d) => d.key === key);

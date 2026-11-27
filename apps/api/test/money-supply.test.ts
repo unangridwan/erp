@@ -279,6 +279,62 @@ describe.skipIf(!hasDb)("Arus uang & rantai pasok", () => {
     );
   });
 
+  it("dataset kinerja pemasok & umur persediaan sama dengan halaman Rantai Pasok", async () => {
+    const layout = { x: 0, y: 0, w: 6, h: 4 };
+    const [vendors, aging] = (
+      await a
+        .post("/bi/query", {
+          visuals: [
+            {
+              id: "s",
+              type: "table",
+              dataset: "supplier_performance",
+              layout,
+              ignorePeriod: true,
+              axis: [{ column: "partner" }, { column: "onTime" }],
+              values: [
+                { id: "n", column: "*", fn: "count" },
+                { id: "lead", column: "leadDays", fn: "avg" },
+              ],
+            },
+            {
+              id: "g",
+              type: "table",
+              dataset: "stock_aging",
+              layout,
+              axis: [{ column: "bucket" }],
+              values: [{ id: "v", column: "value", fn: "sum" }],
+            },
+          ],
+        })
+        .expect(200)
+    ).body.visuals;
+    // 2 penerimaan PT Pemasok: 1 tepat waktu, 1 terlambat (= 50% di halaman pemasok).
+    expect(vendors.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ partner: "PT Pemasok", onTime: "Ya", n: 1 }),
+        expect.objectContaining({ partner: "PT Pemasok", onTime: "Tidak", n: 1 }),
+      ]),
+    );
+    expect(aging.rows).toEqual([expect.objectContaining({ bucket: "1. 0–30 hari", v: 8_000 })]);
+  });
+
+  it("dashboard bawaan Arus Uang & Rantai Pasok", async () => {
+    const list = (await a.get("/dashboards").expect(200)).body.builtin.map((d: { key: string }) => d.key);
+    expect(list).toEqual(expect.arrayContaining(["money", "supply"]));
+    for (const builtin of ["money", "supply"]) {
+      const run = (await a.post("/bi/query", { builtin, from: "2026-01-01", to: "2026-12-31" }).expect(200))
+        .body;
+      const errors = (run.visuals as { id: string; error?: string }[]).filter((v) => v.error);
+      expect(errors).toEqual([]);
+    }
+    const supply = (
+      await a.post("/bi/query", { builtin: "supply", from: "2026-01-01", to: "2026-12-31" }).expect(200)
+    ).body.visuals as { id: string; card?: { value: number } }[];
+    expect(supply.find((v) => v.id === "x-supply-otif")!.card!.value).toBe(50);
+    await sales.get("/dashboards/builtin/supply").expect((r) => expect([200, 403]).toContain(r.status));
+  });
+
   it("hak akses: tanpa hak akuntansi/persediaan/pembelian ditolak", async () => {
     await sales.get("/flow/money/cash").expect(403);
     await sales.get("/flow/money/forecast").expect(403);

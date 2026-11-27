@@ -385,7 +385,7 @@ nilainya; untuk menyembunyikan saja, nonaktifkan.
   pesanan & baris pembelian, stok per lokasi (nilai, di bawah minimum), pergerakan stok, order produksi, riwayat biaya
   gaji, plus dataset SDM/Payroll yang sudah ada. Setiap dataset punya kolom **bulan** untuk tren dan ikut memuat
   **field kustom**; hak baca mengikuti permission modul. Simpan, ekspor, dan jadwal email berlaku untuk semua dataset.
-- **Dashboard bawaan**: Penjualan & CRM, Keuangan, Persediaan & Pembelian, SDM & Produksi — KPI dengan perbandingan
+- **Dashboard bawaan**: Penjualan & CRM, Keuangan, Persediaan & Pembelian, SDM & Produksi, Arus Uang, Rantai Pasok — KPI dengan perbandingan
   periode sebelumnya, grafik, dan tabel; widget yang datanya tidak boleh dilihat pengguna disembunyikan.
 - **Dashboard kustom**: tambah widget dari laporan tersimpan atau atur cepat (data → kelompok → hitung → tampilan),
   atur lebar & urutan, pilih periode (bulan ini … 12 bulan terakhir, rentang kustom), bagikan ke perusahaan, duplikat
@@ -1058,8 +1058,12 @@ SLA. Setiap angka bisa diklik sampai ke dokumennya, dan hak akses mengikuti perm
   - OTIF pengiriman (dengan toleransi hari) dan pengiriman lewat jadwal;
   - kinerja pemasok (tepat waktu, tepat jumlah, lolos QC, lead time, skor);
   - umur persediaan, stok mati, perputaran.
-- Dataset BI baru: `cash_flows` dan `deliveries`. Dataset lama mendapat kolom pemilik tersembunyi (`_userId`) untuk
-  faktur/PO/MO/perawatan, serta kolom **PO diterima tepat waktu** dan **MO selesai tepat waktu**.
+- Dataset BI baru: `cash_flows`, `deliveries`, `supplier_performance` (penerimaan: tepat waktu vs rencana PO,
+  tepat jumlah, lead time, hasil mutu), dan `stock_aging` (sisa persediaan per lapisan masuk & kelompok umur). Dataset
+  lama mendapat kolom pemilik tersembunyi (`_userId`) untuk faktur/PO/MO/perawatan, serta kolom **PO diterima tepat
+  waktu** dan **MO selesai tepat waktu**.
+- Dashboard bawaan BI **Arus Uang** (kas masuk/keluar/bersih, sumber & penggunaan kas, per bulan) dan **Rantai Pasok**
+  (OTIF, penerimaan terlambat, kinerja pemasok, umur persediaan) bisa diduplikat & dikustom di editor BI.
 
 **Peringatan dini (migrasi 0088).** Menu Alur Bisnis › **Peringatan Dini** (hak `settings.manage`) berisi 8 aturan:
 

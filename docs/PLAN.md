@@ -689,6 +689,10 @@ Aturan penting: dokumen yang sudah *posted* immutable (koreksi lewat reversal/cr
   - penjadwal harian dengan hak pemilik pengaturan, satu ringkasan per orang per aturan per hari (`ALERT_SCHEDULER`);
   - pratinjau & jalankan sekarang; tampil di Pekerjaan Saya & Beranda.
 - [x] README diperbarui untuk BI v2 & Pusat Kendali Bisnis (PR #133).
+- [x] Pusat Kendali lanjutan A1 — dataset BI `supplier_performance` (penerimaan: tepat waktu vs rencana PO, tepat
+  jumlah, lead time, hasil mutu) & `stock_aging` (sisa persediaan per lapisan & kelompok umur), dashboard bawaan
+  **Arus Uang** & **Rantai Pasok** (OTIF dengan rumus, kinerja pemasok, umur persediaan); angkanya sama dengan halaman
+  Rantai Pasok
 
 ## Rekomendasi berikutnya — SDM & Payroll
 
@@ -718,14 +722,13 @@ Dari audit ketiga PRD SDM (Okt 2026), diurutkan menurut dampak bisnis:
 
 Sisa dari rancangan Pusat Kendali yang belum dikerjakan, diurutkan menurut dampak:
 
-1. **Dashboard bawaan BI "Arus Uang" & "Rantai Pasok"** dari dataset `cash_flows` & `deliveries`, agar bisa dikustom
-   di editor BI.
+1. ✅ **Dashboard bawaan BI "Arus Uang" & "Rantai Pasok"** — selesai (lihat Status).
 2. **KPI tambahan**:
    - SDM: kehadiran tepat waktu, turnover;
    - gudang: pengiriman tepat waktu, picking selesai;
    - keuangan: DSO per penagih;
    - beserta dataset pendukungnya.
-3. **Dataset `supplier_performance` & `stock_aging`** untuk BI, menyamakan angka halaman Rantai Pasok.
+3. ✅ **Dataset `supplier_performance` & `stock_aging`** — selesai (lihat Status).
 4. **Nilai KPI otomatis sebagai bukti di form penilaian kinerja** (siklus appraisal membaca sasaran ber-KPI).
 5. **Peringatan per dokumen saat data berubah** (sekarang harian), memakai antrean aturan otomatis yang ada.
 6. **Aturan otomatis dipicu peringatan**, mis. buat aktivitas atau eskalasi ke atasan bila pengingat diabaikan.

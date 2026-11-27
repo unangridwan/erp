@@ -20,6 +20,8 @@ import {
   REQUEST_STATE_LABEL,
   CASH_CATEGORIES,
   cashCategory,
+  STOCK_AGE_BUCKETS,
+  stockAgeBucket,
   type CustomFieldModel,
   type RecordModel,
   businessToday,
@@ -1354,6 +1356,152 @@ function deliveries(): Dataset {
   };
 }
 
+/** Kinerja pemasok per penerimaan selesai: tepat waktu (vs tanggal rencana PO), tepat jumlah, lead time, hasil QC. */
+function supplierPerformance(): Dataset {
+  return {
+    key: "supplier_performance",
+    label: "Kinerja pemasok",
+    description:
+      "Penerimaan dari pemasok yang selesai: tepat waktu terhadap rencana PO, tepat jumlah, lead time aktual, hasil mutu.",
+    app: "purchase",
+    read: "purchase.read",
+    admin: "purchase.manage",
+    filters: DATE_FILTERS,
+    columns: () => [
+      col("name", "Penerimaan", "Dokumen"),
+      col("po", "PO", "Dokumen"),
+      col("partner", "Pemasok", "Dokumen"),
+      col("dateOrder", "Tanggal PO", "Waktu"),
+      col("planned", "Rencana terima", "Waktu"),
+      col("done", "Diterima", "Waktu"),
+      col("month", "Bulan diterima", "Waktu"),
+      col("daysLate", "Hari terlambat", "Waktu", true),
+      col("leadDays", "Lead time aktual (hari)", "Waktu", true),
+      col("onTime", "Tepat waktu", "Kinerja"),
+      col("inFull", "Tepat jumlah", "Kinerja"),
+      col("qc", "Hasil mutu", "Kinerja"),
+    ],
+    async rows(tx, ctx, q) {
+      const from = q.from && ISO.test(q.from) ? q.from : "0001-01-01";
+      const to = q.to && ISO.test(q.to) ? q.to : "9999-12-31";
+      const rows = await tx.execute<{
+        id: string;
+        name: string;
+        po: string | null;
+        partner_id: string | null;
+        partner: string | null;
+        date_order: string | null;
+        planned: string;
+        done: string;
+        in_full: boolean | null;
+        qc: string | null;
+      }>(sql`
+        select t.id, t.name, p.name as po, coalesce(t.partner_id, p.partner_id) as partner_id, pa.name as partner,
+          p.date_order::text as date_order, coalesce(p.date_planned::date, t.scheduled_date)::text as planned,
+          t.date_done::date::text as done,
+          bool_and(mv.quantity_done >= mv.quantity) filter (where mv.state <> 'cancel') as in_full,
+          (select case when bool_or(q.state = 'failed') then 'Gagal' when bool_or(q.state = 'conditional')
+              then 'Bersyarat' when bool_or(q.state = 'passed') then 'Lulus' end
+            from quality_checks q where q.picking_id = t.id and q.state <> 'pending') as qc
+        from stock_pickings t join stock_moves mv on mv.picking_id = t.id
+        left join purchase_orders p on p.id = t.purchase_order_id
+        left join partners pa on pa.id = coalesce(t.partner_id, p.partner_id)
+        where t.company_id = ${ctx.companyId} and t.picking_type = 'incoming' and t.return_of_id is null
+          and t.state = 'done' and t.date_done::date between ${from} and ${to}
+        group by t.id, p.id, pa.name
+        order by t.date_done`);
+      return [...rows].map((r) => {
+        const late = Math.round((Date.parse(r.done) - Date.parse(r.planned)) / 864e5);
+        return {
+          ...ref("stock_picking", r.id),
+          _partnerId: r.partner_id ?? "",
+          name: r.name,
+          po: r.po ?? "",
+          partner: r.partner ?? "",
+          dateOrder: r.date_order ?? "",
+          planned: r.planned,
+          done: r.done,
+          month: month(r.done),
+          daysLate: Math.max(0, late),
+          leadDays: r.date_order ? Math.round((Date.parse(r.done) - Date.parse(r.date_order)) / 864e5) : null,
+          onTime: late <= 0 ? "Ya" : "Tidak",
+          inFull: r.in_full !== false ? "Ya" : "Tidak",
+          qc: r.qc ?? "",
+        };
+      });
+    },
+  };
+}
+
+/** Umur persediaan per lapisan valuasi yang masih bersisa (tanggal masuk → hari ini). */
+function stockAgingDataset(): Dataset {
+  return {
+    key: "stock_aging",
+    label: "Umur persediaan",
+    description:
+      "Sisa persediaan per lapisan masuk: umur, kelompok umur, kuantitas, nilai — untuk stok lama & mati.",
+    app: "inventory",
+    read: "inventory.read",
+    admin: "inventory.manage",
+    columns: () => [
+      col("sku", "SKU", "Produk"),
+      col("product", "Produk", "Produk"),
+      col("category", "Kategori", "Produk"),
+      col("inDate", "Tanggal masuk", "Umur"),
+      col("ageDays", "Umur (hari)", "Umur", true),
+      col("bucket", "Kelompok umur", "Umur"),
+      col("lastOut", "Keluar terakhir", "Umur"),
+      col("quantity", "Kuantitas sisa", "Nilai", true),
+      col("value", "Nilai sisa", "Nilai", true),
+    ],
+    async rows(tx, ctx) {
+      const today = businessToday();
+      const rows = await tx.execute<{
+        product_id: string;
+        sku: string | null;
+        product: string;
+        category: string | null;
+        in_date: string;
+        qty: string;
+        value: string;
+        last_out: string | null;
+      }>(sql`
+        with out as (
+          select v.product_id, max(coalesce(mv.date, v.created_at))::date::text as last_out
+          from stock_valuation_layers v left join stock_moves mv on mv.id = v.stock_move_id
+          where v.company_id = ${ctx.companyId} and v.quantity < 0
+          group by 1
+        )
+        select pr.id as product_id, pr.sku, pr.name as product, pc.name as category,
+          coalesce(mv.date, v.created_at)::date::text as in_date, v.remaining_qty as qty,
+          v.remaining_value as value, o.last_out
+        from stock_valuation_layers v join products pr on pr.id = v.product_id
+        left join product_categories pc on pc.id = pr.category_id
+        left join stock_moves mv on mv.id = v.stock_move_id
+        left join out o on o.product_id = pr.id
+        where v.company_id = ${ctx.companyId} and v.remaining_qty > 0
+        order by 5`);
+      return [...rows].map((r) => {
+        const age = Math.max(0, Math.round((Date.parse(today) - Date.parse(r.in_date)) / 864e5));
+        const i = STOCK_AGE_BUCKETS.findIndex((b) => b.key === stockAgeBucket(age));
+        return {
+          ...ref("product", r.product_id),
+          sku: r.sku ?? "",
+          product: r.product,
+          category: r.category ?? "",
+          inDate: r.in_date,
+          ageDays: age,
+          // Bernomor agar kelompok tersusun dari yang termuda.
+          bucket: `${i + 1}. ${STOCK_AGE_BUCKETS[i]!.label[0]}`,
+          lastOut: r.last_out ?? "",
+          quantity: n(r.qty),
+          value: n(r.value),
+        };
+      });
+    },
+  };
+}
+
 export function businessDatasets(): Dataset[] {
   return [
     saleOrders(),
@@ -1372,6 +1520,8 @@ export function businessDatasets(): Dataset[] {
     fleetCosts(),
     cashFlows(),
     deliveries(),
+    supplierPerformance(),
+    stockAgingDataset(),
   ];
 }
 
