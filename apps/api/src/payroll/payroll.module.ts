@@ -39,6 +39,7 @@ import {
   toCsv,
 } from "@erp/shared";
 import type { Response } from "express";
+import { randomInt } from "node:crypto";
 import { z } from "zod";
 import { AccountingModule } from "../accounting/accounting.module.js";
 import { assertCompanyAccounts } from "../accounting/context.js";
@@ -580,6 +581,8 @@ class PayrollController {
       return {
         required: Boolean(s?.required),
         hasPin: e.payslipPinHash !== null,
+        /** OTP dikirim ke email akun (cara kedua membuka slip, juga bila PIN lupa). */
+        otpAvailable: true,
         unlocked: !!e.payslipUnlockedUntil && e.payslipUnlockedUntil > now,
         lockedUntil:
           e.payslipPinLockedUntil && e.payslipPinLockedUntil > now ? e.payslipPinLockedUntil : null,
@@ -611,6 +614,44 @@ class PayrollController {
     });
   }
 
+  /** Kirim OTP 6 digit ke email akun untuk membuka slip (berlaku 10 menit; paling cepat sekali per menit). */
+  @Post("me/payslip-pin/otp")
+  @HttpCode(200)
+  sendOtp() {
+    return this.tenantDb.run(async (tx) => {
+      const e = await this.employees.mine(tx);
+      if (e.payslipPinLockedUntil && e.payslipPinLockedUntil > new Date())
+        throw new ForbiddenException(
+          "PIN slip terkunci sementara; coba lagi nanti atau minta HR mengatur ulang",
+        );
+      if (e.payslipOtpSentAt && e.payslipOtpSentAt.getTime() > Date.now() - 60_000)
+        throw new BadRequestException("Kode OTP baru saja dikirim; tunggu 1 menit sebelum meminta lagi");
+      const [user] = await tx
+        .select({ email: schema.users.email })
+        .from(schema.users)
+        .where(eq(schema.users.id, currentContext().userId));
+      if (!user?.email) throw new BadRequestException("Akun Anda belum punya alamat email");
+      const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
+      await tx
+        .update(schema.employees)
+        .set({
+          payslipOtpHash: await hashPassword(code),
+          payslipOtpExpires: sql`now() + interval '10 minutes'`,
+          payslipOtpSentAt: sql`now()`,
+        })
+        .where(eq(schema.employees.id, e.id));
+      await this.mailer.send({
+        to: user.email,
+        subject: "Kode OTP slip gaji",
+        text:
+          `Kode OTP untuk membuka slip gaji Anda: ${code}\n\n` +
+          "Kode berlaku 10 menit dan hanya bisa dipakai sekali. Abaikan email ini bila Anda tidak memintanya.",
+      });
+      const [name, domain] = user.email.split("@");
+      return { sentTo: `${name!.slice(0, 2)}***@${domain}` };
+    });
+  }
+
   /** Buka slip dengan PIN (15 menit); 5 kali salah → terkunci 15 menit. */
   @Post("me/payslip-pin/verify")
   @HttpCode(200)
@@ -619,22 +660,34 @@ class PayrollController {
     // Percobaan gagal disimpan (transaksi selesai) sebelum error dikirim, agar penguncian tidak ikut dibatalkan.
     const outcome = await this.tenantDb.run(async (tx) => {
       const e = await this.employees.mine(tx);
-      if (!e.payslipPinHash) return "no-pin" as const;
+      if (input.pin && !e.payslipPinHash) return "no-pin" as const;
       if (e.payslipPinLockedUntil && e.payslipPinLockedUntil > new Date()) return "locked" as const;
-      if (!(await verifyPassword(input.pin, e.payslipPinHash))) {
+      if (input.otp && (!e.payslipOtpHash || !e.payslipOtpExpires || e.payslipOtpExpires < new Date()))
+        return "otp-expired" as const;
+      const ok = input.otp
+        ? await verifyPassword(input.otp, e.payslipOtpHash!)
+        : await verifyPassword(input.pin!, e.payslipPinHash!);
+      if (!ok) {
         const failed = e.payslipPinFailed + 1;
         await tx
           .update(schema.employees)
           .set({
             payslipPinFailed: failed >= 5 ? 0 : failed,
-            ...(failed >= 5 ? { payslipPinLockedUntil: sql`now() + interval '15 minutes'` } : {}),
+            ...(failed >= 5
+              ? { payslipPinLockedUntil: sql`now() + interval '15 minutes'`, payslipOtpHash: null }
+              : {}),
           })
           .where(eq(schema.employees.id, e.id));
         return "wrong" as const;
       }
       await tx
         .update(schema.employees)
-        .set({ payslipPinFailed: 0, payslipUnlockedUntil: sql`now() + interval '15 minutes'` })
+        .set({
+          payslipPinFailed: 0,
+          payslipUnlockedUntil: sql`now() + interval '15 minutes'`,
+          // OTP sekali pakai.
+          ...(input.otp ? { payslipOtpHash: null, payslipOtpExpires: null } : {}),
+        })
         .where(eq(schema.employees.id, e.id));
       return "ok" as const;
     });
@@ -643,7 +696,10 @@ class PayrollController {
       throw new ForbiddenException(
         "PIN slip terkunci sementara; coba lagi nanti atau minta HR mengatur ulang",
       );
-    if (outcome === "wrong") throw fieldError("pin", "PIN slip salah");
+    if (outcome === "otp-expired")
+      throw fieldError("otp", "Kode OTP kedaluwarsa atau belum diminta; minta kode baru");
+    if (outcome === "wrong")
+      throw input.otp ? fieldError("otp", "Kode OTP salah") : fieldError("pin", "PIN slip salah");
     return { ok: true };
   }
 }

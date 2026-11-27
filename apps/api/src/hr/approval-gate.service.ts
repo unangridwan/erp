@@ -11,6 +11,8 @@ export const GATE_CATEGORIES = {
   movement: SYSTEM_APPROVAL_CATEGORIES.MUTASI.def,
   offer: SYSTEM_APPROVAL_CATEGORIES.PENAWARAN.def,
   advance: SYSTEM_APPROVAL_CATEGORIES.KASBON.def,
+  offboarding: SYSTEM_APPROVAL_CATEGORIES.OFFBOARD.def,
+  settlement: SYSTEM_APPROVAL_CATEGORIES.OFFBOARD.def,
 } as const;
 export type GateKind = keyof typeof GATE_CATEGORIES;
 
@@ -109,8 +111,10 @@ export class ApprovalGateService {
         payroll: schema.payrollSettings.payrollRunApproval,
         movement: schema.payrollSettings.movementApproval,
         offer: schema.payrollSettings.jobOfferApproval,
-        // Kasbon selalu lewat persetujuan.
+        // Kasbon selalu lewat persetujuan; persetujuan F&F diajukan manual.
         advance: sql<boolean>`true`,
+        offboarding: schema.payrollSettings.offboardingApproval,
+        settlement: sql<boolean>`true`,
       })
       .from(schema.payrollSettings)
       .where(eq(schema.payrollSettings.companyId, companyId));

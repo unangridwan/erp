@@ -1011,7 +1011,16 @@ export const probationDecisionSchema = z.object({
 const pin = z.string().regex(/^\d{6}$/, "PIN slip harus 6 digit angka");
 /** Atur/ubah PIN slip gaji (PIN lama wajib bila sudah ada). */
 export const payslipPinSchema = z.object({ pin, currentPin: pin.nullish() });
-export const payslipPinVerifySchema = z.object({ pin });
+/** Buka slip dengan PIN slip atau OTP 6 digit yang dikirim ke email akun (salah satu). */
+export const payslipPinVerifySchema = z
+  .object({
+    pin: pin.optional(),
+    otp: z
+      .string()
+      .regex(/^\d{6}$/, "Kode OTP 6 digit")
+      .optional(),
+  })
+  .refine((v) => !!v.pin !== !!v.otp, { path: ["pin"], message: "Isi PIN slip atau kode OTP" });
 
 export const PTKP_STATUS_VALUES = ["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"] as const;
 
@@ -1425,6 +1434,8 @@ export const payrollSettingsSchema = z.object({
   /** Persetujuan sebelum payroll run diposting / mutasi diterapkan / penawaran kerja dikirim. */
   payrollRunApproval: z.boolean().default(false),
   movementApproval: z.boolean().default(false),
+  /** Karyawan keluar wajib disetujui (kategori persetujuan OFFBOARD) sebelum diproses. */
+  offboardingApproval: z.boolean().default(false),
   jobOfferApproval: z.boolean().default(false),
   /** UU PDP: bulan sejak pelamar ditolak / lowongan ditutup sebelum dianonimkan (kosong = tidak otomatis). */
   applicantRetentionMonths: z.coerce.number().int().min(1).max(120).nullish(),

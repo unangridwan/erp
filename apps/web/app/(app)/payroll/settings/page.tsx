@@ -44,6 +44,7 @@ type Settings = Record<
   | "bp21NonEmployeeCode"
   | "payrollRunApproval"
   | "movementApproval"
+  | "offboardingApproval"
   | "jobOfferApproval"
   | "applicantRetentionMonths"
   | "payslipPinRequired",
@@ -97,6 +98,7 @@ export default function PayrollSettingsPage() {
           bp21NonEmployeeCode: s.bp21NonEmployeeCode ?? "",
           payrollRunApproval: s.payrollRunApproval ? "1" : "",
           movementApproval: s.movementApproval ? "1" : "",
+          offboardingApproval: s.offboardingApproval ? "1" : "",
           jobOfferApproval: s.jobOfferApproval ? "1" : "",
           applicantRetentionMonths: s.applicantRetentionMonths ? String(s.applicantRetentionMonths) : "",
           payslipPinRequired: s.payslipPinRequired ? "1" : "",
@@ -148,6 +150,7 @@ export default function PayrollSettingsPage() {
         bp21NonEmployeeCode,
         payrollRunApproval,
         movementApproval,
+        offboardingApproval,
         jobOfferApproval,
         applicantRetentionMonths,
         payslipPinRequired,
@@ -191,6 +194,7 @@ export default function PayrollSettingsPage() {
           bp21NonEmployeeCode: bp21NonEmployeeCode || null,
           payrollRunApproval: payrollRunApproval === "1",
           movementApproval: movementApproval === "1",
+          offboardingApproval: offboardingApproval === "1",
           jobOfferApproval: jobOfferApproval === "1",
           applicantRetentionMonths: applicantRetentionMonths ? Number(applicantRetentionMonths) : null,
           payslipPinRequired: payslipPinRequired === "1",
@@ -545,6 +549,13 @@ export default function PayrollSettingsPage() {
             [
               "jobOfferApproval",
               l("Penawaran kerja disetujui sebelum dikirim", "Job offers approved before sending"),
+            ],
+            [
+              "offboardingApproval",
+              l(
+                "Karyawan keluar (offboarding) disetujui sebelum diproses",
+                "Employee exits (offboarding) approved before processing",
+              ),
             ],
           ] as const
         ).map(([k, label]) => (

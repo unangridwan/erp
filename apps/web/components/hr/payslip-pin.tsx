@@ -8,6 +8,7 @@ import { toast } from "../feedback";
 interface PinStatus {
   required: boolean;
   hasPin: boolean;
+  otpAvailable?: boolean;
   unlocked: boolean;
   lockedUntil: string | null;
 }
@@ -23,6 +24,9 @@ export function PayslipPinGate({ onUnlocked }: { onUnlocked: () => void }) {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Cara kedua: kode OTP yang dikirim ke email akun (juga bila PIN lupa). */
+  const [otpSentTo, setOtpSentTo] = useState<string | null>(null);
+  const [otp, setOtp] = useState("");
   useEffect(() => {
     api<PinStatus>("/me/payslip-pin").then(setStatus, () => setStatus(null));
   }, []);
@@ -48,6 +52,30 @@ export function PayslipPinGate({ onUnlocked }: { onUnlocked: () => void }) {
     } catch (err) {
       setError(err instanceof ApiError ? (Object.values(err.fieldErrors)[0] ?? err.message) : String(err));
       api<PinStatus>("/me/payslip-pin").then(setStatus, () => undefined);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const sendOtp = async () => {
+    setError(null);
+    try {
+      const r = await api<{ sentTo: string }>("/me/payslip-pin/otp", { method: "POST" });
+      setOtpSentTo(r.sentTo);
+    } catch (err) {
+      setError(err instanceof ApiError ? (Object.values(err.fieldErrors)[0] ?? err.message) : String(err));
+    }
+  };
+  const verifyOtp = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await api("/me/payslip-pin/verify", { method: "POST", body: { otp } });
+      setOtp("");
+      setOtpSentTo(null);
+      onUnlocked();
+    } catch (err) {
+      setError(err instanceof ApiError ? (Object.values(err.fieldErrors)[0] ?? err.message) : String(err));
     } finally {
       setBusy(false);
     }
@@ -95,6 +123,42 @@ export function PayslipPinGate({ onUnlocked }: { onUnlocked: () => void }) {
           {status.hasPin ? l("Buka slip", "Open payslips") : l("Simpan PIN", "Save PIN")}
         </button>
       </div>
+      {status.otpAvailable && !otpSentTo && (
+        <p className="muted small">
+          {status.hasPin
+            ? l("Lupa PIN atau lebih suka kode sekali pakai?", "Forgot your PIN or prefer a one-time code?")
+            : l(
+                "Atau buka tanpa PIN dengan kode sekali pakai.",
+                "Or open without a PIN using a one-time code.",
+              )}{" "}
+          <button type="button" className="link" onClick={sendOtp}>
+            {l("Kirim kode OTP ke email", "Email me an OTP code")}
+          </button>
+        </p>
+      )}
+      {otpSentTo && (
+        <div className="payslip-pin-fields">
+          <label className="field">
+            <span>{l(`Kode OTP (dikirim ke ${otpSentTo})`, `OTP code (sent to ${otpSentTo})`)}</span>
+            <input
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ""))}
+            />
+          </label>
+          <button
+            type="button"
+            className="primary"
+            disabled={busy || otp.length !== 6}
+            onClick={(e) => verifyOtp(e as unknown as FormEvent)}
+          >
+            {l("Buka dengan OTP", "Open with OTP")}
+          </button>
+        </div>
+      )}
       {error && (
         <p className="error" role="alert">
           {error}

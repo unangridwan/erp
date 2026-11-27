@@ -887,6 +887,7 @@ class ContractsController {
     @Inject(ContractService) private readonly contracts: ContractService,
     @Inject(EmployeeService) private readonly employees: EmployeeService,
     @Inject(ContractDocumentService) private readonly documents: ContractDocumentService,
+    @Inject(ApprovalGateService) private readonly gate: ApprovalGateService,
   ) {}
 
   @Get()
@@ -1110,6 +1111,15 @@ class ContractsController {
         ...raw,
         dateEnd: raw.dateEnd ?? contract.dateEnd ?? businessToday(),
       });
+      // Persetujuan offboarding aktif: karyawan keluar diajukan dari panel Offboarding (diproses setelah disetujui).
+      if (
+        input.exit &&
+        !contract.endReason &&
+        (await this.gate.enabled(tx, contract.companyId, "offboarding"))
+      )
+        throw new BadRequestException(
+          "Persetujuan offboarding aktif: ajukan karyawan keluar dari panel Offboarding di data karyawan",
+        );
       await this.contracts.end(tx, id, input);
       return this.load(tx, id);
     });
