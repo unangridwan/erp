@@ -1,7 +1,9 @@
 "use client";
 
+import { OVERTIME_PP35_5_DAYS, type OvertimeRates } from "@erp/shared";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useOptions } from "../../../../components/accounting/use-options";
+import { OvertimeRatesEditor } from "../../../../components/payroll/overtime-rates";
 import { PayrollParametersPanel } from "../../../../components/payroll/parameters-panel";
 import { api, ApiError } from "../../../../lib/api";
 import { useI18n } from "../../../../lib/i18n";
@@ -20,6 +22,7 @@ type Settings = Record<
   | "journalId"
   | "timezone"
   | "employeeLoanAccountId"
+  | "employeeAdvanceAccountId"
   | "leaveApprovalLevels"
   | "overtimeApprovalLevels"
   | "casualFullBpjsMonths"
@@ -56,18 +59,23 @@ export default function PayrollSettingsPage() {
     "/salary-components",
   );
   const [form, setForm] = useState<Settings | null>(null);
+  const [rates, setRates] = useState<OvertimeRates>(OVERTIME_PP35_5_DAYS);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     api<Settings>("/payroll/settings")
-      .then((s) =>
+      .then((s) => {
+        setRates(
+          (s as unknown as { overtimeRates: OvertimeRates | null }).overtimeRates ?? OVERTIME_PP35_5_DAYS,
+        );
         setForm({
           ...s,
           jkkRate: String(Number(s.jkkRate)),
           kesWageCap: String(Number(s.kesWageCap)),
           jpWageCap: String(Number(s.jpWageCap)),
           employeeLoanAccountId: s.employeeLoanAccountId ?? "",
+          employeeAdvanceAccountId: s.employeeAdvanceAccountId ?? "",
           leaveApprovalLevels: String(s.leaveApprovalLevels),
           overtimeApprovalLevels: String(s.overtimeApprovalLevels),
           casualFullBpjsMonths: String(s.casualFullBpjsMonths),
@@ -92,8 +100,8 @@ export default function PayrollSettingsPage() {
           jobOfferApproval: s.jobOfferApproval ? "1" : "",
           applicantRetentionMonths: s.applicantRetentionMonths ? String(s.applicantRetentionMonths) : "",
           payslipPinRequired: s.payslipPinRequired ? "1" : "",
-        }),
-      )
+        });
+      })
       .catch((e: Error) => setError(e.message));
   }, []);
   useEffect(load, [load]);
@@ -118,6 +126,7 @@ export default function PayrollSettingsPage() {
         journalId,
         timezone,
         employeeLoanAccountId,
+        employeeAdvanceAccountId,
         leaveApprovalLevels,
         overtimeApprovalLevels,
         casualFullBpjsMonths,
@@ -159,6 +168,8 @@ export default function PayrollSettingsPage() {
           journalId,
           timezone,
           employeeLoanAccountId: employeeLoanAccountId || null,
+          employeeAdvanceAccountId: employeeAdvanceAccountId || null,
+          overtimeRates: rates,
           leaveApprovalLevels: Number(leaveApprovalLevels),
           overtimeApprovalLevels: Number(overtimeApprovalLevels),
           casualFullBpjsMonths: Number(casualFullBpjsMonths),
@@ -295,7 +306,15 @@ export default function PayrollSettingsPage() {
         )}
         {accountSelect(
           "employeeLoanAccountId",
-          l("Akun piutang karyawan (pinjaman/kasbon)", "Employee loan receivable account"),
+          l("Akun piutang karyawan (pinjaman)", "Employee loan receivable account"),
+          true,
+        )}
+        {accountSelect(
+          "employeeAdvanceAccountId",
+          l(
+            "Akun uang muka karyawan (kasbon; kosong = akun piutang karyawan)",
+            "Employee cash advance account (empty = loan receivable account)",
+          ),
           true,
         )}
         <label className="field">
@@ -434,6 +453,7 @@ export default function PayrollSettingsPage() {
             </label>
           </>
         )}
+        <OvertimeRatesEditor value={rates} onChange={setRates} />
         <label className="field">
           <span>{l("Tahap persetujuan klaim biaya", "Expense claim approval steps")}</span>
           <select value={form.expenseApprovalLevels} onChange={set("expenseApprovalLevels")}>

@@ -6,7 +6,12 @@ import {
   bpjsProgram,
   computePayslip,
   GROSS_UP_CODE,
+  overtimeMultiplier,
   overtimePay,
+  overtimePresetOf,
+  overtimeRatesSchema,
+  OVERTIME_PP35_5_DAYS,
+  OVERTIME_PP35_6_DAYS,
   pph21Annual,
   pph21Monthly,
   progressiveTax,
@@ -120,6 +125,36 @@ describe("lembur & hari kerja", () => {
   it("upah lembur PP 35/2021", () => {
     expect(overtimePay(3_460_000, 3, "workday")).toBe("110000");
     expect(overtimePay(3_460_000, 10, "rest_day")).toBe("460000");
+    expect(overtimePay(3_460_000, 0.5, "workday")).toBe("15000");
+  });
+  it("master tarif lembur: preset 6 hari kerja, tarif kustom, validasi", () => {
+    // Libur pola 6 hari: 7 × 2 + 1 × 3 + 2 × 4 = 25 jam upah.
+    expect(overtimePay(3_460_000, 10, "rest_day", OVERTIME_PP35_6_DAYS)).toBe("500000");
+    const custom = {
+      divisor: 200,
+      workday: [{ upToHour: null, multiplier: 2 }],
+      rest_day: [{ upToHour: null, multiplier: 3 }],
+    };
+    expect(overtimePay(4_000_000, 2, "workday", custom)).toBe("80000");
+    expect(overtimeMultiplier(1.5, OVERTIME_PP35_5_DAYS.workday).toNumber()).toBe(2.5);
+    expect(overtimePresetOf(null)).toBe("pp35_5");
+    expect(overtimePresetOf(OVERTIME_PP35_6_DAYS)).toBe("pp35_6");
+    expect(overtimePresetOf(custom)).toBe("custom");
+    expect(overtimeRatesSchema.safeParse(custom).success).toBe(true);
+    // Tingkat terakhir wajib tanpa batas; batas harus naik.
+    expect(
+      overtimeRatesSchema.safeParse({ ...custom, workday: [{ upToHour: 2, multiplier: 2 }] }).success,
+    ).toBe(false);
+    expect(
+      overtimeRatesSchema.safeParse({
+        ...custom,
+        workday: [
+          { upToHour: 3, multiplier: 1.5 },
+          { upToHour: 2, multiplier: 2 },
+          { upToHour: null, multiplier: 3 },
+        ],
+      }).success,
+    ).toBe(false);
   });
   it("hari kerja Senin–Jumat dikurangi libur", () => {
     expect(workingDays("2026-10-01", "2026-10-31")).toBe(22);

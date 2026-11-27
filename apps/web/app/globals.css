@@ -6177,3 +6177,40 @@ mark.mention {
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+
+/* Kasbon & tarif lembur */
+.advance-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+}
+.advance-summary dt {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.advance-summary dd {
+  margin: 0;
+  font-weight: 600;
+}
+.overtime-rate-tables {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.overtime-rate-tables table {
+  width: auto;
+  min-width: 14rem;
+}
+.overtime-rate-tables caption {
+  text-align: left;
+  font-weight: 600;
+  padding-bottom: 0.25rem;
+}
+.overtime-rate-tables input.num {
+  width: 6rem;
+}
+input.num.inline {
+  width: 8rem;
+  display: inline-block;
+}

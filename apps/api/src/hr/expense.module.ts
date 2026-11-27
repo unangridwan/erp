@@ -29,6 +29,9 @@ import {
   overtimeSchema,
   payClaimSchema,
   LIST_LOAD_LIMIT,
+  advanceDisburseSchema,
+  advanceSchema,
+  advanceSettleSchema,
 } from "@erp/shared";
 import type { Response } from "express";
 import { AccountingModule } from "../accounting/accounting.module.js";
@@ -44,6 +47,7 @@ import { ApprovalService } from "./approval.service.js";
 import { assertOvertimeAllowed } from "./contract-types.module.js";
 import { EmployeeService } from "./employee.service.js";
 import { ExpenseService } from "./expense.service.js";
+import { AdvanceService } from "./advance.service.js";
 import { HrModule } from "./hr.module.js";
 
 const ExpenseCategoriesController = createCrudController({
@@ -215,6 +219,79 @@ class ExpenseClaimsController {
   }
 }
 
+/** Kasbon (uang muka karyawan): karyawan sendiri (portal, `mine=1`) atau HR/payroll. */
+@Controller("employee-advances")
+class AdvancesController {
+  constructor(
+    @Inject(TenantDb) private readonly tenantDb: TenantDb,
+    @Inject(AdvanceService) private readonly advances: AdvanceService,
+  ) {}
+
+  @Get()
+  list(@Query() query: { employeeId?: string; state?: string; mine?: string }) {
+    return this.tenantDb.run(async (tx) => {
+      if (query.mine) {
+        const own = await this.advances.ownEmployeeId(tx);
+        if (!own)
+          throw new NotFoundException("Akun Anda belum terhubung dengan data karyawan di perusahaan ini");
+        return this.advances.list(tx, { employeeId: own, state: query.state });
+      }
+      const p = currentContext().permissions;
+      if (!hasPermission(p, "hr.read") && !hasPermission(p, "payroll.read"))
+        throw new ForbiddenException("Butuh permission hr.read");
+      return this.advances.list(tx, query);
+    });
+  }
+
+  @Get(":id")
+  get(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run(async (tx) => {
+      await this.advances.assertCanSee(tx, id);
+      return this.advances.get(tx, id);
+    });
+  }
+
+  @Post()
+  create(@Body() body: unknown) {
+    const input = parse(advanceSchema, body);
+    return this.tenantDb.run((tx) => this.advances.create(tx, input));
+  }
+
+  @Put(":id")
+  update(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(advanceSchema, body);
+    return this.tenantDb.run((tx) => this.advances.update(tx, id, input));
+  }
+
+  @Post(":id/submit")
+  @HttpCode(200)
+  submit(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.advances.submit(tx, id));
+  }
+
+  @Post(":id/cancel")
+  @HttpCode(200)
+  cancel(@Param("id", ParseUUIDPipe) id: string) {
+    return this.tenantDb.run((tx) => this.advances.cancel(tx, id));
+  }
+
+  @Post(":id/disburse")
+  @HttpCode(200)
+  @RequirePermission("payroll.manage")
+  disburse(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(advanceDisburseSchema, body);
+    return this.tenantDb.run((tx) => this.advances.disburse(tx, id, input));
+  }
+
+  @Post(":id/settle")
+  @HttpCode(200)
+  @RequirePermission("payroll.manage")
+  settle(@Param("id", ParseUUIDPipe) id: string, @Body() body: unknown) {
+    const input = parse(advanceSettleSchema, body);
+    return this.tenantDb.run((tx) => this.advances.settle(tx, id, input));
+  }
+}
+
 const CR = schema.employeeChangeRequests;
 
 /** Tampilan pengajuan perubahan data: nomor rekening dibuka hanya untuk hr.manage. */
@@ -323,8 +400,9 @@ class PortalExtrasController {
         annual_limit: string | null;
         grade_limit: string | null;
         used: string;
+        receipt_required: boolean;
       }>(sql`
-        select c.id, c.name, c.annual_limit::text,
+        select c.id, c.name, c.annual_limit::text, c.receipt_required,
           (select l.annual_limit::text from expense_category_limits l
             where l.category_id = c.id and l.grade_id = ${employee?.gradeId ?? null}::uuid) as grade_limit,
           (select coalesce(sum(cl.amount), 0)::text from expense_claim_lines cl
@@ -341,6 +419,7 @@ class PortalExtrasController {
           id: r.id,
           name: r.name,
           annualLimit,
+          receiptRequired: r.receipt_required,
           used: r.used,
           remaining:
             annualLimit === null ? null : Math.max(Number(annualLimit) - Number(r.used), 0).toFixed(2),
@@ -479,10 +558,11 @@ class PortalExtrasController {
     ExpenseCategoriesController,
     ExpenseCategoryLimitsController,
     ExpenseClaimsController,
+    AdvancesController,
     ChangeRequestsController,
     PortalExtrasController,
   ],
-  providers: [ActivityService, SequenceService, ExpenseService],
-  exports: [ExpenseService],
+  providers: [ActivityService, SequenceService, ExpenseService, AdvanceService],
+  exports: [ExpenseService, AdvanceService],
 })
 export class ExpenseModule {}

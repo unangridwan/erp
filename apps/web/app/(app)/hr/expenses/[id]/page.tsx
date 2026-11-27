@@ -23,6 +23,7 @@ interface Claim {
   description: string | null;
   state: string;
   payMethod: "payslip" | "cash";
+  advanceId: string | null;
   total: string;
   payslipId: string | null;
   move: { id: string; name: string | null } | null;
@@ -124,9 +125,15 @@ export default function ExpenseClaimPage() {
       <p className="muted">
         {formatDate(claim.date, locale)}
         {claim.description ? ` · ${claim.description}` : ""} ·{" "}
-        {claim.payMethod === "cash"
-          ? l("dibayar langsung dari kas/bank", "paid directly from cash/bank")
-          : l("dibayar bersama gaji", "paid with the payslip")}
+        {claim.advanceId ? (
+          <Link href={`/payroll/advances?id=${claim.advanceId}`}>
+            {l("pertanggungjawaban kasbon", "cash advance settlement")}
+          </Link>
+        ) : claim.payMethod === "cash" ? (
+          l("dibayar langsung dari kas/bank", "paid directly from cash/bank")
+        ) : (
+          l("dibayar bersama gaji", "paid with the payslip")
+        )}
         {claim.payslipId && (
           <>
             {" · "}
@@ -148,6 +155,7 @@ export default function ExpenseClaimPage() {
             date: claim.date,
             description: claim.description ?? "",
             payMethod: claim.payMethod,
+            advanceId: claim.advanceId ?? "",
             lines: claim.lines.map((x) => ({
               id: x.id,
               categoryId: x.categoryId,
@@ -251,34 +259,45 @@ export default function ExpenseClaimPage() {
           )}
         </>
       )}
-      {claim.state === "approved" && claim.payMethod === "cash" && can(me.permissions, "payroll.manage") && (
-        <div className="inline-panel">
-          <label className="field">
-            <span>{l("Bayar dari", "Pay from")}</span>
-            <select value={journalId} onChange={(e) => setJournalId(e.target.value)}>
-              <option value="">—</option>
-              {banks.map((j) => (
-                <option key={j.id} value={j.id}>
-                  {j.code} {j.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>{l("Tanggal", "Date")}</span>
-            <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
-          </label>
-          <button
-            type="button"
-            className="primary"
-            disabled={!journalId}
-            onClick={() => act("pay", { journalId, date: payDate })}
-          >
-            {l(`Bayar ${n(claim.total)}`, `Pay ${n(claim.total)}`)}
-          </button>
-        </div>
+      {claim.state === "approved" &&
+        !claim.advanceId &&
+        claim.payMethod === "cash" &&
+        can(me.permissions, "payroll.manage") && (
+          <div className="inline-panel">
+            <label className="field">
+              <span>{l("Bayar dari", "Pay from")}</span>
+              <select value={journalId} onChange={(e) => setJournalId(e.target.value)}>
+                <option value="">—</option>
+                {banks.map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {j.code} {j.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>{l("Tanggal", "Date")}</span>
+              <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+            </label>
+            <button
+              type="button"
+              className="primary"
+              disabled={!journalId}
+              onClick={() => act("pay", { journalId, date: payDate })}
+            >
+              {l(`Bayar ${n(claim.total)}`, `Pay ${n(claim.total)}`)}
+            </button>
+          </div>
+        )}
+      {claim.state === "approved" && claim.advanceId && (
+        <p className="notice">
+          {l(
+            "Klaim ini diselesaikan bersama kasbonnya (tidak dibayar terpisah).",
+            "This claim is settled together with its cash advance (not paid separately).",
+          )}
+        </p>
       )}
-      {claim.state === "approved" && claim.payMethod === "payslip" && (
+      {claim.state === "approved" && !claim.advanceId && claim.payMethod === "payslip" && (
         <p className="notice">
           {l(
             "Klaim akan dibayar otomatis pada payroll berikutnya (setelah payroll dihitung & diposting).",

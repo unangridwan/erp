@@ -1,4 +1,5 @@
 import { Decimal } from "decimal.js";
+import { z } from "zod";
 
 /**
  * Perhitungan payroll Indonesia (fungsi murni, tanpa I/O):
@@ -324,25 +325,120 @@ export const bpjsProgram = (code: string): "kes" | "tk" => (code.startsWith("BPJ
 
 export type OvertimeDay = "workday" | "rest_day";
 
-/**
- * Upah lembur (PP 35/2021, pola 5 hari kerja): upah sejam = 1/173 × upah sebulan.
- * Hari kerja: jam ke-1 × 1,5, berikutnya × 2. Hari istirahat/libur: jam 1–8 × 2, jam ke-9 × 3, jam 10–12 × 4.
- */
-export function overtimePay(monthlyWage: Decimal.Value, hours: Decimal.Value, day: OvertimeDay): string {
-  const hourly = d(monthlyWage).div(173);
+/** Satu tingkat tarif lembur: jam sampai `upToHour` (kumulatif, `null` = seterusnya) dikali `multiplier`. */
+export interface OvertimeTier {
+  upToHour: number | null;
+  multiplier: number;
+}
+
+/** Master tarif lembur perusahaan: pembagi upah sejam & tingkat pengali per jenis hari. */
+export interface OvertimeRates {
+  /** Upah sejam = upah sebulan ÷ pembagi (PP 35/2021: 173). */
+  divisor: number;
+  workday: OvertimeTier[];
+  rest_day: OvertimeTier[];
+}
+
+/** PP 35/2021 pola 5 hari kerja: hari kerja jam ke-1 × 1,5, berikutnya × 2; libur jam 1–8 × 2, ke-9 × 3, 10–12 × 4. */
+export const OVERTIME_PP35_5_DAYS: OvertimeRates = {
+  divisor: 173,
+  workday: [
+    { upToHour: 1, multiplier: 1.5 },
+    { upToHour: null, multiplier: 2 },
+  ],
+  rest_day: [
+    { upToHour: 8, multiplier: 2 },
+    { upToHour: 9, multiplier: 3 },
+    { upToHour: null, multiplier: 4 },
+  ],
+};
+
+/** PP 35/2021 pola 6 hari kerja: libur jam 1–7 × 2, ke-8 × 3, 9–11 × 4. */
+export const OVERTIME_PP35_6_DAYS: OvertimeRates = {
+  divisor: 173,
+  workday: OVERTIME_PP35_5_DAYS.workday,
+  rest_day: [
+    { upToHour: 7, multiplier: 2 },
+    { upToHour: 8, multiplier: 3 },
+    { upToHour: null, multiplier: 4 },
+  ],
+};
+
+export const OVERTIME_PRESETS = {
+  pp35_5: OVERTIME_PP35_5_DAYS,
+  pp35_6: OVERTIME_PP35_6_DAYS,
+} as const;
+export type OvertimePreset = keyof typeof OVERTIME_PRESETS;
+
+/** Preset yang sama persis dengan tarif tersimpan (atau `custom`). */
+export function overtimePresetOf(rates: OvertimeRates | null | undefined): OvertimePreset | "custom" {
+  const r = rates ?? OVERTIME_PP35_5_DAYS;
+  const same = (a: OvertimeRates) => JSON.stringify(a) === JSON.stringify(r);
+  return same(OVERTIME_PP35_5_DAYS) ? "pp35_5" : same(OVERTIME_PP35_6_DAYS) ? "pp35_6" : "custom";
+}
+
+const tiersSchema = z
+  .array(
+    z.object({
+      upToHour: z.number().positive().max(24).nullable(),
+      multiplier: z.number().min(1).max(10),
+    }),
+  )
+  .min(1)
+  .max(6)
+  .superRefine((tiers, ctx) => {
+    tiers.forEach((t, i) => {
+      const last = i === tiers.length - 1;
+      if (last && t.upToHour !== null)
+        ctx.addIssue({
+          code: "custom",
+          path: [i, "upToHour"],
+          message: "Tingkat terakhir harus tanpa batas jam",
+        });
+      if (!last && t.upToHour === null)
+        ctx.addIssue({
+          code: "custom",
+          path: [i, "upToHour"],
+          message: "Hanya tingkat terakhir yang tanpa batas",
+        });
+      const prev = i > 0 ? tiers[i - 1]!.upToHour : 0;
+      if (!last && prev !== null && t.upToHour !== null && t.upToHour <= prev)
+        ctx.addIssue({ code: "custom", path: [i, "upToHour"], message: "Batas jam harus naik berurutan" });
+    });
+  });
+
+export const overtimeRatesSchema = z.object({
+  divisor: z.number().min(1).max(400),
+  workday: tiersSchema,
+  rest_day: tiersSchema,
+});
+
+/** Total pengali untuk `hours` jam lembur menurut tingkat (kumulatif). */
+export function overtimeMultiplier(hours: Decimal.Value, tiers: OvertimeTier[]): Decimal {
   const h = d(hours);
-  let multiplier: Decimal;
-  if (day === "workday") {
-    multiplier = Decimal.min(h, 1)
-      .times(1.5)
-      .plus(Decimal.max(h.minus(1), 0).times(2));
-  } else {
-    multiplier = Decimal.min(h, 8)
-      .times(2)
-      .plus(Decimal.min(Decimal.max(h.minus(8), 0), 1).times(3))
-      .plus(Decimal.max(h.minus(9), 0).times(4));
+  let total = d(0);
+  let from = d(0);
+  for (const t of tiers) {
+    const to = t.upToHour === null ? h : Decimal.min(h, t.upToHour);
+    if (to.gt(from)) total = total.plus(to.minus(from).times(t.multiplier));
+    if (t.upToHour === null || h.lte(t.upToHour)) break;
+    from = d(t.upToHour);
   }
-  return rupiah(hourly.times(multiplier)).toFixed(0);
+  return total;
+}
+
+/**
+ * Upah lembur: upah sejam (upah sebulan ÷ pembagi) × total pengali tingkat jenis hari. Bawaan PP 35/2021 pola 5 hari
+ * kerja; perusahaan dapat mengatur tarifnya sendiri di pengaturan payroll.
+ */
+export function overtimePay(
+  monthlyWage: Decimal.Value,
+  hours: Decimal.Value,
+  day: OvertimeDay,
+  rates: OvertimeRates = OVERTIME_PP35_5_DAYS,
+): string {
+  const hourly = d(monthlyWage).div(rates.divisor);
+  return rupiah(hourly.times(overtimeMultiplier(hours, rates[day]))).toFixed(0);
 }
 
 /**
@@ -383,6 +479,8 @@ export interface PayslipInput {
   allowances: PayslipItem[];
   deductions: PayslipItem[];
   overtime: { hours: Decimal.Value; day: OvertimeDay }[];
+  /** Tarif lembur perusahaan (bawaan PP 35/2021 pola 5 hari kerja). */
+  overtimeRates?: OvertimeRates | null;
   unpaidDays: number;
   workingDays: number;
   status: PtkpStatus;
@@ -462,7 +560,10 @@ export function computePayslip(input: PayslipInput) {
     lines.push({ code: a.code, name: a.name, category: "allowance", amount: rupiah(d(a.amount)).toFixed(0) });
   }
   const grossUpAt = lines.length;
-  const overtime = input.overtime.reduce((s, o) => s.plus(overtimePay(baseWage, o.hours, o.day)), d(0));
+  const overtime = input.overtime.reduce(
+    (s, o) => s.plus(overtimePay(baseWage, o.hours, o.day, input.overtimeRates ?? undefined)),
+    d(0),
+  );
   if (overtime.gt(0))
     lines.push({ code: "OT", name: "Lembur", category: "overtime", amount: overtime.toFixed(0) });
   const absent =

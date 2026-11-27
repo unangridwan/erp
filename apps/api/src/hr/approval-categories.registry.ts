@@ -57,6 +57,19 @@ export const SYSTEM_APPROVAL_CATEGORIES = {
     usedBy: ["Penawaran kerja", "Job offers"],
     sequence: 910,
   },
+  KASBON: {
+    def: {
+      code: "KASBON",
+      name: "Kasbon Karyawan",
+      prefix: "KSB",
+      description:
+        "Persetujuan kasbon (uang muka karyawan) sebelum dicairkan: keperluan, jumlah, dan batas pertanggungjawaban.",
+      fields: amountDesc,
+    },
+    usedBy: ["Kasbon / uang muka karyawan", "Employee cash advances"],
+    sequence: 20,
+    managerFirst: true,
+  },
   KENAIKAN: {
     def: {
       code: "KENAIKAN",

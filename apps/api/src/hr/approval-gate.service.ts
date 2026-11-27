@@ -10,6 +10,7 @@ export const GATE_CATEGORIES = {
   payroll: SYSTEM_APPROVAL_CATEGORIES.PAYROLL.def,
   movement: SYSTEM_APPROVAL_CATEGORIES.MUTASI.def,
   offer: SYSTEM_APPROVAL_CATEGORIES.PENAWARAN.def,
+  advance: SYSTEM_APPROVAL_CATEGORIES.KASBON.def,
 } as const;
 export type GateKind = keyof typeof GATE_CATEGORIES;
 
@@ -39,6 +40,8 @@ export class ApprovalGateService {
       amount: string;
       quantity?: string;
       description: string;
+      /** Karyawan pemohon (bila diajukan HR atas nama karyawan): atasannya menjadi penyetuju pertama. */
+      employeeId?: string;
     },
   ) {
     const categoryId = await this.category(tx, companyId, kind);
@@ -53,6 +56,11 @@ export class ApprovalGateService {
       amount: doc.amount,
       description: doc.description,
     });
+    if (doc.employeeId)
+      await tx
+        .update(REQ)
+        .set({ employeeId: doc.employeeId, updatedAt: sql`now()` })
+        .where(eq(REQ.id, request.id));
     await this.engine.submit(tx, request.id);
     return request.id;
   }
@@ -101,6 +109,8 @@ export class ApprovalGateService {
         payroll: schema.payrollSettings.payrollRunApproval,
         movement: schema.payrollSettings.movementApproval,
         offer: schema.payrollSettings.jobOfferApproval,
+        // Kasbon selalu lewat persetujuan.
+        advance: sql<boolean>`true`,
       })
       .from(schema.payrollSettings)
       .where(eq(schema.payrollSettings.companyId, companyId));

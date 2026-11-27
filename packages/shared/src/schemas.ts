@@ -3,6 +3,7 @@ import { customValuesInput } from "./custom-fields.js";
 import { contractTypeCode } from "./contract-types.js";
 import { isValidPlate, normalizePlate } from "./fleet.js";
 import { ALL_PERMISSION_CODES } from "./rbac.js";
+import { overtimeRatesSchema } from "./payroll.js";
 import { ACCOUNT_RATING_VALUES, LEAD_STATUS_VALUES } from "./crm.js";
 import { FORECAST_CATEGORY_VALUES } from "./crm-forecast.js";
 import { CONSOLIDATION_METHODS, ENTITY_TYPES } from "./group.js";
@@ -1442,6 +1443,10 @@ export const payrollSettingsSchema = z.object({
   journalId: z.string().uuid(),
   timezone: z.string().trim().min(3).max(64).optional(),
   employeeLoanAccountId: z.string().uuid().nullish(),
+  /** Akun Uang Muka Karyawan (kasbon); kosong = akun piutang karyawan. */
+  employeeAdvanceAccountId: z.string().uuid().nullish(),
+  /** Master tarif lembur; kosong = PP 35/2021 pola 5 hari kerja. */
+  overtimeRates: overtimeRatesSchema.nullish(),
   leaveApprovalLevels: z.coerce.number().int().min(1).max(3).optional(),
   overtimeApprovalLevels: z.coerce.number().int().min(0).max(3).optional(),
   expenseApprovalLevels: z.coerce.number().int().min(1).max(3).optional(),
@@ -1472,6 +1477,8 @@ export const expenseCategorySchema = z.object({
   /** Plafon per karyawan per tahun (kosong = tanpa plafon). */
   annualLimit: nonNegative(2).nullish(),
   taxable: z.boolean().default(false),
+  /** Setiap baris klaim kategori ini wajib melampirkan bukti. */
+  receiptRequired: z.boolean().default(false),
   active: z.boolean().default(true),
 });
 
@@ -1500,6 +1507,8 @@ export const expenseClaimSchema = z.object({
   date: z.string().date(),
   description: z.string().trim().max(500).nullish(),
   payMethod: z.enum(["payslip", "cash"]).default("payslip"),
+  /** Pertanggungjawaban kasbon: klaim diselesaikan bersama kasbonnya, bukan dibayar sendiri. */
+  advanceId: z.string().uuid().nullish(),
   lines: z
     .array(
       z.object({

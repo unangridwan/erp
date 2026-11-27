@@ -385,6 +385,7 @@ export const APPS: App[] = [
     menu: [
       link("Proses Gaji", "Payslip Batches", "/payroll/runs", "payroll.read"),
       link("Pinjaman Karyawan", "Employee Loans", "/payroll/loans", "payroll.read"),
+      link("Kasbon Karyawan", "Cash Advances", "/payroll/advances", "payroll.read"),
       link("Biaya Tenaga Kerja", "Labour Cost", "/payroll/cost", "payroll.read"),
       link("Kenaikan Gaji", "Salary Review", "/payroll/compensation", "payroll.read"),
       link("Pembuat Laporan", "Report Builder", "/bi/reports", "payroll.read"),

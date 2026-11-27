@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../lib/api";
 import { today } from "../../lib/format";
 import { useI18n } from "../../lib/i18n";
@@ -20,7 +20,17 @@ export interface ClaimForm {
   date: string;
   description: string;
   payMethod: "payslip" | "cash";
+  /** Pertanggungjawaban kasbon (kosong = klaim biasa). */
+  advanceId?: string;
   lines: ClaimLineForm[];
+}
+
+interface OpenAdvance {
+  id: string;
+  name: string;
+  purpose: string;
+  amount: string;
+  settlementDate: string | null;
 }
 
 const emptyLine = (): ClaimLineForm => ({ categoryId: "", date: today(), amount: "", note: "" });
@@ -45,7 +55,7 @@ const readFile = (file: File) =>
  * `chooseEmployee` menampilkan pilihan karyawan (HR membuat klaim untuk orang lain).
  */
 export function ExpenseClaimForm(props: {
-  categories: { id: string; name: string; annualLimit?: string | null }[];
+  categories: { id: string; name: string; annualLimit?: string | null; receiptRequired?: boolean }[];
   initial?: ClaimForm;
   claimId?: string;
   chooseEmployee?: boolean;
@@ -56,6 +66,20 @@ export function ExpenseClaimForm(props: {
   const [form, setForm] = useState<ClaimForm>(props.initial ?? emptyClaim());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Kasbon terbuka (sudah dicairkan & belum diselesaikan) milik karyawan klaim.
+  const [advances, setAdvances] = useState<OpenAdvance[]>([]);
+  useEffect(() => {
+    const q = props.chooseEmployee
+      ? form.employeeId
+        ? `employeeId=${form.employeeId}&state=paid`
+        : null
+      : "mine=1&state=paid";
+    if (!q) return setAdvances([]);
+    api<OpenAdvance[]>(`/employee-advances?${q}`).then(
+      (rows) => setAdvances(rows.filter((a) => !a.settlementDate || a.id === form.advanceId)),
+      () => setAdvances([]),
+    );
+  }, [props.chooseEmployee, form.employeeId, form.advanceId]);
   const setLine = (i: number, patch: Partial<ClaimLineForm>) =>
     setForm((f) => ({ ...f, lines: f.lines.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
 
@@ -69,6 +93,7 @@ export function ExpenseClaimForm(props: {
         date: form.date,
         description: form.description || null,
         payMethod: form.payMethod,
+        advanceId: form.advanceId || null,
         lines: form.lines.map((x) => ({
           ...(x.id ? { id: x.id } : {}),
           categoryId: x.categoryId,
@@ -127,16 +152,36 @@ export function ExpenseClaimForm(props: {
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
           />
         </label>
-        <label className="field">
-          <span>{l("Dibayar", "Paid")}</span>
-          <select
-            value={form.payMethod}
-            onChange={(e) => setForm((f) => ({ ...f, payMethod: e.target.value as ClaimForm["payMethod"] }))}
-          >
-            <option value="payslip">{l("Bersama gaji berikutnya", "With the next payslip")}</option>
-            <option value="cash">{l("Langsung (kas/bank)", "Directly (cash/bank)")}</option>
-          </select>
-        </label>
+        {(advances.length > 0 || form.advanceId) && (
+          <label className="field">
+            <span>{l("Pertanggungjawaban kasbon", "Cash advance settlement")}</span>
+            <select
+              value={form.advanceId ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, advanceId: e.target.value }))}
+            >
+              <option value="">{l("— Bukan kasbon —", "— Not an advance —")}</option>
+              {advances.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} — {a.purpose}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {!form.advanceId && (
+          <label className="field">
+            <span>{l("Dibayar", "Paid")}</span>
+            <select
+              value={form.payMethod}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, payMethod: e.target.value as ClaimForm["payMethod"] }))
+              }
+            >
+              <option value="payslip">{l("Bersama gaji berikutnya", "With the next payslip")}</option>
+              <option value="cash">{l("Langsung (kas/bank)", "Directly (cash/bank)")}</option>
+            </select>
+          </label>
+        )}
       </div>
       <div className="table-scroll">
         <table className="lines">
@@ -164,6 +209,7 @@ export function ExpenseClaimForm(props: {
                     {props.categories.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
+                        {c.receiptRequired ? ` (${l("bukti wajib", "receipt required")})` : ""}
                       </option>
                     ))}
                   </select>

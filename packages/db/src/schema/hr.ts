@@ -642,6 +642,14 @@ export const payrollSettings = pgTable("payroll_settings", {
   journalId: uuid("journal_id").notNull(),
   timezone: text("timezone").notNull().default("Asia/Jakarta"),
   employeeLoanAccountId: uuid("employee_loan_account_id"),
+  /** Akun Uang Muka Karyawan (kasbon); kosong = akun piutang karyawan. */
+  employeeAdvanceAccountId: uuid("employee_advance_account_id"),
+  /** Master tarif lembur (`OvertimeRates`); kosong = PP 35/2021 pola 5 hari kerja. */
+  overtimeRates: jsonb("overtime_rates").$type<{
+    divisor: number;
+    workday: { upToHour: number | null; multiplier: number }[];
+    rest_day: { upToHour: number | null; multiplier: number }[];
+  } | null>(),
   leaveApprovalLevels: smallint("leave_approval_levels").notNull().default(1),
   overtimeApprovalLevels: smallint("overtime_approval_levels").notNull().default(0),
   casualFullBpjsMonths: smallint("casual_full_bpjs_months").notNull().default(3),
@@ -750,6 +758,7 @@ export const payslipLines = pgTable("payslip_lines", {
   componentId: uuid("component_id"),
   loanId: uuid("loan_id"),
   expenseClaimId: uuid("expense_claim_id"),
+  advanceId: uuid("advance_id"),
   benefitPlanId: uuid("benefit_plan_id"),
 });
 
@@ -827,6 +836,34 @@ export const employeeLoans = pgTable("employee_loans", {
   ...audit,
 });
 
+/** Kasbon (uang muka karyawan): ajukan → setujui → cairkan → pertanggungjawabkan dengan klaim → selesai. */
+export const employeeAdvances = pgTable("employee_advances", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: tenantId(),
+  companyId: uuid("company_id").notNull(),
+  employeeId: uuid("employee_id").notNull(),
+  name: text("name").notNull(),
+  date: date("date").notNull(),
+  purpose: text("purpose").notNull(),
+  amount: numeric("amount", { precision: 20, scale: 2 }).notNull(),
+  settleBy: date("settle_by").notNull(),
+  state: text("state", {
+    enum: ["draft", "confirm", "approved", "refused", "paid", "settled", "cancel"],
+  })
+    .notNull()
+    .default("draft"),
+  approvalRequestId: uuid("approval_request_id"),
+  disbursementDate: date("disbursement_date"),
+  disbursementMoveId: uuid("disbursement_move_id"),
+  settlementDate: date("settlement_date"),
+  settlementMoveId: uuid("settlement_move_id"),
+  remainderMethod: text("remainder_method", { enum: ["return", "payslip"] }),
+  remainder: numeric("remainder", { precision: 20, scale: 2 }).notNull().default("0"),
+  payslipId: uuid("payslip_id"),
+  createdBy: uuid("created_by"),
+  ...audit,
+});
+
 /** Hasil kerja borongan (satuan) per tanggal. */
 export const workEntries = pgTable("work_entries", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -873,6 +910,8 @@ export const expenseCategories = pgTable("expense_categories", {
   annualLimit: numeric("annual_limit", { precision: 20, scale: 2 }),
   /** Objek PPh 21 bila dibayar lewat slip gaji. */
   taxable: boolean("taxable").notNull().default(false),
+  /** Setiap baris klaim kategori ini wajib melampirkan bukti. */
+  receiptRequired: boolean("receipt_required").notNull().default(false),
   active: boolean("active").notNull().default(true),
   ...audit,
 });
@@ -896,6 +935,8 @@ export const expenseClaims = pgTable("expense_claims", {
   total: numeric("total", { precision: 20, scale: 2 }).notNull().default("0"),
   payslipId: uuid("payslip_id"),
   moveId: uuid("move_id"),
+  /** Pertanggungjawaban kasbon (diselesaikan bersama kasbonnya). */
+  advanceId: uuid("advance_id"),
   createdBy: uuid("created_by"),
   ...audit,
 });
